@@ -24,7 +24,6 @@ rust:
   - 'docs/fixtures/**'
   # These Markdown files are embedded in Rust API documentation/doctests.
   - 'README.md'
-  - 'bloq_lassynth/README.md'
   - 'docs/{guide,releasing}.md'
   - '!bloq_py/tests/**'
 

@@ -134,7 +134,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 :::
 ::::
 
-Rust applications enable the VM with `cargo add bloq@=0.1.0 --features vm`.
+Rust applications enable the VM with `cargo add bloq@=0.1.1 --features vm`.
 
 Lowering runs once per program. It resolves the IR into the VM's internal
 instruction stream: dense task, bit, qubit, and record

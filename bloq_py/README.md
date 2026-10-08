@@ -13,15 +13,15 @@ and CLI are `bloq`.
 Install the CLI from a released wheel with [uv](https://docs.astral.sh/uv/):
 
 ```sh
-uv tool install "bloq-py==0.1.0"
+uv tool install "bloq-py==0.1.1"
 bloq --help
 bloq compile --gallery cnot -d 3 -o cnot.stim
 ```
 
-For the Python API, use `uv add "bloq-py==0.1.0"` in your project or
-`pip install "bloq-py==0.1.0"`.
+For the Python API, use `uv add "bloq-py==0.1.1"` in your project or
+`pip install "bloq-py==0.1.1"`.
 Wheels include the same Rust CLI used by
-`cargo install bloq-cli --version 0.1.0 --locked`. No Rust installation is needed
+`cargo install bloq-cli --version 0.1.1 --locked`. No Rust installation is needed
 on platforms with a matching wheel. Source installs
 require the workspace Rust toolchain.
 

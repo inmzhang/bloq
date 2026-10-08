@@ -200,7 +200,7 @@ machete:
 
 [group('development')]
 cloc:
-    cloc bloq bloq_cli bloq_circuit bloq_compile bloq_vm bloq_editor bloq_graph bloq_ir bloq_stim bloq_test bloq_utils bloq_py bloq_lassynth xtask docs --exclude-ext svg --exclude-dir=.venv
+    cloc bloq bloq_cli bloq_circuit bloq_compile bloq_vm bloq_editor bloq_graph bloq_ir bloq_stim bloq_test bloq_utils bloq_py xtask docs --exclude-ext svg --exclude-dir=.venv
 
 # build + install bloq (editable) into the uv-managed bloq_py/.venv,
 # with locked dev dependencies

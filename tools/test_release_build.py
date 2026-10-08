@@ -31,6 +31,7 @@ class ReleaseBuildTests(unittest.TestCase):
             Path("/checkout"), Path("/builder"),
         )
         self.assertIn("/pathmap:/checkout=/bloq", shlex.split(env["CXXFLAGS"]))
+        self.assertIn("/experimental:deterministic", shlex.split(env["CXXFLAGS"]))
 
 
 if __name__ == "__main__":

@@ -22,7 +22,6 @@ create a wrapper around `bloq_ir`.
 | `bloq::stim` | Static emission, segments, and Stim/clifft text dialects |
 | `bloq::utils` | Pauli algebra, geometry vocabulary, and shared supporting types |
 | `bloq::vm` | Dynamic physical execution and verification; requires `vm` |
-| `bloq::synth` | Native fixed-box layout search from supported OpenQASM; requires `synth` |
 
 The [feature reference](../guide.md#cargo-feature-flags) lists the optional
 capabilities. Ordinary graph authoring, compilation, IR access, and Stim text

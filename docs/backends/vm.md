@@ -10,7 +10,7 @@ The [T–H–T–H example](thth.md) combines these features in one small comput
 ## Lower once, run many shots
 
 Python's `bloq` package includes the VM. Rust applications enable it with
-`cargo add bloq@=0.1.0 --features vm`.
+`cargo add bloq@=0.1.1 --features vm`.
 
 ::::{md-tab-set}
 :::{md-tab-item} Python

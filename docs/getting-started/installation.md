@@ -9,12 +9,12 @@ Do not install the unrelated PyPI distribution `bloq` in the same environment.
 ::::{md-tab-set}
 :::{md-tab-item} uv
 ```sh
-uv add "bloq-py==0.1.0"
+uv add "bloq-py==0.1.1"
 ```
 :::
 :::{md-tab-item} pip
 ```sh
-pip install "bloq-py==0.1.0"
+pip install "bloq-py==0.1.1"
 ```
 :::
 ::::
@@ -36,7 +36,7 @@ Otherwise, installation builds from source and requires Rust 1.95.0 or newer.
 Requires Rust 1.95.0 or newer. Add Bloq to your Cargo project:
 
 ```sh
-cargo add bloq@=0.1.0
+cargo add bloq@=0.1.1
 ```
 
 See [Cargo feature flags](../guide.md#cargo-feature-flags) for optional features.
@@ -46,17 +46,17 @@ See [Cargo feature flags](../guide.md#cargo-feature-flags) for optional features
 ::::{md-tab-set}
 :::{md-tab-item} uv
 ```sh
-uv tool install "bloq-py==0.1.0"
+uv tool install "bloq-py==0.1.1"
 ```
 :::
 :::{md-tab-item} cargo-binstall
 ```sh
-cargo binstall bloq-cli --version 0.1.0
+cargo binstall bloq-cli --version 0.1.1
 ```
 :::
 :::{md-tab-item} Cargo
 ```sh
-cargo install bloq-cli --version 0.1.0 --locked
+cargo install bloq-cli --version 0.1.1 --locked
 ```
 :::
 ::::
@@ -82,12 +82,12 @@ The browser editor requires **WebGPU** and a compatible GPU/driver.
 ::::{md-tab-set}
 :::{md-tab-item} cargo-binstall
 ```sh
-cargo binstall bloq_editor --version 0.1.0
+cargo binstall bloq_editor --version 0.1.1
 ```
 :::
 :::{md-tab-item} Cargo
 ```sh
-cargo install bloq_editor --version 0.1.0 --locked
+cargo install bloq_editor --version 0.1.1 --locked
 ```
 :::
 ::::
@@ -102,14 +102,14 @@ or use curl:
 
 | Platform | Download |
 | --- | --- |
-| Linux x86_64 | [tar.gz](https://github.com/inmzhang/bloq/releases/download/v0.1.0/bloq_editor-x86_64-unknown-linux-gnu.tar.gz) |
-| macOS ARM64 | [tar.gz](https://github.com/inmzhang/bloq/releases/download/v0.1.0/bloq_editor-aarch64-apple-darwin.tar.gz) |
-| Windows x86_64 | [zip](https://github.com/inmzhang/bloq/releases/download/v0.1.0/bloq_editor-x86_64-pc-windows-msvc.zip) |
+| Linux x86_64 | [tar.gz](https://github.com/inmzhang/bloq/releases/download/v0.1.1/bloq_editor-x86_64-unknown-linux-gnu.tar.gz) |
+| macOS ARM64 | [tar.gz](https://github.com/inmzhang/bloq/releases/download/v0.1.1/bloq_editor-aarch64-apple-darwin.tar.gz) |
+| Windows x86_64 | [zip](https://github.com/inmzhang/bloq/releases/download/v0.1.1/bloq_editor-x86_64-pc-windows-msvc.zip) |
 
 ::::{md-tab-set}
 :::{md-tab-item} Linux
 ```sh
-curl -fL https://github.com/inmzhang/bloq/releases/download/v0.1.0/bloq_editor-x86_64-unknown-linux-gnu.tar.gz -o bloq-editor.tar.gz
+curl -fL https://github.com/inmzhang/bloq/releases/download/v0.1.1/bloq_editor-x86_64-unknown-linux-gnu.tar.gz -o bloq-editor.tar.gz
 mkdir -p bloq-editor
 tar -xzf bloq-editor.tar.gz -C bloq-editor
 ./bloq-editor/bloq_editor
@@ -117,7 +117,7 @@ tar -xzf bloq-editor.tar.gz -C bloq-editor
 :::
 :::{md-tab-item} macOS
 ```sh
-curl -fL https://github.com/inmzhang/bloq/releases/download/v0.1.0/bloq_editor-aarch64-apple-darwin.tar.gz -o bloq-editor.tar.gz
+curl -fL https://github.com/inmzhang/bloq/releases/download/v0.1.1/bloq_editor-aarch64-apple-darwin.tar.gz -o bloq-editor.tar.gz
 mkdir -p bloq-editor
 tar -xzf bloq-editor.tar.gz -C bloq-editor
 ./bloq-editor/bloq_editor
@@ -125,7 +125,7 @@ tar -xzf bloq-editor.tar.gz -C bloq-editor
 :::
 :::{md-tab-item} Windows
 ```powershell
-curl.exe -fL https://github.com/inmzhang/bloq/releases/download/v0.1.0/bloq_editor-x86_64-pc-windows-msvc.zip -o bloq-editor.zip
+curl.exe -fL https://github.com/inmzhang/bloq/releases/download/v0.1.1/bloq_editor-x86_64-pc-windows-msvc.zip -o bloq-editor.zip
 Expand-Archive -Path bloq-editor.zip -DestinationPath bloq-editor
 .\bloq-editor\bloq_editor.exe
 ```
@@ -137,8 +137,7 @@ Expand-Archive -Path bloq-editor.zip -DestinationPath bloq-editor
 ### Prerequisites
 
 Depending on your platform, source builds may require a C/C++ toolchain and
-system libraries, including [libclang](https://rust-lang.github.io/rust-bindgen/requirements.html)
-for native SAT bindings and display/audio libraries for the desktop editor.
+system libraries, including display/audio libraries for the desktop editor.
 
 ### Checkout and development tools
 

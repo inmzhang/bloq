@@ -11,7 +11,6 @@ pub(crate) mod completion;
 pub(crate) mod emit;
 pub(crate) mod gallery;
 pub(crate) mod stats;
-pub(crate) mod synth;
 pub(crate) mod validate;
 pub(crate) mod view;
 

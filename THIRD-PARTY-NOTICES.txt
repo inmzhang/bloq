@@ -624,11 +624,6 @@ Declared license: MIT
 Declared authors: Ty Overby <ty@pre-alpha.com>; Francesco Mazzoli <f@mazzo.li>; David Tolnay <dtolnay@gmail.com>; Zoey Riordan <zoey@dos.cafe>
   [90d7e062634054e6866d3c81e6a2b3058a840e6af733e98e80bdfe1a7dec6912] bincode@1.3.3/LICENSE.md
 
-bindgen@0.72.1
-Declared license: BSD-3-Clause
-Declared authors: Jyun-Yan You <jyyou.tw@gmail.com>; Emilio Cobos Álvarez <emilio@crisal.io>; Nick Fitzgerald <fitzgen@gmail.com>; The Servo project developers
-  [c23953d9deb0a3312dbeaf6c128a657f3591acee45067612fa68405eaa4525db] bindgen@0.72.1/LICENSE
-
 bit-set@0.5.3
 Declared license: MIT/Apache-2.0
 Declared authors: Alexis Beingessner <a.beingessner@gmail.com>
@@ -767,12 +762,6 @@ Declared license: MIT OR Apache-2.0
   [143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4] cc@1.5.1/LICENSE-APACHE
   [378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397] cc@1.5.1/LICENSE-MIT
 
-cexpr@0.6.0
-Declared license: Apache-2.0/MIT
-Declared authors: Jethro Beekman <jethro@jbeekman.nl>
-  [143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4] cexpr@0.6.0/LICENSE-APACHE
-  [d9771b8c6cf4426d3846de54c1febe20907f1eeadf7adfb5ade89a83bd9ea77f] cexpr@0.6.0/LICENSE-MIT
-
 cfg-if@1.0.5
 Declared license: MIT OR Apache-2.0
 Declared authors: Alex Crichton <alex@alexcrichton.com>
@@ -820,11 +809,6 @@ ciborium-ll@0.2.2
 Declared license: Apache-2.0
 Declared authors: Nathaniel McCallum <npmccallum@profian.com>
   [50e6751797c50dedd75ef1b8a0d9e42f5f8472e9fbce91f34718e9f97b0c780a] ciborium-ll@0.2.2/LICENSE
-
-clang-sys@1.9.1
-Declared license: Apache-2.0
-Declared authors: Kyle Mayes <kyle@mayeses.com>
-  [50e6751797c50dedd75ef1b8a0d9e42f5f8472e9fbce91f34718e9f97b0c780a] clang-sys@1.9.1/LICENSE.txt
 
 clap@4.6.7
 Declared license: MIT OR Apache-2.0
@@ -981,12 +965,6 @@ Declared license: MIT OR Apache-2.0
 Declared authors: Jeremy Soller <jeremy@system76.com>
   [b07ae3da5c432331d0584e674cd77552cb001134c247786f2668e7917316aa7c] cosmic-text@0.17.2/LICENSE-APACHE
   [95557bafe728379e206f3b6d4aceeaa054d271c71d722411a6222e2dec01138c] cosmic-text@0.17.2/LICENSE-MIT
-
-cpu-time@1.0.0
-Declared license: MIT/Apache-2.0
-Declared authors: Paul Colomiets <paul@colomiets.name>
-  [a8ad31b1c3f40dca5a84119351b8fa8ddc868edd77fad8a8ebf6d8f2d16fa4ae] cpu-time@1.0.0/LICENSE-APACHE
-  [0d62ac2960a4d93b7513d8cb79c44e33e42311b70aba404724ca20e0b883de4b] cpu-time@1.0.0/LICENSE-MIT
 
 cpufeatures@0.3.1
 Declared license: MIT OR Apache-2.0
@@ -2113,13 +2091,6 @@ Declared authors: Dan Burkert <dan@danburkert.com>; Yevhenii Reizner <razrfalcon
   [688a07efeb906f5cc0666fd7c006fa577a0b44fc5e76a2df5072870d2cef878d] memmap2@0.9.11/LICENSE-APACHE
   [0d25d03b5ab49576178ad0cae7a2648d12c17ad0452fe49c07e55e4b59aa5257] memmap2@0.9.11/LICENSE-MIT
 
-minimal-lexical@0.2.1
-Declared license: MIT/Apache-2.0
-Declared authors: Alex Huszagh <ahuszagh@gmail.com>
-  [af975c9737b3bdcdcf7ec3512b3dc936f91cc58a3c9152a8e4b0803f667df6b9] minimal-lexical@0.2.1/LICENSE-APACHE
-  [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] minimal-lexical@0.2.1/LICENSE-MIT
-  [dbe1fff0fb1314b6af94f161511406275cf01c5a32441fbf24528a57a051d599] minimal-lexical@0.2.1/LICENSE.md
-
 miniz_oxide@0.8.9
 Declared license: MIT OR Zlib OR Apache-2.0
 Declared authors: Frommi <daniil.liferenko@gmail.com>; oyvindln <oyvindln@users.noreply.github.com>; Rich Geldreich richgel99@gmail.com
@@ -2200,11 +2171,6 @@ Declared license: Apache-2.0 OR MIT
 Declared authors: Parity Technologies <admin@parity.io>
   [50e6751797c50dedd75ef1b8a0d9e42f5f8472e9fbce91f34718e9f97b0c780a] nohash-hasher@0.2.0/LICENSE-APACHE
   [ec353d4fecf7963b4c054384557e5dbc3c7a717997eb4a3815b315721a6aa75a] nohash-hasher@0.2.0/LICENSE-MIT
-
-nom@7.1.3
-Declared license: MIT
-Declared authors: contact@geoffroycouprie.com
-  [4dbda04344456f09a7a588140455413a9ac59b6b26a1ef7cdf9c800c012d87f0] nom@7.1.3/LICENSE
 
 nom@8.0.0
 Declared license: MIT
@@ -3083,16 +3049,6 @@ Declared authors: RustPython Team; and the original authors of the vendored modu
   [62a9212f1709616735ce88125b914fa31441e6a670a35233fde1e92356e79464] rustpython-parser-vendored@0.4.0/src/source_location/LICENSE
   [45a3f0f4dbac89de1a2347e55f779c2494688bbca40011bd38b31137ba1f6bb9] rustpython-parser-vendored@0.4.0/src/text_size/LICENSE
 
-rustsat@0.7.5
-Declared license: MIT
-Declared authors: Christoph Jabs <christoph.jabs@helsinki.fi>
-  [887471376697a5b607408a460ab0a45cf92e02f5adcdacde071ba6e8d3feeb7f] rustsat@0.7.5/LICENSE
-
-rustsat-kissat@0.7.5
-Declared license: MIT
-Declared authors: Christoph Jabs <christoph.jabs@helsinki.fi>
-  [0dbd8c6478aa03f62d720ed2256cf585cb93eba657201be1df217c4e920f162d] rustsat-kissat@0.7.5/csrc/LICENSE
-
 rustversion@1.0.23
 Declared license: MIT OR Apache-2.0
 Declared authors: David Tolnay <dtolnay@gmail.com>
@@ -3184,12 +3140,6 @@ sharded-slab@0.1.7
 Declared license: MIT
 Declared authors: Eliza Weisman <eliza@buoyant.io>
   [eafbfa606bc005ed7fd2f623d65af17ffe4ef7c017221ac14405bf4140771ea9] sharded-slab@0.1.7/LICENSE
-
-shlex@1.3.0
-Declared license: MIT OR Apache-2.0
-Declared authors: comex <comexk@gmail.com>; Fenhl <fenhl@fenhl.net>; Adrian Taylor <adetaylor@chromium.org>; Alex Touchet <alextouchet@outlook.com>; Daniel Parks <dp+git@oxidized.org>; Garrett Berg <googberg@gmail.com>
-  [553fffcd9b1cb158bc3e9edc35da85ca5c3b3d7d2e61c883ebcfa8a65814b583] shlex@1.3.0/LICENSE-APACHE
-  [4455bf75a91154108304cb283e0fea9948c14f13e20d60887cf2552449dea3b1] shlex@1.3.0/LICENSE-MIT
 
 shlex@2.0.1
 Declared license: MIT OR Apache-2.0
@@ -5437,55 +5387,6 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
-
-
---- 0d62ac2960a4d93b7513d8cb79c44e33e42311b70aba404724ca20e0b883de4b ---
-
-Copyright (c) 2017 The cpu-time Developers
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-
---- 0dbd8c6478aa03f62d720ed2256cf585cb93eba657201be1df217c4e920f162d ---
-
-Copyright (c) 2021-2025 Armin Biere, University of Freiburg, Germany
-Copyright (c) 2025-2025 Mathias Fleury, University of Freiburg, Germany
-Copyright (c) 2025-2025 Florian Pollitt, University of Freiburg, Germany
-Copyright (c) 2019-2021 Armin Biere, Johannes Kepler University Linz, Austria
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
 
 
 --- 0dfeb72ba967794c4ea067b6e67798aefde4fd4cdb10f1882fe1163d2652434d ---
@@ -16172,30 +16073,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
---- 887471376697a5b607408a460ab0a45cf92e02f5adcdacde071ba6e8d3feeb7f ---
-
-Copyright (c) 2023-2024 Christoph Jabs <christoph.jabs@helsinki.fi>
-
-Permission is hereby granted, free of charge, to any person obtaining
-a copy of this software and associated documentation files (the
-"Software"), to deal in the Software without restriction, including
-without limitation the rights to use, copy, modify, merge, publish,
-distribute, sublicense, and/or sell copies of the Software, and to
-permit persons to whom the Software is furnished to do so, subject to
-the following conditions:
-
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-
 --- 8876cdca96eb380d16d5ea32bf4529d85e87dedc7765ae2861a9bec7f34acbed ---
 
 MIT No Attribution
@@ -20904,39 +20781,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
---- c23953d9deb0a3312dbeaf6c128a657f3591acee45067612fa68405eaa4525db ---
-
-BSD 3-Clause License
-
-Copyright (c) 2013, Jyun-Yan You
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-* Redistributions of source code must retain the above copyright notice, this
-  list of conditions and the following disclaimer.
-
-* Redistributions in binary form must reproduce the above copyright notice,
-  this list of conditions and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-* Neither the name of the copyright holder nor the names of its
-  contributors may be used to endorse or promote products derived from
-  this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-
 --- c30152c94a6d75e021adbc52b3a52470366a46edb917e17deae3259251af244c ---
 
 Copyright Mozilla Foundation
@@ -23016,35 +22860,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
---- d9771b8c6cf4426d3846de54c1febe20907f1eeadf7adfb5ade89a83bd9ea77f ---
-
-(C) Copyright 2016 Jethro G. Beekman
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-
-
 --- da23be69ad3ccf7a5823d62152efcd2b15de9482a5014fcb1b02844662d86abd ---
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -23093,47 +22908,6 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
-
-
---- dbe1fff0fb1314b6af94f161511406275cf01c5a32441fbf24528a57a051d599 ---
-
-Minimal-lexical is dual licensed under the Apache 2.0 license as well as the MIT
-license. See the LICENCE-MIT and the LICENCE-APACHE files for the licenses.
-
----
-
-`src/bellerophon.rs` is loosely based off the Golang implementation,
-found [here](https://github.com/golang/go/blob/b10849fbb97a2244c086991b4623ae9f32c212d0/src/strconv/extfloat.go).
-That code (used if the `compact` feature is enabled) is subject to a
-[3-clause BSD license](https://github.com/golang/go/blob/b10849fbb97a2244c086991b4623ae9f32c212d0/LICENSE):
-
-Copyright (c) 2009 The Go Authors. All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
-
-   * Redistributions of source code must retain the above copyright
-notice, this list of conditions and the following disclaimer.
-   * Redistributions in binary form must reproduce the above
-copyright notice, this list of conditions and the following disclaimer
-in the documentation and/or other materials provided with the
-distribution.
-   * Neither the name of Google Inc. nor the names of its
-contributors may be used to endorse or promote products derived from
-this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 --- dc0d97139e8205818c703741c7be7cb3b96888bd5917b8d6fc6133731e403c21 ---

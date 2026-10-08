@@ -27,7 +27,6 @@ changelog_include = [
   "bloq_editor",
   "bloq_graph",
   "bloq_ir",
-  "bloq_lassynth",
   "bloq_stim",
   "bloq_utils",
   "bloq_vm",

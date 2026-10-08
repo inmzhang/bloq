@@ -34,8 +34,7 @@
 //!
 //! Default features are empty, so library use pulls in no CLI dependencies.
 //! The separate `bloq-cli` package provides the `bloq` command-line binary
-//! and the shared runner used by Python. The `synth` feature exposes the optional
-//! native Rust port of Python LaSsynth. `vm` exposes physical execution. `gltf` and
+//! and the shared runner used by Python. `vm` exposes physical execution. `gltf` and
 //! `verify` forward to
 //! `bloq_graph/gltf` and `bloq_stim/verify` respectively. `graph-verify` exposes
 //! graph-level logical verification without requiring the native Stim backend.
@@ -45,8 +44,6 @@ pub use bloq_circuit as circuit;
 pub use bloq_compile as compile;
 pub use bloq_graph as graph;
 pub use bloq_ir as ir;
-#[cfg(feature = "synth")]
-pub use bloq_lassynth as synth;
 pub use bloq_stim as stim;
 pub use bloq_utils as utils;
 #[cfg(feature = "vm")]
@@ -109,9 +106,6 @@ pub mod prelude {
     pub use bloq_graph::prelude::*;
     #[doc(no_inline)]
     pub use bloq_ir::Bloq;
-    #[cfg(feature = "synth")]
-    #[doc(no_inline)]
-    pub use bloq_lassynth::{ComponentOptions, synthesize_qasm};
     #[doc(no_inline)]
     pub use bloq_stim::prelude::*;
 
@@ -210,20 +204,6 @@ mod tests {
         assert!(!result.artifact.discarded);
         assert!(!result.artifact.to_json()?.is_empty());
         Ok(())
-    }
-
-    #[cfg(feature = "synth")]
-    #[test]
-    fn facade_result_preserves_synthesis_failures() {
-        fn invalid_synthesis() -> Result<graph::BlockGraph> {
-            let problem = synth::SynthesisProblem::new(glam::IVec3::ZERO, [], []);
-            Ok(synth::synthesize(&problem)?)
-        }
-
-        assert!(matches!(
-            invalid_synthesis().unwrap_err().downcast_ref(),
-            Some(synth::SynthesisError::InvalidSize(glam::IVec3::ZERO))
-        ));
     }
 
     /// The two failure domains stay distinguishable: a bad distance is a

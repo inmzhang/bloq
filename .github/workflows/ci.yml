@@ -126,6 +126,32 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  windows:
+    name: Windows binaries
+    needs: changes
+    if: contains(needs.changes.outputs.checks, 'ci-rust')
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: '3.12'
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: bloq-windows-${{ runner.os }}-v1
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Remap native build paths
+        run: uv run --no-project python tools/release_build.py --github-env
+      - name: Build CLI and editor
+        run: cargo build --locked --release -p bloq-cli -p bloq_editor
+      - name: Check CLI
+        run: |
+          target/release/bloq.exe --version
+          target/release/bloq.exe compile --gallery cnot -d 3 --quiet -o target/cnot.stim
+
   web:
     name: Build Web Editor
     needs: changes
@@ -156,7 +182,7 @@ jobs:
 
   ci:
     name: CI
-    needs: [changes, checks, web]
+    needs: [changes, checks, windows, web]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

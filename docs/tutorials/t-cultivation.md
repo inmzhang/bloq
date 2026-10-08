@@ -38,7 +38,7 @@ $$
 Use Python 3.12 or newer and install Clifft and the GAP-enabled PyMatching build:
 
 ```sh
-uv add "bloq-py==0.1.0" clifft "pymatching @ git+https://github.com/inmzhang/PyMatching.git@de4bb3e0796c1c9873d3ed5d1704364db10592cb"
+uv add "bloq-py==0.1.1" clifft "pymatching @ git+https://github.com/inmzhang/PyMatching.git@de4bb3e0796c1c9873d3ed5d1704364db10592cb"
 ```
 
 The full script samples in batches and reports acceptance and infidelity for

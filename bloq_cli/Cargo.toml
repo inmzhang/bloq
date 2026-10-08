@@ -29,10 +29,8 @@ hotpath-alloc = ["hotpath/hotpath-alloc"]
 bloq_compile.workspace = true
 bloq_graph = { workspace = true, features = ["gltf"] }
 bloq_ir.workspace = true
-bloq_lassynth.workspace = true
 bloq_stim.workspace = true
 bloq_utils.workspace = true
-glam.workspace = true
 hotpath.workspace = true
 anstream.workspace = true
 anstyle.workspace = true

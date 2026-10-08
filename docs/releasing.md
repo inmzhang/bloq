@@ -58,12 +58,12 @@ set a separate Python version or replace inherited Cargo versions.
 The first stable release is `0.1.0`, tagged `v0.1.0`. Prepare subsequent stable
 versions in reviewed release PRs.
 
-| Surface | First stable version |
+| Surface | Current release |
 | --- | --- |
-| Cargo manifests and exact internal dependencies | `0.1.0` |
-| Git tag and GitHub release | `v0.1.0` |
-| Python wheel and source archive metadata | `0.1.0` |
-| `bloq.__version__` and CLI version | `0.1.0` |
+| Cargo manifests and exact internal dependencies | `0.1.1` |
+| Git tag and GitHub release | `v0.1.1` |
+| Python wheel and source archive metadata | `0.1.1` |
+| `bloq.__version__` and CLI version | `0.1.1` |
 
 Maturin converts SemVer into Python's version spelling automatically. Keep the
 shared Cargo version as the source of truth. Review release-plz's version and
@@ -73,9 +73,9 @@ requirements, and both Cargo lockfiles together.
 Python environments, local artifact builds, and PyPI uploads use uv. Maturin
 remains the Rust build backend; its CI action supplies the manylinux wheel build.
 
-`git_release_type = "auto"` creates a stable GitHub release for `0.1.0`.
+`git_release_type = "auto"` creates a stable GitHub release for `0.1.1`.
 `git_release_latest = true` makes it GitHub's Latest release. Version-specific
-binary links use `/releases/download/v0.1.0/`; links to the current stable
+binary links use `/releases/download/v0.1.1/`; links to the current stable
 binaries can use `/releases/latest/download/`.
 
 ## Configure the registries before the first upload
@@ -149,7 +149,11 @@ TestPyPI is optional and has separate accounts, project names, and publishers.
 The current PyPI workflow targets production; manual dispatch builds/tests only.
 Do not use a production tag push as a test upload while publishing is enabled.
 
-## Bootstrap the first stable release
+## Prepare and publish a release
+
+The examples below target `0.1.1`; replace that version when preparing a later
+release. The first-publication bootstrap applies only before a crate has been
+published. Subsequent releases use a reviewed release PR.
 
 Choose release-plz or [manual Cargo](#manual-cargo-publication) and
 [uv uploads](#manual-pypi-publication). For the fully manual route, keep
@@ -168,7 +172,7 @@ Review all three wheel jobs, the source-archive job, and downloaded artifacts.
 Keep artifacts from the chosen commit separate from old local builds. Run the
 full CI workflow and the website workflow with `publish=false` as well. Confirm
 license copies, package contents, typing files, dependency resolution, and the
-exact `0.1.0` version in artifact metadata.
+exact `0.1.1` version in artifact metadata.
 
 ### Release-plz publication
 
@@ -232,7 +236,6 @@ cargo publish -p bloq_utils --locked
 cargo publish -p bloq_circuit --locked
 cargo publish -p bloq_graph --locked
 cargo publish -p bloq_ir --locked
-cargo publish -p bloq_lassynth --locked
 cargo publish -p bloq_compile --locked
 cargo publish -p bloq_stim --locked
 cargo publish -p bloq-cli --locked
@@ -242,16 +245,16 @@ cargo publish -p bloq --locked
 ```
 
 Wait for registry indexing between dependent uploads. Do not publish `bloq_py`,
-`bloq_test`, or `xtask`. After all eleven crates and the Python uploads below are
-verified, create and push only the `v0.1.0` tag, then create the stable GitHub
+`bloq_test`, or `xtask`. After all ten crates and the Python uploads below are
+verified, create and push only the `v0.1.1` tag, then create the stable GitHub
 release. Prepare reviewed notes in a local file and pass them with `--notes-file`:
 
 ```sh
 mkdir -p target
 cp CHANGELOG.md target/release-notes.md
-git tag -a v0.1.0 -m "Bloq 0.1.0"
-git push origin refs/tags/v0.1.0
-gh release create v0.1.0 --repo inmzhang/bloq --verify-tag --latest --title "v0.1.0" --notes-file target/release-notes.md
+git tag -a v0.1.1 -m "Bloq 0.1.1"
+git push origin refs/tags/v0.1.1
+gh release create v0.1.1 --repo inmzhang/bloq --verify-tag --latest --title "v0.1.1" --notes-file target/release-notes.md
 ```
 
 Choose release-plz or the combined manual Cargo/PyPI route. Keep the tag fixed
@@ -265,14 +268,14 @@ run into a new directory. Replace `RUN_ID` in both the command and directory nam
 
 ```sh
 gh run view RUN_ID --repo inmzhang/bloq --json headSha,status,conclusion
-gh run download RUN_ID --repo inmzhang/bloq --name wheels-x86_64-unknown-linux-gnu --dir target/pypi-0.1.0-RUN_ID
-gh run download RUN_ID --repo inmzhang/bloq --name wheels-aarch64-apple-darwin --dir target/pypi-0.1.0-RUN_ID
-gh run download RUN_ID --repo inmzhang/bloq --name wheels-x86_64-pc-windows-msvc --dir target/pypi-0.1.0-RUN_ID
-gh run download RUN_ID --repo inmzhang/bloq --name sdist --dir target/pypi-0.1.0-RUN_ID
+gh run download RUN_ID --repo inmzhang/bloq --name wheels-x86_64-unknown-linux-gnu --dir target/pypi-0.1.1-RUN_ID
+gh run download RUN_ID --repo inmzhang/bloq --name wheels-aarch64-apple-darwin --dir target/pypi-0.1.1-RUN_ID
+gh run download RUN_ID --repo inmzhang/bloq --name wheels-x86_64-pc-windows-msvc --dir target/pypi-0.1.1-RUN_ID
+gh run download RUN_ID --repo inmzhang/bloq --name sdist --dir target/pypi-0.1.1-RUN_ID
 ```
 
-Expect three `bloq_py-0.1.0-cp310-abi3-*.whl` files (manylinux x86_64,
-macOS ARM64, Windows x86_64) and `bloq_py-0.1.0.tar.gz`. Inspect their metadata,
+Expect three `bloq_py-0.1.1-cp310-abi3-*.whl` files (manylinux x86_64,
+macOS ARM64, Windows x86_64) and `bloq_py-0.1.1.tar.gz`. Inspect their metadata,
 licenses, and contents; retain their SHA-256 hashes. Do not upload a mixed local
 `target/wheels/` directory or the local `linux_x86_64` wheel.
 
@@ -287,7 +290,7 @@ printf '\n'
 export UV_PUBLISH_TOKEN
 uv publish --trusted-publishing never --publish-url https://upload.pypi.org/legacy/ \
   --check-url https://pypi.org/simple --dry-run \
-  'target/pypi-0.1.0-RUN_ID/*.whl' 'target/pypi-0.1.0-RUN_ID/*.tar.gz'
+  'target/pypi-0.1.1-RUN_ID/*.whl' 'target/pypi-0.1.1-RUN_ID/*.tar.gz'
 ```
 
 The dry run does not upload files or prove registry authorization. After reviewing
@@ -296,7 +299,7 @@ it, upload those exact artifacts and clear the token from the shell:
 ```sh
 uv publish --trusted-publishing never --publish-url https://upload.pypi.org/legacy/ \
   --check-url https://pypi.org/simple \
-  'target/pypi-0.1.0-RUN_ID/*.whl' 'target/pypi-0.1.0-RUN_ID/*.tar.gz'
+  'target/pypi-0.1.1-RUN_ID/*.whl' 'target/pypi-0.1.1-RUN_ID/*.tar.gz'
 unset UV_PUBLISH_TOKEN
 ```
 
@@ -373,30 +376,30 @@ the release PR. Do not create a tag as a substitute for publishing its Rust
 package dependencies. The Python workflow verifies that the tag matches the
 shared Cargo version.
 
-## Verify the first upload and install the release
+## Verify uploads and install the release
 
-Confirm all eleven Rust packages list `0.1.0` under the expected owners,
-PyPI lists `bloq-py==0.1.0` with all supported wheels and the source archive,
+Confirm all ten Rust packages list `0.1.1` under the expected owners,
+PyPI lists `bloq-py==0.1.1` with all supported wheels and the source archive,
 and the GitHub release contains CLI/editor archives and checksums. Verify
 installation in a fresh environment, outside the source checkout:
 
 ```sh
 uv venv --python 3.10 target/release-install
-uv pip install --python target/release-install/bin/python --only-binary=:all: "bloq-py==0.1.0"
-target/release-install/bin/python -c "import bloq; assert bloq.__version__ == '0.1.0'"
+uv pip install --python target/release-install/bin/python --only-binary=:all: "bloq-py==0.1.1"
+target/release-install/bin/python -c "import bloq; assert bloq.__version__ == '0.1.1'"
 target/release-install/bin/bloq --version
 target/release-install/bin/bloq compile --gallery cnot -d 3 --quiet -o target/release-install/cnot.stim
-cargo install bloq-cli --version 0.1.0 --locked --root target/release-cargo-install
+cargo install bloq-cli --version 0.1.1 --locked --root target/release-cargo-install
 target/release-cargo-install/bin/bloq --version
 ```
 
 The venv and executable paths above are for Linux/macOS; on Windows use
 `Scripts/python.exe` and `Scripts/bloq.exe`. Users can add the Rust facade with
-`cargo add bloq@=0.1.0`, and install the Python CLI with
-`uv tool install "bloq-py==0.1.0"`. Explicit versions select the release without
+`cargo add bloq@=0.1.1`, and install the Python CLI with
+`uv tool install "bloq-py==0.1.1"`. Explicit versions select the release without
 accidentally installing a placeholder or an unrelated Python project.
 
-Website publication is separate. Use `release_tag=v0.1.0` and `make_stable=true`
+Website publication is separate. Use `release_tag=v0.1.1` and `make_stable=true`
 to build its retained documentation snapshot and stable alias. Review the website
 artifact with `publish=false` before publishing it. Set
 `RELEASE_PUBLISH_ENABLED=false` again if you want a manual hold until the next

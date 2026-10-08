@@ -6,7 +6,7 @@ then simulate and decode it with Stim and PyMatching.
 Install the tutorial's sampling dependencies in your Python project:
 
 ```sh
-uv add "bloq-py==0.1.0" stim pymatching
+uv add "bloq-py==0.1.1" stim pymatching
 ```
 
 ## Build the block graph

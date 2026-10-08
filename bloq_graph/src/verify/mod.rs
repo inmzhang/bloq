@@ -24,5 +24,5 @@ pub use diagram::{
 };
 pub use error::VerifyLogicalError;
 pub(crate) use parity::{MeasurementKey, stabilizer_supports_measurement};
-pub use qasm::{ParsedComponent, QasmError, parse_component, parse_qasm};
+pub use qasm::{QasmError, parse_qasm};
 pub(crate) use replay::{replay_fill, solve_evolved_correction};

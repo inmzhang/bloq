@@ -65,26 +65,26 @@ classical control.
 Install the CLI with Cargo:
 
 ```sh
-cargo install bloq-cli --version 0.1.0 --locked
+cargo install bloq-cli --version 0.1.1 --locked
 ```
 
 Or install the CLI in an isolated Python environment with `uv`
 (Python 3.10 or newer):
 
 ```sh
-uv tool install "bloq-py==0.1.0"
+uv tool install "bloq-py==0.1.1"
 ```
 
 For a Rust project:
 
 ```sh
-cargo add bloq@=0.1.0
+cargo add bloq@=0.1.1
 ```
 
 For a Python project (Python 3.10 or newer):
 
 ```sh
-pip install "bloq-py==0.1.0"
+pip install "bloq-py==0.1.1"
 ```
 
 The Python distribution is `bloq-py`; the import and CLI remain `bloq`.

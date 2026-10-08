@@ -298,65 +298,6 @@ impl PhasedPauliString {
         }
     }
 
-    /// Conjugates one column by the phase gate `S`: `SXS' = Y`, `SYS' = -X`.
-    pub fn conjugate_s(&mut self, column: usize) {
-        self.exchange_x_y(column, Pauli::Y);
-    }
-
-    /// Conjugates one column by the inverse phase gate `S^dagger`, which
-    /// exchanges the same axes as `S` but puts the minus sign on `X` instead.
-    pub fn conjugate_sdg(&mut self, column: usize) {
-        self.exchange_x_y(column, Pauli::X);
-    }
-
-    /// Swap `X` and `Y` on one column, negating when the column already held
-    /// `negated`. Both quarter turns about `Z` perform the same swap and
-    /// differ only in which of the two axes picks up the minus sign.
-    fn exchange_x_y(&mut self, column: usize, negated: Pauli) {
-        let pauli = self.paulis.get(column);
-        if pauli == negated {
-            self.shift_phase(2);
-        }
-        self.paulis.set(
-            column,
-            match pauli {
-                Pauli::X => Pauli::Y,
-                Pauli::Y => Pauli::X,
-                other => other,
-            },
-        );
-    }
-
-    /// Conjugates one column by `Z`.
-    pub fn conjugate_z(&mut self, column: usize) {
-        if matches!(self.paulis.get(column), Pauli::X | Pauli::Y) {
-            self.shift_phase(2);
-        }
-    }
-
-    /// Conjugates by a controlled-X from `control` to `target`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the columns are equal or either is out of bounds.
-    pub fn conjugate_cx(&mut self, control: usize, target: usize) {
-        assert_ne!(control, target, "controlled-X columns must be distinct");
-        let (control_pauli, target_pauli) = (self.paulis.get(control), self.paulis.get(target));
-        let (cx, cz) = (
-            matches!(control_pauli, Pauli::X | Pauli::Y),
-            matches!(control_pauli, Pauli::Z | Pauli::Y),
-        );
-        let (tx, tz) = (
-            matches!(target_pauli, Pauli::X | Pauli::Y),
-            matches!(target_pauli, Pauli::Z | Pauli::Y),
-        );
-        if cx && tz && (tx == cz) {
-            self.shift_phase(2);
-        }
-        self.paulis.set(control, Pauli::from_xz(cx, cz ^ tz));
-        self.paulis.set(target, Pauli::from_xz(tx ^ cx, tz));
-    }
-
     /// Returns the sign of a Hermitian operator (`true` means negative).
     pub const fn hermitian_sign(&self) -> Option<bool> {
         match self.phase {
@@ -675,12 +616,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "controlled-X columns must be distinct")]
-    fn controlled_x_rejects_equal_columns() {
-        PhasedPauliString::positive(PauliString::single(1, 0, Pauli::X)).conjugate_cx(0, 0);
-    }
-
-    #[test]
     fn support_statistics_cross_word_boundaries() {
         // 70 columns spans two u64 blocks; X, Y, and Z must each count once.
         let mut ps = PauliString::new(70);
@@ -803,19 +738,5 @@ mod tests {
         y.conjugate_h(0);
         assert_eq!(y.paulis.to_string(), "Y");
         assert_eq!(y.hermitian_sign(), Some(true));
-
-        let mut x = positive("X");
-        x.conjugate_s(0);
-        assert_eq!(x.paulis.to_string(), "Y");
-        assert_eq!(x.phase(), 0);
-        x.conjugate_sdg(0);
-        x.conjugate_z(0);
-        assert_eq!(x.paulis.to_string(), "X");
-        assert_eq!(x.phase(), 2);
-
-        let mut cross = positive("XZ");
-        cross.conjugate_cx(0, 1);
-        assert_eq!(cross.paulis.to_string(), "YY");
-        assert_eq!(cross.phase(), 2);
     }
 }

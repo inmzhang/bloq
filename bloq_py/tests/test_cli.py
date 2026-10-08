@@ -22,7 +22,6 @@ CLI = Path(sysconfig.get_path("scripts")) / ("bloq.exe" if os.name == "nt" else 
         ([], 2, "Usage: bloq"),
         (["--unknown"], 2, "unexpected argument"),
         (["compile", "--help"], 0, "--distance"),
-        (["synth", "--help"], 0, "--time-limit"),
         (["gallery"], 0, "cnot"),
         (["completion", "bash"], 0, "_bloq"),
         (["--gallery", "cnot", "-d", "4", "--quiet"], 1, "code distance"),

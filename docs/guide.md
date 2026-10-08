@@ -13,22 +13,21 @@ API; enabling one does not make compilation run extra verification automatically
 | `graph-verify` | Verify source logical maps and infer feedback using QuiZX, without native Stim bindings |
 | `verify` | Verify physical Clifford flows through `bloq::stim`; adds the native Stim dependency |
 | `vm` | Lower and execute physical IR through `bloq::vm`, including adaptive control and non-Clifford verification |
-| `synth` | Expose native-only `bloq::synth` for small-circuit layout search using Kissat |
 | `hotpath` | Enable compiler timing instrumentation |
 | `hotpath-alloc` | Enable allocation attribution for profiling |
 
 For example, add the physical verification simulator to a Cargo project:
 
 ```sh
-cargo add bloq@=0.1.0 --features vm
+cargo add bloq@=0.1.1 --features vm
 ```
 
 Combine features with a comma-separated list, such as `--features gltf,vm`.
 Features are additive: enabling `vm` does not select it as a default backend,
 and `verify` is not required to emit Stim text. Use `bloq::prelude::*` for common
-graph and compilation types, and explicit modules such as `bloq::vm` or
-`bloq::synth` for specialized workflows. The [Rust API](api/rust.md) describes the
-entry points and links to generated item documentation.
+graph and compilation types, and explicit modules such as `bloq::vm` for
+specialized workflows. The [Rust API](api/rust.md) describes the entry points
+and links to generated item documentation.
 
 ## Select the verification layer
 
@@ -48,7 +47,7 @@ logical map or sampled execution. See
 ## CLI, editor, and profiling
 
 These feature names belong to the Rust facade. The separate `bloq-cli` package
-includes its compilation, viewing, and synthesis commands without additional
+includes its compilation and viewing commands without additional
 feature flags. The editor's normal build provides graph viewing, compilation,
 and Stim text export. Its browser build uses WebGPU and does not include the
 native Stim verification bindings or VM engine.

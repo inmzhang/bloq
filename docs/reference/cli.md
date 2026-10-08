@@ -1,9 +1,8 @@
 # CLI Reference
 
 The `bloq` executable turns BLOG source into physical IR or Stim circuits. It also
-converts, validates, and inspects saved IR; renders source and dependency graphs;
-and synthesizes small layouts from OpenQASM. Native installations and the Python
-package use the same command runner. See
+converts, validates, and inspects saved IR and renders source and dependency
+graphs. Native installations and the Python package use the same command runner. See
 [installation](../getting-started/installation.md#cli) for package options.
 
 Use `bloq --help` or `bloq <command> --help` for the options supported by your
@@ -19,7 +18,6 @@ bloq emit [OPTIONS] <INPUT>
 bloq validate <INPUT>
 bloq stats <INPUT>
 bloq view [OPTIONS] [INPUT]
-bloq synth [OPTIONS] <INPUT>
 bloq gallery
 bloq completion <SHELL>
 ```
@@ -212,36 +210,6 @@ not a physical execution schedule.
 The IR SVG preserves region nesting and typed dependencies; it does not unroll
 retries or instantiate physical gates. Classical nodes are hidden unless
 `--include-classical` is given. SVG generation does not run a full IR audit.
-
-## Synthesize OpenQASM
-
-```sh
-bloq synth circuit.qasm --width 4 --height 3 --depth 8 -o layout.blog
-bloq synth circuit.qasm --time-limit 120 --print
-```
-
-| Option | Meaning |
-| --- | --- |
-| `--width` | Fixed spatial box width, default `5` |
-| `--height` | Fixed spatial box height, default `3` |
-| `--depth` | Fixed time depth, default `4` |
-| `--time-limit` | Cooperative synthesis budget in seconds, default `60` |
-| `--allow-spatial-hadamard` | Permit spatial Hadamard pipes in the search |
-| `-o, --output PATH` | Output BLOG; default replaces the input extension |
-| `-p, --print` | BLOG on stdout; conflicts with `--output` |
-
-This companion workflow simplifies a supported OpenQASM 2 Clifford+T circuit with QuiZX, constructs a signed surface table, and solves one fixed-box SAT problem.
-It does not place the source ZX topology or schedule magic-state factories.
-
-All box dimensions must be positive. The CLI places external input ports on the
-initial time face and output ports on the final time face, so each face must have
-enough sites for its ports. The box is exact: a failed search does not establish
-that the circuit has no layout in a larger box.
-
-The synthesis budget includes preprocessing and the SAT search. Deadline checks
-are cooperative; synchronous parsing, simplification, and reconstruction can run
-past a check, so `--time-limit` is not a hard command-return deadline.
-See the [synthesis crate](../../bloq_lassynth/README.md) for accepted operations and search restrictions.
 
 ## Gallery and completions
 

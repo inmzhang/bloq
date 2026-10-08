@@ -140,8 +140,4 @@ impl_from! {
     bloq_vm::decoder::DecoderError,
     #[cfg(feature = "vm")]
     serde_json::Error,
-    #[cfg(feature = "synth")]
-    bloq_lassynth::SynthesisError,
-    #[cfg(feature = "synth")]
-    bloq_lassynth::CliffordTError,
 }

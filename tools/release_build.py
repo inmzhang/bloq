@@ -26,6 +26,8 @@ def build_environment(environ, root, home):
     prefix = "/pathmap:" if msvc else "-ffile-prefix-map="
     for name in ("CFLAGS", "CXXFLAGS"):
         flags = shlex.split(env.get(name, ""))
+        if msvc:
+            flags.append("/experimental:deterministic")
         flags.extend(f"{prefix}{source}={dest}" for source, dest in mappings)
         env[name] = shlex.join(flags)
     return env

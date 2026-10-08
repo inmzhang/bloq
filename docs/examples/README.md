@@ -10,7 +10,7 @@ directory because they write the artifacts described below.
 Install the released packages:
 
 ```sh
-pip install "bloq-py==0.1.0"
+pip install "bloq-py==0.1.1"
 ```
 
 Run the downloaded scripts:
@@ -60,7 +60,7 @@ driver. Neither should be interpreted as a ready-to-run hardware schedule.
 
 ## Rust
 
-For a new application, use `cargo add bloq@=0.1.0`; add `--features vm`
+For a new application, use `cargo add bloq@=0.1.1`; add `--features vm`
 for both VM examples.
 Copy the selected `rust/*.rs` file to `src/main.rs` and run `cargo run`.
 

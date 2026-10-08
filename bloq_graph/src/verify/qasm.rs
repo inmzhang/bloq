@@ -10,50 +10,25 @@ use super::QuizxGraph;
 
 pub use bloq_utils::qasm::QasmError;
 
-/// A unitary Clifford+T component with explicit fixed boundary flags.
-#[derive(Debug, Clone)]
-pub struct ParsedComponent {
-    /// Unitary gates, with resets and terminal measurements removed.
-    pub circuit: Circuit,
-    /// Whether each circuit input has a leading reset.
-    pub reset_inputs: Vec<bool>,
-    /// Whether each circuit output is measured.
-    pub measured_outputs: Vec<bool>,
-}
-
-/// Parses a component while retaining reset and terminal-measurement flags.
+/// Parses the unitary part of an unconditional circuit.
 ///
-/// This synthesis-oriented view rejects conditional gates. Measurements must
-/// be the last operation on their respective wires, and resets must precede
-/// all gates and measurements on their respective wires. The richer shared
-/// parser is [`bloq_utils::qasm::parse_qasm`].
+/// Resets must precede gates and measurements on each wire, and measurements
+/// must be terminal. Both are removed from the returned circuit. Use
+/// [`super::LogicalVerifier`] to compare maps with classical branches.
 ///
 /// # Errors
 ///
 /// Returns a parse, boundary-order, or unsupported-conditional error.
-pub fn parse_component(source: &str) -> Result<ParsedComponent, QasmError> {
+pub fn parse_qasm(source: &str) -> Result<Circuit, QasmError> {
     let parsed = QasmCircuit::parse(source)?;
     if parsed.program.instructions().iter().any(|instruction| {
         matches!(instruction, QasmInstruction::Gate { condition, .. } if !condition.is_empty())
     }) {
         return Err(QasmError::Boundary(
-            "conditional operations are not supported by component synthesis".into(),
+            "conditional operations are not supported by unitary circuit parsing".into(),
         ));
     }
-    Ok(ParsedComponent {
-        circuit: parsed.unitary(&[]).to_basic_gates(),
-        reset_inputs: parsed.reset_inputs,
-        measured_outputs: parsed.measurements.iter().map(Option::is_some).collect(),
-    })
-}
-
-/// Parses the unitary part of an unconditional component.
-///
-/// # Errors
-///
-/// Returns the same parse and component-boundary errors as [`parse_component`].
-pub fn parse_qasm(source: &str) -> Result<Circuit, QasmError> {
-    Ok(parse_component(source)?.circuit)
+    Ok(parsed.unitary(&[]).to_basic_gates())
 }
 
 pub(super) struct QasmCircuit {
@@ -198,24 +173,20 @@ mod tests {
     use quizx::tensor::{CompareTensors, TensorF, ToTensor};
 
     #[test]
-    fn component_boundary_contract_survives_the_shared_parser() {
-        let parsed = parse_component(
-            "OPENQASM 2.0; qreg a[1]; qreg b[2]; reset a; barrier a,b; h a; t b[0];",
-        )
-        .unwrap();
-        assert_eq!(parsed.reset_inputs, [true, false, false]);
-        assert_eq!(parsed.measured_outputs, [false; 3]);
-        assert_eq!(parsed.circuit.num_qubits(), 3);
-        let measured =
-            parse_component("OPENQASM 2.0; qreg q[1]; creg c[1]; measure q -> c;").unwrap();
-        assert_eq!(measured.measured_outputs, [true]);
-        assert!(measured.circuit.gates.is_empty());
+    fn unitary_parser_checks_boundary_order_and_rejects_conditionals() {
+        let parsed =
+            parse_qasm("OPENQASM 2.0; qreg a[1]; qreg b[2]; reset a; barrier a,b; h a; t b[0];")
+                .unwrap();
+        assert_eq!(parsed.num_qubits(), 3);
+        let measured = parse_qasm("OPENQASM 2.0; qreg q[1]; creg c[1]; measure q -> c;").unwrap();
+        assert!(measured.gates.is_empty());
         for body in [
             "measure q -> c; x q;",
             "h q; reset q;",
             "measure q -> c; if(c==1) x q;",
+            "if(c==0) x q;",
         ] {
-            parse_component(&format!("OPENQASM 2.0; qreg q[1]; creg c[1]; {body}")).unwrap_err();
+            parse_qasm(&format!("OPENQASM 2.0; qreg q[1]; creg c[1]; {body}")).unwrap_err();
         }
     }
 

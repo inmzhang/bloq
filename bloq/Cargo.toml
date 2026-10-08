@@ -20,8 +20,6 @@ gltf = ["bloq_graph/gltf"]
 verify = ["bloq_stim/verify"]
 # Pure-Rust graph verification, independently usable without native Stim.
 graph-verify = ["bloq_graph/verify"]
-# Native-only companion Rust port of Python LaSsynth using Kissat.
-synth = ["dep:bloq_lassynth"]
 # Bloq IR execution, dynamic emulation, and physical verification.
 vm = ["dep:bloq_vm", "dep:serde_json"]
 # Opt-in profiling for the compiler pipeline.
@@ -33,7 +31,6 @@ bloq_circuit.workspace = true
 bloq_compile.workspace = true
 bloq_graph.workspace = true
 bloq_ir.workspace = true
-bloq_lassynth = { workspace = true, optional = true }
 bloq_stim.workspace = true
 bloq_vm = { workspace = true, optional = true }
 bloq_utils.workspace = true

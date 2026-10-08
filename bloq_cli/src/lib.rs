@@ -14,7 +14,6 @@ const ROOT_EXAMPLES: &str = "  bloq input.blog -d 5
   bloq input.blog -d 3,5 -o out.stim
   bloq compile --gallery cnot -d 5 --auto-fill
   bloq compile --gallery cnot -d 5 --fill 0
-  bloq synth input.qasm -o output.blog
   bloq view input.blog --gltf
   bloq gallery";
 
@@ -222,41 +221,6 @@ struct ValidateCmd {
 }
 
 #[derive(Debug, Args)]
-struct SynthCmd {
-    /// OpenQASM 2 input circuit
-    #[arg(value_hint = ValueHint::FilePath)]
-    input: PathBuf,
-
-    /// Fixed box width in cells
-    #[arg(long, default_value_t = 5)]
-    width: i32,
-
-    /// Fixed box height in cells
-    #[arg(long, default_value_t = 3)]
-    height: i32,
-
-    /// Fixed box time depth in cells
-    #[arg(long, default_value_t = 4)]
-    depth: i32,
-
-    /// SAT wall-clock limit in seconds
-    #[arg(long, default_value_t = 60)]
-    time_limit: u64,
-
-    /// Allow Hadamard-decorated spatial pipes
-    #[arg(long)]
-    allow_spatial_hadamard: bool,
-
-    /// Output BLOG path (defaults to the input path with a .blog extension)
-    #[arg(short, long, value_hint = ValueHint::FilePath)]
-    output: Option<PathBuf>,
-
-    /// Print BLOG to stdout instead of writing a file
-    #[arg(short = 'p', long, conflicts_with = "output")]
-    print: bool,
-}
-
-#[derive(Debug, Args)]
 struct EmitCmd {
     /// Saved Bloq IR program (`.bloqir` text or `.bloq` binary)
     #[arg(value_hint = ValueHint::FilePath)]
@@ -295,8 +259,6 @@ enum Commands {
     Validate(ValidateCmd),
     /// Print structural statistics for a saved Bloq IR program
     Stats(ValidateCmd),
-    /// Synthesize an OpenQASM 2 Clifford+T circuit into a block graph
-    Synth(SynthCmd),
     /// List the supported gallery block graphs
     Gallery,
     /// Generate shell completion scripts
@@ -435,15 +397,6 @@ fn execute(cli: Cli) -> eyre::Result<()> {
         )?,
         Some(Commands::Validate(cmd)) => commands::validate::run(&cmd.input, quiet)?,
         Some(Commands::Stats(cmd)) => commands::stats::run(&cmd.input)?,
-        Some(Commands::Synth(cmd)) => commands::synth::run(
-            &cmd.input,
-            cmd.output.as_deref(),
-            cmd.print,
-            glam::IVec3::new(cmd.width, cmd.height, cmd.depth),
-            std::time::Duration::from_secs(cmd.time_limit),
-            cmd.allow_spatial_hadamard,
-            quiet,
-        )?,
         Some(Commands::Gallery) => commands::gallery::run()?,
         Some(Commands::Completion { shell }) => {
             commands::completion::run(shell, build_cli())?;
@@ -604,34 +557,6 @@ mod tests {
         .expect("seeded proxy parses");
         assert!(cli.root.clifford_proxy);
         assert_eq!(cli.root.proxy_seed, Some(17));
-    }
-
-    #[test]
-    fn synth_subcommand_accepts_only_qasm_synthesis_options() {
-        let cli = parse(&[
-            "bloq",
-            "synth",
-            "circuit.qasm",
-            "--width",
-            "4",
-            "--height",
-            "3",
-            "--depth",
-            "9",
-            "--time-limit",
-            "30",
-            "--allow-spatial-hadamard",
-            "--print",
-        ])
-        .expect("parse synth subcommand");
-        let Some(Commands::Synth(cmd)) = cli.command else {
-            panic!("expected synth subcommand");
-        };
-        assert_eq!(cmd.input, PathBuf::from("circuit.qasm"));
-        assert_eq!((cmd.width, cmd.height, cmd.depth), (4, 3, 9));
-        assert_eq!(cmd.time_limit, 30);
-        assert!(cmd.allow_spatial_hadamard);
-        assert!(cmd.print);
     }
 
     #[test]

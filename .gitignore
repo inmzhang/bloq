@@ -54,7 +54,6 @@ testdata
 .DS_Store
 
 # Benchmark results stay local.
-/bloq_lassynth/benchmarks/results/
 
 # Python packaging: `maturin develop` drops the extension module into the
 # source tree; bytecode caches are per-interpreter noise. The generated
