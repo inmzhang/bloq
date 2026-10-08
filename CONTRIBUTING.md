@@ -52,6 +52,13 @@ Keep the human contributor as the commit author; credit AI tools with
 acknowledgement in the template. This policy is adapted from
 [Clifft's contribution guidelines](https://github.com/unitaryfoundation/clifft/blob/main/docs/development/contributing.md).
 
+## Documentation scope
+
+Keep experiment reports, implementation diaries, and evidence/claim-boundary
+writeups local; do not commit them to `main` or publish them on the website.
+Committed documentation should explain supported behavior, APIs, usage, and
+reproducible benchmarking procedures.
+
 ## Verification
 
 ```sh
