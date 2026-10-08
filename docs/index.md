@@ -126,8 +126,6 @@ Rust Feature Flags <guide>
 
 development/contributing
 development/benchmarks
-development/generic-module-scalability
-development/classical-storage
 releasing
 site-maintenance
 ```
