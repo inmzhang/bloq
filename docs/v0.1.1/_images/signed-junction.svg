@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 230" role="img" aria-labelledby="title desc">
+  <title id="title">Signed relations of a three-leg Z spider</title>
+  <desc id="desc">Three copies of one junction show XXX, ZZI, and YYX support. Multiplying the first two gives minus YYX.</desc>
+  <defs>
+    <style>
+      text { font-family: system-ui, sans-serif; fill: #25334b; }
+      .label { font-size: 23px; text-anchor: middle; }
+      .caption { font-size: 21px; font-weight: 600; text-anchor: middle; }
+      .leg { fill: none; stroke: #70859d; stroke-width: 3; }
+      .junction { fill: #eb6c36; stroke: #a9431e; stroke-width: 1.5; }
+    </style>
+  </defs>
+  <rect x="1" y="1" width="678" height="228" rx="12" fill="#f7f9fc" stroke="#d4dfeb"/>
+  <g transform="translate(105 107)">
+    <path class="leg" d="M0 0V-55 M0 0L-48 47 M0 0L48 47"/>
+    <circle class="junction" r="12"/>
+    <text class="label" x="0" y="-67">X₃</text>
+    <text class="label" x="-55" y="75">X₁</text>
+    <text class="label" x="55" y="75">X₂</text>
+    <text class="caption" x="0" y="103">g₁ = XXX</text>
+  </g>
+  <text class="caption" x="215" y="117">×</text>
+  <g transform="translate(330 107)">
+    <path class="leg" d="M0 0V-55 M0 0L-48 47 M0 0L48 47"/>
+    <circle class="junction" r="12"/>
+    <text class="label" x="0" y="-67">I₃</text>
+    <text class="label" x="-55" y="75">Z₁</text>
+    <text class="label" x="55" y="75">Z₂</text>
+    <text class="caption" x="0" y="103">g₂ = ZZI</text>
+  </g>
+  <text class="caption" x="445" y="117">=</text>
+  <g transform="translate(565 107)">
+    <path class="leg" d="M0 0V-55 M0 0L-48 47 M0 0L48 47"/>
+    <circle class="junction" r="12"/>
+    <text class="label" x="0" y="-67">X₃</text>
+    <text class="label" x="-55" y="75">Y₁</text>
+    <text class="label" x="55" y="75">Y₂</text>
+    <text class="caption" x="0" y="103">g₁g₂ = −YYX</text>
+  </g>
+</svg>

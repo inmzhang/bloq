@@ -1,0 +1,135 @@
+BLOG 1.0
+
+# Four modules cover two axes and signs; Z half turns reuse opposite arms.
+# Alternating +Y, +X, -Y, -X avoids overlapping transverse T arms.
+
+module RxPlusAtYPlus {
+in q_in: data = 0
+out q_out: data = 2
+0: Port [0, 0, 0] role=input <q_in>
+1: XZX [0, 0, 1]
+2: Port [0, 0, 2] role=output <q_out>
+3: T [0, 1, 0]
+4: XZZ [0, 1, 1]
+5: ZY [0, 1, 2]
+0 -> +Z
+1 -> +Z
+1 -> +Y
+3 -H> +Z
+4 -> +Z
+m = measure 1 -> +Y
+resolve 5 if !m
+feedback X 1 if m
+}
+
+module RxMinusAtYPlus {
+in q_in: data = 0
+out q_out: data = 2
+0: Port [0, 0, 0] role=input <q_in>
+1: XZX [0, 0, 1]
+2: Port [0, 0, 2] role=output <q_out>
+3: T [0, 1, 0]
+4: XZZ [0, 1, 1]
+5: YZ [0, 1, 2]
+0 -> +Z
+1 -> +Z
+1 -> +Y
+3 -H> +Z
+4 -> +Z
+m = measure 1 -> +Y
+resolve 5 if !m
+feedback X 1 if !m
+}
+
+module RzPlusAtXPlus {
+in q_in: data = 0
+out q_out: data = 2
+0: Port [0, 0, 0] role=input <q_in>
+1: XZZ [0, 0, 1]
+2: Port [0, 0, 2] role=output <q_out>
+3: T [1, 0, 0]
+4: XZX [1, 0, 1]
+5: XY [1, 0, 2]
+0 -> +Z
+1 -> +Z
+1 -> +X
+3 -> +Z
+4 -> +Z
+m = measure 1 -> +X
+resolve 5 if !m
+}
+
+module RzMinusAtXPlus {
+in q_in: data = 0
+out q_out: data = 2
+0: Port [0, 0, 0] role=input <q_in>
+1: XZZ [0, 0, 1]
+2: Port [0, 0, 2] role=output <q_out>
+3: T [1, 0, 0]
+4: XZX [1, 0, 1]
+5: YX [1, 0, 2]
+0 -> +Z
+1 -> +Z
+1 -> +X
+3 -> +Z
+4 -> +Z
+m = measure 1 -> +X
+resolve 5 if !m
+}
+
+module main {
+in q_in: data = 0
+out q_out: data = 2
+
+s00: RxPlusAtYPlus @ [0, 0, 0]
+s01: RzPlusAtXPlus @ [0, 0, 1]
+s02: RxPlusAtYPlus @ [0, 0, 2] rotate Z 180
+s03: RzPlusAtXPlus @ [0, 0, 3] rotate Z 180
+s04: RxMinusAtYPlus @ [0, 0, 4]
+s05: RzMinusAtXPlus @ [0, 0, 5]
+s06: RxMinusAtYPlus @ [0, 0, 6] rotate Z 180
+s07: RzMinusAtXPlus @ [0, 0, 7] rotate Z 180
+s08: RxMinusAtYPlus @ [0, 0, 8]
+s09: RzPlusAtXPlus @ [0, 0, 9]
+s10: RxMinusAtYPlus @ [0, 0, 10] rotate Z 180
+s11: RzMinusAtXPlus @ [0, 0, 11] rotate Z 180
+s12: RxPlusAtYPlus @ [0, 0, 12]
+s13: RzMinusAtXPlus @ [0, 0, 13]
+s14: RxMinusAtYPlus @ [0, 0, 14] rotate Z 180
+s15: RzPlusAtXPlus @ [0, 0, 15] rotate Z 180
+s16: RxMinusAtYPlus @ [0, 0, 16]
+s17: RzPlusAtXPlus @ [0, 0, 17]
+s18: RxPlusAtYPlus @ [0, 0, 18] rotate Z 180
+s19: RzMinusAtXPlus @ [0, 0, 19] rotate Z 180
+s20: RxPlusAtYPlus @ [0, 0, 20]
+s21: RzPlusAtXPlus @ [0, 0, 21]
+
+0: Port [0, 0, 0] role=input <q_in>
+1: ZXZ [0, 0, 23]
+2: Port [0, 0, 24] role=output <q_out>
+
+0 -> s00.q_in
+s00.q_out -> s01.q_in
+s01.q_out -> s02.q_in
+s02.q_out -> s03.q_in
+s03.q_out -> s04.q_in
+s04.q_out -> s05.q_in
+s05.q_out -> s06.q_in
+s06.q_out -> s07.q_in
+s07.q_out -> s08.q_in
+s08.q_out -> s09.q_in
+s09.q_out -> s10.q_in
+s10.q_out -> s11.q_in
+s11.q_out -> s12.q_in
+s12.q_out -> s13.q_in
+s13.q_out -> s14.q_in
+s14.q_out -> s15.q_in
+s15.q_out -> s16.q_in
+s16.q_out -> s17.q_in
+s17.q_out -> s18.q_in
+s18.q_out -> s19.q_in
+s19.q_out -> s20.q_in
+s20.q_out -> s21.q_in
+s21.q_out -H> 1
+1 -> 2
+}

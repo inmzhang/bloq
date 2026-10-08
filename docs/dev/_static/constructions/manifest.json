@@ -1,0 +1,4079 @@
+{
+  "distance": 5,
+  "stim_version": "1.16.0",
+  "bloq_version": "0.1.0-alpha.1",
+  "description": "Diagrams show selected moments of complete noiseless compiled circuits; all undisplayed rounds remain in detector propagation.",
+  "examples": [
+    {
+      "name": "spatial-zzx-isolated",
+      "family": "spatial",
+      "source": "spatial-zzx-isolated.blog",
+      "stim": "spatial-zzx-isolated.stim",
+      "svg": "spatial-zzx-isolated.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZZX [0,0,0]\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "fa578e2865710493d5699811b7408e2b569682c0e7fb61b383c911082b6e1315",
+      "ticks": 35,
+      "measurements": 143,
+      "detectors": 112,
+      "stages": [
+        {
+          "label": "Initialization round",
+          "tick_start": 0,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 14,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Final measurement round",
+          "tick_start": 28,
+          "tick_stop": 35,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The complete minimal connected component is shown, including regular endpoint patches required by the arms."
+      ]
+    },
+    {
+      "name": "spatial-zzx-one-arm",
+      "family": "spatial",
+      "source": "spatial-zzx-one-arm.blog",
+      "stim": "spatial-zzx-one-arm.stim",
+      "svg": "spatial-zzx-one-arm.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZZX [0,0,0]\n  1: XZX [1,0,0]\n  0 -> 1\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "9a28a7d2a62109b5aa8c60534316aba2075471bcef768b61d24797acd69be503",
+      "ticks": 36,
+      "measurements": 324,
+      "detectors": 260,
+      "stages": [
+        {
+          "label": "Initialization round",
+          "tick_start": 0,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 14,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Final measurement round",
+          "tick_start": 29,
+          "tick_stop": 36,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The complete minimal connected component is shown, including regular endpoint patches required by the arms."
+      ]
+    },
+    {
+      "name": "spatial-zzx-straight",
+      "family": "spatial",
+      "source": "spatial-zzx-straight.blog",
+      "stim": "spatial-zzx-straight.stim",
+      "svg": "spatial-zzx-straight.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZZX [0,0,0]\n  1: XZX [1,0,0]\n  0 -> 1\n  2: XZX [-1,0,0]\n  0 -> 2\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "a12a9a540d3dd36ca006272c5f9d581cd73d3ffcbfde9c35dbb63fa30273a892",
+      "ticks": 31,
+      "measurements": 505,
+      "detectors": 408,
+      "stages": [
+        {
+          "label": "Initialization round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Final measurement round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The complete minimal connected component is shown, including regular endpoint patches required by the arms.",
+        "This straight-through junction compiles to a compact four-CNOT-slot schedule."
+      ]
+    },
+    {
+      "name": "spatial-zzx-elbow",
+      "family": "spatial",
+      "source": "spatial-zzx-elbow.blog",
+      "stim": "spatial-zzx-elbow.stim",
+      "svg": "spatial-zzx-elbow.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZZX [0,0,0]\n  1: XZX [1,0,0]\n  0 -> 1\n  2: ZXX [0,-1,0]\n  0 -> 2\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "24db71e9043d62de5f725bb0c68862fb48ba4196bbcaa96ba247961873f9104f",
+      "ticks": 36,
+      "measurements": 499,
+      "detectors": 404,
+      "stages": [
+        {
+          "label": "Initialization round",
+          "tick_start": 0,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 14,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Final measurement round",
+          "tick_start": 29,
+          "tick_stop": 36,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The complete minimal connected component is shown, including regular endpoint patches required by the arms."
+      ]
+    },
+    {
+      "name": "spatial-zzx-tee",
+      "family": "spatial",
+      "source": "spatial-zzx-tee.blog",
+      "stim": "spatial-zzx-tee.stim",
+      "svg": "spatial-zzx-tee.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZZX [0,0,0]\n  1: XZX [1,0,0]\n  0 -> 1\n  2: XZX [-1,0,0]\n  0 -> 2\n  3: ZXX [0,-1,0]\n  0 -> 3\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "072bac5b2ad44992b832ada7de9a3343f3c171538aaf1350db4539e228b439f4",
+      "ticks": 36,
+      "measurements": 680,
+      "detectors": 552,
+      "stages": [
+        {
+          "label": "Initialization round",
+          "tick_start": 0,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 14,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Final measurement round",
+          "tick_start": 29,
+          "tick_stop": 36,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The complete minimal connected component is shown, including regular endpoint patches required by the arms."
+      ]
+    },
+    {
+      "name": "spatial-zzx-cross",
+      "family": "spatial",
+      "source": "spatial-zzx-cross.blog",
+      "stim": "spatial-zzx-cross.stim",
+      "svg": "spatial-zzx-cross.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZZX [0,0,0]\n  1: XZX [1,0,0]\n  0 -> 1\n  2: XZX [-1,0,0]\n  0 -> 2\n  3: ZXX [0,1,0]\n  0 -> 3\n  4: ZXX [0,-1,0]\n  0 -> 4\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "7c481ef784e3284793c4a97300a36840ccf81e79e776861dcabf865cb44d6ae8",
+      "ticks": 36,
+      "measurements": 855,
+      "detectors": 696,
+      "stages": [
+        {
+          "label": "Initialization round",
+          "tick_start": 0,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 14,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Final measurement round",
+          "tick_start": 29,
+          "tick_stop": 36,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The complete minimal connected component is shown, including regular endpoint patches required by the arms."
+      ]
+    },
+    {
+      "name": "spatial-xxz-isolated",
+      "family": "spatial",
+      "source": "spatial-xxz-isolated.blog",
+      "stim": "spatial-xxz-isolated.stim",
+      "svg": "spatial-xxz-isolated.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XXZ [0,0,0]\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "1b698d9926f7c7657f2a421b7cd0de1d5b121fccd7b0063a928e4ad6e52bdff7",
+      "ticks": 35,
+      "measurements": 143,
+      "detectors": 112,
+      "stages": [
+        {
+          "label": "Initialization round",
+          "tick_start": 0,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 14,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Final measurement round",
+          "tick_start": 28,
+          "tick_stop": 35,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The complete minimal connected component is shown, including regular endpoint patches required by the arms."
+      ]
+    },
+    {
+      "name": "spatial-xxz-one-arm",
+      "family": "spatial",
+      "source": "spatial-xxz-one-arm.blog",
+      "stim": "spatial-xxz-one-arm.stim",
+      "svg": "spatial-xxz-one-arm.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XXZ [0,0,0]\n  1: ZXZ [1,0,0]\n  0 -> 1\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "036a58e41c1c3f92891b17fc1e3ab3a44623e872a178f517f4b5608795d56be6",
+      "ticks": 36,
+      "measurements": 324,
+      "detectors": 260,
+      "stages": [
+        {
+          "label": "Initialization round",
+          "tick_start": 0,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 14,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Final measurement round",
+          "tick_start": 29,
+          "tick_stop": 36,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The complete minimal connected component is shown, including regular endpoint patches required by the arms."
+      ]
+    },
+    {
+      "name": "spatial-xxz-straight",
+      "family": "spatial",
+      "source": "spatial-xxz-straight.blog",
+      "stim": "spatial-xxz-straight.stim",
+      "svg": "spatial-xxz-straight.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XXZ [0,0,0]\n  1: ZXZ [1,0,0]\n  0 -> 1\n  2: ZXZ [-1,0,0]\n  0 -> 2\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "9735795bf0e19d1f2f036f4dd392d458acbda3af08dd1ee2a48fa5132cbec13e",
+      "ticks": 31,
+      "measurements": 505,
+      "detectors": 408,
+      "stages": [
+        {
+          "label": "Initialization round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Final measurement round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The complete minimal connected component is shown, including regular endpoint patches required by the arms.",
+        "This straight-through junction compiles to a compact four-CNOT-slot schedule."
+      ]
+    },
+    {
+      "name": "spatial-xxz-elbow",
+      "family": "spatial",
+      "source": "spatial-xxz-elbow.blog",
+      "stim": "spatial-xxz-elbow.stim",
+      "svg": "spatial-xxz-elbow.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XXZ [0,0,0]\n  1: ZXZ [1,0,0]\n  0 -> 1\n  2: XZZ [0,-1,0]\n  0 -> 2\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "b00157115085021588370e52ba19a678fd6eb9f3d54d8d12a0afdced4b3066de",
+      "ticks": 36,
+      "measurements": 505,
+      "detectors": 408,
+      "stages": [
+        {
+          "label": "Initialization round",
+          "tick_start": 0,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 14,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Final measurement round",
+          "tick_start": 29,
+          "tick_stop": 36,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The complete minimal connected component is shown, including regular endpoint patches required by the arms."
+      ]
+    },
+    {
+      "name": "spatial-xxz-tee",
+      "family": "spatial",
+      "source": "spatial-xxz-tee.blog",
+      "stim": "spatial-xxz-tee.stim",
+      "svg": "spatial-xxz-tee.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XXZ [0,0,0]\n  1: ZXZ [1,0,0]\n  0 -> 1\n  2: ZXZ [-1,0,0]\n  0 -> 2\n  3: XZZ [0,-1,0]\n  0 -> 3\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "7800c480311ad85115eca06013b69934687b42052faf93d8cac7c81a113bdbba",
+      "ticks": 36,
+      "measurements": 680,
+      "detectors": 552,
+      "stages": [
+        {
+          "label": "Initialization round",
+          "tick_start": 0,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 14,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Final measurement round",
+          "tick_start": 29,
+          "tick_stop": 36,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The complete minimal connected component is shown, including regular endpoint patches required by the arms."
+      ]
+    },
+    {
+      "name": "spatial-xxz-cross",
+      "family": "spatial",
+      "source": "spatial-xxz-cross.blog",
+      "stim": "spatial-xxz-cross.stim",
+      "svg": "spatial-xxz-cross.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XXZ [0,0,0]\n  1: ZXZ [1,0,0]\n  0 -> 1\n  2: ZXZ [-1,0,0]\n  0 -> 2\n  3: XZZ [0,1,0]\n  0 -> 3\n  4: XZZ [0,-1,0]\n  0 -> 4\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "dd98ddba893b3b4a3f3a979fcda53ddb582bd729f1df41478a31fe49bfc68313",
+      "ticks": 36,
+      "measurements": 855,
+      "detectors": 696,
+      "stages": [
+        {
+          "label": "Initialization round",
+          "tick_start": 0,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 14,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Final measurement round",
+          "tick_start": 29,
+          "tick_stop": 36,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The complete minimal connected component is shown, including regular endpoint patches required by the arms."
+      ]
+    },
+    {
+      "name": "port-zxz",
+      "family": "port",
+      "source": "port-zxz.blog",
+      "stim": "port-zxz.stim",
+      "svg": "port-zxz.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: ZXZ [0,0,1]\n  2: Port [0,0,2]\n  0 -> +Z\n  1 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "97a042c7b856d2fff42a57cf659cb434857e562ffa7dfdffc8dea822bde49d47",
+      "ticks": 32,
+      "measurements": 168,
+      "detectors": 144,
+      "stages": [
+        {
+          "label": "Input Port: ideal stabilizer MPP closure",
+          "tick_start": 0,
+          "tick_stop": 1,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Output Port: ideal stabilizer MPP closure",
+          "tick_start": 31,
+          "tick_stop": 32,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "MPP closures are ideal simulation boundaries, not a physical preparation/readout circuit."
+      ]
+    },
+    {
+      "name": "memory-padding-zxz",
+      "family": "padding",
+      "source": "memory-padding-zxz.blog",
+      "stim": "memory-padding-zxz.stim",
+      "svg": "memory-padding-zxz.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 3\n  0: Port [0,0,0]\n  1: ZXZ [0,0,1]\n  2: ZXZ [0,0,2]\n  3: Port [0,0,3]\n  0 -> +Z\n  1 -> +Z\n  2 -> +Z\n}\n",
+      "ir_edits": {
+        "operation": "insert_memory_rounds",
+        "position": [
+          0,
+          0,
+          2
+        ],
+        "rounds": 3
+      },
+      "distance": 5,
+      "circuit_sha256": "2e787e5ded574575c5c40cb82d87b866abb5544b500573075d86b3b39511060d",
+      "ticks": 81,
+      "measurements": 360,
+      "detectors": 336,
+      "stages": [
+        {
+          "label": "Protected memory round",
+          "tick_start": 31,
+          "tick_stop": 37,
+          "repetitions": 3,
+          "repeat_meaning": "Three inserted QEC rounds on the temporal seam"
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "y-initialization-zxz",
+      "family": "y-init",
+      "source": "y-initialization-zxz.blog",
+      "stim": "y-initialization-zxz.stim",
+      "svg": "y-initialization-zxz.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  out q_out: data = 2\n  0: Y [0,0,0]\n  1: ZXZ [0,0,1]\n  2: Port [0,0,2]\n  0 -> +Z\n  1 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "2de2ce2c3cea3e5e0090b76b9bc44c77c501e834c35d98c4e3e7a0395cae2e1b",
+      "ticks": 57,
+      "measurements": 244,
+      "detectors": 230,
+      "stages": [
+        {
+          "label": "Degenerate-patch initialization",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Degenerate bulk",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 2,
+          "repeat_meaning": "floor(d/2) syndrome rounds"
+        },
+        {
+          "label": "Reversed twist transition",
+          "tick_start": 18,
+          "tick_stop": 26,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "y-measurement-zxz",
+      "family": "y-meas",
+      "source": "y-measurement-zxz.blog",
+      "stim": "y-measurement-zxz.stim",
+      "svg": "y-measurement-zxz.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  0: Port [0,0,0]\n  1: ZXZ [0,0,1]\n  2: Y [0,0,2]\n  0 -> +Z\n  1 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "89d04ec3cf06a5db18afa836210be42727bd6a8440bbc1fab13482ccdcbcf2b9",
+      "ticks": 57,
+      "measurements": 269,
+      "detectors": 230,
+      "stages": [
+        {
+          "label": "Twist transition",
+          "tick_start": 31,
+          "tick_stop": 39,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Degenerate bulk",
+          "tick_start": 39,
+          "tick_stop": 45,
+          "repetitions": 2,
+          "repeat_meaning": "floor(d/2) syndrome rounds"
+        },
+        {
+          "label": "Mixed-basis final measurement",
+          "tick_start": 51,
+          "tick_stop": 57,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "walking-zxz-slide-east",
+      "family": "walking",
+      "source": "walking-zxz-slide-east.blog",
+      "stim": "walking-zxz-slide-east.stim",
+      "svg": "walking-zxz-slide-east.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: walk ZXZ [0,0,1] -> [1,0,2]\n  2: Port [1,0,3]\n  0 -> +Z\n  [1,0,2] -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "35872f5a58e0a9adfee964cee755133db249107434a6d57215f7f63bdd2db6ce",
+      "ticks": 75,
+      "measurements": 396,
+      "detectors": 312,
+      "stages": [
+        {
+          "label": "One elementary stepping round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full motion uses 2(d+1) translated elementary rounds. They are not identical fixed-support repetitions; only the first elementary step is displayed."
+      ]
+    },
+    {
+      "name": "walking-zxz-slide-west",
+      "family": "walking",
+      "source": "walking-zxz-slide-west.blog",
+      "stim": "walking-zxz-slide-west.stim",
+      "svg": "walking-zxz-slide-west.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: walk ZXZ [0,0,1] -> [-1,0,2]\n  2: Port [-1,0,3]\n  0 -> +Z\n  [-1,0,2] -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "145ef97a5d60016a186e0a0efb6657032191d05e94730136895b859902c1bbf6",
+      "ticks": 75,
+      "measurements": 396,
+      "detectors": 312,
+      "stages": [
+        {
+          "label": "One elementary stepping round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full motion uses 2(d+1) translated elementary rounds. They are not identical fixed-support repetitions; only the first elementary step is displayed."
+      ]
+    },
+    {
+      "name": "walking-zxz-slide-north",
+      "family": "walking",
+      "source": "walking-zxz-slide-north.blog",
+      "stim": "walking-zxz-slide-north.stim",
+      "svg": "walking-zxz-slide-north.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: walk ZXZ [0,0,1] -> [0,1,2]\n  2: Port [0,1,3]\n  0 -> +Z\n  [0,1,2] -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "02a0cf626f504287642a9ff2f5e198d5e5866767a180c194c7cb494524a9f3ad",
+      "ticks": 75,
+      "measurements": 396,
+      "detectors": 312,
+      "stages": [
+        {
+          "label": "One elementary stepping round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full motion uses 2(d+1) translated elementary rounds. They are not identical fixed-support repetitions; only the first elementary step is displayed."
+      ]
+    },
+    {
+      "name": "walking-zxz-slide-south",
+      "family": "walking",
+      "source": "walking-zxz-slide-south.blog",
+      "stim": "walking-zxz-slide-south.stim",
+      "svg": "walking-zxz-slide-south.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: walk ZXZ [0,0,1] -> [0,-1,2]\n  2: Port [0,-1,3]\n  0 -> +Z\n  [0,-1,2] -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "2571403f771f25fb0f70b7378a163c5f7fb2b3adac9176e472b0c3343d5f7eaf",
+      "ticks": 75,
+      "measurements": 396,
+      "detectors": 312,
+      "stages": [
+        {
+          "label": "One elementary stepping round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full motion uses 2(d+1) translated elementary rounds. They are not identical fixed-support repetitions; only the first elementary step is displayed."
+      ]
+    },
+    {
+      "name": "walking-zxz-glide-northeast",
+      "family": "walking",
+      "source": "walking-zxz-glide-northeast.blog",
+      "stim": "walking-zxz-glide-northeast.stim",
+      "svg": "walking-zxz-glide-northeast.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: walk ZXZ [0,0,1] -> [1,1,2]\n  2: Port [1,1,3]\n  0 -> +Z\n  [1,1,2] -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "875190ee39b06bf2045c535670276a33896cb609e1a1acef30ebe56a3ccc918a",
+      "ticks": 75,
+      "measurements": 396,
+      "detectors": 312,
+      "stages": [
+        {
+          "label": "One elementary stepping round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full motion uses 2(d+1) translated elementary rounds. They are not identical fixed-support repetitions; only the first elementary step is displayed."
+      ]
+    },
+    {
+      "name": "walking-zxz-glide-northwest",
+      "family": "walking",
+      "source": "walking-zxz-glide-northwest.blog",
+      "stim": "walking-zxz-glide-northwest.stim",
+      "svg": "walking-zxz-glide-northwest.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: walk ZXZ [0,0,1] -> [-1,1,2]\n  2: Port [-1,1,3]\n  0 -> +Z\n  [-1,1,2] -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "3d28361aa6fc7f7200de935f9fb30939fce4efbeb745401c353b36ddea7f4f71",
+      "ticks": 75,
+      "measurements": 396,
+      "detectors": 312,
+      "stages": [
+        {
+          "label": "One elementary stepping round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full motion uses 2(d+1) translated elementary rounds. They are not identical fixed-support repetitions; only the first elementary step is displayed."
+      ]
+    },
+    {
+      "name": "walking-zxz-glide-southeast",
+      "family": "walking",
+      "source": "walking-zxz-glide-southeast.blog",
+      "stim": "walking-zxz-glide-southeast.stim",
+      "svg": "walking-zxz-glide-southeast.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: walk ZXZ [0,0,1] -> [1,-1,2]\n  2: Port [1,-1,3]\n  0 -> +Z\n  [1,-1,2] -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "1903da8cc600a78cf971bb4793697429091a5c6717033a3df1b28da4c01e7c73",
+      "ticks": 75,
+      "measurements": 396,
+      "detectors": 312,
+      "stages": [
+        {
+          "label": "One elementary stepping round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full motion uses 2(d+1) translated elementary rounds. They are not identical fixed-support repetitions; only the first elementary step is displayed."
+      ]
+    },
+    {
+      "name": "walking-zxz-glide-southwest",
+      "family": "walking",
+      "source": "walking-zxz-glide-southwest.blog",
+      "stim": "walking-zxz-glide-southwest.stim",
+      "svg": "walking-zxz-glide-southwest.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: walk ZXZ [0,0,1] -> [-1,-1,2]\n  2: Port [-1,-1,3]\n  0 -> +Z\n  [-1,-1,2] -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "6c6227ef867c6dabe9ec8967c1fffe81fb7f6bf9ccd7cfeec3436f05ec7fe1fd",
+      "ticks": 75,
+      "measurements": 396,
+      "detectors": 312,
+      "stages": [
+        {
+          "label": "One elementary stepping round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full motion uses 2(d+1) translated elementary rounds. They are not identical fixed-support repetitions; only the first elementary step is displayed."
+      ]
+    },
+    {
+      "name": "port-xzx",
+      "family": "port",
+      "source": "port-xzx.blog",
+      "stim": "port-xzx.stim",
+      "svg": "port-xzx.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: XZX [0,0,1]\n  2: Port [0,0,2]\n  0 -> +Z\n  1 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "4231e1253b171ec6b0360ab4f5fb1f7604408a9f92e37975a166767d0778651b",
+      "ticks": 32,
+      "measurements": 168,
+      "detectors": 144,
+      "stages": [
+        {
+          "label": "Input Port: ideal stabilizer MPP closure",
+          "tick_start": 0,
+          "tick_stop": 1,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Output Port: ideal stabilizer MPP closure",
+          "tick_start": 31,
+          "tick_stop": 32,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "MPP closures are ideal simulation boundaries, not a physical preparation/readout circuit."
+      ]
+    },
+    {
+      "name": "memory-padding-xzx",
+      "family": "padding",
+      "source": "memory-padding-xzx.blog",
+      "stim": "memory-padding-xzx.stim",
+      "svg": "memory-padding-xzx.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 3\n  0: Port [0,0,0]\n  1: XZX [0,0,1]\n  2: XZX [0,0,2]\n  3: Port [0,0,3]\n  0 -> +Z\n  1 -> +Z\n  2 -> +Z\n}\n",
+      "ir_edits": {
+        "operation": "insert_memory_rounds",
+        "position": [
+          0,
+          0,
+          2
+        ],
+        "rounds": 3
+      },
+      "distance": 5,
+      "circuit_sha256": "b8c13b9819f44c2e03b271fe8d1dc0125034aa23a3742d259181de6bf4a78096",
+      "ticks": 81,
+      "measurements": 360,
+      "detectors": 336,
+      "stages": [
+        {
+          "label": "Protected memory round",
+          "tick_start": 31,
+          "tick_stop": 37,
+          "repetitions": 3,
+          "repeat_meaning": "Three inserted QEC rounds on the temporal seam"
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "y-initialization-xzx",
+      "family": "y-init",
+      "source": "y-initialization-xzx.blog",
+      "stim": "y-initialization-xzx.stim",
+      "svg": "y-initialization-xzx.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  out q_out: data = 2\n  0: Y [0,0,0]\n  1: XZX [0,0,1]\n  2: Port [0,0,2]\n  0 -> +Z\n  1 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "96780e4caa06e41b84da8381a3201ac7e32e2b86abba1c9c98c1774c8a648b54",
+      "ticks": 57,
+      "measurements": 244,
+      "detectors": 230,
+      "stages": [
+        {
+          "label": "Degenerate-patch initialization",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Degenerate bulk",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 2,
+          "repeat_meaning": "floor(d/2) syndrome rounds"
+        },
+        {
+          "label": "Reversed twist transition",
+          "tick_start": 18,
+          "tick_stop": 26,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "y-measurement-xzx",
+      "family": "y-meas",
+      "source": "y-measurement-xzx.blog",
+      "stim": "y-measurement-xzx.stim",
+      "svg": "y-measurement-xzx.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  0: Port [0,0,0]\n  1: XZX [0,0,1]\n  2: Y [0,0,2]\n  0 -> +Z\n  1 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "bb8b11c8cc018d2be6aed2f7a8aa8e116e7d2654335b577a10522482854e973a",
+      "ticks": 57,
+      "measurements": 269,
+      "detectors": 230,
+      "stages": [
+        {
+          "label": "Twist transition",
+          "tick_start": 31,
+          "tick_stop": 39,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Degenerate bulk",
+          "tick_start": 39,
+          "tick_stop": 45,
+          "repetitions": 2,
+          "repeat_meaning": "floor(d/2) syndrome rounds"
+        },
+        {
+          "label": "Mixed-basis final measurement",
+          "tick_start": 51,
+          "tick_stop": 57,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "walking-xzx-slide-east",
+      "family": "walking",
+      "source": "walking-xzx-slide-east.blog",
+      "stim": "walking-xzx-slide-east.stim",
+      "svg": "walking-xzx-slide-east.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: walk XZX [0,0,1] -> [1,0,2]\n  2: Port [1,0,3]\n  0 -> +Z\n  [1,0,2] -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "ca0d70a84e2ad01161b38e7c046d38e8f88ea8e800c4523eb0a1a7213e9c7f42",
+      "ticks": 75,
+      "measurements": 396,
+      "detectors": 312,
+      "stages": [
+        {
+          "label": "One elementary stepping round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full motion uses 2(d+1) translated elementary rounds. They are not identical fixed-support repetitions; only the first elementary step is displayed."
+      ]
+    },
+    {
+      "name": "walking-xzx-slide-west",
+      "family": "walking",
+      "source": "walking-xzx-slide-west.blog",
+      "stim": "walking-xzx-slide-west.stim",
+      "svg": "walking-xzx-slide-west.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: walk XZX [0,0,1] -> [-1,0,2]\n  2: Port [-1,0,3]\n  0 -> +Z\n  [-1,0,2] -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "995aec68f3a7ebd5c726af0cad293ccf64cee91a3aa42dadc71b1d1c5de48087",
+      "ticks": 75,
+      "measurements": 396,
+      "detectors": 312,
+      "stages": [
+        {
+          "label": "One elementary stepping round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full motion uses 2(d+1) translated elementary rounds. They are not identical fixed-support repetitions; only the first elementary step is displayed."
+      ]
+    },
+    {
+      "name": "walking-xzx-slide-north",
+      "family": "walking",
+      "source": "walking-xzx-slide-north.blog",
+      "stim": "walking-xzx-slide-north.stim",
+      "svg": "walking-xzx-slide-north.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: walk XZX [0,0,1] -> [0,1,2]\n  2: Port [0,1,3]\n  0 -> +Z\n  [0,1,2] -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "64f38c8d4067c4e376ab1c556327e996098317697ec896d47f1f17b76749085d",
+      "ticks": 75,
+      "measurements": 396,
+      "detectors": 312,
+      "stages": [
+        {
+          "label": "One elementary stepping round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full motion uses 2(d+1) translated elementary rounds. They are not identical fixed-support repetitions; only the first elementary step is displayed."
+      ]
+    },
+    {
+      "name": "walking-xzx-slide-south",
+      "family": "walking",
+      "source": "walking-xzx-slide-south.blog",
+      "stim": "walking-xzx-slide-south.stim",
+      "svg": "walking-xzx-slide-south.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: walk XZX [0,0,1] -> [0,-1,2]\n  2: Port [0,-1,3]\n  0 -> +Z\n  [0,-1,2] -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "d61662bd92209512b845c57d9aa111ea015c2f1637c47e0e4559ac5acd324b7e",
+      "ticks": 75,
+      "measurements": 396,
+      "detectors": 312,
+      "stages": [
+        {
+          "label": "One elementary stepping round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full motion uses 2(d+1) translated elementary rounds. They are not identical fixed-support repetitions; only the first elementary step is displayed."
+      ]
+    },
+    {
+      "name": "walking-xzx-glide-northeast",
+      "family": "walking",
+      "source": "walking-xzx-glide-northeast.blog",
+      "stim": "walking-xzx-glide-northeast.stim",
+      "svg": "walking-xzx-glide-northeast.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: walk XZX [0,0,1] -> [1,1,2]\n  2: Port [1,1,3]\n  0 -> +Z\n  [1,1,2] -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "249bcc179c612816d5cf14b798921f0b7fca0e198d49706505d3c9f3d39d2692",
+      "ticks": 75,
+      "measurements": 396,
+      "detectors": 312,
+      "stages": [
+        {
+          "label": "One elementary stepping round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full motion uses 2(d+1) translated elementary rounds. They are not identical fixed-support repetitions; only the first elementary step is displayed."
+      ]
+    },
+    {
+      "name": "walking-xzx-glide-northwest",
+      "family": "walking",
+      "source": "walking-xzx-glide-northwest.blog",
+      "stim": "walking-xzx-glide-northwest.stim",
+      "svg": "walking-xzx-glide-northwest.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: walk XZX [0,0,1] -> [-1,1,2]\n  2: Port [-1,1,3]\n  0 -> +Z\n  [-1,1,2] -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "4c88b36207cf05b63541f4724e28e2bfcc8f5ecbdbbb3365a083292527f89bb8",
+      "ticks": 75,
+      "measurements": 396,
+      "detectors": 312,
+      "stages": [
+        {
+          "label": "One elementary stepping round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full motion uses 2(d+1) translated elementary rounds. They are not identical fixed-support repetitions; only the first elementary step is displayed."
+      ]
+    },
+    {
+      "name": "walking-xzx-glide-southeast",
+      "family": "walking",
+      "source": "walking-xzx-glide-southeast.blog",
+      "stim": "walking-xzx-glide-southeast.stim",
+      "svg": "walking-xzx-glide-southeast.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: walk XZX [0,0,1] -> [1,-1,2]\n  2: Port [1,-1,3]\n  0 -> +Z\n  [1,-1,2] -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "4d288fb1c8c5b01005b139986773340df36723423d173d8c23b02a4f45740287",
+      "ticks": 75,
+      "measurements": 396,
+      "detectors": 312,
+      "stages": [
+        {
+          "label": "One elementary stepping round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full motion uses 2(d+1) translated elementary rounds. They are not identical fixed-support repetitions; only the first elementary step is displayed."
+      ]
+    },
+    {
+      "name": "walking-xzx-glide-southwest",
+      "family": "walking",
+      "source": "walking-xzx-glide-southwest.blog",
+      "stim": "walking-xzx-glide-southwest.stim",
+      "svg": "walking-xzx-glide-southwest.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: walk XZX [0,0,1] -> [-1,-1,2]\n  2: Port [-1,-1,3]\n  0 -> +Z\n  [-1,-1,2] -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "3a19b614f028ab5a2a5581134471754e9596329358a3119142aead7b6f95af94",
+      "ticks": 75,
+      "measurements": 396,
+      "detectors": 312,
+      "stages": [
+        {
+          "label": "One elementary stepping round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full motion uses 2(d+1) translated elementary rounds. They are not identical fixed-support repetitions; only the first elementary step is displayed."
+      ]
+    },
+    {
+      "name": "rotation-x-east",
+      "family": "rotation",
+      "source": "rotation-x-east.blog",
+      "stim": "rotation-x-east.stim",
+      "svg": "rotation-x-east.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: rotate X [0,0,1] -> [1,0,2]\n  2: Port [1,0,3]\n  0 -> +Z\n  [1,0,2] -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "251a839c3336a6c9608d90ebe285709fb523b6eefbec49c54f8592a470207427",
+      "ticks": 62,
+      "measurements": 608,
+      "detectors": 544,
+      "stages": [
+        {
+          "label": "Grow",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Grown bulk",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 unchanged syndrome rounds"
+        },
+        {
+          "label": "Transfer measurement",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Rotated initialization",
+          "tick_start": 31,
+          "tick_stop": 37,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Rotated bulk",
+          "tick_start": 37,
+          "tick_stop": 43,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 unchanged syndrome rounds"
+        },
+        {
+          "label": "Shrink",
+          "tick_start": 55,
+          "tick_stop": 61,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "rotation-x-west",
+      "family": "rotation",
+      "source": "rotation-x-west.blog",
+      "stim": "rotation-x-west.stim",
+      "svg": "rotation-x-west.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: rotate X [0,0,1] -> [-1,0,2]\n  2: Port [-1,0,3]\n  0 -> +Z\n  [-1,0,2] -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "befe43c16e37942997a6ec7e7cd83c8341d5310abe3fe28adc330a1a78ed57fc",
+      "ticks": 62,
+      "measurements": 608,
+      "detectors": 544,
+      "stages": [
+        {
+          "label": "Grow",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Grown bulk",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 unchanged syndrome rounds"
+        },
+        {
+          "label": "Transfer measurement",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Rotated initialization",
+          "tick_start": 31,
+          "tick_stop": 37,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Rotated bulk",
+          "tick_start": 37,
+          "tick_stop": 43,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 unchanged syndrome rounds"
+        },
+        {
+          "label": "Shrink",
+          "tick_start": 55,
+          "tick_stop": 61,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "rotation-x-north",
+      "family": "rotation",
+      "source": "rotation-x-north.blog",
+      "stim": "rotation-x-north.stim",
+      "svg": "rotation-x-north.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: rotate X [0,0,1] -> [0,1,2]\n  2: Port [0,1,3]\n  0 -> +Z\n  [0,1,2] -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "7fb32513e9e246824d9d1e9ad7a5d554e0dd095abf741962e818fff088e4d888",
+      "ticks": 62,
+      "measurements": 608,
+      "detectors": 544,
+      "stages": [
+        {
+          "label": "Grow",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Grown bulk",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 unchanged syndrome rounds"
+        },
+        {
+          "label": "Transfer measurement",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Rotated initialization",
+          "tick_start": 31,
+          "tick_stop": 37,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Rotated bulk",
+          "tick_start": 37,
+          "tick_stop": 43,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 unchanged syndrome rounds"
+        },
+        {
+          "label": "Shrink",
+          "tick_start": 55,
+          "tick_stop": 61,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "rotation-x-south",
+      "family": "rotation",
+      "source": "rotation-x-south.blog",
+      "stim": "rotation-x-south.stim",
+      "svg": "rotation-x-south.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: rotate X [0,0,1] -> [0,-1,2]\n  2: Port [0,-1,3]\n  0 -> +Z\n  [0,-1,2] -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "f950a2143cd9eca3a5acc48261a455eb30e049cc68e0ebd8b2b2f2e8404bb605",
+      "ticks": 62,
+      "measurements": 608,
+      "detectors": 544,
+      "stages": [
+        {
+          "label": "Grow",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Grown bulk",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 unchanged syndrome rounds"
+        },
+        {
+          "label": "Transfer measurement",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Rotated initialization",
+          "tick_start": 31,
+          "tick_stop": 37,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Rotated bulk",
+          "tick_start": 37,
+          "tick_stop": 43,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 unchanged syndrome rounds"
+        },
+        {
+          "label": "Shrink",
+          "tick_start": 55,
+          "tick_stop": 61,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "rotation-z-east",
+      "family": "rotation",
+      "source": "rotation-z-east.blog",
+      "stim": "rotation-z-east.stim",
+      "svg": "rotation-z-east.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: rotate Z [0,0,1] -> [1,0,2]\n  2: Port [1,0,3]\n  0 -> +Z\n  [1,0,2] -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "5cd8a207e7a17e7edfd569dde80404ed8e540e9dc807f441d98614f5ff085f03",
+      "ticks": 62,
+      "measurements": 608,
+      "detectors": 544,
+      "stages": [
+        {
+          "label": "Grow",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Grown bulk",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 unchanged syndrome rounds"
+        },
+        {
+          "label": "Transfer measurement",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Rotated initialization",
+          "tick_start": 31,
+          "tick_stop": 37,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Rotated bulk",
+          "tick_start": 37,
+          "tick_stop": 43,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 unchanged syndrome rounds"
+        },
+        {
+          "label": "Shrink",
+          "tick_start": 55,
+          "tick_stop": 61,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "rotation-z-west",
+      "family": "rotation",
+      "source": "rotation-z-west.blog",
+      "stim": "rotation-z-west.stim",
+      "svg": "rotation-z-west.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: rotate Z [0,0,1] -> [-1,0,2]\n  2: Port [-1,0,3]\n  0 -> +Z\n  [-1,0,2] -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "8a485a110fd1791e71ac596ebe4951e60995852329a720f77290f260f3f40de2",
+      "ticks": 62,
+      "measurements": 608,
+      "detectors": 544,
+      "stages": [
+        {
+          "label": "Grow",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Grown bulk",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 unchanged syndrome rounds"
+        },
+        {
+          "label": "Transfer measurement",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Rotated initialization",
+          "tick_start": 31,
+          "tick_stop": 37,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Rotated bulk",
+          "tick_start": 37,
+          "tick_stop": 43,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 unchanged syndrome rounds"
+        },
+        {
+          "label": "Shrink",
+          "tick_start": 55,
+          "tick_stop": 61,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "rotation-z-north",
+      "family": "rotation",
+      "source": "rotation-z-north.blog",
+      "stim": "rotation-z-north.stim",
+      "svg": "rotation-z-north.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: rotate Z [0,0,1] -> [0,1,2]\n  2: Port [0,1,3]\n  0 -> +Z\n  [0,1,2] -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "811c102276006f1b36ea0156ca19657f88268ccbf3b06e7e555e155365380f26",
+      "ticks": 62,
+      "measurements": 608,
+      "detectors": 544,
+      "stages": [
+        {
+          "label": "Grow",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Grown bulk",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 unchanged syndrome rounds"
+        },
+        {
+          "label": "Transfer measurement",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Rotated initialization",
+          "tick_start": 31,
+          "tick_stop": 37,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Rotated bulk",
+          "tick_start": 37,
+          "tick_stop": 43,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 unchanged syndrome rounds"
+        },
+        {
+          "label": "Shrink",
+          "tick_start": 55,
+          "tick_stop": 61,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "rotation-z-south",
+      "family": "rotation",
+      "source": "rotation-z-south.blog",
+      "stim": "rotation-z-south.stim",
+      "svg": "rotation-z-south.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [0,0,0]\n  1: rotate Z [0,0,1] -> [0,-1,2]\n  2: Port [0,-1,3]\n  0 -> +Z\n  [0,-1,2] -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "3786497c56eea7f48e87a4fb05f2147571c81464ce3b62815a9d8c0ac4bce45a",
+      "ticks": 62,
+      "measurements": 608,
+      "detectors": 544,
+      "stages": [
+        {
+          "label": "Grow",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Grown bulk",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 unchanged syndrome rounds"
+        },
+        {
+          "label": "Transfer measurement",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Rotated initialization",
+          "tick_start": 31,
+          "tick_stop": 37,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Rotated bulk",
+          "tick_start": 37,
+          "tick_stop": 43,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 unchanged syndrome rounds"
+        },
+        {
+          "label": "Shrink",
+          "tick_start": 55,
+          "tick_stop": 61,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "temporal-hadamard-zxz",
+      "family": "temporal-h",
+      "source": "temporal-hadamard-zxz.blog",
+      "stim": "temporal-hadamard-zxz.stim",
+      "svg": "temporal-hadamard-zxz.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 3\n  0: Port [0,0,0]\n  1: ZXZ [0,0,1]\n  2: XZX [0,0,2]\n  3: Port [0,0,3]\n  0 -> +Z\n  1 -H> +Z\n  2 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "747c009e826778df08fb1970a10f73e6b639d2f5f37fe13fd3d5c63fe48ea664",
+      "ticks": 68,
+      "measurements": 312,
+      "detectors": 288,
+      "stages": [
+        {
+          "label": "Realignment and transversal Hadamard",
+          "tick_start": 31,
+          "tick_stop": 37,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "temporal-hadamard-xzx",
+      "family": "temporal-h",
+      "source": "temporal-hadamard-xzx.blog",
+      "stim": "temporal-hadamard-xzx.stim",
+      "svg": "temporal-hadamard-xzx.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 3\n  0: Port [0,0,0]\n  1: XZX [0,0,1]\n  2: ZXZ [0,0,2]\n  3: Port [0,0,3]\n  0 -> +Z\n  1 -H> +Z\n  2 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "4a53400ff8fe6368ca434eb1cde9cbb28fbdfd9b9c9487a8cd48f5a06e68c104",
+      "ticks": 68,
+      "measurements": 312,
+      "detectors": 288,
+      "stages": [
+        {
+          "label": "Realignment and transversal Hadamard",
+          "tick_start": 31,
+          "tick_stop": 37,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "temporal-hadamard-xzz",
+      "family": "temporal-h",
+      "source": "temporal-hadamard-xzz.blog",
+      "stim": "temporal-hadamard-xzz.stim",
+      "svg": "temporal-hadamard-xzz.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 3\n  0: Port [0,0,0]\n  1: XZZ [0,0,1]\n  2: ZXX [0,0,2]\n  3: Port [0,0,3]\n  0 -> +Z\n  1 -H> +Z\n  2 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "4a53400ff8fe6368ca434eb1cde9cbb28fbdfd9b9c9487a8cd48f5a06e68c104",
+      "ticks": 68,
+      "measurements": 312,
+      "detectors": 288,
+      "stages": [
+        {
+          "label": "Realignment and transversal Hadamard",
+          "tick_start": 31,
+          "tick_stop": 37,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "temporal-hadamard-zxx",
+      "family": "temporal-h",
+      "source": "temporal-hadamard-zxx.blog",
+      "stim": "temporal-hadamard-zxx.stim",
+      "svg": "temporal-hadamard-zxx.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 3\n  0: Port [0,0,0]\n  1: ZXX [0,0,1]\n  2: XZZ [0,0,2]\n  3: Port [0,0,3]\n  0 -> +Z\n  1 -H> +Z\n  2 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "747c009e826778df08fb1970a10f73e6b639d2f5f37fe13fd3d5c63fe48ea664",
+      "ticks": 68,
+      "measurements": 312,
+      "detectors": 288,
+      "stages": [
+        {
+          "label": "Realignment and transversal Hadamard",
+          "tick_start": 31,
+          "tick_stop": 37,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "spatial-hadamard-x-zxz",
+      "family": "spatial-h",
+      "source": "spatial-hadamard-x-zxz.blog",
+      "stim": "spatial-hadamard-x-zxz.stim",
+      "svg": "spatial-hadamard-x-zxz.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 3\n  0: Port [0,0,0]\n  1: ZXZ [0,0,1]\n  2: XZX [1,0,1]\n  3: Port [1,0,2]\n  0 -> +Z\n  1 -H> 2\n  2 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "470198b777ccd3e73d1efc62245b0e179f4c32b11c349fe1f0d2981327f17fa9",
+      "ticks": 42,
+      "measurements": 318,
+      "detectors": 264,
+      "stages": [
+        {
+          "label": "Initialization round",
+          "tick_start": 1,
+          "tick_stop": 9,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Backward wall round",
+          "tick_start": 9,
+          "tick_stop": 17,
+          "repetitions": 2,
+          "repeat_meaning": "Interior backward schedule appears floor(d/2) times"
+        },
+        {
+          "label": "Forward wall round",
+          "tick_start": 17,
+          "tick_stop": 25,
+          "repetitions": 1,
+          "repeat_meaning": "Interior forward schedule; boundary initialization and measurement are displayed separately"
+        },
+        {
+          "label": "Final measurement round",
+          "tick_start": 33,
+          "tick_stop": 41,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The current spatial Hadamard construction is distance degraded. Alternating rounds are displayed separately; they must not be collapsed into one repeated round."
+      ]
+    },
+    {
+      "name": "spatial-hadamard-y-zxz",
+      "family": "spatial-h",
+      "source": "spatial-hadamard-y-zxz.blog",
+      "stim": "spatial-hadamard-y-zxz.stim",
+      "svg": "spatial-hadamard-y-zxz.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 3\n  0: Port [0,0,0]\n  1: ZXZ [0,0,1]\n  2: XZX [0,1,1]\n  3: Port [0,1,2]\n  0 -> +Z\n  1 -H> 2\n  2 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "089bfc25fe1c167e6ed8c2abbe91793b45f60de08132da48127881bf6c9b0a9e",
+      "ticks": 42,
+      "measurements": 318,
+      "detectors": 264,
+      "stages": [
+        {
+          "label": "Initialization round",
+          "tick_start": 1,
+          "tick_stop": 9,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Backward wall round",
+          "tick_start": 9,
+          "tick_stop": 17,
+          "repetitions": 2,
+          "repeat_meaning": "Interior backward schedule appears floor(d/2) times"
+        },
+        {
+          "label": "Forward wall round",
+          "tick_start": 17,
+          "tick_stop": 25,
+          "repetitions": 1,
+          "repeat_meaning": "Interior forward schedule; boundary initialization and measurement are displayed separately"
+        },
+        {
+          "label": "Final measurement round",
+          "tick_start": 33,
+          "tick_stop": 41,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The current spatial Hadamard construction is distance degraded. Alternating rounds are displayed separately; they must not be collapsed into one repeated round."
+      ]
+    },
+    {
+      "name": "spatial-hadamard-x-xzx",
+      "family": "spatial-h",
+      "source": "spatial-hadamard-x-xzx.blog",
+      "stim": "spatial-hadamard-x-xzx.stim",
+      "svg": "spatial-hadamard-x-xzx.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 3\n  0: Port [0,0,0]\n  1: XZX [0,0,1]\n  2: ZXZ [1,0,1]\n  3: Port [1,0,2]\n  0 -> +Z\n  1 -H> 2\n  2 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "f3bb75815abd3f3debb5d8fa5c2682a886732e09022ff0734d795ae3940aff92",
+      "ticks": 42,
+      "measurements": 318,
+      "detectors": 264,
+      "stages": [
+        {
+          "label": "Initialization round",
+          "tick_start": 1,
+          "tick_stop": 9,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Backward wall round",
+          "tick_start": 9,
+          "tick_stop": 17,
+          "repetitions": 2,
+          "repeat_meaning": "Interior backward schedule appears floor(d/2) times"
+        },
+        {
+          "label": "Forward wall round",
+          "tick_start": 17,
+          "tick_stop": 25,
+          "repetitions": 1,
+          "repeat_meaning": "Interior forward schedule; boundary initialization and measurement are displayed separately"
+        },
+        {
+          "label": "Final measurement round",
+          "tick_start": 33,
+          "tick_stop": 41,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The current spatial Hadamard construction is distance degraded. Alternating rounds are displayed separately; they must not be collapsed into one repeated round."
+      ]
+    },
+    {
+      "name": "spatial-hadamard-y-xzx",
+      "family": "spatial-h",
+      "source": "spatial-hadamard-y-xzx.blog",
+      "stim": "spatial-hadamard-y-xzx.stim",
+      "svg": "spatial-hadamard-y-xzx.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 3\n  0: Port [0,0,0]\n  1: XZX [0,0,1]\n  2: ZXZ [0,1,1]\n  3: Port [0,1,2]\n  0 -> +Z\n  1 -H> 2\n  2 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "762de7a7b9bd9a559d4bd594516553339fa70c7f9f15026d0169a1e84edb7403",
+      "ticks": 42,
+      "measurements": 318,
+      "detectors": 264,
+      "stages": [
+        {
+          "label": "Initialization round",
+          "tick_start": 1,
+          "tick_stop": 9,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Backward wall round",
+          "tick_start": 9,
+          "tick_stop": 17,
+          "repetitions": 2,
+          "repeat_meaning": "Interior backward schedule appears floor(d/2) times"
+        },
+        {
+          "label": "Forward wall round",
+          "tick_start": 17,
+          "tick_stop": 25,
+          "repetitions": 1,
+          "repeat_meaning": "Interior forward schedule; boundary initialization and measurement are displayed separately"
+        },
+        {
+          "label": "Final measurement round",
+          "tick_start": 33,
+          "tick_stop": 41,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The current spatial Hadamard construction is distance degraded. Alternating rounds are displayed separately; they must not be collapsed into one repeated round."
+      ]
+    },
+    {
+      "name": "regular-zxz",
+      "family": "regular",
+      "source": "regular-zxz.blog",
+      "stim": "regular-zxz.stim",
+      "svg": "regular-zxz.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXZ [0,0,0]\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "7ee907c0c7fd327578f6f066447ebb856aee1286b3110cde7a284f65b8c7ce30",
+      "ticks": 30,
+      "measurements": 145,
+      "detectors": 120,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 24,
+          "tick_stop": 30,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "regular-zxz-isolated-input",
+      "family": "regular",
+      "source": "regular-zxz-isolated-input.blog",
+      "stim": "regular-zxz-isolated-input.stim",
+      "svg": "regular-zxz-isolated-input.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXZ [0,0,1]\n  in q_in: data = 1\n  1: Port [0,0,0]\n  1 -> 0\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "ef083b8fb3cc50315cc83d8dc860f8838b9a1c6a73d839b0c5c712231ec5250c",
+      "ticks": 31,
+      "measurements": 169,
+      "detectors": 132,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "regular-zxz-isolated-output",
+      "family": "regular",
+      "source": "regular-zxz-isolated-output.blog",
+      "stim": "regular-zxz-isolated-output.stim",
+      "svg": "regular-zxz-isolated-output.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXZ [0,0,0]\n  out q_out: data = 1\n  1: Port [0,0,1]\n  0 -> 1\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "c282c1d975e4d4fc8c5603c3bf63c67aaad8e6334b5c4b920e8085e85c551758",
+      "ticks": 31,
+      "measurements": 144,
+      "detectors": 132,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 24,
+          "tick_stop": 30,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "regular-zxz-isolated-through",
+      "family": "regular",
+      "source": "regular-zxz-isolated-through.blog",
+      "stim": "regular-zxz-isolated-through.stim",
+      "svg": "regular-zxz-isolated-through.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXZ [0,0,1]\n  in q_in: data = 1\n  1: Port [0,0,0]\n  1 -> 0\n  out q_out: data = 2\n  2: Port [0,0,2]\n  0 -> 2\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "97a042c7b856d2fff42a57cf659cb434857e562ffa7dfdffc8dea822bde49d47",
+      "ticks": 32,
+      "measurements": 168,
+      "detectors": 144,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "regular-zxz-one-arm-closed",
+      "family": "regular",
+      "source": "regular-zxz-one-arm-closed.blog",
+      "stim": "regular-zxz-one-arm-closed.stim",
+      "svg": "regular-zxz-one-arm-closed.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXZ [0,0,0]\n  1: ZXZ [1,0,0]\n  0 -> 1\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "5cb903aa93e3805a1f3cac6955fc90c7e210b9cbf3f6556ccd8ffcf118fefcf9",
+      "ticks": 31,
+      "measurements": 325,
+      "detectors": 264,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-zxz-one-arm-input",
+      "family": "regular",
+      "source": "regular-zxz-one-arm-input.blog",
+      "stim": "regular-zxz-one-arm-input.stim",
+      "svg": "regular-zxz-one-arm-input.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXZ [0,0,1]\n  1: ZXZ [1,0,1]\n  0 -> 1\n  in q_in: data = 2\n  2: Port [0,0,0]\n  2 -> 0\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "48f897af1b21a619b46b05d4c501d5cb3cf55c496906f3422fcc0cc885fabfbe",
+      "ticks": 32,
+      "measurements": 349,
+      "detectors": 276,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 26,
+          "tick_stop": 32,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-zxz-one-arm-output",
+      "family": "regular",
+      "source": "regular-zxz-one-arm-output.blog",
+      "stim": "regular-zxz-one-arm-output.stim",
+      "svg": "regular-zxz-one-arm-output.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXZ [0,0,0]\n  1: ZXZ [1,0,0]\n  0 -> 1\n  out q_out: data = 2\n  2: Port [0,0,1]\n  0 -> 2\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "7e08db99f949a4fddb2bcd3e781b1ddbb5d25c31c72adf1ebfb5f13ec937166d",
+      "ticks": 32,
+      "measurements": 324,
+      "detectors": 276,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-zxz-one-arm-through",
+      "family": "regular",
+      "source": "regular-zxz-one-arm-through.blog",
+      "stim": "regular-zxz-one-arm-through.stim",
+      "svg": "regular-zxz-one-arm-through.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXZ [0,0,1]\n  1: ZXZ [1,0,1]\n  0 -> 1\n  in q_in: data = 2\n  2: Port [0,0,0]\n  2 -> 0\n  out q_out: data = 3\n  3: Port [0,0,2]\n  0 -> 3\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "5cc626bcf9affe6ad650d90405ba27a158712ed49762a23a85ac5d45f8384c34",
+      "ticks": 33,
+      "measurements": 348,
+      "detectors": 288,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 26,
+          "tick_stop": 32,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-zxz-opposite-arms-closed",
+      "family": "regular",
+      "source": "regular-zxz-opposite-arms-closed.blog",
+      "stim": "regular-zxz-opposite-arms-closed.stim",
+      "svg": "regular-zxz-opposite-arms-closed.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXZ [1,0,0]\n  1: ZXZ [0,0,0]\n  0 -> 1\n  2: ZXZ [2,0,0]\n  0 -> 2\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "5f48a3d6fc644c4647704ba61a8b4ae26fbdd6d23b32b07035cc5ef581f44284",
+      "ticks": 31,
+      "measurements": 505,
+      "detectors": 408,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-zxz-opposite-arms-input",
+      "family": "regular",
+      "source": "regular-zxz-opposite-arms-input.blog",
+      "stim": "regular-zxz-opposite-arms-input.stim",
+      "svg": "regular-zxz-opposite-arms-input.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXZ [1,0,1]\n  1: ZXZ [0,0,1]\n  0 -> 1\n  2: ZXZ [2,0,1]\n  0 -> 2\n  in q_in: data = 3\n  3: Port [1,0,0]\n  3 -> 0\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "afa333603dc4f4223f6f9b8004319ea8c458980bf7a4cc5b49bfa3f176bc6888",
+      "ticks": 32,
+      "measurements": 529,
+      "detectors": 420,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 26,
+          "tick_stop": 32,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-zxz-opposite-arms-output",
+      "family": "regular",
+      "source": "regular-zxz-opposite-arms-output.blog",
+      "stim": "regular-zxz-opposite-arms-output.stim",
+      "svg": "regular-zxz-opposite-arms-output.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXZ [1,0,0]\n  1: ZXZ [0,0,0]\n  0 -> 1\n  2: ZXZ [2,0,0]\n  0 -> 2\n  out q_out: data = 3\n  3: Port [1,0,1]\n  0 -> 3\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "626c350714d15e0768c6a0f9ac2d5af62c43c23a60b85ceaa0284ea55e17252e",
+      "ticks": 32,
+      "measurements": 504,
+      "detectors": 420,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-zxz-opposite-arms-through",
+      "family": "regular",
+      "source": "regular-zxz-opposite-arms-through.blog",
+      "stim": "regular-zxz-opposite-arms-through.stim",
+      "svg": "regular-zxz-opposite-arms-through.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXZ [1,0,1]\n  1: ZXZ [0,0,1]\n  0 -> 1\n  2: ZXZ [2,0,1]\n  0 -> 2\n  in q_in: data = 3\n  3: Port [1,0,0]\n  3 -> 0\n  out q_out: data = 4\n  4: Port [1,0,2]\n  0 -> 4\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "98703ba8e82c05cfb6c63e13634b411296327c22b52545074e1ee5d44eba5f30",
+      "ticks": 33,
+      "measurements": 528,
+      "detectors": 432,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 26,
+          "tick_stop": 32,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-xzx",
+      "family": "regular",
+      "source": "regular-xzx.blog",
+      "stim": "regular-xzx.stim",
+      "svg": "regular-xzx.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZX [0,0,0]\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "76190379eca68a6d43f7f14cdb7f5078ba56de193308fab3c2ab855078e11210",
+      "ticks": 30,
+      "measurements": 145,
+      "detectors": 120,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 24,
+          "tick_stop": 30,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "regular-xzx-isolated-input",
+      "family": "regular",
+      "source": "regular-xzx-isolated-input.blog",
+      "stim": "regular-xzx-isolated-input.stim",
+      "svg": "regular-xzx-isolated-input.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZX [0,0,1]\n  in q_in: data = 1\n  1: Port [0,0,0]\n  1 -> 0\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "87198713f2fe2936cf3a7190630176e5dbc9996bbec4608835b49985102816d8",
+      "ticks": 31,
+      "measurements": 169,
+      "detectors": 132,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "regular-xzx-isolated-output",
+      "family": "regular",
+      "source": "regular-xzx-isolated-output.blog",
+      "stim": "regular-xzx-isolated-output.stim",
+      "svg": "regular-xzx-isolated-output.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZX [0,0,0]\n  out q_out: data = 1\n  1: Port [0,0,1]\n  0 -> 1\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "ce959cbe0cf9548f2a0fc9554dc2337b7128d5f03bafe10a75f1180d19120165",
+      "ticks": 31,
+      "measurements": 144,
+      "detectors": 132,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 24,
+          "tick_stop": 30,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "regular-xzx-isolated-through",
+      "family": "regular",
+      "source": "regular-xzx-isolated-through.blog",
+      "stim": "regular-xzx-isolated-through.stim",
+      "svg": "regular-xzx-isolated-through.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZX [0,0,1]\n  in q_in: data = 1\n  1: Port [0,0,0]\n  1 -> 0\n  out q_out: data = 2\n  2: Port [0,0,2]\n  0 -> 2\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "4231e1253b171ec6b0360ab4f5fb1f7604408a9f92e37975a166767d0778651b",
+      "ticks": 32,
+      "measurements": 168,
+      "detectors": 144,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "regular-xzx-one-arm-closed",
+      "family": "regular",
+      "source": "regular-xzx-one-arm-closed.blog",
+      "stim": "regular-xzx-one-arm-closed.stim",
+      "svg": "regular-xzx-one-arm-closed.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZX [0,0,0]\n  1: XZX [1,0,0]\n  0 -> 1\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "48549d34443336e0f634ae14b48a7b2b3c5c38aa6a01f5eb329908009bde9230",
+      "ticks": 31,
+      "measurements": 325,
+      "detectors": 264,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-xzx-one-arm-input",
+      "family": "regular",
+      "source": "regular-xzx-one-arm-input.blog",
+      "stim": "regular-xzx-one-arm-input.stim",
+      "svg": "regular-xzx-one-arm-input.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZX [0,0,1]\n  1: XZX [1,0,1]\n  0 -> 1\n  in q_in: data = 2\n  2: Port [0,0,0]\n  2 -> 0\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "2fc0bbdfc8b7667ed51c751b405ef588b0e4d7d69d2676640bb5ca8b468222ab",
+      "ticks": 32,
+      "measurements": 349,
+      "detectors": 276,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 26,
+          "tick_stop": 32,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-xzx-one-arm-output",
+      "family": "regular",
+      "source": "regular-xzx-one-arm-output.blog",
+      "stim": "regular-xzx-one-arm-output.stim",
+      "svg": "regular-xzx-one-arm-output.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZX [0,0,0]\n  1: XZX [1,0,0]\n  0 -> 1\n  out q_out: data = 2\n  2: Port [0,0,1]\n  0 -> 2\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "73c4f4bc7ac0f58b56a2a1b4ea33db57a16c8f1a78df927ed1cef28f1988737f",
+      "ticks": 32,
+      "measurements": 324,
+      "detectors": 276,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-xzx-one-arm-through",
+      "family": "regular",
+      "source": "regular-xzx-one-arm-through.blog",
+      "stim": "regular-xzx-one-arm-through.stim",
+      "svg": "regular-xzx-one-arm-through.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZX [0,0,1]\n  1: XZX [1,0,1]\n  0 -> 1\n  in q_in: data = 2\n  2: Port [0,0,0]\n  2 -> 0\n  out q_out: data = 3\n  3: Port [0,0,2]\n  0 -> 3\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "8c9265466f1bbd456a86a8559ca906e0cc44309691fef96b72821fcda148346b",
+      "ticks": 33,
+      "measurements": 348,
+      "detectors": 288,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 26,
+          "tick_stop": 32,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-xzx-opposite-arms-closed",
+      "family": "regular",
+      "source": "regular-xzx-opposite-arms-closed.blog",
+      "stim": "regular-xzx-opposite-arms-closed.stim",
+      "svg": "regular-xzx-opposite-arms-closed.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZX [1,0,0]\n  1: XZX [0,0,0]\n  0 -> 1\n  2: XZX [2,0,0]\n  0 -> 2\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "e04f00512d902cdb70429ac1dd2cc177cfad101f82e9e92e4aa5ef8a1749c1df",
+      "ticks": 31,
+      "measurements": 505,
+      "detectors": 408,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-xzx-opposite-arms-input",
+      "family": "regular",
+      "source": "regular-xzx-opposite-arms-input.blog",
+      "stim": "regular-xzx-opposite-arms-input.stim",
+      "svg": "regular-xzx-opposite-arms-input.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZX [1,0,1]\n  1: XZX [0,0,1]\n  0 -> 1\n  2: XZX [2,0,1]\n  0 -> 2\n  in q_in: data = 3\n  3: Port [1,0,0]\n  3 -> 0\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "625129d5145a9e7dc7ef1696825d5b93bc461dd6310527528a919dc27175ed43",
+      "ticks": 32,
+      "measurements": 529,
+      "detectors": 420,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 26,
+          "tick_stop": 32,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-xzx-opposite-arms-output",
+      "family": "regular",
+      "source": "regular-xzx-opposite-arms-output.blog",
+      "stim": "regular-xzx-opposite-arms-output.stim",
+      "svg": "regular-xzx-opposite-arms-output.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZX [1,0,0]\n  1: XZX [0,0,0]\n  0 -> 1\n  2: XZX [2,0,0]\n  0 -> 2\n  out q_out: data = 3\n  3: Port [1,0,1]\n  0 -> 3\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "40db85c97f69140072b5bb0df6df755aacf4847ea53a7440f8cc697f5c1f6323",
+      "ticks": 32,
+      "measurements": 504,
+      "detectors": 420,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-xzx-opposite-arms-through",
+      "family": "regular",
+      "source": "regular-xzx-opposite-arms-through.blog",
+      "stim": "regular-xzx-opposite-arms-through.stim",
+      "svg": "regular-xzx-opposite-arms-through.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZX [1,0,1]\n  1: XZX [0,0,1]\n  0 -> 1\n  2: XZX [2,0,1]\n  0 -> 2\n  in q_in: data = 3\n  3: Port [1,0,0]\n  3 -> 0\n  out q_out: data = 4\n  4: Port [1,0,2]\n  0 -> 4\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "69af1ac8e44915e31150ffb5d2d1066283e4e6ca83c8c80d8a509a71c7c0b9f1",
+      "ticks": 33,
+      "measurements": 528,
+      "detectors": 432,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 26,
+          "tick_stop": 32,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-xzz",
+      "family": "regular",
+      "source": "regular-xzz.blog",
+      "stim": "regular-xzz.stim",
+      "svg": "regular-xzz.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZZ [0,0,0]\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "9bdce95f59b3e2ad85839f5dbc5b9d939489f359bd6c3052a433271224395123",
+      "ticks": 30,
+      "measurements": 145,
+      "detectors": 120,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 24,
+          "tick_stop": 30,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "regular-xzz-isolated-input",
+      "family": "regular",
+      "source": "regular-xzz-isolated-input.blog",
+      "stim": "regular-xzz-isolated-input.stim",
+      "svg": "regular-xzz-isolated-input.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZZ [0,0,1]\n  in q_in: data = 1\n  1: Port [0,0,0]\n  1 -> 0\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "ba7a5faa8304b8df43a187461ed1ad8f1a049b6e7a3aeaf17e01fe8c6e3e4871",
+      "ticks": 31,
+      "measurements": 169,
+      "detectors": 132,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "regular-xzz-isolated-output",
+      "family": "regular",
+      "source": "regular-xzz-isolated-output.blog",
+      "stim": "regular-xzz-isolated-output.stim",
+      "svg": "regular-xzz-isolated-output.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZZ [0,0,0]\n  out q_out: data = 1\n  1: Port [0,0,1]\n  0 -> 1\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "6a5dd9691ce77d346726032eaac641b4b0443366e04dcdef22ee17e14dad6fa5",
+      "ticks": 31,
+      "measurements": 144,
+      "detectors": 132,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 24,
+          "tick_stop": 30,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "regular-xzz-isolated-through",
+      "family": "regular",
+      "source": "regular-xzz-isolated-through.blog",
+      "stim": "regular-xzz-isolated-through.stim",
+      "svg": "regular-xzz-isolated-through.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZZ [0,0,1]\n  in q_in: data = 1\n  1: Port [0,0,0]\n  1 -> 0\n  out q_out: data = 2\n  2: Port [0,0,2]\n  0 -> 2\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "4231e1253b171ec6b0360ab4f5fb1f7604408a9f92e37975a166767d0778651b",
+      "ticks": 32,
+      "measurements": 168,
+      "detectors": 144,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "regular-xzz-one-arm-closed",
+      "family": "regular",
+      "source": "regular-xzz-one-arm-closed.blog",
+      "stim": "regular-xzz-one-arm-closed.stim",
+      "svg": "regular-xzz-one-arm-closed.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZZ [0,0,0]\n  1: XZZ [0,1,0]\n  0 -> 1\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "67421c206a8e68bfcf65b98626d1513b330c4c36a6431b24604ff8ce2f674d96",
+      "ticks": 31,
+      "measurements": 325,
+      "detectors": 264,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-xzz-one-arm-input",
+      "family": "regular",
+      "source": "regular-xzz-one-arm-input.blog",
+      "stim": "regular-xzz-one-arm-input.stim",
+      "svg": "regular-xzz-one-arm-input.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZZ [0,0,1]\n  1: XZZ [0,1,1]\n  0 -> 1\n  in q_in: data = 2\n  2: Port [0,0,0]\n  2 -> 0\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "bd610f7cfdb8a34777b19ce4c224243387ea01fcc5bead52057b6b009bfa2163",
+      "ticks": 32,
+      "measurements": 349,
+      "detectors": 276,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 26,
+          "tick_stop": 32,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-xzz-one-arm-output",
+      "family": "regular",
+      "source": "regular-xzz-one-arm-output.blog",
+      "stim": "regular-xzz-one-arm-output.stim",
+      "svg": "regular-xzz-one-arm-output.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZZ [0,0,0]\n  1: XZZ [0,1,0]\n  0 -> 1\n  out q_out: data = 2\n  2: Port [0,0,1]\n  0 -> 2\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "a6fa546d2b822a9f190d948414366fb6a870d7349525a4a7fad5a5c951d4b0de",
+      "ticks": 32,
+      "measurements": 324,
+      "detectors": 276,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-xzz-one-arm-through",
+      "family": "regular",
+      "source": "regular-xzz-one-arm-through.blog",
+      "stim": "regular-xzz-one-arm-through.stim",
+      "svg": "regular-xzz-one-arm-through.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZZ [0,0,1]\n  1: XZZ [0,1,1]\n  0 -> 1\n  in q_in: data = 2\n  2: Port [0,0,0]\n  2 -> 0\n  out q_out: data = 3\n  3: Port [0,0,2]\n  0 -> 3\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "1df14e4cd89e0d15e82ea948306b5e606cc5d65277310aaa9f86ec90756a0869",
+      "ticks": 33,
+      "measurements": 348,
+      "detectors": 288,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 26,
+          "tick_stop": 32,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-xzz-opposite-arms-closed",
+      "family": "regular",
+      "source": "regular-xzz-opposite-arms-closed.blog",
+      "stim": "regular-xzz-opposite-arms-closed.stim",
+      "svg": "regular-xzz-opposite-arms-closed.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZZ [0,1,0]\n  1: XZZ [0,0,0]\n  0 -> 1\n  2: XZZ [0,2,0]\n  0 -> 2\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "c54b432a94d0e0224ea782b59a641cac490ba35bd16e01a23a8ce2ce9d7b2f9c",
+      "ticks": 31,
+      "measurements": 505,
+      "detectors": 408,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-xzz-opposite-arms-input",
+      "family": "regular",
+      "source": "regular-xzz-opposite-arms-input.blog",
+      "stim": "regular-xzz-opposite-arms-input.stim",
+      "svg": "regular-xzz-opposite-arms-input.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZZ [0,1,1]\n  1: XZZ [0,0,1]\n  0 -> 1\n  2: XZZ [0,2,1]\n  0 -> 2\n  in q_in: data = 3\n  3: Port [0,1,0]\n  3 -> 0\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "689b02f06ce0adec3deb8d87070d8726a145937bd348c8dfdd982d3ee1d4587b",
+      "ticks": 32,
+      "measurements": 529,
+      "detectors": 420,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 26,
+          "tick_stop": 32,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-xzz-opposite-arms-output",
+      "family": "regular",
+      "source": "regular-xzz-opposite-arms-output.blog",
+      "stim": "regular-xzz-opposite-arms-output.stim",
+      "svg": "regular-xzz-opposite-arms-output.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZZ [0,1,0]\n  1: XZZ [0,0,0]\n  0 -> 1\n  2: XZZ [0,2,0]\n  0 -> 2\n  out q_out: data = 3\n  3: Port [0,1,1]\n  0 -> 3\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "ec94e24358f2c6cf7d20f5b794bf012e5ce9d8ab515aed2b99f24bed622160ba",
+      "ticks": 32,
+      "measurements": 504,
+      "detectors": 420,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-xzz-opposite-arms-through",
+      "family": "regular",
+      "source": "regular-xzz-opposite-arms-through.blog",
+      "stim": "regular-xzz-opposite-arms-through.stim",
+      "svg": "regular-xzz-opposite-arms-through.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZZ [0,1,1]\n  1: XZZ [0,0,1]\n  0 -> 1\n  2: XZZ [0,2,1]\n  0 -> 2\n  in q_in: data = 3\n  3: Port [0,1,0]\n  3 -> 0\n  out q_out: data = 4\n  4: Port [0,1,2]\n  0 -> 4\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "498cc59d10c86118d7b5a3c12f52daff81e8a6769b85ba9144a8db5372246c9c",
+      "ticks": 33,
+      "measurements": 528,
+      "detectors": 432,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 26,
+          "tick_stop": 32,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-zxx",
+      "family": "regular",
+      "source": "regular-zxx.blog",
+      "stim": "regular-zxx.stim",
+      "svg": "regular-zxx.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXX [0,0,0]\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "3ff5b5d8e4585c661e3243d7021d97de1c9ae23743f81d00e3f77c837d403fb3",
+      "ticks": 30,
+      "measurements": 145,
+      "detectors": 120,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 24,
+          "tick_stop": 30,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "regular-zxx-isolated-input",
+      "family": "regular",
+      "source": "regular-zxx-isolated-input.blog",
+      "stim": "regular-zxx-isolated-input.stim",
+      "svg": "regular-zxx-isolated-input.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXX [0,0,1]\n  in q_in: data = 1\n  1: Port [0,0,0]\n  1 -> 0\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "30688be483c7bbc1a9923354353f6d8f55f2d219d867065ad80279cd0b1d3ac2",
+      "ticks": 31,
+      "measurements": 169,
+      "detectors": 132,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "regular-zxx-isolated-output",
+      "family": "regular",
+      "source": "regular-zxx-isolated-output.blog",
+      "stim": "regular-zxx-isolated-output.stim",
+      "svg": "regular-zxx-isolated-output.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXX [0,0,0]\n  out q_out: data = 1\n  1: Port [0,0,1]\n  0 -> 1\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "b10e89c28a7fb3be9c1871b0d16d40a49c9d28e00b4073a8cd2a9212cb597037",
+      "ticks": 31,
+      "measurements": 144,
+      "detectors": 132,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 24,
+          "tick_stop": 30,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "regular-zxx-isolated-through",
+      "family": "regular",
+      "source": "regular-zxx-isolated-through.blog",
+      "stim": "regular-zxx-isolated-through.stim",
+      "svg": "regular-zxx-isolated-through.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXX [0,0,1]\n  in q_in: data = 1\n  1: Port [0,0,0]\n  1 -> 0\n  out q_out: data = 2\n  2: Port [0,0,2]\n  0 -> 2\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "97a042c7b856d2fff42a57cf659cb434857e562ffa7dfdffc8dea822bde49d47",
+      "ticks": 32,
+      "measurements": 168,
+      "detectors": 144,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "regular-zxx-one-arm-closed",
+      "family": "regular",
+      "source": "regular-zxx-one-arm-closed.blog",
+      "stim": "regular-zxx-one-arm-closed.stim",
+      "svg": "regular-zxx-one-arm-closed.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXX [0,0,0]\n  1: ZXX [0,1,0]\n  0 -> 1\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "cf4bb4cdc2bf06b23665867fa2d8c1f9742103518e1367b993de9a879ff4a2a2",
+      "ticks": 31,
+      "measurements": 325,
+      "detectors": 264,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-zxx-one-arm-input",
+      "family": "regular",
+      "source": "regular-zxx-one-arm-input.blog",
+      "stim": "regular-zxx-one-arm-input.stim",
+      "svg": "regular-zxx-one-arm-input.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXX [0,0,1]\n  1: ZXX [0,1,1]\n  0 -> 1\n  in q_in: data = 2\n  2: Port [0,0,0]\n  2 -> 0\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "8c992c8951e37ffb9f6d08fa4051256c993057cfa0d9207383499a08823c0210",
+      "ticks": 32,
+      "measurements": 349,
+      "detectors": 276,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 26,
+          "tick_stop": 32,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-zxx-one-arm-output",
+      "family": "regular",
+      "source": "regular-zxx-one-arm-output.blog",
+      "stim": "regular-zxx-one-arm-output.stim",
+      "svg": "regular-zxx-one-arm-output.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXX [0,0,0]\n  1: ZXX [0,1,0]\n  0 -> 1\n  out q_out: data = 2\n  2: Port [0,0,1]\n  0 -> 2\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "304dd7f9131554c18dade5c800ea1ea665a2e5bb23c0cba280308b5ec83aad12",
+      "ticks": 32,
+      "measurements": 324,
+      "detectors": 276,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-zxx-one-arm-through",
+      "family": "regular",
+      "source": "regular-zxx-one-arm-through.blog",
+      "stim": "regular-zxx-one-arm-through.stim",
+      "svg": "regular-zxx-one-arm-through.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXX [0,0,1]\n  1: ZXX [0,1,1]\n  0 -> 1\n  in q_in: data = 2\n  2: Port [0,0,0]\n  2 -> 0\n  out q_out: data = 3\n  3: Port [0,0,2]\n  0 -> 3\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "86847a7e7ed2d984b4a5b553297e783d41a6bb6331416ca18508923079786ae9",
+      "ticks": 33,
+      "measurements": 348,
+      "detectors": 288,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 26,
+          "tick_stop": 32,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-zxx-opposite-arms-closed",
+      "family": "regular",
+      "source": "regular-zxx-opposite-arms-closed.blog",
+      "stim": "regular-zxx-opposite-arms-closed.stim",
+      "svg": "regular-zxx-opposite-arms-closed.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXX [0,1,0]\n  1: ZXX [0,0,0]\n  0 -> 1\n  2: ZXX [0,2,0]\n  0 -> 2\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "9a17cbdf7b6be7bfe7855f724d8d432d649165f17793491579180a4f0f2ab75a",
+      "ticks": 31,
+      "measurements": 505,
+      "detectors": 408,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-zxx-opposite-arms-input",
+      "family": "regular",
+      "source": "regular-zxx-opposite-arms-input.blog",
+      "stim": "regular-zxx-opposite-arms-input.stim",
+      "svg": "regular-zxx-opposite-arms-input.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXX [0,1,1]\n  1: ZXX [0,0,1]\n  0 -> 1\n  2: ZXX [0,2,1]\n  0 -> 2\n  in q_in: data = 3\n  3: Port [0,1,0]\n  3 -> 0\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "049f8839c242ab4c63b031f49e3bbe5000e256bbf5924eb296e0d7d7b2fe0753",
+      "ticks": 32,
+      "measurements": 529,
+      "detectors": 420,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 26,
+          "tick_stop": 32,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-zxx-opposite-arms-output",
+      "family": "regular",
+      "source": "regular-zxx-opposite-arms-output.blog",
+      "stim": "regular-zxx-opposite-arms-output.stim",
+      "svg": "regular-zxx-opposite-arms-output.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXX [0,1,0]\n  1: ZXX [0,0,0]\n  0 -> 1\n  2: ZXX [0,2,0]\n  0 -> 2\n  out q_out: data = 3\n  3: Port [0,1,1]\n  0 -> 3\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "9ecc39385732be0d44a1e7fb5d7042ff4eb664e00ba579101234563f8bf07218",
+      "ticks": 32,
+      "measurements": 504,
+      "detectors": 420,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 0,
+          "tick_stop": 6,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 6,
+          "tick_stop": 12,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 25,
+          "tick_stop": 31,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "regular-zxx-opposite-arms-through",
+      "family": "regular",
+      "source": "regular-zxx-opposite-arms-through.blog",
+      "stim": "regular-zxx-opposite-arms-through.stim",
+      "svg": "regular-zxx-opposite-arms-through.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXX [0,1,1]\n  1: ZXX [0,0,1]\n  0 -> 1\n  2: ZXX [0,2,1]\n  0 -> 2\n  in q_in: data = 3\n  3: Port [0,1,0]\n  3 -> 0\n  out q_out: data = 4\n  4: Port [0,1,2]\n  0 -> 4\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "58db7713b5a55b6ddaee6810f7283ee9540e7433b51eb4cde494f54d4e950ee7",
+      "ticks": 33,
+      "measurements": 528,
+      "detectors": 432,
+      "stages": [
+        {
+          "label": "First syndrome round",
+          "tick_start": 1,
+          "tick_stop": 7,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk round (d \u2212 2)",
+          "tick_start": 7,
+          "tick_stop": 13,
+          "repetitions": 3,
+          "repeat_meaning": "d - 2 identical syndrome rounds"
+        },
+        {
+          "label": "Last syndrome round",
+          "tick_start": 26,
+          "tick_stop": 32,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [
+        "The full spatially connected component is shown; temporal Ports close only the selected central patch with ideal simulator boundaries."
+      ]
+    },
+    {
+      "name": "t-cultivation-and-escape",
+      "family": "t",
+      "source": "t-cultivation-and-escape.blog",
+      "stim": "t-cultivation-and-escape.stim",
+      "svg": "t-cultivation-and-escape.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  out q_out: data = 2\n  0: T [0,0,0]\n  1: XZX [0,0,1]\n  2: Port [0,0,2]\n  0 -> +Z\n  1 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 11,
+      "circuit_sha256": "d4e6f5124a24f3903ed08df31d83327673d565e5b399c07f5ad550a3a3edd2e6",
+      "ticks": 83,
+      "measurements": 592,
+      "detectors": 517,
+      "stages": [
+        {
+          "label": "Injection (Clifford proxy)",
+          "tick_start": 0,
+          "tick_stop": 13,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Steane syndrome extraction",
+          "tick_start": 13,
+          "tick_stop": 23,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Certification (Clifford proxy)",
+          "tick_start": 23,
+          "tick_stop": 37,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Escape merge round 1 (d = 5)",
+          "tick_start": 37,
+          "tick_stop": 44,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Escape merge round 2 (d = 5)",
+          "tick_start": 44,
+          "tick_stop": 51,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Escape merge round 3 (d = 5)",
+          "tick_start": 51,
+          "tick_stop": 58,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Growth (d = 5 \u2192 11)",
+          "tick_start": 58,
+          "tick_stop": 64,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Stabilization (d = 11)",
+          "tick_start": 64,
+          "tick_stop": 70,
+          "repetitions": 3,
+          "repeat_meaning": "Three unchanged surface code rounds"
+        }
+      ],
+      "limitations": [
+        "Detector propagation uses the S/Clifford companion of one cultivation attempt; it does not propagate Pauli detectors through honest T gates or model repeat-until-success retries."
+      ]
+    },
+    {
+      "name": "t-cultivation-and-escape-swapped",
+      "family": "t",
+      "source": "t-cultivation-and-escape-swapped.blog",
+      "stim": "t-cultivation-and-escape-swapped.stim",
+      "svg": "t-cultivation-and-escape-swapped.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  out q_out: data = 2\n  0: T [0,0,0]\n  1: ZXZ [0,0,1]\n  2: Port [0,0,2]\n  0 -> +Z\n  1 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 11,
+      "circuit_sha256": "4c0bc037aadcc53f17bc5b9d73127ef927e43a6ad3c5a3f891c113dc70aefd2b",
+      "ticks": 83,
+      "measurements": 592,
+      "detectors": 517,
+      "stages": [
+        {
+          "label": "Injection (Clifford proxy)",
+          "tick_start": 0,
+          "tick_stop": 13,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Steane syndrome extraction",
+          "tick_start": 13,
+          "tick_stop": 23,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Certification (Clifford proxy)",
+          "tick_start": 23,
+          "tick_stop": 37,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Escape merge round 1 (d = 5)",
+          "tick_start": 37,
+          "tick_stop": 44,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Escape merge round 2 (d = 5)",
+          "tick_start": 44,
+          "tick_stop": 51,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Escape merge round 3 (d = 5)",
+          "tick_start": 51,
+          "tick_stop": 58,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Growth (d = 5 \u2192 11)",
+          "tick_start": 58,
+          "tick_stop": 64,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Stabilization (d = 11)",
+          "tick_start": 64,
+          "tick_stop": 70,
+          "repetitions": 3,
+          "repeat_meaning": "Three unchanged surface code rounds"
+        }
+      ],
+      "limitations": [
+        "Detector propagation uses the S/Clifford companion of one cultivation attempt; it does not propagate Pauli detectors through honest T gates or model repeat-until-success retries."
+      ]
+    },
+    {
+      "name": "measurement-x-zxz",
+      "family": "measurement",
+      "source": "measurement-x-zxz.blog",
+      "stim": "measurement-x-zxz.stim",
+      "svg": "measurement-x-zxz.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXZ [0,0,0]\n  1: X [0,0,1]\n  0 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "8f4f0e78d6321c1b77b4511da3404e9aa3e32423dd9ff45b4085802ccebe0e5f",
+      "ticks": 36,
+      "measurements": 169,
+      "detectors": 144,
+      "stages": [
+        {
+          "label": "Closing syndrome round with transversal data readout",
+          "tick_start": 30,
+          "tick_stop": 36,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "measurement-z-zxz",
+      "family": "measurement",
+      "source": "measurement-z-zxz.blog",
+      "stim": "measurement-z-zxz.stim",
+      "svg": "measurement-z-zxz.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: ZXZ [0,0,0]\n  1: Z [0,0,1]\n  0 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "3ec1576a6ff9e2e1bfa80e6cc0e9cac27747d28aef364c4a95a850330b8c98ac",
+      "ticks": 36,
+      "measurements": 169,
+      "detectors": 144,
+      "stages": [
+        {
+          "label": "Closing syndrome round with transversal data readout",
+          "tick_start": 30,
+          "tick_stop": 36,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "measurement-x-xzx",
+      "family": "measurement",
+      "source": "measurement-x-xzx.blog",
+      "stim": "measurement-x-xzx.stim",
+      "svg": "measurement-x-xzx.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZX [0,0,0]\n  1: X [0,0,1]\n  0 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "73d31397fb2747a83a3b67019d5e3f634825360f3299a070149f3816a1b203d2",
+      "ticks": 36,
+      "measurements": 169,
+      "detectors": 144,
+      "stages": [
+        {
+          "label": "Closing syndrome round with transversal data readout",
+          "tick_start": 30,
+          "tick_stop": 36,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "name": "measurement-z-xzx",
+      "family": "measurement",
+      "source": "measurement-z-xzx.blog",
+      "stim": "measurement-z-xzx.stim",
+      "svg": "measurement-z-xzx.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  0: XZX [0,0,0]\n  1: Z [0,0,1]\n  0 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "1daef7087dde0c3309a5e680b1908dec340014c3f7ad54671202fd2f91a0fcd6",
+      "ticks": 36,
+      "measurements": 169,
+      "detectors": 144,
+      "stages": [
+        {
+          "label": "Closing syndrome round with transversal data readout",
+          "tick_start": 30,
+          "tick_stop": 36,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": []
+    }
+  ],
+  "errors": []
+}

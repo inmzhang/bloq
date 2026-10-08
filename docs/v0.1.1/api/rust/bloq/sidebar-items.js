@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["compile_to_stim"],"mod":["prelude"],"struct":["Error"],"type":["Result"]};

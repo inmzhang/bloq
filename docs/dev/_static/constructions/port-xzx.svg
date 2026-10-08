@@ -1,0 +1,569 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 2476.00" width="1200" height="2476.00" role="img"><title>port-xzx</title><rect width="1200" height="2476.00" fill="white" /><text x="16" y="38" font-family="sans-serif" font-size="22" fill="#111">Input Port: ideal stabilizer MPP closure — moments 0–0</text><svg viewBox="0 0 612.548 612.548" version="1.1" x="16" y="52" width="1168" height="1168.00">
+<rect x="0.0" y="0.0" width="612.548" height="612.548" fill="white" /><g id="p0-slice:98:4_-2:1">
+<path d="M215.764,396.784 L306.274,396.784 L306.274,487.294 L215.764,487.294 L215.764,396.784" stroke="none" fill-opacity="0.75" fill="#4DA6FF" />
+<path d="M215.764,396.784 L306.274,396.784 L306.274,487.294 L215.764,487.294 L215.764,396.784" stroke="black" fill="none" />
+</g>
+<g id="p0-slice:99:8_-2:1">
+<path d="M396.784,396.784 L487.293,396.784 L487.293,487.294 L396.784,487.294 L396.784,396.784" stroke="none" fill-opacity="0.75" fill="#4DA6FF" />
+<path d="M396.784,396.784 L487.293,396.784 L487.293,487.294 L396.784,487.294 L396.784,396.784" stroke="black" fill="none" />
+</g>
+<g id="p0-slice:100:2_-4:1">
+<path d="M125.255,306.274 L215.764,306.274 L215.764,396.784 L125.255,396.784 L125.255,306.274" stroke="none" fill-opacity="0.75" fill="#4DA6FF" />
+<path d="M125.255,306.274 L215.764,306.274 L215.764,396.784 L125.255,396.784 L125.255,306.274" stroke="black" fill="none" />
+</g>
+<g id="p0-slice:101:6_-4:1">
+<path d="M306.274,306.274 L396.784,306.274 L396.784,396.784 L306.274,396.784 L306.274,306.274" stroke="none" fill-opacity="0.75" fill="#4DA6FF" />
+<path d="M306.274,306.274 L396.784,306.274 L396.784,396.784 L306.274,396.784 L306.274,306.274" stroke="black" fill="none" />
+</g>
+<g id="p0-slice:102:4_-6:1">
+<path d="M215.764,215.764 L306.274,215.764 L306.274,306.274 L215.764,306.274 L215.764,215.764" stroke="none" fill-opacity="0.75" fill="#4DA6FF" />
+<path d="M215.764,215.764 L306.274,215.764 L306.274,306.274 L215.764,306.274 L215.764,215.764" stroke="black" fill="none" />
+</g>
+<g id="p0-slice:103:8_-6:1">
+<path d="M396.784,215.764 L487.293,215.764 L487.293,306.274 L396.784,306.274 L396.784,215.764" stroke="none" fill-opacity="0.75" fill="#4DA6FF" />
+<path d="M396.784,215.764 L487.293,215.764 L487.293,306.274 L396.784,306.274 L396.784,215.764" stroke="black" fill="none" />
+</g>
+<g id="p0-slice:104:2_-8:1">
+<path d="M125.255,125.255 L215.764,125.255 L215.764,215.764 L125.255,215.764 L125.255,125.255" stroke="none" fill-opacity="0.75" fill="#4DA6FF" />
+<path d="M125.255,125.255 L215.764,125.255 L215.764,215.764 L125.255,215.764 L125.255,125.255" stroke="black" fill="none" />
+</g>
+<g id="p0-slice:105:6_-8:1">
+<path d="M306.274,125.255 L396.784,125.255 L396.784,215.764 L306.274,215.764 L306.274,125.255" stroke="none" fill-opacity="0.75" fill="#4DA6FF" />
+<path d="M306.274,125.255 L396.784,125.255 L396.784,215.764 L306.274,215.764 L306.274,125.255" stroke="black" fill="none" />
+</g>
+<g id="p0-slice:108:2_-2:1">
+<path d="M125.255,396.784 L215.764,396.784 L215.764,487.294 L125.255,487.294 L125.255,396.784" stroke="none" fill-opacity="0.75" fill="#FF4040" />
+<path d="M125.255,396.784 L215.764,396.784 L215.764,487.294 L125.255,487.294 L125.255,396.784" stroke="black" fill="none" />
+</g>
+<g id="p0-slice:109:6_-2:1">
+<path d="M306.274,396.784 L396.784,396.784 L396.784,487.294 L306.274,487.294 L306.274,396.784" stroke="none" fill-opacity="0.75" fill="#FF4040" />
+<path d="M306.274,396.784 L396.784,396.784 L396.784,487.294 L306.274,487.294 L306.274,396.784" stroke="black" fill="none" />
+</g>
+<g id="p0-slice:112:4_-4:1">
+<path d="M215.764,306.274 L306.274,306.274 L306.274,396.784 L215.764,396.784 L215.764,306.274" stroke="none" fill-opacity="0.75" fill="#FF4040" />
+<path d="M215.764,306.274 L306.274,306.274 L306.274,396.784 L215.764,396.784 L215.764,306.274" stroke="black" fill="none" />
+</g>
+<g id="p0-slice:113:8_-4:1">
+<path d="M396.784,306.274 L487.293,306.274 L487.293,396.784 L396.784,396.784 L396.784,306.274" stroke="none" fill-opacity="0.75" fill="#FF4040" />
+<path d="M396.784,306.274 L487.293,306.274 L487.293,396.784 L396.784,396.784 L396.784,306.274" stroke="black" fill="none" />
+</g>
+<g id="p0-slice:114:2_-6:1">
+<path d="M125.255,215.764 L215.764,215.764 L215.764,306.274 L125.255,306.274 L125.255,215.764" stroke="none" fill-opacity="0.75" fill="#FF4040" />
+<path d="M125.255,215.764 L215.764,215.764 L215.764,306.274 L125.255,306.274 L125.255,215.764" stroke="black" fill="none" />
+</g>
+<g id="p0-slice:115:6_-6:1">
+<path d="M306.274,215.764 L396.784,215.764 L396.784,306.274 L306.274,306.274 L306.274,215.764" stroke="none" fill-opacity="0.75" fill="#FF4040" />
+<path d="M306.274,215.764 L396.784,215.764 L396.784,306.274 L306.274,306.274 L306.274,215.764" stroke="black" fill="none" />
+</g>
+<g id="p0-slice:118:4_-8:1">
+<path d="M215.764,125.255 L306.274,125.255 L306.274,215.764 L215.764,215.764 L215.764,125.255" stroke="none" fill-opacity="0.75" fill="#FF4040" />
+<path d="M215.764,125.255 L306.274,125.255 L306.274,215.764 L215.764,215.764 L215.764,125.255" stroke="black" fill="none" />
+</g>
+<g id="p0-slice:119:8_-8:1">
+<path d="M396.784,125.255 L487.293,125.255 L487.293,215.764 L396.784,215.764 L396.784,125.255" stroke="none" fill-opacity="0.75" fill="#FF4040" />
+<path d="M396.784,125.255 L487.293,125.255 L487.293,215.764 L396.784,215.764 L396.784,125.255" stroke="black" fill="none" />
+</g>
+<g id="p0-slice:96:2_-0:1">
+<path d="M125.255,487.294 C157.71 500.094, 183.31 500.094, 215.764 487.294 C183.31 474.494, 157.71 474.494, 125.255 487.294" stroke="none" fill="#4DA6FF" />
+<path d="M125.255,487.294 C157.71 500.094, 183.31 500.094, 215.764 487.294 C183.31 474.494, 157.71 474.494, 125.255 487.294" stroke="black" fill="none" />
+</g>
+<g id="p0-slice:97:6_-0:1">
+<path d="M306.274,487.294 C338.729 500.094, 364.329 500.094, 396.784 487.294 C364.329 474.494, 338.729 474.494, 306.274 487.294" stroke="none" fill="#4DA6FF" />
+<path d="M306.274,487.294 C338.729 500.094, 364.329 500.094, 396.784 487.294 C364.329 474.494, 338.729 474.494, 306.274 487.294" stroke="black" fill="none" />
+</g>
+<g id="p0-slice:106:4_-10:1">
+<path d="M215.764,125.255 C248.219 138.055, 273.819 138.055, 306.274 125.255 C273.819 112.455, 248.219 112.455, 215.764 125.255" stroke="none" fill="#4DA6FF" />
+<path d="M215.764,125.255 C248.219 138.055, 273.819 138.055, 306.274 125.255 C273.819 112.455, 248.219 112.455, 215.764 125.255" stroke="black" fill="none" />
+</g>
+<g id="p0-slice:107:8_-10:1">
+<path d="M396.784,125.255 C429.239 138.055, 454.839 138.055, 487.293 125.255 C454.839 112.455, 429.239 112.455, 396.784 125.255" stroke="none" fill="#4DA6FF" />
+<path d="M396.784,125.255 C429.239 138.055, 454.839 138.055, 487.293 125.255 C454.839 112.455, 429.239 112.455, 396.784 125.255" stroke="black" fill="none" />
+</g>
+<g id="p0-slice:110:10_-2:1">
+<path d="M487.293,487.294 C500.093 454.839, 500.093 429.239, 487.293 396.784 C474.493 429.239, 474.493 454.839, 487.293 487.294" stroke="none" fill="#FF4040" />
+<path d="M487.293,487.294 C500.093 454.839, 500.093 429.239, 487.293 396.784 C474.493 429.239, 474.493 454.839, 487.293 487.294" stroke="black" fill="none" />
+</g>
+<g id="p0-slice:111:0_-4:1">
+<path d="M125.255,396.784 C138.055 364.329, 138.055 338.729, 125.255 306.274 C112.455 338.729, 112.455 364.329, 125.255 396.784" stroke="none" fill="#FF4040" />
+<path d="M125.255,396.784 C138.055 364.329, 138.055 338.729, 125.255 306.274 C112.455 338.729, 112.455 364.329, 125.255 396.784" stroke="black" fill="none" />
+</g>
+<g id="p0-slice:116:10_-6:1">
+<path d="M487.293,306.274 C500.093 273.819, 500.093 248.219, 487.293 215.764 C474.493 248.219, 474.493 273.819, 487.293 306.274" stroke="none" fill="#FF4040" />
+<path d="M487.293,306.274 C500.093 273.819, 500.093 248.219, 487.293 215.764 C474.493 248.219, 474.493 273.819, 487.293 306.274" stroke="black" fill="none" />
+</g>
+<g id="p0-slice:117:0_-8:1">
+<path d="M125.255,215.764 C138.055 183.31, 138.055 157.71, 125.255 125.255 C112.455 157.71, 112.455 183.31, 125.255 215.764" stroke="none" fill="#FF4040" />
+<path d="M125.255,215.764 C138.055 183.31, 138.055 157.71, 125.255 125.255 C112.455 157.71, 112.455 183.31, 125.255 215.764" stroke="black" fill="none" />
+</g>
+<g id="p0-qubit_dots">
+<circle id="p0-qubit_dot:0:0_-4:0" cx="80" cy="351.529" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:1:0_-8:0" cx="80" cy="170.51" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:2:1_-1:0" cx="125.255" cy="487.294" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:3:1_-3:0" cx="125.255" cy="396.784" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:4:1_-5:0" cx="125.255" cy="306.274" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:5:1_-7:0" cx="125.255" cy="215.764" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:6:1_-9:0" cx="125.255" cy="125.255" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:7:2_0:0" cx="170.51" cy="532.548" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:8:2_-2:0" cx="170.51" cy="442.039" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:9:2_-4:0" cx="170.51" cy="351.529" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:10:2_-6:0" cx="170.51" cy="261.019" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:11:2_-8:0" cx="170.51" cy="170.51" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:12:3_-1:0" cx="215.764" cy="487.294" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:13:3_-3:0" cx="215.764" cy="396.784" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:14:3_-5:0" cx="215.764" cy="306.274" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:15:3_-7:0" cx="215.764" cy="215.764" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:16:3_-9:0" cx="215.764" cy="125.255" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:17:4_-2:0" cx="261.019" cy="442.039" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:18:4_-4:0" cx="261.019" cy="351.529" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:19:4_-6:0" cx="261.019" cy="261.019" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:20:4_-8:0" cx="261.019" cy="170.51" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:21:4_-10:0" cx="261.019" cy="80" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:22:5_-1:0" cx="306.274" cy="487.294" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:23:5_-3:0" cx="306.274" cy="396.784" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:24:5_-5:0" cx="306.274" cy="306.274" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:25:5_-7:0" cx="306.274" cy="215.764" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:26:5_-9:0" cx="306.274" cy="125.255" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:27:6_0:0" cx="351.529" cy="532.548" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:28:6_-2:0" cx="351.529" cy="442.039" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:29:6_-4:0" cx="351.529" cy="351.529" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:30:6_-6:0" cx="351.529" cy="261.019" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:31:6_-8:0" cx="351.529" cy="170.51" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:32:7_-1:0" cx="396.784" cy="487.294" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:33:7_-3:0" cx="396.784" cy="396.784" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:34:7_-5:0" cx="396.784" cy="306.274" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:35:7_-7:0" cx="396.784" cy="215.764" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:36:7_-9:0" cx="396.784" cy="125.255" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:37:8_-2:0" cx="442.039" cy="442.039" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:38:8_-4:0" cx="442.039" cy="351.529" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:39:8_-6:0" cx="442.039" cy="261.019" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:40:8_-8:0" cx="442.039" cy="170.51" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:41:8_-10:0" cx="442.039" cy="80" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:42:9_-1:0" cx="487.293" cy="487.294" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:43:9_-3:0" cx="487.293" cy="396.784" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:44:9_-5:0" cx="487.293" cy="306.274" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:45:9_-7:0" cx="487.293" cy="215.764" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:46:9_-9:0" cx="487.293" cy="125.255" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:47:10_-2:0" cx="532.548" cy="442.039" r="2" stroke="none" fill="black" />
+<circle id="p0-qubit_dot:48:10_-6:0" cx="532.548" cy="261.019" r="2" stroke="none" fill="black" />
+</g>
+<path d="M125.255,487.294 C143.357 505.395,197.663 505.395,215.764 487.294 " fill="none" stroke="black" stroke-width="5" />
+<rect x="109.255" y="471.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="125.255" y="487.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="199.764" y="471.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="215.764" y="487.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<path d="M306.274,487.294 C324.376 505.395,378.682 505.395,396.784 487.294 " fill="none" stroke="black" stroke-width="5" />
+<rect x="290.274" y="471.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="306.274" y="487.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="380.784" y="471.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="396.784" y="487.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<path d="M139.255,503.294 C157.357 485.192,157.357 430.886,139.255 412.784 C139.255 448.988,193.561 503.294,229.764 503.294 C247.866 485.192,247.866 430.886,229.764 412.784 " fill="none" stroke="black" stroke-width="5" />
+<rect x="123.255" y="487.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="139.255" y="503.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="123.255" y="396.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="139.255" y="412.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="213.764" y="487.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="229.764" y="503.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="213.764" y="396.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="229.764" y="412.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<path d="M243.764,519.294 C261.866 501.192,261.866 446.886,243.764 428.784 C243.764 464.988,298.07 519.294,334.274 519.294 C352.376 501.192,352.376 446.886,334.274 428.784 " fill="none" stroke="black" stroke-width="5" />
+<rect x="227.764" y="503.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="243.764" y="519.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="227.764" y="412.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="243.764" y="428.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="318.274" y="503.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="334.274" y="519.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="318.274" y="412.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="334.274" y="428.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<path d="M348.274,535.294 C366.376 517.192,366.376 462.886,348.274 444.784 C348.274 480.988,402.58 535.294,438.784 535.294 C456.886 517.192,456.886 462.886,438.784 444.784 " fill="none" stroke="black" stroke-width="5" />
+<rect x="332.274" y="519.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="348.274" y="535.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="332.274" y="428.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="348.274" y="444.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="422.784" y="519.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="438.784" y="535.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="422.784" y="428.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="438.784" y="444.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<path d="M452.784,551.294 C470.886 533.192,470.886 478.886,452.784 460.784 C452.784 496.988,507.09 551.294,543.293 551.294 C561.395 533.192,561.395 478.886,543.293 460.784 " fill="none" stroke="black" stroke-width="5" />
+<rect x="436.784" y="535.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="452.784" y="551.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="436.784" y="444.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="452.784" y="460.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="527.293" y="535.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="543.293" y="551.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="527.293" y="444.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="543.293" y="460.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<path d="M557.293,567.294 C575.395 549.192,575.395 494.886,557.293 476.784 " fill="none" stroke="black" stroke-width="5" />
+<rect x="541.293" y="551.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="557.293" y="567.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="541.293" y="460.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="557.293" y="476.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<path d="M195.255,476.784 C213.357 458.682,213.357 404.376,195.255 386.274 " fill="none" stroke="black" stroke-width="5" />
+<rect x="179.255" y="460.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="195.255" y="476.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="179.255" y="370.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="195.255" y="386.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<path d="M209.255,492.784 C227.357 474.682,227.357 420.376,209.255 402.274 C209.255 438.478,263.561 492.784,299.764 492.784 C317.866 474.682,317.866 420.376,299.764 402.274 " fill="none" stroke="black" stroke-width="5" />
+<rect x="193.255" y="476.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="209.255" y="492.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="193.255" y="386.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="209.255" y="402.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="283.764" y="476.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="299.764" y="492.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="283.764" y="386.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="299.764" y="402.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<path d="M313.764,508.784 C331.866 490.682,331.866 436.376,313.764 418.274 C313.764 454.478,368.07 508.784,404.274 508.784 C422.376 490.682,422.376 436.376,404.274 418.274 " fill="none" stroke="black" stroke-width="5" />
+<rect x="297.764" y="492.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="313.764" y="508.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="297.764" y="402.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="313.764" y="418.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="388.274" y="492.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="404.274" y="508.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="388.274" y="402.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="404.274" y="418.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<path d="M418.274,524.784 C436.376 506.682,436.376 452.376,418.274 434.274 C418.274 470.478,472.58 524.784,508.784 524.784 C526.886 506.682,526.886 452.376,508.784 434.274 " fill="none" stroke="black" stroke-width="5" />
+<rect x="402.274" y="508.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="418.274" y="524.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="402.274" y="418.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="418.274" y="434.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="492.784" y="508.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="508.784" y="524.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="492.784" y="418.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="508.784" y="434.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<path d="M522.784,540.784 C540.886 522.682,540.886 468.376,522.784 450.274 C522.784 486.478,577.09 540.784,613.293 540.784 C631.395 522.682,631.395 468.376,613.293 450.274 " fill="none" stroke="black" stroke-width="5" />
+<rect x="506.784" y="524.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="522.784" y="540.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="506.784" y="434.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="522.784" y="450.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="597.293" y="524.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="613.293" y="540.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="597.293" y="434.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="613.293" y="450.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<path d="M251.255,450.274 C269.357 432.172,269.357 377.866,251.255 359.764 C251.255 395.968,305.561 450.274,341.764 450.274 C359.866 432.172,359.866 377.866,341.764 359.764 " fill="none" stroke="black" stroke-width="5" />
+<rect x="235.255" y="434.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="251.255" y="450.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="235.255" y="343.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="251.255" y="359.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="325.764" y="434.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="341.764" y="450.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="325.764" y="343.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="341.764" y="359.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<path d="M355.764,466.274 C373.866 448.172,373.866 393.866,355.764 375.764 C355.764 411.968,410.07 466.274,446.274 466.274 C464.376 448.172,464.376 393.866,446.274 375.764 " fill="none" stroke="black" stroke-width="5" />
+<rect x="339.764" y="450.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="355.764" y="466.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="339.764" y="359.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="355.764" y="375.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="430.274" y="450.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="446.274" y="466.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="430.274" y="359.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="446.274" y="375.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<path d="M460.274,482.274 C478.376 464.172,478.376 409.866,460.274 391.764 C460.274 427.968,514.58 482.274,550.784 482.274 C568.886 464.172,568.886 409.866,550.784 391.764 " fill="none" stroke="black" stroke-width="5" />
+<rect x="444.274" y="466.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="460.274" y="482.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="444.274" y="375.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="460.274" y="391.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="534.784" y="466.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="550.784" y="482.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="534.784" y="375.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="550.784" y="391.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<path d="M564.784,498.274 C582.886 480.172,582.886 425.866,564.784 407.764 C564.784 443.968,619.09 498.274,655.293 498.274 C673.395 480.172,673.395 425.866,655.293 407.764 " fill="none" stroke="black" stroke-width="5" />
+<rect x="548.784" y="482.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="564.784" y="498.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="548.784" y="391.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="564.784" y="407.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="639.293" y="482.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="655.293" y="498.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="639.293" y="391.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="655.293" y="407.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<path d="M669.293,514.274 C687.395 496.172,687.395 441.866,669.293 423.764 " fill="none" stroke="black" stroke-width="5" />
+<rect x="653.293" y="498.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="669.293" y="514.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="653.293" y="407.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="669.293" y="423.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<path d="M307.255,423.764 C325.357 405.663,325.357 351.357,307.255 333.255 " fill="none" stroke="black" stroke-width="5" />
+<rect x="291.255" y="407.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="307.255" y="423.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="291.255" y="317.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="307.255" y="333.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<path d="M321.255,439.764 C339.357 421.663,339.357 367.357,321.255 349.255 C321.255 385.459,375.561 439.764,411.764 439.764 C429.866 421.663,429.866 367.357,411.764 349.255 " fill="none" stroke="black" stroke-width="5" />
+<rect x="305.255" y="423.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="321.255" y="439.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="305.255" y="333.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="321.255" y="349.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="395.764" y="423.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="411.764" y="439.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="395.764" y="333.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="411.764" y="349.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<path d="M425.764,455.764 C443.866 437.663,443.866 383.357,425.764 365.255 C425.764 401.459,480.07 455.764,516.274 455.764 C534.376 437.663,534.376 383.357,516.274 365.255 " fill="none" stroke="black" stroke-width="5" />
+<rect x="409.764" y="439.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="425.764" y="455.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="409.764" y="349.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="425.764" y="365.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="500.274" y="439.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="516.274" y="455.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="500.274" y="349.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="516.274" y="365.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<path d="M530.274,471.764 C548.376 453.663,548.376 399.357,530.274 381.255 C530.274 417.459,584.58 471.764,620.784 471.764 C638.886 453.663,638.886 399.357,620.784 381.255 " fill="none" stroke="black" stroke-width="5" />
+<rect x="514.274" y="455.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="530.274" y="471.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="514.274" y="365.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="530.274" y="381.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="604.784" y="455.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="620.784" y="471.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="604.784" y="365.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="620.784" y="381.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<path d="M634.784,487.764 C652.886 469.663,652.886 415.357,634.784 397.255 C634.784 433.459,689.09 487.764,725.293 487.764 C743.395 469.663,743.395 415.357,725.293 397.255 " fill="none" stroke="black" stroke-width="5" />
+<rect x="618.784" y="471.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="634.784" y="487.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="618.784" y="381.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="634.784" y="397.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="709.293" y="471.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="725.293" y="487.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="709.293" y="381.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="725.293" y="397.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<path d="M453.764,397.255 C471.866 415.357,526.172 415.357,544.274 397.255 " fill="none" stroke="black" stroke-width="5" />
+<rect x="437.764" y="381.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="453.764" y="397.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="528.274" y="381.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="544.274" y="397.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<path d="M648.784,413.255 C666.886 431.357,721.192 431.357,739.293 413.255 " fill="none" stroke="black" stroke-width="5" />
+<rect x="632.784" y="397.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="648.784" y="413.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="723.293" y="397.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="739.293" y="413.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+</svg><text x="16" y="1254.0" font-family="sans-serif" font-size="22" fill="#111">Output Port: ideal stabilizer MPP closure — moments 31–31</text><svg viewBox="0 0 612.548 612.548" version="1.1" x="16" y="1268.0" width="1168" height="1168.00">
+<rect x="0.0" y="0.0" width="612.548" height="612.548" fill="white" /><g id="p1-qubit_dots">
+<circle id="p1-qubit_dot:0:0_-4:31" cx="80" cy="351.529" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:1:0_-8:31" cx="80" cy="170.51" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:2:1_-1:31" cx="125.255" cy="487.294" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:3:1_-3:31" cx="125.255" cy="396.784" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:4:1_-5:31" cx="125.255" cy="306.274" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:5:1_-7:31" cx="125.255" cy="215.764" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:6:1_-9:31" cx="125.255" cy="125.255" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:7:2_0:31" cx="170.51" cy="532.548" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:8:2_-2:31" cx="170.51" cy="442.039" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:9:2_-4:31" cx="170.51" cy="351.529" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:10:2_-6:31" cx="170.51" cy="261.019" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:11:2_-8:31" cx="170.51" cy="170.51" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:12:3_-1:31" cx="215.764" cy="487.294" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:13:3_-3:31" cx="215.764" cy="396.784" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:14:3_-5:31" cx="215.764" cy="306.274" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:15:3_-7:31" cx="215.764" cy="215.764" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:16:3_-9:31" cx="215.764" cy="125.255" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:17:4_-2:31" cx="261.019" cy="442.039" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:18:4_-4:31" cx="261.019" cy="351.529" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:19:4_-6:31" cx="261.019" cy="261.019" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:20:4_-8:31" cx="261.019" cy="170.51" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:21:4_-10:31" cx="261.019" cy="80" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:22:5_-1:31" cx="306.274" cy="487.294" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:23:5_-3:31" cx="306.274" cy="396.784" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:24:5_-5:31" cx="306.274" cy="306.274" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:25:5_-7:31" cx="306.274" cy="215.764" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:26:5_-9:31" cx="306.274" cy="125.255" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:27:6_0:31" cx="351.529" cy="532.548" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:28:6_-2:31" cx="351.529" cy="442.039" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:29:6_-4:31" cx="351.529" cy="351.529" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:30:6_-6:31" cx="351.529" cy="261.019" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:31:6_-8:31" cx="351.529" cy="170.51" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:32:7_-1:31" cx="396.784" cy="487.294" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:33:7_-3:31" cx="396.784" cy="396.784" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:34:7_-5:31" cx="396.784" cy="306.274" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:35:7_-7:31" cx="396.784" cy="215.764" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:36:7_-9:31" cx="396.784" cy="125.255" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:37:8_-2:31" cx="442.039" cy="442.039" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:38:8_-4:31" cx="442.039" cy="351.529" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:39:8_-6:31" cx="442.039" cy="261.019" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:40:8_-8:31" cx="442.039" cy="170.51" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:41:8_-10:31" cx="442.039" cy="80" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:42:9_-1:31" cx="487.293" cy="487.294" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:43:9_-3:31" cx="487.293" cy="396.784" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:44:9_-5:31" cx="487.293" cy="306.274" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:45:9_-7:31" cx="487.293" cy="215.764" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:46:9_-9:31" cx="487.293" cy="125.255" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:47:10_-2:31" cx="532.548" cy="442.039" r="2" stroke="none" fill="black" />
+<circle id="p1-qubit_dot:48:10_-6:31" cx="532.548" cy="261.019" r="2" stroke="none" fill="black" />
+</g>
+<path d="M125.255,487.294 C143.357 505.395,197.663 505.395,215.764 487.294 " fill="none" stroke="black" stroke-width="5" />
+<rect x="109.255" y="471.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="125.255" y="487.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="199.764" y="471.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="215.764" y="487.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<path d="M306.274,487.294 C324.376 505.395,378.682 505.395,396.784 487.294 " fill="none" stroke="black" stroke-width="5" />
+<rect x="290.274" y="471.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="306.274" y="487.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="380.784" y="471.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="396.784" y="487.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<path d="M139.255,503.294 C157.357 485.192,157.357 430.886,139.255 412.784 C139.255 448.988,193.561 503.294,229.764 503.294 C247.866 485.192,247.866 430.886,229.764 412.784 " fill="none" stroke="black" stroke-width="5" />
+<rect x="123.255" y="487.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="139.255" y="503.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="123.255" y="396.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="139.255" y="412.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="213.764" y="487.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="229.764" y="503.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="213.764" y="396.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="229.764" y="412.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<path d="M243.764,519.294 C261.866 501.192,261.866 446.886,243.764 428.784 C243.764 464.988,298.07 519.294,334.274 519.294 C352.376 501.192,352.376 446.886,334.274 428.784 " fill="none" stroke="black" stroke-width="5" />
+<rect x="227.764" y="503.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="243.764" y="519.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="227.764" y="412.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="243.764" y="428.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="318.274" y="503.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="334.274" y="519.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="318.274" y="412.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="334.274" y="428.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<path d="M348.274,535.294 C366.376 517.192,366.376 462.886,348.274 444.784 C348.274 480.988,402.58 535.294,438.784 535.294 C456.886 517.192,456.886 462.886,438.784 444.784 " fill="none" stroke="black" stroke-width="5" />
+<rect x="332.274" y="519.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="348.274" y="535.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="332.274" y="428.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="348.274" y="444.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="422.784" y="519.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="438.784" y="535.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="422.784" y="428.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="438.784" y="444.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<path d="M452.784,551.294 C470.886 533.192,470.886 478.886,452.784 460.784 C452.784 496.988,507.09 551.294,543.293 551.294 C561.395 533.192,561.395 478.886,543.293 460.784 " fill="none" stroke="black" stroke-width="5" />
+<rect x="436.784" y="535.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="452.784" y="551.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="436.784" y="444.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="452.784" y="460.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="527.293" y="535.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="543.293" y="551.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="527.293" y="444.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="543.293" y="460.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<path d="M557.293,567.294 C575.395 549.192,575.395 494.886,557.293 476.784 " fill="none" stroke="black" stroke-width="5" />
+<rect x="541.293" y="551.294" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="557.293" y="567.294" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="541.293" y="460.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="557.293" y="476.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<path d="M195.255,476.784 C213.357 458.682,213.357 404.376,195.255 386.274 " fill="none" stroke="black" stroke-width="5" />
+<rect x="179.255" y="460.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="195.255" y="476.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="179.255" y="370.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="195.255" y="386.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<path d="M209.255,492.784 C227.357 474.682,227.357 420.376,209.255 402.274 C209.255 438.478,263.561 492.784,299.764 492.784 C317.866 474.682,317.866 420.376,299.764 402.274 " fill="none" stroke="black" stroke-width="5" />
+<rect x="193.255" y="476.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="209.255" y="492.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="193.255" y="386.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="209.255" y="402.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="283.764" y="476.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="299.764" y="492.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="283.764" y="386.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="299.764" y="402.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<path d="M313.764,508.784 C331.866 490.682,331.866 436.376,313.764 418.274 C313.764 454.478,368.07 508.784,404.274 508.784 C422.376 490.682,422.376 436.376,404.274 418.274 " fill="none" stroke="black" stroke-width="5" />
+<rect x="297.764" y="492.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="313.764" y="508.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="297.764" y="402.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="313.764" y="418.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="388.274" y="492.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="404.274" y="508.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="388.274" y="402.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="404.274" y="418.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<path d="M418.274,524.784 C436.376 506.682,436.376 452.376,418.274 434.274 C418.274 470.478,472.58 524.784,508.784 524.784 C526.886 506.682,526.886 452.376,508.784 434.274 " fill="none" stroke="black" stroke-width="5" />
+<rect x="402.274" y="508.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="418.274" y="524.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="402.274" y="418.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="418.274" y="434.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="492.784" y="508.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="508.784" y="524.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="492.784" y="418.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="508.784" y="434.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<path d="M522.784,540.784 C540.886 522.682,540.886 468.376,522.784 450.274 C522.784 486.478,577.09 540.784,613.293 540.784 C631.395 522.682,631.395 468.376,613.293 450.274 " fill="none" stroke="black" stroke-width="5" />
+<rect x="506.784" y="524.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="522.784" y="540.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="506.784" y="434.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="522.784" y="450.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="597.293" y="524.784" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="613.293" y="540.784" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="597.293" y="434.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="613.293" y="450.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<path d="M251.255,450.274 C269.357 432.172,269.357 377.866,251.255 359.764 C251.255 395.968,305.561 450.274,341.764 450.274 C359.866 432.172,359.866 377.866,341.764 359.764 " fill="none" stroke="black" stroke-width="5" />
+<rect x="235.255" y="434.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="251.255" y="450.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="235.255" y="343.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="251.255" y="359.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="325.764" y="434.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="341.764" y="450.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="325.764" y="343.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="341.764" y="359.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<path d="M355.764,466.274 C373.866 448.172,373.866 393.866,355.764 375.764 C355.764 411.968,410.07 466.274,446.274 466.274 C464.376 448.172,464.376 393.866,446.274 375.764 " fill="none" stroke="black" stroke-width="5" />
+<rect x="339.764" y="450.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="355.764" y="466.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="339.764" y="359.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="355.764" y="375.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="430.274" y="450.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="446.274" y="466.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="430.274" y="359.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="446.274" y="375.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<path d="M460.274,482.274 C478.376 464.172,478.376 409.866,460.274 391.764 C460.274 427.968,514.58 482.274,550.784 482.274 C568.886 464.172,568.886 409.866,550.784 391.764 " fill="none" stroke="black" stroke-width="5" />
+<rect x="444.274" y="466.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="460.274" y="482.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="444.274" y="375.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="460.274" y="391.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="534.784" y="466.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="550.784" y="482.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="534.784" y="375.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="550.784" y="391.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<path d="M564.784,498.274 C582.886 480.172,582.886 425.866,564.784 407.764 C564.784 443.968,619.09 498.274,655.293 498.274 C673.395 480.172,673.395 425.866,655.293 407.764 " fill="none" stroke="black" stroke-width="5" />
+<rect x="548.784" y="482.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="564.784" y="498.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="548.784" y="391.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="564.784" y="407.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="639.293" y="482.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="655.293" y="498.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="639.293" y="391.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="655.293" y="407.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<path d="M669.293,514.274 C687.395 496.172,687.395 441.866,669.293 423.764 " fill="none" stroke="black" stroke-width="5" />
+<rect x="653.293" y="498.274" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="669.293" y="514.274" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="653.293" y="407.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="669.293" y="423.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<path d="M307.255,423.764 C325.357 405.663,325.357 351.357,307.255 333.255 " fill="none" stroke="black" stroke-width="5" />
+<rect x="291.255" y="407.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="307.255" y="423.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="291.255" y="317.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="307.255" y="333.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<path d="M321.255,439.764 C339.357 421.663,339.357 367.357,321.255 349.255 C321.255 385.459,375.561 439.764,411.764 439.764 C429.866 421.663,429.866 367.357,411.764 349.255 " fill="none" stroke="black" stroke-width="5" />
+<rect x="305.255" y="423.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="321.255" y="439.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="305.255" y="333.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="321.255" y="349.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="395.764" y="423.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="411.764" y="439.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="395.764" y="333.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="411.764" y="349.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<path d="M425.764,455.764 C443.866 437.663,443.866 383.357,425.764 365.255 C425.764 401.459,480.07 455.764,516.274 455.764 C534.376 437.663,534.376 383.357,516.274 365.255 " fill="none" stroke="black" stroke-width="5" />
+<rect x="409.764" y="439.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="425.764" y="455.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="409.764" y="349.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="425.764" y="365.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="500.274" y="439.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="516.274" y="455.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="500.274" y="349.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="516.274" y="365.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<path d="M530.274,471.764 C548.376 453.663,548.376 399.357,530.274 381.255 C530.274 417.459,584.58 471.764,620.784 471.764 C638.886 453.663,638.886 399.357,620.784 381.255 " fill="none" stroke="black" stroke-width="5" />
+<rect x="514.274" y="455.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="530.274" y="471.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="514.274" y="365.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="530.274" y="381.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="604.784" y="455.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="620.784" y="471.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="604.784" y="365.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="620.784" y="381.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<path d="M634.784,487.764 C652.886 469.663,652.886 415.357,634.784 397.255 C634.784 433.459,689.09 487.764,725.293 487.764 C743.395 469.663,743.395 415.357,725.293 397.255 " fill="none" stroke="black" stroke-width="5" />
+<rect x="618.784" y="471.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="634.784" y="487.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="618.784" y="381.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="634.784" y="397.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="709.293" y="471.764" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="725.293" y="487.764" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<rect x="709.293" y="381.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="725.293" y="397.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">X</tspan></text>
+<path d="M453.764,397.255 C471.866 415.357,526.172 415.357,544.274 397.255 " fill="none" stroke="black" stroke-width="5" />
+<rect x="437.764" y="381.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="453.764" y="397.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="528.274" y="381.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="544.274" y="397.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<path d="M648.784,413.255 C666.886 431.357,721.192 431.357,739.293 413.255 " fill="none" stroke="black" stroke-width="5" />
+<rect x="632.784" y="397.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="648.784" y="413.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+<rect x="723.293" y="397.255" width="32" height="32" stroke="black" fill="black" />
+<text dominant-baseline="central" text-anchor="middle" font-family="monospace" font-size="12" x="739.293" y="413.255" fill="white">MPP<tspan baseline-shift="sub" font-size="10">Z</tspan></text>
+</svg></svg>

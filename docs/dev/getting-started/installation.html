@@ -1,0 +1,3180 @@
+
+
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../index.html">
+      
+      
+        <link rel="next" href="quickstart.html">
+      
+      
+      <link rel="icon" href="../_static/bloq-mark-light.png">
+    
+    
+      
+        <title>Installation - bloq</title>
+      
+    
+    
+      
+        
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+        <link rel="stylesheet" type="text/css" href="../_static/sphinx_immaterial_theme.6efbe22605a23fcd6.min.css?v=b2ceb110" />
+        <link rel="stylesheet" type="text/css" href="../_static/site.css?v=8e1ee51e" />
+    <script>__md_scope=new URL("/",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+
+<meta name="bloq-doc-root" content="../index.html">
+<meta name="bloq-page" content="getting-started/installation.html">
+<meta name="bloq-doc-version" content="Development (0.1.1)">
+<meta name="bloq-package-version" content="0.1.1">
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#python" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../index.html" title="bloq" class="md-header__button md-logo" aria-label="bloq" data-md-component="logo">
+      <img src="../_static/bloq-mark-light.png" alt="logo">
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            bloq
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Installation
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/inmzhang/bloq" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inmzhang/bloq
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../index.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Home</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="#" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Getting Started</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../user-guide.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>User Guide</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../gallery/index.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Examples</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../reference/cli.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Reference</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../development/contributing.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Development</span>
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../index.html" title="bloq" class="md-nav__button md-logo" aria-label="bloq" data-md-component="logo">
+      <img src="../_static/bloq-mark-light.png" alt="logo">
+    </a>
+    bloq
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/inmzhang/bloq" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inmzhang/bloq
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Home</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Home</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Home</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Getting Started</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Getting Started</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    <span>Installation</span>
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="#" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Installation</span>
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+  
+
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#python" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Python</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Python">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#platform-support" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Platform Support</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rust" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Rust</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>CLI</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#editor-application" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Editor Application</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Editor Application">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#browser-editor" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Browser editor</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#desktop-app" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Desktop app</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Desktop app">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prebuilt-binaries" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Prebuilt binaries</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#source-and-development-setup" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Source and development setup</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Source and development setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Prerequisites</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#checkout-and-development-tools" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Checkout and development tools</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#python-development" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Python development</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rust-library-and-cli" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Rust library and CLI</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#desktop-editor" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Desktop editor</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#web-editor-development" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Web editor development</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verification" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Verification</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="quickstart.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Quick Start</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>User Guide</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            <span>User Guide</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Overview</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theory/prerequisites.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Preliminaries</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theory/existing-works.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Existing Works</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphs/concepts.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Blocks and Pipes</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphs/actions.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Actions</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../modules/index.html" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Modules</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Modules</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../modules/index.html#examples" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Examples</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6_1" id="__nav_3_6_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Examples</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6_1_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../modules/index.html#controlled-adder" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Controlled-<wbr>adder</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6_1_1" id="__nav_3_6_1_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_3_6_1_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6_1_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Controlled-<wbr>adder</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../modules/adder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Controlled Addition</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../modules/phase-gradient.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Phase-<wbr>Gradient Rotations</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphs/blog.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>BLOG Format</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theory/correlation-surfaces.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Correlation Surfaces</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patch-alignment.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Patch Alignment</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../circuit-constructions.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Circuit Constructions</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theory/compilation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Compilation Pipeline</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/ir.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Bloq IR</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/emission.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Backend Emission</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/synchronization.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Synchronization</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_15" id="__nav_3_15_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Tutorials</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_15_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_15">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Tutorials</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/cnot.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Logical CNOT</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/t-cultivation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T State Cultivation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/t-gate.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Logical T Gate</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/ccz-factory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>8T-<wbr>1CCZ Distillation Factory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/thth.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Emulate Hardware Synchronization</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../gallery/index.html" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Examples</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Examples</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/cnot.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CNOT</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/cz_spatial_h.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CZ with a spatial Hadamard</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/cz_temporal_h.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CZ with a temporal Hadamard</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/s_gate.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>S gate</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/t_gate.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T gate</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/t_with_prepared_y.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T gate with a prepared Y state</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/t_comparison.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T-<wbr>state comparison</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/phase_gradient.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Phase-<wbr>gradient sequence</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/and_4t.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Four-<wbr>T AND</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_injected_and.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ-<wbr>injected AND</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_injected_maj.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ-<wbr>injected MAJ</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/uma.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>UMA</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/three_bit_adder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Three-<wbr>bit controlled adder</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ten_bit_adder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Ten-<wbr>bit controlled adder</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/toffoli_from_and_delayed_cz.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Toffoli from AND</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_4x3x7_tels.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ factory with TELS</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_4x3x6.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ factory without TELS</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_gate_teleport.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ gate teleportation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/bell_state.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Bell state</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ghz.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>GHZ state</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ghz_slide_then_glide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>GHZ with slides and glides</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ghz_patch_rotations.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>GHZ with patch rotations</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/1d-yoked.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>1D yoked layout</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/thth.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T–H–T–H sequence</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/three_cnots.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Compressed three CNOTs</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/steane_encoding.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Steane encoding</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/x_memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>X-<wbr>basis memory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/y_memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Y-<wbr>basis memory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/move_rotation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Rotation through movement</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/stability.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Stability experiment</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Reference</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Reference</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/cli.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CLI Reference</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/python.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Python API</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/rust.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Rust API Reference</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Rust Feature Flags</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Development</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Development</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/contributing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Contributing</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/benchmarks.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Benchmarking</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/generic-module-scalability.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Generic module compilation:<wbr> evidence and claim boundary</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/classical-storage.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Classical data and evaluation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../releasing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Releases</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../site-maintenance.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Website Maintenance</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+  
+
+<nav class="md-nav md-nav--secondary">
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#python" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Python</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Python">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#platform-support" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Platform Support</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rust" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Rust</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>CLI</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#editor-application" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Editor Application</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Editor Application">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#browser-editor" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Browser editor</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#desktop-app" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Desktop app</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Desktop app">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prebuilt-binaries" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Prebuilt binaries</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#source-and-development-setup" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Source and development setup</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Source and development setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Prerequisites</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#checkout-and-development-tools" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Checkout and development tools</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#python-development" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Python development</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rust-library-and-cli" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Rust library and CLI</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#desktop-editor" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Desktop editor</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#web-editor-development" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Web editor development</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verification" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Verification</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset" role="main">
+                
+                
+
+
+                  
+
+
+<h1 id="installation">Installation<a class="headerlink" href="#installation" title="Link to this heading">¶</a></h1>
+<h2 id="python">Python<a class="headerlink" href="#python" title="Link to this heading">¶</a></h2>
+<p>Requires Python 3.10 or newer. The PyPI distribution is <code class="docutils literal notranslate"><span class="pre">bloq-py</span></code>; the Python
+import and command are <code class="docutils literal notranslate"><span class="pre">bloq</span></code>. These commands install the first public release.
+Do not install the unrelated PyPI distribution <code class="docutils literal notranslate"><span class="pre">bloq</span></code> in the same environment.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:2">
+<input checked type="radio" id="__tabbed_1_1" name="__tabbed_1"><input type="radio" id="__tabbed_1_2" name="__tabbed_1"><div class="tabbed-labels docutils">
+<label class="tabbed-label" for="__tabbed_1_1">
+uv</label><label class="tabbed-label" for="__tabbed_1_2">
+pip</label></div>
+<div class="tabbed-content docutils">
+<div class="tabbed-block docutils">
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">&quot;bloq-py==0.1.1&quot;</span>
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;bloq-py==0.1.1&quot;</span>
+</code></pre></div>
+</div>
+</div>
+</div>
+</div><h3 id="platform-support">Platform Support<a class="headerlink" href="#platform-support" title="Link to this heading">¶</a></h3>
+<p>CI builds prebuilt wheels for:</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Platform</p></th>
+<th class="head"><p>Architecture</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Linux (manylinux)</p></td>
+<td><p>x86_64</p></td>
+</tr>
+<tr class="row-odd"><td><p>macOS</p></td>
+<td><p>ARM64 (Apple Silicon)</p></td>
+</tr>
+<tr class="row-even"><td><p>Windows</p></td>
+<td><p>x86_64</p></td>
+</tr>
+</tbody>
+</table>
+<p>Otherwise, installation builds from source and requires Rust 1.95.0 or newer.</p>
+<h2 id="rust">Rust<a class="headerlink" href="#rust" title="Link to this heading">¶</a></h2>
+<p>Requires Rust 1.95.0 or newer. Add Bloq to your Cargo project:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>cargo<span class="w"> </span>add<span class="w"> </span>bloq@<span class="o">=</span><span class="m">0</span>.1.1
+</code></pre></div>
+</div>
+<p>See <a class="reference internal" href="../guide.html#cargo-feature-flags"><span class="std std-ref">Cargo feature flags</span></a> for optional features.</p>
+<h2 id="cli">CLI<a class="headerlink" href="#cli" title="Link to this heading">¶</a></h2>
+<div class="tabbed-set tabbed-alternate" data-tabs="2:3">
+<input checked type="radio" id="__tabbed_2_1" name="__tabbed_2"><input type="radio" id="__tabbed_2_2" name="__tabbed_2"><input type="radio" id="__tabbed_2_3" name="__tabbed_2"><div class="tabbed-labels docutils">
+<label class="tabbed-label" for="__tabbed_2_1">
+uv</label><label class="tabbed-label" for="__tabbed_2_2">
+cargo-binstall</label><label class="tabbed-label" for="__tabbed_2_3">
+Cargo</label></div>
+<div class="tabbed-content docutils">
+<div class="tabbed-block docutils">
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;bloq-py==0.1.1&quot;</span>
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>cargo<span class="w"> </span>binstall<span class="w"> </span>bloq-cli<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.1.1
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>cargo<span class="w"> </span>install<span class="w"> </span>bloq-cli<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.1.1<span class="w"> </span>--locked
+</code></pre></div>
+</div>
+</div>
+</div>
+</div><p>The executable is <code class="docutils literal notranslate"><span class="pre">bloq</span></code>. The Python package also includes the CLI.</p>
+<h2 id="editor-application">Editor Application<a class="headerlink" href="#editor-application" title="Link to this heading">¶</a></h2>
+<h3 id="browser-editor">Browser editor<a class="headerlink" href="#browser-editor" title="Link to this heading">¶</a></h3>
+<p>The WebAssembly target is <code class="docutils literal notranslate"><span class="pre">wasm32-unknown-unknown</span></code>.
+Open <a class="reference external" href="https://bloqec.com/editor/">bloqec.com/editor/</a>.</p>
+<div class="important tip admonition">
+<p class="admonition-title">Important</p>
+<p>The browser editor requires <strong>WebGPU</strong> and a compatible GPU/driver.</p>
+<ul class="simple">
+<li><p><strong>Chrome:</strong> WebGPU is <a class="reference external" href="https://developer.chrome.com/docs/web-platform/webgpu/troubleshooting-tips">enabled by default on supported devices</a>. Keep graphics acceleration enabled.</p></li>
+<li><p><strong>Firefox:</strong> If WebGPU is disabled, open <code class="docutils literal notranslate"><span class="pre">about:config</span></code>, search for <a class="reference external" href="https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Experimental_features#webgpu_api"><code class="docutils literal notranslate"><span class="pre">dom.webgpu.enabled</span></code></a>, set it to <code class="docutils literal notranslate"><span class="pre">true</span></code>, and restart Firefox.</p></li>
+</ul>
+</div>
+<h3 id="desktop-app">Desktop app<a class="headerlink" href="#desktop-app" title="Link to this heading">¶</a></h3>
+<div class="tabbed-set tabbed-alternate" data-tabs="3:2">
+<input checked type="radio" id="__tabbed_3_1" name="__tabbed_3"><input type="radio" id="__tabbed_3_2" name="__tabbed_3"><div class="tabbed-labels docutils">
+<label class="tabbed-label" for="__tabbed_3_1">
+cargo-binstall</label><label class="tabbed-label" for="__tabbed_3_2">
+Cargo</label></div>
+<div class="tabbed-content docutils">
+<div class="tabbed-block docutils">
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>cargo<span class="w"> </span>binstall<span class="w"> </span>bloq_editor<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.1.1
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>cargo<span class="w"> </span>install<span class="w"> </span>bloq_editor<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.1.1<span class="w"> </span>--locked
+</code></pre></div>
+</div>
+</div>
+</div>
+</div><p>Run <code class="docutils literal notranslate"><span class="pre">bloq_editor</span></code> to launch the application.</p>
+<h4 id="prebuilt-binaries">Prebuilt binaries<a class="headerlink" href="#prebuilt-binaries" title="Link to this heading">¶</a></h4>
+<p>The <a class="reference external" href="https://github.com/inmzhang/bloq/blob/main/.github/workflows/binaries.yml">GitHub release workflow</a>
+publishes these editor archives. Download from <a class="reference external" href="https://github.com/inmzhang/bloq/releases">GitHub Releases</a>
+or use curl:</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Platform</p></th>
+<th class="head"><p>Download</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Linux x86_64</p></td>
+<td><p><a class="reference external" href="https://github.com/inmzhang/bloq/releases/download/v0.1.1/bloq_editor-x86_64-unknown-linux-gnu.tar.gz">tar.gz</a></p></td>
+</tr>
+<tr class="row-odd"><td><p>macOS ARM64</p></td>
+<td><p><a class="reference external" href="https://github.com/inmzhang/bloq/releases/download/v0.1.1/bloq_editor-aarch64-apple-darwin.tar.gz">tar.gz</a></p></td>
+</tr>
+<tr class="row-even"><td><p>Windows x86_64</p></td>
+<td><p><a class="reference external" href="https://github.com/inmzhang/bloq/releases/download/v0.1.1/bloq_editor-x86_64-pc-windows-msvc.zip">zip</a></p></td>
+</tr>
+</tbody>
+</table>
+<div class="tabbed-set tabbed-alternate" data-tabs="4:3">
+<input checked type="radio" id="__tabbed_4_1" name="__tabbed_4"><input type="radio" id="__tabbed_4_2" name="__tabbed_4"><input type="radio" id="__tabbed_4_3" name="__tabbed_4"><div class="tabbed-labels docutils">
+<label class="tabbed-label" for="__tabbed_4_1">
+Linux</label><label class="tabbed-label" for="__tabbed_4_2">
+macOS</label><label class="tabbed-label" for="__tabbed_4_3">
+Windows</label></div>
+<div class="tabbed-content docutils">
+<div class="tabbed-block docutils">
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-fL<span class="w"> </span>https://github.com/inmzhang/bloq/releases/download/v0.1.1/bloq_editor-x86_64-unknown-linux-gnu.tar.gz<span class="w"> </span>-o<span class="w"> </span>bloq-editor.tar.gz
+mkdir<span class="w"> </span>-p<span class="w"> </span>bloq-editor
+tar<span class="w"> </span>-xzf<span class="w"> </span>bloq-editor.tar.gz<span class="w"> </span>-C<span class="w"> </span>bloq-editor
+./bloq-editor/bloq_editor
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-fL<span class="w"> </span>https://github.com/inmzhang/bloq/releases/download/v0.1.1/bloq_editor-aarch64-apple-darwin.tar.gz<span class="w"> </span>-o<span class="w"> </span>bloq-editor.tar.gz
+mkdir<span class="w"> </span>-p<span class="w"> </span>bloq-editor
+tar<span class="w"> </span>-xzf<span class="w"> </span>bloq-editor.tar.gz<span class="w"> </span>-C<span class="w"> </span>bloq-editor
+./bloq-editor/bloq_editor
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><code><span class="n">curl</span><span class="p">.</span><span class="n">exe</span> <span class="n">-fL</span> <span class="n">https</span><span class="p">://</span><span class="n">github</span><span class="p">.</span><span class="n">com</span><span class="p">/</span><span class="n">inmzhang</span><span class="p">/</span><span class="n">bloq</span><span class="p">/</span><span class="n">releases</span><span class="p">/</span><span class="n">download</span><span class="p">/</span><span class="n">v0</span><span class="p">.</span><span class="n">1</span><span class="p">.</span><span class="n">1</span><span class="p">/</span><span class="n">bloq_editor-x86_64-pc-windows-msvc</span><span class="p">.</span><span class="n">zip</span> <span class="n">-o</span> <span class="n">bloq-editor</span><span class="p">.</span><span class="n">zip</span>
+<span class="nb">Expand-Archive</span> <span class="n">-Path</span> <span class="n">bloq-editor</span><span class="p">.</span><span class="n">zip</span> <span class="n">-DestinationPath</span> <span class="n">bloq-editor</span>
+<span class="p">.\</span><span class="n">bloq-editor</span><span class="p">\</span><span class="n">bloq_editor</span><span class="p">.</span><span class="n">exe</span>
+</code></pre></div>
+</div>
+</div>
+</div>
+</div><h2 id="source-and-development-setup">Source and development setup<a class="headerlink" href="#source-and-development-setup" title="Link to this heading">¶</a></h2>
+<h3 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">¶</a></h3>
+<p>Depending on your platform, source builds may require a C/C++ toolchain and
+system libraries, including display/audio libraries for the desktop editor.</p>
+<h3 id="checkout-and-development-tools">Checkout and development tools<a class="headerlink" href="#checkout-and-development-tools" title="Link to this heading">¶</a></h3>
+<p>Required development tools:</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Tool</p></th>
+<th class="head"><p>Purpose</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Git</p></td>
+<td><p>Repository checkout</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference external" href="https://rustup.rs/">rustup</a></p></td>
+<td><p>Pinned Rust toolchain, Cargo, rustfmt, and Clippy</p></td>
+</tr>
+<tr class="row-even"><td><p>Python 3.10+</p></td>
+<td><p>Python bindings and tests</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference external" href="https://docs.astral.sh/uv/getting-started/installation/">uv</a></p></td>
+<td><p>Python environments and dependencies</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference external" href="https://just.systems/man/en/">just</a></p></td>
+<td><p>Workspace command recipes</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference external" href="https://github.com/nextest-rs/nextest">cargo-nextest</a></p></td>
+<td><p>Rust test runner</p></td>
+</tr>
+</tbody>
+</table>
+<p>Web editor development additionally requires the Bevy CLI; its installation
+command appears below.</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/inmzhang/bloq.git
+<span class="nb">cd</span><span class="w"> </span>bloq
+rustup<span class="w"> </span>toolchain<span class="w"> </span>install
+cargo<span class="w"> </span>install<span class="w"> </span>just<span class="w"> </span>cargo-nextest<span class="w"> </span>--locked
+</code></pre></div>
+</div>
+<p>Run the following commands from the repository root. Rustup selects the pinned
+toolchain and its <code class="docutils literal notranslate"><span class="pre">rustfmt</span></code> and <code class="docutils literal notranslate"><span class="pre">clippy</span></code> components from <code class="docutils literal notranslate"><span class="pre">rust-toolchain.toml</span></code>.</p>
+<h3 id="python-development">Python development<a class="headerlink" href="#python-development" title="Link to this heading">¶</a></h3>
+<p>Create the editable installation and install the locked development dependencies:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>just<span class="w"> </span>py-develop
+uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>bloq_py<span class="w"> </span>--no-sync<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import bloq; print(bloq.__version__)&quot;</span>
+uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>bloq_py<span class="w"> </span>--no-sync<span class="w"> </span>bloq<span class="w"> </span>--help
+</code></pre></div>
+</div>
+<p>The environment lives in <code class="docutils literal notranslate"><span class="pre">bloq_py/.venv</span></code>. To build distributable wheels or a
+source archive:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>just<span class="w"> </span>py-build
+just<span class="w"> </span>py-sdist
+</code></pre></div>
+</div>
+<p>Build outputs are written to <code class="docutils literal notranslate"><span class="pre">target/wheels/</span></code>.</p>
+<h3 id="rust-library-and-cli">Rust library and CLI<a class="headerlink" href="#rust-library-and-cli" title="Link to this heading">¶</a></h3>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>cargo<span class="w"> </span>build<span class="w"> </span>-p<span class="w"> </span>bloq<span class="w"> </span>--locked
+cargo<span class="w"> </span>run<span class="w"> </span>-p<span class="w"> </span>bloq-cli<span class="w"> </span>--locked<span class="w"> </span>--<span class="w"> </span>--help
+</code></pre></div>
+</div>
+<p>To install the CLI from this checkout:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>cargo<span class="w"> </span>install<span class="w"> </span>--path<span class="w"> </span>bloq_cli<span class="w"> </span>--locked
+</code></pre></div>
+</div>
+<h3 id="desktop-editor">Desktop editor<a class="headerlink" href="#desktop-editor" title="Link to this heading">¶</a></h3>
+<p>After installing the system dependencies above, run the editor:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>just<span class="w"> </span>editor
+</code></pre></div>
+</div>
+<p>Or install it from the checkout:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>cargo<span class="w"> </span>install<span class="w"> </span>--path<span class="w"> </span>bloq_editor<span class="w"> </span>--locked
+bloq_editor
+</code></pre></div>
+</div>
+<h3 id="web-editor-development">Web editor development<a class="headerlink" href="#web-editor-development" title="Link to this heading">¶</a></h3>
+<p>Install the WebAssembly target and the Bevy CLI used by the website build:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>rustup<span class="w"> </span>target<span class="w"> </span>add<span class="w"> </span>wasm32-unknown-unknown
+cargo<span class="w"> </span>install<span class="w"> </span>--git<span class="w"> </span>https://github.com/TheBevyFlock/bevy_cli<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--tag<span class="w"> </span>cli-v0.1.0-alpha.2<span class="w"> </span>--locked<span class="w"> </span>bevy_cli
+just<span class="w"> </span>web
+</code></pre></div>
+</div>
+<p>This builds and opens the editor locally. Use a WebGPU-enabled browser as
+described above.</p>
+<h3 id="verification">Verification<a class="headerlink" href="#verification" title="Link to this heading">¶</a></h3>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>just<span class="w"> </span>fmt-check
+just<span class="w"> </span><span class="nb">test</span><span class="w"> </span>bloq<span class="w">           </span><span class="c1"># clippy, Rust tests, and doctests</span>
+just<span class="w"> </span>py-test<span class="w">            </span><span class="c1"># Python bindings</span>
+just<span class="w"> </span>ci<span class="w">                 </span><span class="c1"># complete CI gate</span>
+</code></pre></div>
+</div>
+<p>After changing Python bindings, regenerate the stubs with <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">py-stub</span></code>.
+Use <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">--list</span></code> to see all workspace recipes and the
+<a class="reference internal" href="../development/contributing.html"><span class="std std-doc">contributor guide</span></a> for contribution policy.</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+
+
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  
+  
+  <div class="md-footer-meta md-typeset">
+    
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-footer-copyright__highlight">
+        &#169; Copyright Bloq contributors.
+        
+    </div>
+  
+    Created using
+    <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
+    8.1.3.
+     and
+    <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
+  
+</div>
+      
+    </div>
+    
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.highlight", "content.tabs.link", "content.code.copy"], "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+      
+        <script src="../_static/sphinx_immaterial_theme.32136f45f91ae6956.min.js?v=a7a9472a"></script>
+        <script src="../_static/versions.js?v=2f43aabb"></script>
+        <script src="../_static/graph-viewer.js?v=b2321b27"></script>
+    
+  </body>
+</html>

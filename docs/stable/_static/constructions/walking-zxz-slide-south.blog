@@ -1,0 +1,11 @@
+BLOG 1.0
+
+module main {
+  in q_in: data = 0
+  out q_out: data = 2
+  0: Port [0,0,0]
+  1: walk ZXZ [0,0,1] -> [0,-1,2]
+  2: Port [0,-1,3]
+  0 -> +Z
+  [0,-1,2] -> +Z
+}

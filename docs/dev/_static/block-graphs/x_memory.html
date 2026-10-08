@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script id="viewer-runtime" type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.2.0/model-viewer.min.js" onerror="window.viewerLoadFailed = true"></script>
+  <style>
+    body { margin: 0; font: 14px system-ui, sans-serif; }
+    model-viewer { width: 100vw; height: 100vh; background-color: #D8E0E6; }
+    .controls { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12px; color: #1f2937; pointer-events: none; }
+    .controls button { pointer-events: auto; }
+    .module-legend { position: absolute; top: 56px; right: 12px; max-width: 45%; max-height: calc(100vh - 150px); overflow: auto; padding: 8px; border-radius: 4px; background: #f8fafcee; color: #1f2937; font-size: 12px; }
+    .module-legend ul { padding: 0; margin: 8px 0 0; list-style: none; }
+    .module-legend li { margin: 6px 0; overflow-wrap: anywhere; }
+    .module-legend label { cursor: pointer; }
+    .module-legend input { vertical-align: middle; margin: 0 5px 0 0; }
+    .module-legend i { display: inline-block; width: 10px; height: 10px; margin-right: 5px; }
+    #axes { position: absolute; bottom: 12px; left: 12px; width: 100px; height: 100px; pointer-events: none; visibility: hidden; }
+    #axes text { font: bold 13px system-ui, sans-serif; text-anchor: middle; dominant-baseline: central; paint-order: stroke; stroke: #D8E0E6; stroke-width: 3px; }
+    #status { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: #526070; pointer-events: none; }
+    button { padding: 6px 12px; border: 1px solid #94a3b2; border-radius: 4px; background: #f8fafc; color: #1f2937; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <model-viewer
+    src="data:model/gltf+json;base64,eyJhY2Nlc3NvcnMiOlt7ImJ1ZmZlclZpZXciOjAsImJ5dGVPZmZzZXQiOjAsImNvdW50IjoxMiwiY29tcG9uZW50VHlwZSI6NTEyNiwidHlwZSI6IlZFQzMiLCJtaW4iOlstMC41LC0wLjUsLTAuNV0sIm1heCI6WzAuNSwwLjUsMC41XX0seyJidWZmZXJWaWV3IjoxLCJieXRlT2Zmc2V0IjowLCJjb3VudCI6MTIsImNvbXBvbmVudFR5cGUiOjUxMjYsInR5cGUiOiJWRUM0In0seyJidWZmZXJWaWV3IjoyLCJieXRlT2Zmc2V0IjowLCJjb3VudCI6MjQsImNvbXBvbmVudFR5cGUiOjUxMjYsInR5cGUiOiJWRUMzIiwibWluIjpbLTAuNSwtMC41LC0wLjVdLCJtYXgiOlswLjUsMC41LDAuNV19LHsiYnVmZmVyVmlldyI6MywiYnl0ZU9mZnNldCI6MCwiY291bnQiOjI0LCJjb21wb25lbnRUeXBlIjo1MTI2LCJ0eXBlIjoiVkVDNCJ9LHsiYnVmZmVyVmlldyI6NCwiYnl0ZU9mZnNldCI6MCwiY291bnQiOjk2LCJjb21wb25lbnRUeXBlIjo1MTI2LCJ0eXBlIjoiVkVDMyIsIm1pbiI6Wy0wLjUsLTAuNSwtMC41XSwibWF4IjpbMC41LDAuNSwwLjVdfV0sImFzc2V0Ijp7ImNvcHlyaWdodCI6IkdlbmVyYXRlZCBieSBgYmxvcV9ncmFwaGAgY3JhdGUiLCJ2ZXJzaW9uIjoiMi4wIn0sImJ1ZmZlcnMiOlt7ImJ5dGVMZW5ndGgiOjIxNjAsInVyaSI6ImRhdGE6YXBwbGljYXRpb24vb2N0ZXQtc3RyZWFtO2Jhc2U2NCxBQUFBUHdBQUFMOEFBQUEvQUFBQVB3QUFBTDhBQUFDL0FBQUFQd0FBQUQ4QUFBQS9BQUFBUHdBQUFEOEFBQUMvQUFBQVB3QUFBRDhBQUFBL0FBQUFQd0FBQUw4QUFBQy9BQUFBdndBQUFMOEFBQUEvQUFBQXZ3QUFBRDhBQUFBL0FBQUF2d0FBQUw4QUFBQy9BQUFBdndBQUFEOEFBQUMvQUFBQXZ3QUFBTDhBQUFDL0FBQUF2d0FBQUQ4QUFBQS9BQUFBdndBQUFMOEFBQUMvQUFBQXZ3QUFBRDhBQUFDL0FBQUFQd0FBQUw4QUFBQy9BQUFBUHdBQUFEOEFBQUMvQUFBQVB3QUFBTDhBQUFDL0FBQUF2d0FBQUQ4QUFBQy9BQUFBdndBQUFMOEFBQUEvQUFBQVB3QUFBTDhBQUFBL0FBQUF2d0FBQUQ4QUFBQS9BQUFBUHdBQUFEOEFBQUEvQUFBQXZ3QUFBRDhBQUFBL0FBQUFQd0FBQUw4QUFBQS9BQUFBdndBQUFEOEFBQUEvQUFBQVB3QUFBRDhBQUFBL0FBQUF2d0FBQUQ4QUFBQy9BQUFBUHdBQUFEOEFBQUMvQUFBQXZ3QUFBRDhBQUFDL0FBQUFQd0FBQUQ4QUFBQS9BQUFBdndBQUFMOEFBQUEvQUFBQXZ3QUFBTDhBQUFDL0FBQUFQd0FBQUw4QUFBQS9BQUFBUHdBQUFMOEFBQUMvQUFBQVB3QUFBTDhBQUFBL0FBQUF2d0FBQUw4QUFBQy9BQUFBUHdBQUFMOEFBQUEvQUFBQVB3QUFBTDhBQUFDL0FBQUFQd0FBQUQ4QUFBQy9BQUFBUHdBQUFMOEFBQUMvQUFBQVB3QUFBTDhBQUFBL0FBQUFQd0FBQUQ4QUFBQS9BQUFBUHdBQUFEOEFBQUMvQUFBQVB3QUFBRDhBQUFBL0FBQUF2d0FBQUw4QUFBQS9BQUFBdndBQUFEOEFBQUEvQUFBQXZ3QUFBRDhBQUFDL0FBQUF2d0FBQUQ4QUFBQS9BQUFBdndBQUFMOEFBQUEvQUFBQXZ3QUFBTDhBQUFDL0FBQUF2d0FBQUQ4QUFBQy9BQUFBdndBQUFMOEFBQUMvQUFBQXZ3QUFBTDhBQUFDL0FBQUF2d0FBQUQ4QUFBQy9BQUFBUHdBQUFEOEFBQUMvQUFBQXZ3QUFBRDhBQUFDL0FBQUF2d0FBQUw4QUFBQy9BQUFBUHdBQUFMOEFBQUMvQUFBQVB3QUFBRDhBQUFDL0FBQUFQd0FBQUw4QUFBQy9BQUFBdndBQUFMOEFBQUEvQUFBQVB3QUFBTDhBQUFBL0FBQUFQd0FBQUQ4QUFBQS9BQUFBUHdBQUFMOEFBQUEvQUFBQXZ3QUFBTDhBQUFBL0FBQUF2d0FBQUQ4QUFBQS9BQUFBUHdBQUFEOEFBQUEvQUFBQXZ3QUFBRDhBQUFBL0FBQUF2d0FBQUQ4QUFBQS9BQUFBUHdBQUFEOEFBQUEvQUFBQVB3QUFBRDhBQUFDL0FBQUFQd0FBQUQ4QUFBQS9BQUFBdndBQUFEOEFBQUEvQUFBQXZ3QUFBRDhBQUFDL0FBQUFQd0FBQUQ4QUFBQy9BQUFBdndBQUFEOEFBQUMvQUFBQXZ3QUFBTDhBQUFBL0FBQUF2d0FBQUw4QUFBQy9BQUFBUHdBQUFMOEFBQUMvQUFBQXZ3QUFBTDhBQUFDL0FBQUF2d0FBQUw4QUFBQS9BQUFBUHdBQUFMOEFBQUEvQUFBQVB3QUFBTDhBQUFDL0FBQUFQd0FBQUw4QUFBQS9BQUFBdndBQUFMOEFBQUEvQUFBQXZ3QUFBTDhBQUFDL0FBQUFQd0FBQUw4QUFBQy9BQUFBdndBQUFMOEFBQUMvQUFBQXZ3QUFBTDhBQUFBL0FBQUFQd0FBQUw4QUFBQS9BQUFBUHdBQUFMOEFBQUMvQUFBQVB3QUFBTDhBQUFBL0FBQUF2d0FBQUQ4QUFBQS9BQUFBUHdBQUFEOEFBQUEvQUFBQVB3QUFBRDhBQUFDL0FBQUFQd0FBQUQ4QUFBQS9BQUFBdndBQUFEOEFBQUEvQUFBQXZ3QUFBRDhBQUFDL0FBQUFQd0FBQUQ4QUFBQy9BQUFBdndBQUFEOEFBQUMvQUFBQXZ3QUFBTDhBQUFBL0FBQUFQd0FBQUw4QUFBQS9BQUFBUHdBQUFEOEFBQUEvQUFBQVB3QUFBTDhBQUFBL0FBQUF2d0FBQUw4QUFBQS9BQUFBdndBQUFEOEFBQUEvQUFBQVB3QUFBRDhBQUFBL0FBQUF2d0FBQUQ4QUFBQS9BQUFBdndBQUFMOEFBQUMvQUFBQXZ3QUFBRDhBQUFDL0FBQUFQd0FBQUQ4QUFBQy9BQUFBdndBQUFEOEFBQUMvQUFBQXZ3QUFBTDhBQUFDL0FBQUFQd0FBQUw4QUFBQy9BQUFBUHdBQUFEOEFBQUMvQUFBQVB3QUFBTDhBQUFDL0FBQUF2d0FBQUw4QUFBQS9BQUFBdndBQUFEOEFBQUEvQUFBQXZ3QUFBRDhBQUFDL0FBQUF2d0FBQUQ4QUFBQS9BQUFBdndBQUFMOEFBQUEvQUFBQXZ3QUFBTDhBQUFDL0FBQUF2d0FBQUQ4QUFBQy9BQUFBdndBQUFMOEFBQUMvQUFBQVB3QUFBTDhBQUFBL0FBQUFQd0FBQUw4QUFBQy9BQUFBUHdBQUFEOEFBQUMvQUFBQVB3QUFBTDhBQUFDL0FBQUFQd0FBQUw4QUFBQS9BQUFBUHdBQUFEOEFBQUEvQUFBQVB3QUFBRDhBQUFDL0FBQUFQd0FBQUQ4QUFBQS9FMjR1UHhOdUxqOFRiaTQvQUFDQVB4TnVMajhUYmk0L0UyNHVQd0FBZ0Q4VGJpNC9FMjR1UHhOdUxqOEFBSUEvRTI0dVB4TnVMajhUYmk0L0FBQ0FQeE51TGo4VGJpNC9FMjR1UHdBQWdEOFRiaTQvRTI0dVB4TnVMajhBQUlBL3hDZjNQc1FuOXo3RUovYytBQUNBUDhRbjl6N0VKL2MreENmM1BnQUFnRC9FSi9jK3hDZjNQc1FuOXo0QUFJQS94Q2YzUHNRbjl6N0VKL2MrQUFDQVA4UW45ejdFSi9jK3hDZjNQZ0FBZ0QvRUovYyt4Q2YzUHNRbjl6NEFBSUEveENmM1BzUW45ejdFSi9jK0FBQ0FQOFFuOXo3RUovYyt4Q2YzUGdBQWdEL0VKL2MreENmM1BzUW45ejRBQUlBL3hDZjNQc1FuOXo3RUovYytBQUNBUDhRbjl6N0VKL2MreENmM1BnQUFnRC9FSi9jK3hDZjNQc1FuOXo0QUFJQS9FMjR1UHhOdUxqOFRiaTQvQUFDQVB4TnVMajhUYmk0L0UyNHVQd0FBZ0Q4VGJpNC9FMjR1UHhOdUxqOEFBSUEvRTI0dVB4TnVMajhUYmk0L0FBQ0FQeE51TGo4VGJpNC9FMjR1UHdBQWdEOFRiaTQvRTI0dVB4TnVMajhBQUlBL0UyNHVQeE51TGo4VGJpNC9BQUNBUHhOdUxqOFRiaTQvRTI0dVB3QUFnRDhUYmk0L0UyNHVQeE51TGo4QUFJQS9FMjR1UHhOdUxqOFRiaTQvQUFDQVB4TnVMajhUYmk0L0UyNHVQd0FBZ0Q4VGJpNC9FMjR1UHhOdUxqOEFBSUEveENmM1BzUW45ejdFSi9jK0FBQ0FQOFFuOXo3RUovYyt4Q2YzUGdBQWdEL0VKL2MreENmM1BzUW45ejRBQUlBL3hDZjNQc1FuOXo3RUovYytBQUNBUDhRbjl6N0VKL2MreENmM1BnQUFnRC9FSi9jK3hDZjNQc1FuOXo0QUFJQS8ifV0sImJ1ZmZlclZpZXdzIjpbeyJidWZmZXIiOjAsImJ5dGVMZW5ndGgiOjE0NCwiYnl0ZU9mZnNldCI6MCwidGFyZ2V0IjozNDk2Mn0seyJidWZmZXIiOjAsImJ5dGVMZW5ndGgiOjE5MiwiYnl0ZU9mZnNldCI6MTU4NCwidGFyZ2V0IjozNDk2Mn0seyJidWZmZXIiOjAsImJ5dGVMZW5ndGgiOjI4OCwiYnl0ZU9mZnNldCI6MTQ0LCJ0YXJnZXQiOjM0OTYyfSx7ImJ1ZmZlciI6MCwiYnl0ZUxlbmd0aCI6Mzg0LCJieXRlT2Zmc2V0IjoxNzc2LCJ0YXJnZXQiOjM0OTYyfSx7ImJ1ZmZlciI6MCwiYnl0ZUxlbmd0aCI6MTE1MiwiYnl0ZU9mZnNldCI6NDMyLCJ0YXJnZXQiOjM0OTYyfV0sImV4dGVuc2lvbnNVc2VkIjpbIktIUl9tYXRlcmlhbHNfdW5saXQiXSwiZXh0ZW5zaW9uc1JlcXVpcmVkIjpbIktIUl9tYXRlcmlhbHNfdW5saXQiXSwibWF0ZXJpYWxzIjpbeyJhbHBoYU1vZGUiOiJPUEFRVUUiLCJkb3VibGVTaWRlZCI6dHJ1ZSwicGJyTWV0YWxsaWNSb3VnaG5lc3MiOnsiYmFzZUNvbG9yRmFjdG9yIjpbMC4xNzE0NDExLDAuMzA0OTg3MzcsMS4wLDEuMF0sIm1ldGFsbGljRmFjdG9yIjowLjAsInJvdWdobmVzc0ZhY3RvciI6MS4wfSwiZW1pc3NpdmVGYWN0b3IiOlswLjAsMC4wLDAuMF0sImV4dGVuc2lvbnMiOnsiS0hSX21hdGVyaWFsc191bmxpdCI6e319fSx7ImFscGhhTW9kZSI6Ik9QQVFVRSIsImRvdWJsZVNpZGVkIjp0cnVlLCJwYnJNZXRhbGxpY1JvdWdobmVzcyI6eyJiYXNlQ29sb3JGYWN0b3IiOlsxLjAsMC4yMTIyMzA3MywwLjIxMjIzMDczLDEuMF0sIm1ldGFsbGljRmFjdG9yIjowLjAsInJvdWdobmVzc0ZhY3RvciI6MS4wfSwiZW1pc3NpdmVGYWN0b3IiOlswLjAsMC4wLDAuMF0sImV4dGVuc2lvbnMiOnsiS0hSX21hdGVyaWFsc191bmxpdCI6e319fSx7ImFscGhhTW9kZSI6Ik9QQVFVRSIsImRvdWJsZVNpZGVkIjpmYWxzZSwicGJyTWV0YWxsaWNSb3VnaG5lc3MiOnsiYmFzZUNvbG9yRmFjdG9yIjpbMC4wLDAuMCwwLjAsMS4wXSwibWV0YWxsaWNGYWN0b3IiOjAuMCwicm91Z2huZXNzRmFjdG9yIjoxLjB9LCJlbWlzc2l2ZUZhY3RvciI6WzAuMCwwLjAsMC4wXSwiZXh0ZW5zaW9ucyI6eyJLSFJfbWF0ZXJpYWxzX3VubGl0Ijp7fX19XSwibWVzaGVzIjpbeyJwcmltaXRpdmVzIjpbeyJhdHRyaWJ1dGVzIjp7IlBPU0lUSU9OIjowLCJDT0xPUl8wIjoxfSwibWF0ZXJpYWwiOjB9LHsiYXR0cmlidXRlcyI6eyJQT1NJVElPTiI6MiwiQ09MT1JfMCI6M30sIm1hdGVyaWFsIjoxfSx7ImF0dHJpYnV0ZXMiOnsiUE9TSVRJT04iOjR9LCJtYXRlcmlhbCI6MiwibW9kZSI6MX1dfV0sIm5vZGVzIjpbeyJtZXNoIjowfV0sInNjZW5lcyI6W3sibm9kZXMiOlswXX1dfQ=="
+    alt="Block Graph 3D Model"
+    camera-controls
+    camera-orbit="45deg 54.7356deg auto"
+    field-of-view="45deg"
+    max-field-of-view="45deg"
+    shadow-intensity="0"
+    tone-mapping="none"
+    exposure="1.0"
+    interaction-prompt="none"
+    touch-action="none">
+  </model-viewer>
+  <div id="status" role="status">Loading 3D graph…</div>
+  <div class="controls">
+    <button type="button" disabled aria-label="Reset graph view">Fit</button>
+    <span>Drag to orbit · Right-drag to pan · Scroll to zoom</span>
+  </div>
+  
+  <svg id="axes" viewBox="0 0 100 100" role="img" aria-label="Graph axes: X and Y are spatial, Z is time">
+    <circle cx="50" cy="50" r="3" fill="#526070" />
+    <g data-axis="X" stroke="#dc2626" fill="#dc2626"><line x1="50" y1="50" stroke-width="2"/><text stroke-width="0">X</text></g>
+    <g data-axis="Y" stroke="#16a34a" fill="#16a34a"><line x1="50" y1="50" stroke-width="2"/><text stroke-width="0">Y</text></g>
+    <g data-axis="Z" stroke="#2563eb" fill="#2563eb"><line x1="50" y1="50" stroke-width="2"/><text stroke-width="0">Z</text></g>
+  </svg>
+  <script>
+    const viewer = document.querySelector('model-viewer');
+    const fit = document.querySelector('button');
+    const status = document.querySelector('#status');
+    const axes = document.querySelector('#axes');
+    const moduleMaterials = [];
+    const moduleToggles = document.querySelectorAll('.module-legend input');
+    for (const toggle of moduleToggles) {
+      toggle.addEventListener('change', () => {
+        for (const [owner, index, original, highlight, alpha] of moduleMaterials) {
+          if (owner !== Number(toggle.dataset.module)) continue;
+          const material = viewer.model.materials[index];
+          material.pbrMetallicRoughness.setBaseColorFactor(toggle.checked ? highlight : original);
+          material.setAlphaMode(toggle.checked ? 'OPAQUE' : alpha);
+        }
+      });
+    }
+    const updateAxes = () => {
+      const {theta, phi} = viewer.getCameraOrbit();
+      axes.style.visibility = 'visible';
+      // Graph (x,y,z) maps to renderer (x,z,-y), just as in Bloq Editor.
+      const directions = {
+        X: [Math.cos(theta), Math.sin(theta) * Math.cos(phi)],
+        Y: [Math.sin(theta), -Math.cos(theta) * Math.cos(phi)],
+        Z: [0, -Math.sin(phi)]
+      };
+      for (const group of axes.querySelectorAll('[data-axis]')) {
+        const [x, y] = directions[group.dataset.axis];
+        const line = group.querySelector('line');
+        line.setAttribute('x2', 50 + 32 * x);
+        line.setAttribute('y2', 50 + 32 * y);
+        const label = group.querySelector('text');
+        label.setAttribute('x', 50 + 43 * x);
+        label.setAttribute('y', 50 + 43 * y);
+      }
+    };
+    viewer.addEventListener('camera-change', updateAxes);
+    const showError = () => { status.textContent = 'Unable to load the 3D viewer. Check your network connection.'; };
+    document.querySelector('#viewer-runtime').addEventListener('error', showError);
+    if (window.viewerLoadFailed) showError();
+    viewer.addEventListener('error', showError);
+    viewer.addEventListener('load', () => {
+      fit.disabled = false;
+      for (const toggle of moduleToggles) toggle.disabled = false;
+      status.textContent = '';
+      updateAxes();
+    });
+    fit.addEventListener('click', () => {
+      viewer.cameraTarget = 'auto auto auto';
+      viewer.cameraOrbit = '45deg 54.7356deg auto';
+      viewer.fieldOfView = '45deg';
+    });
+  </script>
+</body>
+</html>

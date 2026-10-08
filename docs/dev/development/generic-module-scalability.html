@@ -1,0 +1,3348 @@
+
+
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="benchmarks.html">
+      
+      
+        <link rel="next" href="classical-storage.html">
+      
+      
+      <link rel="icon" href="../_static/bloq-mark-light.png">
+    
+    
+      
+        <title>Generic module compilation: evidence and claim boundary - bloq</title>
+      
+    
+    
+      
+        
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+        <link rel="stylesheet" type="text/css" href="../_static/sphinx_immaterial_theme.6efbe22605a23fcd6.min.css?v=b2ceb110" />
+        <link rel="stylesheet" type="text/css" href="../_static/site.css?v=8e1ee51e" />
+    <script>__md_scope=new URL("/",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+
+<meta name="bloq-doc-root" content="../index.html">
+<meta name="bloq-page" content="development/generic-module-scalability.html">
+<meta name="bloq-doc-version" content="Development (0.1.1)">
+<meta name="bloq-package-version" content="0.1.1">
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#what-a-paper-can-claim" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../index.html" title="bloq" class="md-header__button md-logo" aria-label="bloq" data-md-component="logo">
+      <img src="../_static/bloq-mark-light.png" alt="logo">
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            bloq
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Generic module compilation: evidence and claim boundary
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/inmzhang/bloq" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inmzhang/bloq
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../index.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Home</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../getting-started/installation.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Getting Started</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../user-guide.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>User Guide</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../gallery/index.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Examples</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../reference/cli.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Reference</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="contributing.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Development</span>
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../index.html" title="bloq" class="md-nav__button md-logo" aria-label="bloq" data-md-component="logo">
+      <img src="../_static/bloq-mark-light.png" alt="logo">
+    </a>
+    bloq
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/inmzhang/bloq" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inmzhang/bloq
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Home</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Home</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Home</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Getting Started</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Getting Started</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/installation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Installation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/quickstart.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Quick Start</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>User Guide</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            <span>User Guide</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Overview</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theory/prerequisites.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Preliminaries</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theory/existing-works.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Existing Works</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphs/concepts.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Blocks and Pipes</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphs/actions.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Actions</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../modules/index.html" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Modules</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Modules</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../modules/index.html#examples" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Examples</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6_1" id="__nav_3_6_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Examples</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6_1_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../modules/index.html#controlled-adder" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Controlled-<wbr>adder</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6_1_1" id="__nav_3_6_1_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_3_6_1_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6_1_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Controlled-<wbr>adder</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../modules/adder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Controlled Addition</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../modules/phase-gradient.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Phase-<wbr>Gradient Rotations</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphs/blog.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>BLOG Format</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theory/correlation-surfaces.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Correlation Surfaces</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patch-alignment.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Patch Alignment</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../circuit-constructions.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Circuit Constructions</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theory/compilation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Compilation Pipeline</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/ir.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Bloq IR</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/emission.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Backend Emission</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/synchronization.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Synchronization</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_15" id="__nav_3_15_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Tutorials</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_15_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_15">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Tutorials</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/cnot.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Logical CNOT</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/t-cultivation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T State Cultivation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/t-gate.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Logical T Gate</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/ccz-factory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>8T-<wbr>1CCZ Distillation Factory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/thth.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Emulate Hardware Synchronization</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../gallery/index.html" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Examples</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Examples</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/cnot.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CNOT</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/cz_spatial_h.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CZ with a spatial Hadamard</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/cz_temporal_h.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CZ with a temporal Hadamard</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/s_gate.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>S gate</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/t_gate.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T gate</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/t_with_prepared_y.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T gate with a prepared Y state</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/t_comparison.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T-<wbr>state comparison</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/phase_gradient.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Phase-<wbr>gradient sequence</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/and_4t.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Four-<wbr>T AND</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_injected_and.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ-<wbr>injected AND</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_injected_maj.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ-<wbr>injected MAJ</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/uma.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>UMA</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/three_bit_adder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Three-<wbr>bit controlled adder</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ten_bit_adder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Ten-<wbr>bit controlled adder</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/toffoli_from_and_delayed_cz.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Toffoli from AND</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_4x3x7_tels.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ factory with TELS</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_4x3x6.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ factory without TELS</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_gate_teleport.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ gate teleportation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/bell_state.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Bell state</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ghz.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>GHZ state</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ghz_slide_then_glide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>GHZ with slides and glides</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ghz_patch_rotations.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>GHZ with patch rotations</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/1d-yoked.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>1D yoked layout</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/thth.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T–H–T–H sequence</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/three_cnots.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Compressed three CNOTs</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/steane_encoding.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Steane encoding</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/x_memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>X-<wbr>basis memory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/y_memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Y-<wbr>basis memory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/move_rotation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Rotation through movement</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/stability.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Stability experiment</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Reference</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Reference</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/cli.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CLI Reference</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/python.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Python API</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/rust.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Rust API Reference</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Rust Feature Flags</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Development</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Development</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="contributing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Contributing</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="benchmarks.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Benchmarking</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    <span>Generic module compilation:<wbr> evidence and claim boundary</span>
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="#" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Generic module compilation:<wbr> evidence and claim boundary</span>
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+  
+
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-a-paper-can-claim" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>What a paper can claim</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#measurements" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Measurements</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#classical-calls-and-sparse-readout-data" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Classical calls and sparse readout data</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Classical calls and sparse readout data">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#smallest-sound-kernel-contract" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Smallest sound kernel contract</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#retained-implementation" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Retained implementation</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rejected-experiments" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Rejected experiments</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#required-design-change-for-a-stronger-claim" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Required design change for a stronger claim</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#composed-transfers-through-input-normalization" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Composed transfers through input normalization</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Composed transfers through input normalization">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#compiler-measurements" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Compiler measurements</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#shared-composed-readout-recipes" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Shared composed readout recipes</span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="classical-storage.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Classical data and evaluation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../releasing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Releases</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../site-maintenance.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Website Maintenance</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+  
+
+<nav class="md-nav md-nav--secondary">
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-a-paper-can-claim" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>What a paper can claim</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#measurements" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Measurements</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#classical-calls-and-sparse-readout-data" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Classical calls and sparse readout data</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Classical calls and sparse readout data">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#smallest-sound-kernel-contract" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Smallest sound kernel contract</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#retained-implementation" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Retained implementation</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rejected-experiments" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Rejected experiments</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#required-design-change-for-a-stronger-claim" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Required design change for a stronger claim</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#composed-transfers-through-input-normalization" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Composed transfers through input normalization</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Composed transfers through input normalization">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#compiler-measurements" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Compiler measurements</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#shared-composed-readout-recipes" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Shared composed readout recipes</span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset" role="main">
+                
+                
+
+
+                  
+
+
+<h1 id="generic-module-compilation-evidence-and-claim-boundary">Generic module compilation: evidence and claim boundary<a class="headerlink" href="#generic-module-compilation-evidence-and-claim-boundary" title="Link to this heading">¶</a></h1>
+<p>Bloq uses one generic composed-surface planner. The adder-specific factor chain,
+finite banks, translated-tile dispatch and runtime strategy selector are removed.
+Default benchmark widths are 3/8/16/33; larger explicit widths remain supported
+for scaling inspection. Generated results, rejected prototypes and frozen
+source/binary provenance stay local.</p>
+<h2 id="what-a-paper-can-claim">What a paper can claim<a class="headerlink" href="#what-a-paper-can-claim" title="Link to this heading">¶</a></h2>
+<p>A supported empirical statement is:</p>
+<blockquote>
+<div><p>Bloq compiles hierarchical adaptive block graphs using shared physical
+templates and complete signed readout fragments. On the tested controlled-adder
+family at distance 3, physical template count remains 90 through 128 bits.
+The 128-bit instance compiles in a median 6.26 seconds with 2.15 GB peak RSS
+on an Apple M5 Pro running macOS 27.0.1.</p>
+</div></blockquote>
+<p>Those numbers describe this workload and host. They are not a proof of linear
+compilation, bounded memory per module, or near-linear end-to-end scaling.
+Calling the source a composition of small modules does not establish any of
+those properties: the current planner still constructs graph-wide source rows
+and explicit readout equations. A warm complete-program cache hit is also not
+evidence for scaling changed roots.</p>
+<p>The defensible modularity claim concerns physical template reuse and the
+hierarchical authoring interface. Fixed-topology definition objects can also be
+reused across roots; the general guarded route still certifies child definitions
+on a root cache miss and plans the composed root’s readouts globally.</p>
+<h2 id="measurements">Measurements<a class="headerlink" href="#measurements" title="Link to this heading">¶</a></h2>
+<p>Three alternating fresh-process samples per build used d3, matching empty-feature
+release builds, distinct Cargo targets, frozen source/binary hashes, default
+compiler limits and a quiet compiler host. Source generation was outside timing.
+The final 128-bit comparison was:</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Implementation</p></th>
+<th class="head text-right"><p>Compile</p></th>
+<th class="head text-right"><p>Physical binding</p></th>
+<th class="head text-right"><p>Peak RSS</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Shared module fragments</p></td>
+<td class="text-right"><p>6.660 s</p></td>
+<td class="text-right"><p>3.698 s</p></td>
+<td class="text-right"><p>2.571 GB</p></td>
+</tr>
+<tr class="row-odd"><td><p>Plus query retirement</p></td>
+<td class="text-right"><p>6.338 s</p></td>
+<td class="text-right"><p>3.335 s</p></td>
+<td class="text-right"><p>2.154 GB</p></td>
+</tr>
+<tr class="row-even"><td><p>Plus future-use cache admission</p></td>
+<td class="text-right"><p>6.257 s</p></td>
+<td class="text-right"><p>3.288 s</p></td>
+<td class="text-right"><p>2.149 GB</p></td>
+</tr>
+</tbody>
+</table>
+<p>The combined lifetime changes reduce time 6.0%, binding 11.1% and peak RSS 16.4%
+in that pass. An earlier 64/96/128 retirement sweep took 1.529/3.981/6.322 seconds.
+Doubling width from 64 to 128 increased time 4.13 times. This is roughly quadratic
+behavior over the measured range, not an asymptotic theorem. RSS varies between
+passes; the percentages are observations rather than guaranteed savings.</p>
+<p>A fresh structural diagnostic counted stored IR without serializing it:</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head text-right"><p>Bits</p></th>
+<th class="head text-right"><p>Templates</p></th>
+<th class="head text-right"><p>Template instances</p></th>
+<th class="head text-right"><p>IR nodes</p></th>
+<th class="head text-right"><p>IR edges</p></th>
+<th class="head text-right"><p>Readout term occurrences</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td class="text-right"><p>33</p></td>
+<td class="text-right"><p>90</p></td>
+<td class="text-right"><p>7,474</p></td>
+<td class="text-right"><p>44,659</p></td>
+<td class="text-right"><p>172,184</p></td>
+<td class="text-right"><p>313,973</p></td>
+</tr>
+<tr class="row-odd"><td class="text-right"><p>64</p></td>
+<td class="text-right"><p>90</p></td>
+<td class="text-right"><p>14,573</p></td>
+<td class="text-right"><p>185,771</p></td>
+<td class="text-right"><p>717,257</p></td>
+<td class="text-right"><p>1,293,635</p></td>
+</tr>
+<tr class="row-even"><td class="text-right"><p>96</p></td>
+<td class="text-right"><p>90</p></td>
+<td class="text-right"><p>21,901</p></td>
+<td class="text-right"><p>440,299</p></td>
+<td class="text-right"><p>1,699,241</p></td>
+<td class="text-right"><p>3,071,987</p></td>
+</tr>
+<tr class="row-odd"><td class="text-right"><p>128</p></td>
+<td class="text-right"><p>90</p></td>
+<td class="text-right"><p>29,229</p></td>
+<td class="text-right"><p>620,835</p></td>
+<td class="text-right"><p>2,416,074</p></td>
+<td class="text-right"><p>3,934,967</p></td>
+</tr>
+</tbody>
+</table>
+<p>Readout terms count record occurrences and boundary bindings per classical
+invocation. The later <a class="reference internal" href="classical-storage.html"><span class="std std-doc">shared-storage implementation</span></a>
+stores equal definitions once; this table retains invocation counts for comparison.
+IR edges and terms grow more than threefold when width doubles from 64
+to 128. An emitter must pay for its explicit output, but these measurements do
+not prove the chosen representation is minimal or that compilation is
+output-optimal. A scalable design must address output expansion as well as
+intermediate algebra.</p>
+<p>The source diagnostic also finds 639/959/1,279 complete queries and
+839,291/1,958,203/2,905,010 total support-site visits at 64/96/128 bits. At 128,
+composition takes about 0.11 s, causal named planning 1.08 s, terminal pivots
+0.52 s, and normalization/reconstruction 0.42 s. A separate binding diagnostic
+spends about 0.93 s in local cases, 0.90 s in Boolean collection, 0.52 s in packet
+emission and 0.06 s in gateway resolution. These phase observations include
+instrumentation and are not independent cold-run medians.</p>
+<h2 id="classical-calls-and-sparse-readout-data">Classical calls and sparse readout data<a class="headerlink" href="#classical-calls-and-sparse-readout-data" title="Link to this heading">¶</a></h2>
+<p>AND/XOR/Select evaluation already happens at runtime. The compilation bottleneck
+includes deriving their graph-wide coefficient functions and materializing the
+resulting readout/guard graph. Calls help when they preserve a compact program
+for that derivation or application, rather than merely renaming existing gates.</p>
+<p>Compact classical programs are a promising next representation. Ordinary calls
+around the existing expressions, however, do not remove their argument edges.
+The useful unit is a shared program with local record/operator tables and
+independently available readout rows. This can extend the existing readout-recipe
+semantics without introducing an author-facing language or arbitrary Rust callbacks.</p>
+<p>A structural probe compiled 3/33/64/96/128-bit adders, CCZ teleportation, the
+phase-gradient gallery, T and spatial-H CZ at d3. It interned exact ordered
+payloads, then split record lists at instance boundaries and interned local
+patterns by <code class="docutils literal notranslate"><span class="pre">(template,</span> <span class="pre">ordered</span> <span class="pre">measurement</span> <span class="pre">indices)</span></code>. Every chunk was
+reconstructed and compared with its original, including order and occurrences.
+This is a storage diagnostic, not an implemented compiler or VM speedup.</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head text-right"><p>Bits</p></th>
+<th class="head text-right"><p>Compute nodes</p></th>
+<th class="head text-right"><p>Stored record terms</p></th>
+<th class="head text-right"><p>Terms in unique instance chunks</p></th>
+<th class="head text-right"><p>Chunk uses</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td class="text-right"><p>33</p></td>
+<td class="text-right"><p>27,834</p></td>
+<td class="text-right"><p>309,250</p></td>
+<td class="text-right"><p>50,290</p></td>
+<td class="text-right"><p>81,596</p></td>
+</tr>
+<tr class="row-odd"><td class="text-right"><p>64</p></td>
+<td class="text-right"><p>122,570</p></td>
+<td class="text-right"><p>1,274,652</p></td>
+<td class="text-right"><p>98,185</p></td>
+<td class="text-right"><p>344,445</p></td>
+</tr>
+<tr class="row-even"><td class="text-right"><p>96</p></td>
+<td class="text-right"><p>294,954</p></td>
+<td class="text-right"><p>3,027,196</p></td>
+<td class="text-right"><p>147,625</p></td>
+<td class="text-right"><p>824,429</p></td>
+</tr>
+<tr class="row-odd"><td class="text-right"><p>128</p></td>
+<td class="text-right"><p>436,269</p></td>
+<td class="text-right"><p>3,879,825</p></td>
+<td class="text-right"><p>197,074</p></td>
+<td class="text-right"><p>1,052,008</p></td>
+</tr>
+</tbody>
+</table>
+<p>The larger adders all use just <strong>183 template-local record patterns containing
+725 indices</strong>. Instance-local pooling removes 94.9% of repeated record terms
+at 128 bits; owner/pattern references and row uses still need storage. Whole-row
+pooling alone retains 594,195 record terms plus 3,690 boundary-operator terms,
+versus 3,934,967 total terms originally. No pooling aliases different physical
+instances or cuts, and none permits moving a record read across activation.
+Combining whole-packet and local-chunk pools leaves 124,007 packet-use references,
+9,908 distinct packet rows, 145,575 chunk references inside those rows, and
+44,625 distinct owner/chunk pairs at 128 bits. This is a concrete compact
+encoding opportunity, although guards and all scheduling metadata remain.
+The phase-gradient case also has reusable local patterns: 17 patterns contain
+58 indices, versus 887 original record occurrences. These small non-adder cases
+check representation coverage, not scaling across independent workload families.</p>
+<p>The larger problem is guard representation. At 128 bits, Compute accounts for
+71.6% of classical nodes, with 1,281,012 incoming value edges. Its expressions
+have only 36 exact slot-local shapes (399 expression nodes and 268 input
+occurrences), but each occurrence binds different arguments. Pooling those
+shapes saves expression storage; calling one of 36 functions per Compute still
+leaves 436,269 calls and their input edges. Also, only 12,066 Computes are
+syntactically affine. A fixed GF(2) matrix does not directly represent the
+remaining AND/OR/Select expressions; proving more functions affine would be a
+separate optimization.</p>
+<p>Three levels of change have different consequences:</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Representation</p></th>
+<th class="head"><p>Benefit</p></th>
+<th class="head"><p>Remaining cost</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Intern local payloads and expression shapes</p></td>
+<td><p>Removes repeated data while retaining current execution</p></td>
+<td><p>Same calls, guards and dependency graph</p></td>
+</tr>
+<tr class="row-odd"><td><p>Shared guard program plus sparse readout rows</p></td>
+<td><p>Moves internal graph nodes/edges into compact typed arrays; enables reuse during execution</p></td>
+<td><p>Still proportional to stored instructions and row entries</p></td>
+</tr>
+<tr class="row-even"><td><p>Composed local transfer programs retained without expansion</p></td>
+<td><p>Can avoid materializing graph-wide coefficients and repeated query uses</p></td>
+<td><p>Requires bounded interfaces/fronts and exact causal/signed composition</p></td>
+</tr>
+</tbody>
+</table>
+<p>Sparse storage costs proportional to rows plus stored entries; it does not make
+quadratically many entries linear. The distinction is visible here: unique
+instance-chunk payload grows about twofold from 64 to 128 bits, while chunk uses
+grow 3.05-fold and Compute count 3.56-fold. Shared complete rows or sub-recipes can
+reduce repeated uses further, but that must be measured rather than assumed.</p>
+<p>For example, all prefix parities have a triangular expanded matrix with
+<code class="docutils literal notranslate"><span class="pre">n(n+1)/2</span></code> entries, but <code class="docutils literal notranslate"><span class="pre">s[i+1]</span> <span class="pre">=</span> <span class="pre">s[i]</span> <span class="pre">XOR</span> <span class="pre">x[i]</span></code> uses a constant-size local update
+and O(n) calls. The gain comes from retaining the recurrence, not from spelling
+the triangular matrix as a sparse function argument. A module implementation
+needs an analogous factorization of its actual signed relation. Small source
+modules alone do not prove that their composed classical state remains small.</p>
+<h3 id="smallest-sound-kernel-contract">Smallest sound kernel contract<a class="headerlink" href="#smallest-sound-kernel-contract" title="Link to this heading">¶</a></h3>
+<p>Prefer an immutable pool owned by the compiled Bloq IR, with references from
+existing Compute/readout concepts. Keep local record patterns, boundary
+operators, guard expressions and row-composition references as typed data.
+Use sparse GF(2) rows for parity, a shared Boolean program for guards, and
+explicit signed boundary composition. A Rust interpreter can execute this data;
+a host-function pointer or a new general-purpose DSL is unnecessary.</p>
+<ul class="simple">
+<li><p>Each row keeps its own activation, readiness dependencies, fold roles, owner
+bindings and raw/corrected observable identity. Complete Observable nodes
+remain the decoder boundaries. Sharing data does not merge decoder requests.</p></li>
+<li><p>Required inputs are distinct from nonzero coefficients. For example,
+<code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">XOR</span> <span class="pre">x</span></code> is zero when x is known but remains unavailable when x is missing;
+deleting the matrix column must not delete that requirement. Select likewise
+retains the unselected operand’s availability. Inactive reads still obey
+current scheduling dependencies, then produce zero/empty bindings without
+accessing records or decoding.</p></li>
+<li><p>Calls expose results per causal row or bounded availability frontier. A single
+atomic whole-program call that waits for every record can deadlock feedback:
+an early output may control the quantum work producing a later input.
+Execution caches belong to the shot/attempt and cannot survive a retry as
+already-computed values.</p></li>
+<li><p>Preserve physical instance/face identities and exact signed operator products.
+Crossing reconstruction consumes a complete local coefficient tuple; separately
+binding and XORing arbitrary source leaves is unsound. A plain Boolean matrix
+alone does not encode this operation.</p></li>
+<li><p>Retain the compact representation through VM preparation, scheduling, pinning,
+codecs, slicing and memory edits. An unconditional lowering back to scalar
+nodes merely moves expansion to another phase. Compilation must emit the
+program directly to reduce its own peak allocation and construction cost.</p></li>
+</ul>
+<p>Keep compile-time checks for source validity, complete signed relations, output
+safety and causal feasibility. Runtime can evaluate certified coefficient
+programs, apply local response tables, fold actual records and materialize a
+readout’s physical binding when its inputs become available. Moving symbolic
+solves or branch searches to every shot is a different tradeoff: it can reduce
+ahead-of-time work while increasing runtime latency, and is not a bounded
+compiler result by itself.</p>
+<p>This separation has precedents rather than requiring a general language:
+MLIR documents <a class="reference external" href="https://mlir.llvm.org/docs/Dialects/Func/">explicit function interfaces</a>,
+<a class="reference external" href="https://mlir.llvm.org/docs/Dialects/SparseTensorOps/">sparse row/block encodings</a>,
+and <a class="reference external" href="https://mlir.llvm.org/docs/Dialects/AsyncDialect/">separate value/readiness dependencies</a>.
+These are design references, not evidence of a speedup in Bloq.</p>
+<p>The evidence supports a compact guarded-readout program experiment, beginning
+with exact pooled local payloads and independent query roots. It does not yet
+justify a general classical-function language or a paper claim of bounded
+end-to-end compilation. Acceptance must include total program-table entries,
+peak compilation/VM-preparation memory, per-shot work and latency, as well as
+visible IR node/edge counts. The source-algebra changes below remain necessary.</p>
+<h2 id="retained-implementation">Retained implementation<a class="headerlink" href="#retained-implementation" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>Connection validation indexes child interface ports once per used definition.</p></li>
+<li><p>Fixed-definition compilation checks cache hits before expanding missing child
+geometry. The root geometry is linked once for placement.</p></li>
+<li><p>Complete queries are partitioned by authored instance. Identical fragments
+share every native coefficient, activation, gateway role and actual physical
+columns. Private directions, signed reconstruction and named provenance remain
+part of the original complete relation.</p></li>
+<li><p>Physical binding reuses complete packets, boundary operators and transport
+offsets, then cancels contributions before emitting each decoder equation.
+Optional images are discarded before joint Boolean remapping.</p></li>
+<li><p>Coefficients are released after their final direct or fragment use. Activation,
+feedback and corrected-frame folds remain for assembly. Cache admission keeps
+only fragments with a future consumer. Spent budgets are never refunded.</p></li>
+<li><p>After ordinary payload merging, repeated ordered readout inputs share existing
+unindexed <code class="docutils literal notranslate"><span class="pre">Observable</span></code> fragments when this strictly reduces edges. Each complete Observable
+retains its identity and decoder request.</p></li>
+</ul>
+<p>The query interner and response caches retain bounded optional payloads; an
+oversized response still uses the same exact planner and cumulative budget.
+No adder recognition, runtime whole-root solve or new classical-function IR is
+needed for these changes.</p>
+<h2 id="rejected-experiments">Rejected experiments<a class="headerlink" href="#rejected-experiments" title="Link to this heading">¶</a></h2>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Experiment</p></th>
+<th class="head"><p>Finding</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Late terminal deferral</p></td>
+<td><p>Leaves were already graph-wide. At 128 bits it took 7.03 s versus 6.83 s for shared fragments and used more memory.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Early seam tags with local witness leaves</p></td>
+<td><p>Preserved complete raw rows and metadata after fixing off-activation tag deletion, but root reconstruction retained the old readout-planning cost. Selected seam pivots still grew to 129 columns at 128 bits.</p></td>
+</tr>
+<tr class="row-even"><td><p>One-site query fragments</p></td>
+<td><p>Filled the interner and retained 1,633,292 fragment entries at 128 bits. The screen regressed from 7.25 s to 7.73 s.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Lazy named-candidate admission</p></td>
+<td><p>Stopped coefficient reconstruction on rejection, but 128-bit compilation stayed at 6.96 s in a paired comparison. Dropped because the dominant expansion remained.</p></td>
+</tr>
+<tr class="row-even"><td><p>Composed terminal binding</p></td>
+<td><p>Exact streamed support and complete local tuple queries preserved the checked IR. Individual probes slowed the 64-bit adder from 1.57 to 9.71 s. Batches of 32 sites and shared feedback projections reduced this to 2.73 s against a 1.60 s baseline, still a regression.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Native leaves through static binding</p></td>
+<td><p>Temporary seam coordinates preserved exact native and planned rows on eleven static fixtures. At yoke widths 64/128/256, compilation took 150/671/3,997 ms against 71/247/1,011 ms. Peak memory at 256 fell from 161 to 102 MB, but repeated projection became more expensive with width.</p></td>
+</tr>
+</tbody>
+</table>
+<p>The terminal-binding and native-leaf rejection screens each used one paired
+fresh-process d3 sample per case, with frozen release binaries and separate Cargo
+targets on the Apple M5 Pro/macOS 27.0.1 host. Native leaves were limited to
+always-active static graphs without source actions; adaptive causal planning was
+not migrated. Canonical IR matched for the checked yokes and adder. Sources,
+proofs and results remain under <code class="docutils literal notranslate"><span class="pre">target/composed-binding/</span></code>; both compiler
+migrations were removed. A compact expression DAG is insufficient when its
+consumers repeatedly traverse the same history.</p>
+<p>These implementations remain local experiments. They do not establish a bounded
+module algorithm. Exact raw-row, activation, feedback and fold comparisons cover
+the corrected early-seam prototype on seven gallery graphs. A code-aware Pro
+review independently identified its tag-deletion defect and the later query
+interfaces that still require full physical rows.</p>
+<h2 id="required-design-change-for-a-stronger-claim">Required design change for a stronger claim<a class="headerlink" href="#required-design-change-for-a-stronger-claim" title="Link to this heading">¶</a></h2>
+<p>The remaining direction is a coherent relation and readout representation change,
+not another cache-size adjustment:</p>
+<ol class="arabic simple">
+<li><p>Retain local signed generators, seam lenses, complete private directions and
+reconstruction references from the start. A parent must not copy every
+descendant’s physical coefficients. Root-owned tensors need the same treatment.</p></li>
+<li><p>Carry those references through causal admission and the global input kernel.
+Query exact raw coefficients and ordered support lazily. Preserve full support
+lengths for sparse pivot choices, creation-time coordinate copies, mapping
+checkpoints and strict readiness of the final coefficient functions.
+Independently normalizing each child is unsound: seam cancellation can create
+additional global kernel directions. T resources and Multiplex Z remain protected.</p></li>
+<li><p>Bind a complete native site tuple before crossing reconstruction and signed
+gateway resolution. Reuse composed readout responses through a compact DAG
+while preserving cancellation, physical owners, activation and each readout’s
+own raw/corrected decoder pair. Simple XOR of separately bound source leaves
+is not a valid signed response rule.</p></li>
+<li><p>Prove and measure bounds in terms of actual interface/front width, guarded
+contexts, reconstruction visits and emitted IR size. Fixed small modules alone
+do not bound these quantities. Batched backward replay may share query work;
+its live query front must also remain bounded.</p></li>
+</ol>
+<p>Acceptance requires exact signed/private-source equivalence, source-reference
+pivots, named-value safety, raw off-activation values, GC/resource-limit behavior,
+and physical fidelity. Measure cold and changed-root workloads across independent
+modular families, varied topology, nesting and guard correlations. Report growing
+fronts and typed exhaustion. No successful measured path may silently restore a
+whole-root matrix and then claim bounded compilation.</p>
+<p>The next representation change has potential, but no tested replacement currently
+satisfies these conditions with an end-to-end scaling gain. The generic pipeline
+therefore retains the validated improvements above without adding speculative
+planner modes. Reproduce structural counts with <code class="docutils literal notranslate"><span class="pre">profile_adder_scaling</span> <span class="pre">WIDTH</span> <span class="pre">3</span></code>
+and source support with <code class="docutils literal notranslate"><span class="pre">profile_source_planner</span> <span class="pre">WIDTH</span></code>; see the
+<a class="reference internal" href="benchmarks.html"><span class="std std-doc">benchmark methodology</span></a> for timing and provenance.</p>
+<h2 id="composed-transfers-through-input-normalization">Composed transfers through input normalization<a class="headerlink" href="#composed-transfers-through-input-normalization" title="Link to this heading">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">BooleanRow::probe_coefficients</span></code> queries raw coordinates in the leaf/scaled-XOR
+witness DAG without expanding a row. It preserves order, duplicates and
+coefficients outside activation, and prunes provably disjoint subgraphs. Separate
+queries can still revisit the same history.</p>
+<p><code class="docutils literal notranslate"><span class="pre">BooleanDecisionDiagram::extend_witness_front</span></code> now shares projection work across
+fixed row roots. It indexes the needed transfer uses and requested leaf terms,
+then propagates one coordinate at a time in expression order. All contributions
+combine before a parent consumes them. Only nonzero contributions enter the
+worklist, so independent components do not form a dense row-by-column scan.
+The sparse resulting fronts are installed together after successful evaluation;
+exhaustion retains the old rows and partition without refunding spent work.</p>
+<p>This is an ownership boundary: the caller supplies every surviving deferred row.
+Columns only move into the explicit front; old deferred clones cannot be used
+across this boundary. Original leaves, scales and front coefficients remain BDD
+roots. Setup still visits the tape’s history, and growing interfaces or query
+fronts can still require substantial work. This is not yet the general immutable
+snapshot/map backend needed by causal planning.</p>
+<p>The generic planner uses this operation before global input normalization. It
+exposes only input and protected-resource coordinates, then performs the same
+source-ordered kernel elimination while the physical payload stays composed.
+T resources, Multiplex Z, private directions and raw off-activation values are
+preserved. Full physical rows are reconstructed later for the existing feedback,
+residual-readout and binding consumers. The removed early expansion is therefore
+a production improvement, not removal of all compiler-wide expansion.</p>
+<p>The prefix-transfer work probe now distinguishes independent replay from shared
+projection. Counts include constant work and are not timings:</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head text-right"><p>Prefixes</p></th>
+<th class="head text-right"><p>Independent oldest-coordinate queries</p></th>
+<th class="head text-right"><p>Batched projection</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td class="text-right"><p>64</p></td>
+<td class="text-right"><p>16,896</p></td>
+<td class="text-right"><p>1,471</p></td>
+</tr>
+<tr class="row-odd"><td class="text-right"><p>128</p></td>
+<td class="text-right"><p>66,560</p></td>
+<td class="text-right"><p>2,943</p></td>
+</tr>
+<tr class="row-even"><td class="text-right"><p>1,024</p></td>
+<td class="text-right"><p>4,202,496</p></td>
+<td class="text-right"><p>23,551</p></td>
+</tr>
+</tbody>
+</table>
+<p>The batch test also scales independent rows and disjoint requested columns,
+rejecting a dense cross-product implementation. Exact checks cover promotion,
+subsequent weighted pivots, new leaves, raw inactive rows, collection and every
+work-limit cut through the operation.</p>
+<h3 id="compiler-measurements">Compiler measurements<a class="headerlink" href="#compiler-measurements" title="Link to this heading">¶</a></h3>
+<p>A wider version of the existing yoked-memory geometry exercises a nonempty global
+input kernel. Width six reproduces the gallery geometry and port roles. This is
+an additional workload, not evidence of bounded authored-module interfaces.
+Three alternating fresh-process pairs at d3 used matching release builds,
+separate Cargo targets, frozen hashes, an Apple M5 Pro and macOS 27.0.1:</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Workload</p></th>
+<th class="head text-right"><p>Previous compile</p></th>
+<th class="head text-right"><p>Composed compile</p></th>
+<th class="head text-right"><p>Previous peak RSS</p></th>
+<th class="head text-right"><p>Composed peak RSS</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Yoke, 64 columns</p></td>
+<td class="text-right"><p>66.93 ms</p></td>
+<td class="text-right"><p>65.03 ms</p></td>
+<td class="text-right"><p>28.9 MB</p></td>
+<td class="text-right"><p>26.5 MB</p></td>
+</tr>
+<tr class="row-odd"><td><p>Yoke, 128 columns</p></td>
+<td class="text-right"><p>253.86 ms</p></td>
+<td class="text-right"><p>245.74 ms</p></td>
+<td class="text-right"><p>70.3 MB</p></td>
+<td class="text-right"><p>59.3 MB</p></td>
+</tr>
+<tr class="row-even"><td><p>Yoke, 256 columns</p></td>
+<td class="text-right"><p>1,026.59 ms</p></td>
+<td class="text-right"><p>996.32 ms</p></td>
+<td class="text-right"><p>215.8 MB</p></td>
+<td class="text-right"><p>162.8 MB</p></td>
+</tr>
+<tr class="row-odd"><td><p>Adder, 128 bits</p></td>
+<td class="text-right"><p>6,416.19 ms</p></td>
+<td class="text-right"><p>6,423.80 ms</p></td>
+<td class="text-right"><p>2,171.4 MB</p></td>
+<td class="text-right"><p>2,165.8 MB</p></td>
+</tr>
+</tbody>
+</table>
+<p>Values are medians; RSS covers the compile/count process. The 256-column yoke
+reduces peak memory 24.6% and compilation time 2.9%. Its separately measured
+readout planning falls from 158.01 to 136.90 ms (13.4%). The adder is essentially
+unchanged. Doubling yoke width still costs about four times as much, and emitted
+IR/query/support counts are unchanged. No near-linear compiler claim follows.
+Canonical IR text is identical for 8/64-column yokes and the ten-bit adder;
+raw-row comparisons also include a 32-column yoke and guarded/resource fixtures.</p>
+<p>Reuse <code class="docutils literal notranslate"><span class="pre">profile_adder_scaling</span> <span class="pre">yoke:256</span> <span class="pre">3</span></code>, <code class="docutils literal notranslate"><span class="pre">profile_source_planner</span> <span class="pre">yoke:256</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">profile_composed_transfers</span> <span class="pre">1024</span></code>. Results, rejected iterations and source/binary
+provenance remain under <code class="docutils literal notranslate"><span class="pre">target/composed-compiler/</span></code>.</p>
+<p>Earlier causal planning and final physical consumption still need native local
+leaves and immutable copy/mask/constrain checkpoints, exact support ordering and
+complete local tuple queries. The rejected binding experiments above show why
+independent replay is insufficient. Independent child normalization, front-only
+support ranking, or binding leaves separately would change semantics. Broad
+support counting, BDD growth and emitted output remain explicit costs.</p>
+<h2 id="shared-composed-readout-recipes">Shared composed readout recipes<a class="headerlink" href="#shared-composed-readout-recipes" title="Link to this heading">¶</a></h2>
+<p>The retained next step shares ordered readout operands using the existing
+unindexed <code class="docutils literal notranslate"><span class="pre">Observable</span></code> fragments and <code class="docutils literal notranslate"><span class="pre">Compose</span></code> edges. It adds no classical language, runtime opcode or codec
+format. A late IR pass interns balanced operand pairs after the usual payload
+merges, and emits only subtrees whose shared wiring saves edges. Building these
+trees costs at most one pair per original operand occurrence; it does not expand
+transfer coefficients. Running the same factoring before payload merging was
+rejected because it obstructed those merges and enlarged the adder IR.</p>
+<p>Recipes preserve ordered leaves, repeated occurrences, fold roles and physical
+owners. Each original Observable remains the decoder boundary. Strict input
+availability and record timestamps use existing recipe execution semantics.
+Activated Observables are left intact, and levels containing Discard are skipped
+to preserve their implicit execution barriers. The pass also skips levels whose
+readout adjacency does not agree with slot and edge-index order: boundary products
+can carry signs, so sorting their operands is not a valid normalization.</p>
+<p>At d3, stored edge counts change as follows. Quantum nodes, templates, physical
+measurements and stored readout payload terms are unchanged; recipe nodes increase
+the node count.</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Workload</p></th>
+<th class="head text-right"><p>Previous IR edges</p></th>
+<th class="head text-right"><p>Shared IR edges</p></th>
+<th class="head text-right"><p>Previous IR nodes</p></th>
+<th class="head text-right"><p>Shared IR nodes</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Yoke, 64 columns</p></td>
+<td class="text-right"><p>20,405</p></td>
+<td class="text-right"><p>5,185</p></td>
+<td class="text-right"><p>1,211</p></td>
+<td class="text-right"><p>1,560</p></td>
+</tr>
+<tr class="row-odd"><td><p>Yoke, 128 columns</p></td>
+<td class="text-right"><p>77,685</p></td>
+<td class="text-right"><p>11,211</p></td>
+<td class="text-right"><p>2,427</p></td>
+<td class="text-right"><p>3,268</p></td>
+</tr>
+<tr class="row-even"><td><p>Yoke, 256 columns</p></td>
+<td class="text-right"><p>302,837</p></td>
+<td class="text-right"><p>24,037</p></td>
+<td class="text-right"><p>4,859</p></td>
+<td class="text-right"><p>6,538</p></td>
+</tr>
+<tr class="row-odd"><td><p>Adder, 64 bits</p></td>
+<td class="text-right"><p>717,257</p></td>
+<td class="text-right"><p>649,532</p></td>
+<td class="text-right"><p>185,771</p></td>
+<td class="text-right"><p>188,725</p></td>
+</tr>
+<tr class="row-even"><td><p>Adder, 128 bits</p></td>
+<td class="text-right"><p>2,416,074</p></td>
+<td class="text-right"><p>2,125,250</p></td>
+<td class="text-right"><p>620,835</p></td>
+<td class="text-right"><p>628,385</p></td>
+</tr>
+</tbody>
+</table>
+<p>Three alternating fresh-process pairs on the same Apple M5 Pro/macOS 27.0.1 host
+found essentially unchanged compilation time and peak memory. Three further runs
+of the final candidate reproduced these counts: median compilation was
+67.67/252.23/1,014.65 ms for the yokes and 1.56/6.33 s for the adders. The candidate
+check reused the earlier frozen baseline measurements rather than repeating the
+whole comparison. Both builds used separate Cargo targets and frozen source and
+binary hashes.</p>
+<p>For the 128-column yoke, the earlier baseline’s median VM preparation was 9.54 s;
+the final candidate’s median was 1.70 s. Binary size fell from 318,318 to 192,542
+bytes, and peak RSS of the complete compile/codec/preparation probe fell from
+265.7 to 108.2 MB. These are three-sample medians; the memory figures are not
+compile-only peaks. No shots were timed. A single 256-column candidate prepared
+in 14.96 s. The corresponding baseline probe exceeded its 240-second limit
+without completed output, so it supplies no precise stage timing or speedup.</p>
+<p>This removes repeated edges and improves preparation, but still builds expanded
+readouts before compressing them. Compilation and preparation remain superlinear
+over these widths. A stronger scaling result still requires shared, bounded
+query evaluation through causal planning and physical binding, followed by direct
+compact emission. Results and rejected iterations remain local under
+<code class="docutils literal notranslate"><span class="pre">target/composed-binding/</span></code>; reproduce with <code class="docutils literal notranslate"><span class="pre">profile_adder_scaling</span></code> and
+<code class="docutils literal notranslate"><span class="pre">profile_classical_storage</span></code>.</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+
+
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  
+  
+  <div class="md-footer-meta md-typeset">
+    
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-footer-copyright__highlight">
+        &#169; Copyright Bloq contributors.
+        
+    </div>
+  
+    Created using
+    <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
+    8.1.3.
+     and
+    <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
+  
+</div>
+      
+    </div>
+    
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.highlight", "content.tabs.link", "content.code.copy"], "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+      
+        <script src="../_static/sphinx_immaterial_theme.32136f45f91ae6956.min.js?v=a7a9472a"></script>
+        <script src="../_static/versions.js?v=2f43aabb"></script>
+        <script src="../_static/graph-viewer.js?v=b2321b27"></script>
+    
+  </body>
+</html>

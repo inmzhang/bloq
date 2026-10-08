@@ -1,0 +1,1234 @@
+BLOG 1.0
+
+module InjectedAnd {
+  in ccz_2: ccz = 10
+  in ccz_0: ccz = 14
+  in ccz_1: ccz = 15
+  in q: data = 9
+  in i_k: data = 37
+  out qi_k: data = 27
+
+  0: ZXZ [0, 0, 0]
+  1: XXZ [1, 0, 0]
+  2: ZXZ [2, 0, 0]
+  3: ZXZ [3, 0, 0]
+  4: ZXZ [4, 0, 0]
+  5: ZXX [4, 0, 1]
+  6: ZZX [4, 1, 1]
+  7: ZXX [4, 2, 1]
+  8: ZXZ [4, 2, 0]
+  9: Port [5, 2, 0] role=multiplex <q>
+  10: Port [-1, 0, 0] role=input <CCZ_2>
+  11: XZZ [1, 1, 0]
+  12: XZZ [1, 1, 1]
+  13: XZ [1, 1, 2] <fix2_0>
+  14: Port [-1, 2, 0] role=input <CCZ_0>
+  15: Port [-1, 1, 0] role=input <CCZ_1>
+  16: ZXZ [0, 2, 0]
+  17: ZXZ [1, 2, 0]
+  18: XXZ [2, 2, 0]
+  19: XXZ [3, 2, 0]
+  20: XXZ [3, 1, 0]
+  21: ZXZ [0, 1, 0]
+  22: XZZ [0, 1, 1]
+  23: ZXZ [1, 2, 1]
+  24: XXZ [0, 2, 1]
+  25: XXZ [2, 2, 1]
+  26: ZXZ [3, 2, 1]
+  27: Port [0, 1, 2] <qi_k>
+  28: XXZ [0, 0, 1]
+  29: XXZ [1, 0, 1]
+  30: ZXZ [2, 0, 1]
+  31: XZ [2, 0, 2] <fix2_1>
+  32: XZ [3, 2, 2] <fix1_1>
+  33: XZZ [2, 1, 1]
+  34: XZZ [2, 1, 0]
+  35: XZ [2, 1, 2] <fix1_0>
+  36: ZXZ [4, 1, 0]
+  37: Port [5, 1, 0] role=multiplex <i_k>
+  0 -> +X
+  0 -> -X
+  1 -> +X
+  1 -> +Y
+  2 -> +X
+  3 -> +X
+  4 -> +Z
+  5 -> +Y
+  6 -> +Y
+  7 -> -Z
+  8 -> +X
+  11 -> +Z
+  12 -> +Z
+  14 -> +X
+  15 -> +X
+  16 -> +X
+  17 -> +X
+  18 -> +X
+  18 -> -Y
+  19 -> -Y
+  20 -> +X
+  21 -H> +Z
+  22 -> +Y
+  22 -> +Z
+  22 -> -Y
+  23 -> +X
+  24 -> +X
+  25 -> +X
+  25 -> -Y
+  26 -> +Z
+  28 -> +X
+  29 -> +Y
+  29 -> +X
+  30 -> +Z
+  33 -> -Z
+  33 -> +Z
+  36 -> +X
+
+  m1 = measure 0
+  m2 = measure 16
+  resolve 32 if m1
+  resolve 35 if !m1
+  resolve 13 if !m2
+  resolve 31 if m2
+  feedback X 27 if m1 & m2
+
+}
+
+module BulkMaj {
+  in ccz_1: ccz = 0
+  in ccz_3: ccz = 1
+  in ccz_2: ccz = 2
+  in i_prime_k: data = 6
+  in c_k: data = 35
+  in t_k: data = 81
+  out c_k_plus_1: data = 50
+  out c_k_out: data = 56
+  out c_k_plus_1_duplicate: data = 67
+  out c_k_xor_i_prime_k: data = 70
+  out c_k_xor_t_k: data = 80
+
+  0: Port [-1, 0, 2] role=input <CCZ_1>
+  1: Port [-1, 1, 2] role=input <CCZ_3>
+  2: Port [-1, 2, 2] role=input <CCZ_2>
+  3: XXZ [0, 0, 0]
+  4: XZZ [0, 0, 1]
+  5: XZX [0, 0, 2]
+  6: Port [0, 1, -1] role=input <i_prime_k>
+  7: XZZ [0, 1, 0]
+  8: XXZ [0, 1, 1]
+  9: XZX [0, 1, 2]
+  10: ZZX [0, 1, 3]
+  11: XZX [0, 1, 4]
+  12: XZ [0, 1, 5]
+  13: XZZ [0, 2, 0]
+  14: XZZ [0, 2, 1]
+  15: XZX [0, 2, 2]
+  16: ZXX [0, 2, 3]
+  17: ZXZ [0, 2, 4]
+  18: XZ [0, 2, 5]
+  19: XXZ [1, 0, 0]
+  20: XXZ [1, 0, 1]
+  21: XZX [1, 0, 2]
+  22: XZX [1, 0, 3]
+  23: ZXX [1, 0, 4]
+  24: XZ [1, 0, 5]
+  25: XXZ [1, 1, 0]
+  26: XXZ [1, 1, 1]
+  27: XZX [1, 1, 2]
+  28: ZZX [1, 1, 3]
+  29: ZZX [1, 1, 4]
+  30: XZX [1, 2, 1]
+  31: XZX [1, 2, 2]
+  32: ZXX [1, 2, 3]
+  33: ZXZ [1, 2, 4]
+  34: XZ [1, 2, 5]
+  35: Port [2, -1, 0] role=input <c_k>
+  36: XXZ [2, 0, 0]
+  37: ZXZ [2, 0, 1]
+  38: ZXZ [2, 0, 2]
+  39: ZXZ [2, 0, 3]
+  40: ZXZ [2, 1, 0]
+  41: ZXZ [2, 1, 1]
+  42: XZX [2, 1, 2]
+  43: XZX [2, 1, 3]
+  44: XZX [2, 1, 4]
+  45: XXZ [2, 2, 0]
+  46: XZX [2, 2, 1]
+  47: ZXZ [2, 2, 2]
+  48: ZXZ [2, 2, 3]
+  49: ZXZ [2, 2, 4]
+  50: Port [2, 3, 0] role=output <c_k_plus_1>
+  51: ZXZ [3, 0, 0]
+  52: ZXX [3, 0, 1]
+  53: ZXX [3, 0, 2]
+  54: ZXZ [3, 0, 3]
+  55: ZXX [3, 0, 4]
+  56: Port [3, 0, 5] role=output <c_k_out>
+  57: XXZ [3, 1, 0]
+  58: ZZX [3, 1, 1]
+  59: ZXX [3, 1, 2]
+  60: ZXX [3, 1, 3]
+  61: ZXX [3, 1, 4]
+  62: XXZ [3, 2, 0]
+  63: ZZX [3, 2, 1]
+  64: ZXZ [3, 2, 2]
+  65: ZZX [3, 2, 3]
+  66: ZXZ [3, 2, 4]
+  67: Port [3, 2, 5] role=output <c_k_plus_1_duplicate>
+  68: ZXZ [4, 0, 3]
+  69: ZXZ [4, 0, 4]
+  70: Port [4, 0, 5] role=output <c_k_xor_i_prime_k>
+  71: XZX [4, 1, 1]
+  72: XZZ [4, 1, 2]
+  73: XZX [4, 1, 3]
+  74: XZZ [4, 1, 4]
+  75: ZXZ [4, 2, 0]
+  76: ZXZ [4, 2, 1]
+  77: ZXZ [4, 2, 2]
+  78: XZX [4, 2, 3]
+  79: XZZ [4, 2, 4]
+  80: Port [4, 2, 5] role=output <c_k_xor_t_k>
+  81: Port [5, 1, 3] role=input <t_k>
+  0 -> +X
+  1 -> +X
+  2 -> +X
+  3 -> +Y
+  3 -> +X
+  4 -> +Z
+  4 -> +Y
+  5 -> +X
+  6 -> +Z
+  7 -> +Y
+  8 -> +Y
+  8 -> +X
+  9 -> +X
+  10 -> +Y
+  10 -> +X
+  11 -> +Z
+  11 -> +X
+  13 -> +Z
+  15 -> +X
+  16 -> +Z
+  17 -> +Z
+  19 -> +Y
+  19 -> +X
+  20 -> +Y
+  20 -> +X
+  21 -> +Z
+  22 -H> +Z
+  23 -> +Z
+  23 -> +Y
+  25 -> +X
+  27 -> +X
+  28 -> +Y
+  28 -> +X
+  29 -> +X
+  30 -> +Z
+  30 -> +X
+  31 -H> +Z
+  32 -> +Z
+  33 -> +Z
+  35 -> +Y
+  36 -> +X
+  37 -> +Z
+  38 -> +Z
+  39 -> +X
+  40 -> +Z
+  40 -> +X
+  41 -H> +Z
+  42 -> +Z
+  43 -> +Z
+  45 -> +Y
+  45 -> +X
+  46 -> +X
+  47 -> +Z
+  47 -> +X
+  48 -> +Z
+  49 -> +X
+  51 -> +Z
+  52 -> +Z
+  52 -> +Y
+  53 -> +Y
+  54 -> +X
+  55 -> +Z
+  55 -> +Y
+  57 -> +Y
+  58 -> +Y
+  58 -> +X
+  59 -> +Z
+  60 -> +Z
+  60 -> +Y
+  62 -> +X
+  64 -> +X
+  65 -> +X
+  66 -> +Z
+  68 -> +Z
+  69 -> +Z
+  71 -> +Z
+  72 -> +Z
+  73 -> +Z
+  73 -> +X
+  74 -> +Y
+  75 -> +Z
+  76 -> +Z
+  78 -> +Z
+  79 -> +Z
+
+  mt1 = measure 0 -> +X
+  mt2 = measure 2 -> +X
+  resolve 18 if !mt1
+  resolve 34 if mt1
+  resolve 12 if !mt2
+  resolve 24 if mt2
+  feedback X 50, X 67 if mt1 & mt2
+
+}
+
+module HeadMaj {
+  in ccz_1: ccz = 0
+  in ccz_3: ccz = 1
+  in ccz_2: ccz = 2
+  in i_prime_k: data = 8
+  out c_k_plus_1: data = 51
+  out c_k_plus_1_duplicate: data = 65
+  out c_k_xor_i_prime_k: data = 70
+  out c_k_xor_t_k: data = 81
+  in t_k: data = 82
+
+  0: Port [-1, 0, 2] role=input <ccz_1>
+  1: Port [-1, 1, 2] role=input <ccz_3>
+  2: Port [-1, 2, 2] role=input <ccz_2>
+  3: XZZ [0, 0, 0]
+  4: XZX [0, 0, 1]
+  5: XZX [0, 0, 2]
+  6: ZXZ [0, 0, 3]
+  7: ZXX [0, 0, 4]
+  8: Port [0, 1, -1] role=input <i_prime_k>
+  9: XZZ [0, 1, 0]
+  10: XZX [0, 1, 1]
+  11: XZX [0, 1, 2]
+  12: ZZX [0, 1, 3]
+  13: ZXX [0, 1, 4]
+  14: XZ [0, 1, 5] <fix_4a>
+  15: XZX [0, 2, 0]
+  16: XZX [0, 2, 1]
+  17: XZX [0, 2, 2]
+  18: ZXX [0, 2, 3]
+  19: ZXZ [0, 2, 4]
+  20: XZ [0, 2, 5] <fix_3a>
+  21: ZXX [1, 0, 1]
+  22: XZX [1, 0, 2]
+  23: ZXZ [1, 0, 3]
+  24: XZX [1, 0, 4]
+  25: XZ [1, 0, 5] <fix_4b>
+  26: ZZX [1, 1, 0]
+  27: ZZX [1, 1, 1]
+  28: ZZX [1, 1, 2]
+  29: XZX [1, 1, 3]
+  30: XZZ [1, 1, 4]
+  31: ZZX [1, 2, 0]
+  32: ZZX [1, 2, 1]
+  33: ZZX [1, 2, 2]
+  34: XZX [1, 2, 3]
+  35: XZZ [1, 2, 4]
+  36: XZ [1, 2, 5] <fix_3b>
+  37: XZX [2, 0, 1]
+  38: XZZ [2, 0, 2]
+  39: XXZ [2, 0, 3]
+  40: XZX [2, 0, 4]
+  41: XZX [2, 1, 0]
+  42: XZX [2, 1, 1]
+  43: XZZ [2, 1, 2]
+  44: XZZ [2, 1, 3]
+  45: ZZX [2, 1, 4]
+  46: XXZ [2, 2, 0]
+  47: XZX [2, 2, 1]
+  48: XZX [2, 2, 2]
+  49: XZX [2, 2, 3]
+  50: ZXX [2, 2, 4]
+  51: Port [2, 3, 0] role=output <c_k_plus_1>
+  52: XZX [3, 0, 1]
+  53: XZZ [3, 0, 2]
+  54: XZX [3, 0, 3]
+  55: XZX [3, 0, 4]
+  56: XZX [3, 1, 0]
+  57: XZX [3, 1, 1]
+  58: XZZ [3, 1, 2]
+  59: ZZX [3, 1, 4]
+  60: ZXZ [3, 2, 0]
+  61: XZX [3, 2, 1]
+  62: XZZ [3, 2, 2]
+  63: ZXZ [3, 2, 3]
+  64: ZXX [3, 2, 4]
+  65: Port [3, 2, 5] role=output <c_k_plus_1_duplicate>
+  66: XZX [4, 0, 1]
+  67: ZXZ [4, 0, 2]
+  68: ZXZ [4, 0, 3]
+  69: ZXZ [4, 0, 4]
+  70: Port [4, 0, 5] role=output <c_k_xor_i_prime_k>
+  71: XZX [4, 1, 0]
+  72: XZX [4, 1, 1]
+  73: XZX [4, 1, 2]
+  74: XZX [4, 1, 3]
+  75: XZZ [4, 1, 4]
+  76: ZXZ [4, 2, 0]
+  77: ZXZ [4, 2, 1]
+  78: ZXZ [4, 2, 2]
+  79: ZXZ [4, 2, 3]
+  80: XZZ [4, 2, 4]
+  81: Port [4, 2, 5] role=output <c_k_xor_t_k>
+  82: Port [5, 1, 3] role=input <t_k>
+  0 -> +X
+  1 -> +X
+  2 -> +X
+  3 -> +Z
+  3 -> +Y
+  4 -> +Z
+  5 -> +X
+  6 -> +Z
+  6 -> +X
+  7 -> +Y
+  8 -> +Z
+  10 -> +Z
+  10 -> +X
+  11 -> +X
+  12 -> +Y
+  12 -> +X
+  13 -> +Z
+  15 -> +Z
+  15 -> +X
+  16 -> +Z
+  17 -H> +Z
+  18 -> +Z
+  19 -> +Z
+  21 -H> +Z
+  21 -> +Y
+  23 -> +X
+  24 -> +Z
+  24 -> +X
+  26 -> +Y
+  26 -> +X
+  27 -> +Y
+  27 -> +X
+  28 -> +Y
+  29 -> +Z
+  30 -> +Y
+  32 -> +X
+  33 -> +X
+  34 -> +Z
+  34 -> +X
+  35 -> +Z
+  37 -> +Z
+  37 -> +X
+  38 -> +Y
+  39 -> +Y
+  40 -> +X
+  41 -> +X
+  42 -> +Z
+  42 -> +X
+  43 -> +Z
+  45 -> +Y
+  45 -> +X
+  46 -> +Y
+  46 -> +X
+  47 -> +Z
+  47 -> +X
+  48 -> +Z
+  49 -H> +Z
+  52 -> +Z
+  52 -> +X
+  53 -> +Z
+  53 -> +Y
+  54 -> +Z
+  56 -> +X
+  57 -> +Z
+  58 -> +Y
+  59 -> +Y
+  60 -> +X
+  61 -> +Z
+  63 -> +Z
+  63 -> +X
+  64 -> +Z
+  66 -H> +Z
+  67 -> +Z
+  68 -> +Z
+  69 -> +Z
+  71 -> +Z
+  72 -> +Z
+  73 -> +Z
+  74 -> +Z
+  74 -> +X
+  75 -> +Y
+  76 -> +Z
+  77 -> +Z
+  78 -> +Z
+  80 -> +Z
+
+  mt1 = measure 0 -> +X
+  mt2 = measure 2 -> +X
+  resolve 20 if mt1
+  resolve 36 if !mt1
+  resolve 14 if mt2
+  resolve 25 if !mt2
+  feedback X 51, X 65 if mt1 & mt2
+
+}
+
+module BulkUmaParked {
+  in c_k: data = 5
+  in c_k_plus_1: data = 10
+  in c_k_xor_i_prime_k: data = 13
+  in c_k_xor_t_k: data = 18
+  out out_k: data = 21
+  in incoming_z
+  out erase = m_ikprime ^ m_anc
+  out carry_z = m_ikprime ^ m_anc ^ incoming_z
+
+  0: ZZX [-1, 0, 0]
+  1: XXZ [-1, 0, 1]
+  2: ZZX [-1, 1, 0]
+  3: XXZ [-1, 1, 1]
+  4: XXZ [-1, 2, 1]
+  5: Port [0, 0, -1] <c_k>
+  6: XZX [0, 0, 0]
+  7: ZXZ [0, 0, 1]
+  8: XZX [0, 1, 0]
+  9: ZXZ [0, 1, 1]
+  10: Port [0, 2, -1] <c_k+1>
+  11: ZXZ [0, 2, 0]
+  12: ZXZ [0, 2, 1]
+  13: Port [1, 0, -1] <ck_xor_qik>
+  14: ZXX [1, 0, 0]
+  15: ZXZ [1, 0, 1]
+  16: ZZX [1, 1, 0]
+  17: XXZ [1, 1, 1]
+  18: Port [1, 2, -1] <ck_xor_tk>
+  19: ZXX [1, 2, 0]
+  20: XZZ [1, 2, 1]
+  21: Port [2, 0, 1] role=output <out_k>
+  22: ZZX [2, 1, 0]
+  23: ZXZ [2, 1, 1]
+  24: ZXX [2, 2, 0]
+  25: ZXZ [2, 2, 1]
+  26: XZ [5, 1, 2] <park_1_14>
+  27: XZ [5, 2, 2] <park_2_14>
+  28: ZXZ [3, 1, 1]
+  29: ZXZ [3, 2, 1]
+  30: ZXZ [4, 1, 1]
+  31: ZXZ [4, 2, 1]
+  32: ZXZ [5, 1, 1]
+  33: ZXZ [5, 2, 1]
+  0 -> +Y
+  0 -> +X
+  1 -> +Y
+  1 -> +X
+  2 -> +X
+  3 -> +Y
+  3 -> +X
+  4 -> +X
+  5 -H> +Z
+  6 -H> +Z
+  7 -> +X
+  8 -H> +Z
+  8 -> +X
+  9 -> +X
+  10 -> +Z
+  11 -> +Z
+  13 -> +Z
+  14 -> +Z
+  14 -> +Y
+  15 -> +X
+  16 -> +Y
+  16 -> +X
+  17 -> +Y
+  17 -> +X
+  18 -H> +Z
+  19 -H> +Z
+  22 -> +Y
+  23 -> +X
+  24 -> +Z
+  25 -> +X
+  28 -> +X
+  29 -> +X
+  30 -> +X
+  31 -> +X
+  32 -> +Z
+  33 -> +Z
+
+  m_ikprime = measure 14
+  m_anc = measure 0 -> +X
+  resolve 26 if !(m_anc ^ incoming_z)
+  resolve 27 if !(m_anc ^ incoming_z)
+  feedback Z 21 if m_anc
+
+}
+
+module HeadUmaParked {
+  in c_k_plus_1: data = 9
+  in i_prime_k: data = 12
+  in t_k: data = 17
+  out out_k: data = 20
+  in incoming_z
+  out erase = m_ikprime ^ m_anc
+  out carry_z = m_ikprime ^ m_anc ^ incoming_z
+
+  0: ZZX [-1, 0, 0]
+  1: XXZ [-1, 0, 1]
+  2: ZZX [-1, 1, 0]
+  3: XXZ [-1, 1, 1]
+  4: XXZ [-1, 2, 1]
+  5: XZX [0, 0, 0]
+  6: ZXZ [0, 0, 1]
+  7: XZX [0, 1, 0]
+  8: ZXZ [0, 1, 1]
+  9: Port [0, 2, -1] <c_k_plus_1>
+  10: ZXZ [0, 2, 0]
+  11: ZXZ [0, 2, 1]
+  12: Port [1, 0, -1] <i_prime_k>
+  13: ZXX [1, 0, 0]
+  14: ZXZ [1, 0, 1]
+  15: ZZX [1, 1, 0]
+  16: XXZ [1, 1, 1]
+  17: Port [1, 2, -1] <t_k>
+  18: ZXX [1, 2, 0]
+  19: XZZ [1, 2, 1]
+  20: Port [2, 0, 1] role=output <out_k>
+  21: ZZX [2, 1, 0] <fix_1_route_0>
+  22: ZXZ [2, 1, 1] <fix_0_route_0>
+  23: ZXX [2, 2, 0]
+  24: ZXZ [2, 2, 1]
+  25: XZ [5, 1, 2] <park_1_14>
+  26: XZ [5, 2, 2] <park_2_14>
+  27: ZXZ [3, 1, 1]
+  28: ZXZ [3, 2, 1]
+  29: ZXZ [4, 1, 1]
+  30: ZXZ [4, 2, 1]
+  31: ZXZ [5, 1, 1]
+  32: ZXZ [5, 2, 1]
+  0 -> +Y
+  0 -> +X
+  1 -> +Y
+  1 -> +X
+  2 -> +X
+  3 -> +Y
+  3 -> +X
+  4 -> +X
+  5 -H> +Z
+  6 -> +X
+  7 -H> +Z
+  7 -> +X
+  8 -> +X
+  9 -> +Z
+  10 -> +Z
+  12 -> +Z
+  13 -> +Z
+  13 -> +Y
+  14 -> +X
+  15 -> +Y
+  15 -> +X
+  16 -> +Y
+  16 -> +X
+  17 -H> +Z
+  18 -H> +Z
+  21 -> +Y
+  22 -> +X
+  23 -> +Z
+  24 -> +X
+  27 -> +X
+  28 -> +X
+  29 -> +X
+  30 -> +X
+  31 -> +Z
+  32 -> +Z
+
+  m_anc = measure 0 -> +X
+  resolve 25 if !(m_anc ^ incoming_z)
+  resolve 26 if !(m_anc ^ incoming_z)
+  m_ikprime = measure 13
+  feedback Z 20 if m_anc
+
+}
+
+module TailParity {
+  in i_prime_k: data = 1
+  in c_k: data = 6
+  out out_k: data = 10
+  in t_k: data = 11
+  out m_ikprime = erase_i
+
+  0: XXZ [0, 0, 0]
+  1: Port [0, 1, -1] <i_prime_k>
+  2: XZZ [0, 1, 0]
+  3: XXZ [0, 2, 0]
+  4: ZXZ [1, 0, 0]
+  5: ZXZ [1, 2, 0]
+  6: Port [2, -1, 0] role=input <c_k>
+  7: XXZ [2, 0, 0]
+  8: ZXZ [2, 2, 0]
+  9: XZZ [3, 0, 0]
+  10: Port [3, 0, 1] <out_k>
+  11: Port [3, 1, -1] <t_k>
+  12: XZZ [3, 1, 0]
+  13: XXZ [3, 2, 0]
+  0 -> +Y
+  0 -> +X
+  1 -> +Z
+  2 -> +Y
+  3 -> +X
+  4 -> +X
+  5 -> +X
+  6 -> +Y
+  8 -> +X
+  9 -> +Z
+  9 -> +Y
+  11 -> +Z
+  12 -> +Y
+
+  erase_i = measure 3 -> +X
+
+}
+
+module main {
+  in q_in: data = 1
+  out q_out: data = 5
+  in i0_in: data = 9
+  out i0_out: data = 10
+  in t0_in: data = 27
+  out s0_out: data = 41
+  in bit0_and_ccz_2: ccz = 52
+  in bit0_and_ccz_0: ccz = 53
+  in bit0_and_ccz_1: ccz = 54
+  in bit0_maj_ccz_1: ccz = 55
+  in bit0_maj_ccz_3: ccz = 56
+  in bit0_maj_ccz_2: ccz = 57
+  in i1_in: data = 74
+  out i1_out: data = 75
+  in t1_in: data = 95
+  out s1_out: data = 109
+  in bit1_and_ccz_2: ccz = 120
+  in bit1_and_ccz_0: ccz = 121
+  in bit1_and_ccz_1: ccz = 122
+  in bit1_maj_ccz_1: ccz = 123
+  in bit1_maj_ccz_3: ccz = 124
+  in bit1_maj_ccz_2: ccz = 125
+  in i2_in: data = 167
+  out i2_out: data = 168
+  in t2_in: data = 186
+  out s2_out: data = 196
+  in bit2_and_ccz_2: ccz = 212
+  in bit2_and_ccz_0: ccz = 213
+  in bit2_and_ccz_1: ccz = 214
+  out raw_erase_0 = bit0_uma.erase
+  out raw_erase_1 = bit1_uma.erase
+  out raw_erase_2 = bit2_tail.m_ikprime
+
+  bit0_and: InjectedAnd @ [0, 0, 0]
+  bit0_maj: HeadMaj @ [0, 0, 3]
+  bit0_uma: HeadUmaParked @ [3, 0, 8]
+  bit1_and: InjectedAnd @ [0, 3, 0]
+  bit1_maj: BulkMaj @ [0, 3, 3]
+  bit1_uma: BulkUmaParked @ [3, 3, 8]
+  bit2_and: InjectedAnd @ [0, 6, 0]
+  bit2_tail: TailParity @ [0, 6, 3]
+
+  0: XZZ [0, 1, 2]
+  1: Port [11, -1, 0] role=input <q_in>
+  2: XZZ [11, 0, 0]
+  3: XZZ [11, 2, 12] <q_route>
+  4: XZZ [11, 0, 12] <q_route>
+  5: Port [11, -1, 12] role=output <q_out>
+  6: ZXZ [7, 2, 0]
+  7: ZXZ [8, 2, 0]
+  8: ZXZ [6, 2, 0]
+  9: Port [10, 1, -1] role=input <i0_in>
+  10: Port [10, 1, 14] role=output <i0_rail>
+  11: XZX [10, 1, 0] <i0_copy>
+  12: XZX [10, 1, 1] <i0_rail>
+  13: XZX [10, 1, 2] <i0_rail>
+  14: XZX [10, 1, 3] <i0_rail>
+  15: XZX [10, 1, 4] <i0_rail>
+  16: XZX [10, 1, 5] <i0_rail>
+  17: XZX [10, 1, 6] <i0_rail>
+  18: XZX [10, 1, 7] <i0_rail>
+  19: XZX [10, 1, 8] <i0_rail>
+  20: XZX [10, 1, 9] <i0_rail>
+  21: XZX [10, 1, 10] <i0_rail>
+  22: XZX [10, 1, 11] <i0_rail>
+  23: XZX [10, 1, 13] <i0_rail>
+  24: XXZ [6, 0, 0] <i0_to_and>
+  25: XXZ [6, 1, 0] <i0_to_and>
+  26: ZXZ [5, 1, 0] <i0_to_and>
+  27: Port [10, 0, -1] role=input <t0_in>
+  28: XZX [10, 0, 0] <t0_to_core>
+  29: XZX [10, 0, 1] <t0_to_core>
+  30: XZX [10, 0, 2] <t0_to_core>
+  31: XZX [10, 0, 3] <t0_to_core>
+  32: XZX [10, 0, 4] <t0_to_core>
+  33: XZX [10, 0, 5] <t0_to_core>
+  34: XZX [10, 0, 6] <t0_to_core>
+  35: XZX [9, 0, 6] <t0_to_core>
+  36: XZX [8, 0, 6] <t0_to_core>
+  37: ZZX [7, 0, 6] <t0_to_core>
+  38: ZZX [7, 1, 6] <t0_to_core>
+  39: XZX [6, 1, 6] <t0_to_core>
+  40: XZX [5, 1, 6] <t0_to_core>
+  41: Port [10, 0, 14] role=output <s0_return>
+  42: ZXZ [5, 0, 9] <route>
+  43: ZXZ [6, 0, 9] <s0_return>
+  44: ZXZ [7, 0, 9] <s0_return>
+  45: ZXZ [8, 0, 9] <s0_return>
+  46: ZXZ [9, 0, 9] <s0_return>
+  47: ZXZ [10, 0, 9] <s0_return>
+  48: ZXX [10, 0, 10] <s0_return>
+  49: ZXX [10, 0, 11] <s0_return>
+  50: ZXX [10, 0, 12] <s0_return>
+  51: ZXX [10, 0, 13] <s0_return>
+  52: Port [-1, 0, 0] role=input <bit0_and_ccz_2>
+  53: Port [-1, 2, 0] role=input <bit0_and_ccz_0>
+  54: Port [-1, 1, 0] role=input <bit0_and_ccz_1>
+  55: Port [-1, 0, 5] role=input <bit0_maj_ccz_1>
+  56: Port [-1, 1, 5] role=input <bit0_maj_ccz_3>
+  57: Port [-1, 2, 5] role=input <bit0_maj_ccz_2>
+  58: ZXZ [7, 0, 0]
+  59: ZXX [7, 0, 1]
+  60: ZZX [7, 1, 1]
+  61: ZZX [8, 1, 1]
+  62: ZZX [9, 1, 1]
+  63: XZZ [11, 1, 0]
+  64: XXZ [11, 2, 0]
+  65: ZXZ [10, 2, 0]
+  66: ZXZ [9, 2, 0]
+  67: ZXZ [5, 2, 0]
+  68: XZZ [0, 4, 2]
+  69: XXZ [11, 5, 0]
+  70: XZZ [11, 4, 0]
+  71: XZZ [11, 3, 0]
+  72: XZZ [11, 5, 12] <q_route>
+  73: XZZ [11, 3, 12] <q_route>
+  74: Port [10, 4, -1] role=input <i1_in>
+  75: Port [10, 4, 14] role=output <i1_rail>
+  76: XZX [10, 4, 0] <i1_copy>
+  77: XZX [10, 4, 1] <i1_rail>
+  78: XZX [10, 4, 2] <i1_rail>
+  79: XZX [10, 4, 3] <i1_rail>
+  80: XZX [10, 4, 4] <i1_rail>
+  81: XZX [10, 4, 5] <i1_rail>
+  82: XZX [10, 4, 6] <i1_rail>
+  83: XZX [10, 4, 7] <i1_rail>
+  84: XZX [10, 4, 8] <i1_rail>
+  85: XZX [10, 4, 9] <i1_rail>
+  86: XZX [10, 4, 10] <i1_rail>
+  87: XZX [10, 4, 11] <i1_rail>
+  88: XZX [10, 4, 13] <i1_rail>
+  89: ZZX [9, 4, 1]
+  90: ZZX [8, 4, 1]
+  91: ZXZ [7, 3, 0] <i1_to_and>
+  92: XXZ [6, 3, 0] <i1_to_and>
+  93: XXZ [6, 4, 0] <i1_to_and>
+  94: ZXZ [5, 4, 0] <i1_to_and>
+  95: Port [10, 3, -1] role=input <t1_in>
+  96: XZX [10, 3, 0] <t1_to_core>
+  97: XZX [10, 3, 1] <t1_to_core>
+  98: XZX [10, 3, 2] <t1_to_core>
+  99: XZX [10, 3, 3] <t1_to_core>
+  100: XZX [10, 3, 4] <t1_to_core>
+  101: XZX [10, 3, 5] <t1_to_core>
+  102: XZX [10, 3, 6] <t1_to_core>
+  103: XZX [9, 3, 6] <t1_to_core>
+  104: XZX [8, 3, 6] <t1_to_core>
+  105: ZZX [7, 3, 6] <t1_to_core>
+  106: ZZX [7, 4, 6] <t1_to_core>
+  107: XZX [6, 4, 6] <t1_to_core>
+  108: XZX [5, 4, 6] <t1_to_core>
+  109: Port [10, 3, 14] role=output <s1_return>
+  110: ZXZ [5, 3, 9] <route>
+  111: ZXZ [6, 3, 9] <s1_return>
+  112: ZXZ [7, 3, 9] <s1_return>
+  113: ZXZ [8, 3, 9] <s1_return>
+  114: ZXZ [9, 3, 9] <s1_return>
+  115: ZXZ [10, 3, 9] <s1_return>
+  116: ZXX [10, 3, 10] <s1_return>
+  117: ZXX [10, 3, 11] <s1_return>
+  118: ZXX [10, 3, 12] <s1_return>
+  119: ZXX [10, 3, 13] <s1_return>
+  120: Port [-1, 3, 0] role=input <bit1_and_ccz_2>
+  121: Port [-1, 5, 0] role=input <bit1_and_ccz_0>
+  122: Port [-1, 4, 0] role=input <bit1_and_ccz_1>
+  123: Port [-1, 3, 5] role=input <bit1_maj_ccz_1>
+  124: Port [-1, 4, 5] role=input <bit1_maj_ccz_3>
+  125: Port [-1, 5, 5] role=input <bit1_maj_ccz_2>
+  126: ZXZ [10, 5, 0]
+  127: ZXZ [9, 5, 0]
+  128: ZXZ [8, 5, 0]
+  129: ZXZ [7, 5, 0]
+  130: ZZX [7, 4, 1]
+  131: ZXX [7, 3, 1]
+  132: ZXZ [5, 5, 0]
+  133: ZXZ [6, 5, 0]
+  134: XZX [4, 7, 2] <t_route>
+  135: XZX [3, 7, 2] <t_route>
+  136: XZZ [3, 6, 4] <sum_route>
+  137: XXZ [3, 7, 4] <sum_route>
+  138: XXZ [4, 7, 4] <sum_route>
+  139: XXZ [4, 6, 4] <sum_route>
+  140: XZZ [0, 7, 2]
+  141: XZZ [11, 9, 5]
+  142: XZZ [11, 9, 2]
+  143: XZZ [11, 9, 6]
+  144: XZZ [11, 9, 9]
+  145: XZZ [11, 9, 3]
+  146: XZZ [11, 9, 10]
+  147: XZZ [11, 9, 11]
+  148: XZZ [11, 9, 4]
+  149: XZZ [11, 9, 8]
+  150: XXZ [11, 8, 0]
+  151: XZZ [11, 9, 0]
+  152: XZZ [11, 9, 7]
+  153: XZZ [11, 7, 0]
+  154: XZZ [11, 6, 0]
+  155: XZZ [11, 8, 12]
+  156: XZZ [11, 6, 12] <q_route>
+  157: ZZX [9, 7, 1]
+  158: ZXZ [5, 8, 0]
+  159: ZXZ [6, 8, 0]
+  160: ZXZ [8, 8, 0]
+  161: ZXZ [7, 8, 0]
+  162: ZXZ [9, 8, 0]
+  163: ZXZ [10, 8, 0]
+  164: ZXX [7, 6, 1]
+  165: ZZX [7, 7, 1]
+  166: ZZX [8, 7, 1]
+  167: Port [10, 7, -1] role=input <i2_in>
+  168: Port [10, 7, 14] role=output <i2_rail>
+  169: XZX [10, 7, 0] <i2_copy>
+  170: XZX [10, 7, 1] <i2_rail>
+  171: XZX [10, 7, 2] <i2_rail>
+  172: XZX [10, 7, 3] <i2_rail>
+  173: XZX [10, 7, 4] <i2_rail>
+  174: XZX [10, 7, 5] <i2_rail>
+  175: XZX [10, 7, 6] <i2_rail>
+  176: XZX [10, 7, 7] <i2_rail>
+  177: XZX [10, 7, 8] <i2_rail>
+  178: XZX [10, 7, 9] <i2_rail>
+  179: XZX [10, 7, 10] <i2_rail>
+  180: XZX [10, 7, 11] <i2_rail>
+  181: XZX [10, 7, 13] <i2_rail>
+  182: ZXZ [7, 6, 0] <i2_to_and>
+  183: XXZ [6, 6, 0] <i2_to_and>
+  184: XXZ [6, 7, 0] <i2_to_and>
+  185: ZXZ [5, 7, 0] <i2_to_and>
+  186: Port [10, 6, -1] role=input <t2_in>
+  187: XZX [10, 6, 0] <t2_to_core>
+  188: XZX [10, 6, 1] <t2_to_core>
+  189: XZX [10, 6, 2] <t2_to_core>
+  190: XZX [9, 6, 2] <t2_to_core>
+  191: XZX [8, 6, 2] <t2_to_core>
+  192: ZZX [7, 6, 2] <t2_to_core>
+  193: ZZX [7, 7, 2] <t2_to_core>
+  194: XZX [6, 7, 2] <t2_to_core>
+  195: XZX [5, 7, 2] <t2_to_core>
+  196: Port [10, 6, 14] role=output <s2_return>
+  197: ZXZ [5, 6, 4] <route>
+  198: ZXZ [6, 6, 4] <s2_return>
+  199: ZXZ [7, 6, 4] <s2_return>
+  200: ZXZ [8, 6, 4] <s2_return>
+  201: ZXZ [9, 6, 4] <s2_return>
+  202: ZXZ [10, 6, 4] <s2_return>
+  203: ZXX [10, 6, 5] <s2_return>
+  204: ZXX [10, 6, 6] <s2_return>
+  205: ZXX [10, 6, 7] <s2_return>
+  206: ZXX [10, 6, 8] <s2_return>
+  207: ZXX [10, 6, 9] <s2_return>
+  208: ZXX [10, 6, 10] <s2_return>
+  209: ZXX [10, 6, 11] <s2_return>
+  210: ZXX [10, 6, 12] <s2_return>
+  211: ZXX [10, 6, 13] <s2_return>
+  212: Port [-1, 6, 0] role=input <bit2_and_ccz_2>
+  213: Port [-1, 8, 0] role=input <bit2_and_ccz_0>
+  214: Port [-1, 7, 0] role=input <bit2_and_ccz_1>
+  215: XZZ [11, 9, 1]
+  216: XZZ [11, 9, 12]
+  136 -> +Y
+  137 -> +X
+  139 -> +X
+  134 -> -X
+  138 -> -Y
+  42 -> +X
+  26 -> +X
+  40 -> +X
+  67 -> +X
+  110 -> +X
+  94 -> +X
+  108 -> +X
+  132 -> +X
+  197 -> +X
+  185 -> +X
+  195 -> -X
+  195 -> +X
+  158 -> +X
+  24 -> +Y
+  24 -> +X
+  43 -> +X
+  39 -> +X
+  8 -> +X
+  92 -> +Y
+  92 -> +X
+  111 -> +X
+  107 -> +X
+  133 -> +X
+  183 -> +Y
+  183 -> +X
+  198 -> +X
+  194 -> +X
+  159 -> +X
+  58 -> +Z
+  59 -> +Y
+  37 -> +Y
+  37 -> +X
+  44 -> +X
+  60 -> +X
+  6 -> +X
+  91 -> +Z
+  131 -> +Y
+  105 -> +Y
+  105 -> +X
+  112 -> +X
+  130 -> +X
+  129 -> +X
+  182 -> +Z
+  164 -> +Y
+  192 -> +Y
+  192 -> +X
+  199 -> +X
+  165 -> +X
+  161 -> +X
+  36 -> +X
+  45 -> +X
+  61 -> +X
+  7 -> +X
+  104 -> +X
+  113 -> +X
+  90 -> +X
+  128 -> +X
+  191 -> +X
+  200 -> +X
+  166 -> +X
+  160 -> +X
+  35 -> +X
+  46 -> +X
+  62 -> +X
+  66 -> +X
+  103 -> +X
+  114 -> +X
+  89 -> +X
+  127 -> +X
+  190 -> +X
+  201 -> +X
+  157 -> +X
+  162 -> +X
+  27 -> +Z
+  28 -> +Z
+  29 -> +Z
+  30 -> +Z
+  31 -> +Z
+  32 -> +Z
+  33 -> +Z
+  47 -> +Z
+  48 -> +Z
+  49 -> +Z
+  50 -> +Z
+  51 -> +Z
+  9 -> +Z
+  11 -> +Z
+  12 -> +Z
+  13 -> +Z
+  14 -> +Z
+  15 -> +Z
+  16 -> +Z
+  17 -> +Z
+  18 -> +Z
+  19 -> +Z
+  20 -> +Z
+  21 -> +Z
+  23 -> +Z
+  65 -> +X
+  95 -> +Z
+  96 -> +Z
+  97 -> +Z
+  98 -> +Z
+  99 -> +Z
+  100 -> +Z
+  101 -> +Z
+  115 -> +Z
+  116 -> +Z
+  117 -> +Z
+  118 -> +Z
+  119 -> +Z
+  74 -> +Z
+  76 -> +Z
+  77 -> +Z
+  78 -> +Z
+  79 -> +Z
+  80 -> +Z
+  81 -> +Z
+  82 -> +Z
+  83 -> +Z
+  84 -> +Z
+  85 -> +Z
+  86 -> +Z
+  88 -> +Z
+  126 -> +X
+  186 -> +Z
+  187 -> +Z
+  188 -> +Z
+  202 -> +Z
+  203 -> +Z
+  204 -> +Z
+  205 -> +Z
+  206 -> +Z
+  207 -> +Z
+  208 -> +Z
+  209 -> +Z
+  210 -> +Z
+  211 -> +Z
+  167 -> +Z
+  169 -> +Z
+  170 -> +Z
+  171 -> +Z
+  172 -> +Z
+  173 -> +Z
+  174 -> +Z
+  175 -> +Z
+  176 -> +Z
+  177 -> +Z
+  178 -> +Z
+  179 -> +Z
+  181 -> +Z
+  163 -> +X
+  5 -> +Y
+  2 -> -Y
+  4 -> +Y
+  63 -> -Y
+  [11, 1, 12] -> +Y
+  64 -> -Y
+  64 -> +Y
+  3 -> +Y
+  71 -> +Y
+  73 -> +Y
+  70 -> +Y
+  [11, 4, 12] -> +Y
+  69 -> +Y
+  72 -> +Y
+  154 -> +Y
+  156 -> +Y
+  153 -> +Y
+  [11, 7, 12] -> +Y
+  150 -> +Y
+  155 -> +Y
+  215 -> -Z
+  142 -> -Z
+  142 -> +Z
+  145 -> +Z
+  148 -> +Z
+  141 -> +Z
+  143 -> +Z
+  152 -> +Z
+  149 -> +Z
+  144 -> +Z
+  146 -> +Z
+  147 -> +Z
+  branch cz0 {
+    false {
+      217: XZX [10, 1, 12] <cz_target_0_off>
+      218: XXZ [11, 1, 12] <cz_q_contact_0>
+      22 -> +Z
+      217 -> +Z
+    }
+    true {
+      219: ZXZ [10, 1, 12] <cz_target_0_on>
+      220: XXZ [11, 1, 12] <cz_q_contact_0>
+      22 -H> +Z
+      219 -H> +Z
+      219 -> +X
+    }
+  }
+  branch cz1 {
+    false {
+      221: XZX [10, 4, 12] <cz_target_1_off>
+      222: XXZ [11, 4, 12] <cz_q_contact_1>
+      87 -> +Z
+      221 -> +Z
+    }
+    true {
+      223: ZXZ [10, 4, 12] <cz_target_1_on>
+      224: XXZ [11, 4, 12] <cz_q_contact_1>
+      87 -H> +Z
+      223 -H> +Z
+      223 -> +X
+    }
+  }
+  branch cz2 {
+    false {
+      225: XZX [10, 7, 12] <cz_target_2_off>
+      226: XXZ [11, 7, 12] <cz_q_contact_2>
+      180 -> +Z
+      225 -> +Z
+    }
+    true {
+      227: ZXZ [10, 7, 12] <cz_target_2_on>
+      228: XXZ [11, 7, 12] <cz_q_contact_2>
+      180 -H> +Z
+      227 -H> +Z
+      227 -> +X
+    }
+  }
+
+  resolve cz0 if bit0_uma.erase
+  resolve cz1 if bit1_uma.erase
+  resolve cz2 if bit2_tail.m_ikprime
+
+  bit0_and.qi_k -> 0
+  0 -> bit0_maj.i_prime_k
+  bit0_maj.c_k_plus_1_duplicate -> bit0_uma.c_k_plus_1
+  bit0_maj.c_k_xor_i_prime_k -> bit0_uma.i_prime_k
+  bit0_maj.c_k_xor_t_k -H> bit0_uma.t_k
+  67 -> bit0_and.q
+  26 -> bit0_and.i_k
+  40 -> bit0_maj.t_k
+  bit0_uma.out_k -> 42
+  52 -> bit0_and.ccz_2
+  53 -> bit0_and.ccz_0
+  54 -> bit0_and.ccz_1
+  55 -> bit0_maj.ccz_1
+  56 -> bit0_maj.ccz_3
+  57 -> bit0_maj.ccz_2
+  bit1_and.qi_k -> 68
+  68 -> bit1_maj.i_prime_k
+  bit1_maj.c_k_plus_1_duplicate -> bit1_uma.c_k_plus_1
+  bit1_maj.c_k_xor_i_prime_k -> bit1_uma.c_k_xor_i_prime_k
+  bit1_maj.c_k_xor_t_k -H> bit1_uma.c_k_xor_t_k
+  bit1_maj.c_k_out -H> bit1_uma.c_k
+  132 -> bit1_and.q
+  94 -> bit1_and.i_k
+  108 -> bit1_maj.t_k
+  bit1_uma.out_k -> 110
+  120 -> bit1_and.ccz_2
+  121 -> bit1_and.ccz_0
+  122 -> bit1_and.ccz_1
+  123 -> bit1_maj.ccz_1
+  124 -> bit1_maj.ccz_3
+  125 -> bit1_maj.ccz_2
+  bit0_maj.c_k_plus_1 -> bit1_maj.c_k
+  135 -> bit2_tail.t_k
+  bit2_tail.out_k -> 136
+  bit2_and.qi_k -> 140
+  140 -> bit2_tail.i_prime_k
+  158 -> bit2_and.q
+  185 -> bit2_and.i_k
+  212 -> bit2_and.ccz_2
+  213 -> bit2_and.ccz_0
+  214 -> bit2_and.ccz_1
+  bit1_maj.c_k_plus_1 -> bit2_tail.c_k
+  bit1_uma.carry_z => bit0_uma.incoming_z
+  bit2_tail.m_ikprime => bit1_uma.incoming_z
+}

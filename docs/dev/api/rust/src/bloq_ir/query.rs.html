@@ -1,0 +1,383 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `bloq_ir/src/query.rs`."><title>query.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-1ed95124.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="bloq_ir" data-themes="" data-resource-suffix="" data-rustdoc-version="1.98.1 (48a229cea 2026-09-01)" data-channel="1.98.1" data-search-js="search-9944d736.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-41dd4d93.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">bloq_ir/</div>query.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Structural queries: the shapes a consumer would otherwise rediscover by
+<a href=#2 id=2 data-nosnippet>2</a>//! matching on [`BloqNodeKind`](crate::BloqNodeKind)/[`RegionNode`] variants
+<a href=#3 id=3 data-nosnippet>3</a>//! and hard-coding source-block coordinates.
+<a href=#4 id=4 data-nosnippet>4</a>//!
+<a href=#5 id=5 data-nosnippet>5</a>//! A compiled program has a small set of recurring landmarks — the region
+<a href=#6 id=6 data-nosnippet>6</a>//! nodes of a given kind, the seams feeding a selection, a graph level's
+<a href=#7 id=7 data-nosnippet>7</a>//! quantum tail, and the node realizing a named
+<a href=#8 id=8 data-nosnippet>8</a>//! source block. Each is a structural fact the IR already knows, so it belongs
+<a href=#9 id=9 data-nosnippet>9</a>//! here rather than in every backend and experiment that needs it.
+<a href=#10 id=10 data-nosnippet>10</a>//!
+<a href=#11 id=11 data-nosnippet>11</a>//! Queries that can only have one answer return [`StructureError`] when the
+<a href=#12 id=12 data-nosnippet>12</a>//! program does not have that shape, so a program whose lowering changed fails
+<a href=#13 id=13 data-nosnippet>13</a>//! at the query instead of silently producing a plausible wrong node.
+<a href=#14 id=14 data-nosnippet>14</a>
+<a href=#15 id=15 data-nosnippet>15</a></span><span class="kw">use </span>glam::IVec3;
+<a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span>thiserror::Error;
+<a href=#17 id=17 data-nosnippet>17</a>
+<a href=#18 id=18 data-nosnippet>18</a><span class="kw">use crate</span>::{Bloq, BloqEdge, BloqNodeId, LevelPath, RegionNode, SubGraph};
+<a href=#19 id=19 data-nosnippet>19</a>
+<a href=#20 id=20 data-nosnippet>20</a><span class="doccomment">/// Why a structural query found no unique answer.
+<a href=#21 id=21 data-nosnippet>21</a></span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Error)]
+<a href=#22 id=22 data-nosnippet>22</a>#[non_exhaustive]
+<a href=#23 id=23 data-nosnippet>23</a></span><span class="kw">pub enum </span>StructureError {
+<a href=#24 id=24 data-nosnippet>24</a>    <span class="doccomment">/// A node does not have exactly one quantum input.
+<a href=#25 id=25 data-nosnippet>25</a>    </span><span class="attr">#[error(<span class="string">"node {node:?} has {count} quantum inputs, expected exactly one"</span>)]
+<a href=#26 id=26 data-nosnippet>26</a>    </span>QuantumInputNotUnique {
+<a href=#27 id=27 data-nosnippet>27</a>        <span class="doccomment">/// Queried node.
+<a href=#28 id=28 data-nosnippet>28</a>        </span>node: BloqNodeId,
+<a href=#29 id=29 data-nosnippet>29</a>        <span class="doccomment">/// Quantum-input count.
+<a href=#30 id=30 data-nosnippet>30</a>        </span>count: usize,
+<a href=#31 id=31 data-nosnippet>31</a>    },
+<a href=#32 id=32 data-nosnippet>32</a>    <span class="doccomment">/// A selection has no quantum input.
+<a href=#33 id=33 data-nosnippet>33</a>    </span><span class="attr">#[error(<span class="string">"selection node {node:?} has no quantum input"</span>)]
+<a href=#34 id=34 data-nosnippet>34</a>    </span>SelectionInputMissing {
+<a href=#35 id=35 data-nosnippet>35</a>        <span class="doccomment">/// Selection node.
+<a href=#36 id=36 data-nosnippet>36</a>        </span>node: BloqNodeId,
+<a href=#37 id=37 data-nosnippet>37</a>    },
+<a href=#38 id=38 data-nosnippet>38</a>    <span class="doccomment">/// A graph level has no unique quantum tail.
+<a href=#39 id=39 data-nosnippet>39</a>    </span><span class="attr">#[error(
+<a href=#40 id=40 data-nosnippet>40</a>        <span class="string">"graph level has {count} quantum tails (quantum nodes with no outgoing quantum edge), expected exactly one"
+<a href=#41 id=41 data-nosnippet>41</a>    </span>)]
+<a href=#42 id=42 data-nosnippet>42</a>    </span>QuantumTailNotUnique {
+<a href=#43 id=43 data-nosnippet>43</a>        <span class="doccomment">/// Quantum-tail count.
+<a href=#44 id=44 data-nosnippet>44</a>        </span>count: usize,
+<a href=#45 id=45 data-nosnippet>45</a>    },
+<a href=#46 id=46 data-nosnippet>46</a>}
+<a href=#47 id=47 data-nosnippet>47</a>
+<a href=#48 id=48 data-nosnippet>48</a><span class="doccomment">/// Which [`RegionNode`] variant a structural query selects.
+<a href=#49 id=49 data-nosnippet>49</a>///
+<a href=#50 id=50 data-nosnippet>50</a>/// The discriminant half of [`RegionNode`], so a caller can filter regions
+<a href=#51 id=51 data-nosnippet>51</a>/// without matching a variant it does not intend to destructure. Exhaustive
+<a href=#52 id=52 data-nosnippet>52</a>/// like the IR data enums it mirrors (see the crate docs).
+<a href=#53 id=53 data-nosnippet>53</a></span><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+<a href=#54 id=54 data-nosnippet>54</a></span><span class="kw">pub enum </span>RegionKind {
+<a href=#55 id=55 data-nosnippet>55</a>    <span class="doccomment">/// Repeat-until-success region.
+<a href=#56 id=56 data-nosnippet>56</a>    </span>RepeatUntilSuccess,
+<a href=#57 id=57 data-nosnippet>57</a>}
+<a href=#58 id=58 data-nosnippet>58</a>
+<a href=#59 id=59 data-nosnippet>59</a><span class="kw">impl </span>RegionNode {
+<a href=#60 id=60 data-nosnippet>60</a>    <span class="doccomment">/// This region's variant, without its payload.
+<a href=#61 id=61 data-nosnippet>61</a>    </span><span class="kw">pub fn </span>kind(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RegionKind {
+<a href=#62 id=62 data-nosnippet>62</a>        RegionKind::RepeatUntilSuccess
+<a href=#63 id=63 data-nosnippet>63</a>    }
+<a href=#64 id=64 data-nosnippet>64</a>}
+<a href=#65 id=65 data-nosnippet>65</a>
+<a href=#66 id=66 data-nosnippet>66</a><span class="doccomment">/// A program-unique address of one region node: the path to its graph level
+<a href=#67 id=67 data-nosnippet>67</a>/// plus its level-local id.
+<a href=#68 id=68 data-nosnippet>68</a>///
+<a href=#69 id=69 data-nosnippet>69</a>/// Both halves are needed because [`BloqNodeId`]s are level-local; see
+<a href=#70 id=70 data-nosnippet>70</a>/// [`LevelPath`].
+<a href=#71 id=71 data-nosnippet>71</a></span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+<a href=#72 id=72 data-nosnippet>72</a></span><span class="kw">pub struct </span>RegionRef {
+<a href=#73 id=73 data-nosnippet>73</a>    <span class="doccomment">/// The level the region node lives at; empty for the top level.
+<a href=#74 id=74 data-nosnippet>74</a>    </span><span class="kw">pub </span>path: LevelPath,
+<a href=#75 id=75 data-nosnippet>75</a>    <span class="doccomment">/// The region node's id within that level.
+<a href=#76 id=76 data-nosnippet>76</a>    </span><span class="kw">pub </span>node: BloqNodeId,
+<a href=#77 id=77 data-nosnippet>77</a>}
+<a href=#78 id=78 data-nosnippet>78</a>
+<a href=#79 id=79 data-nosnippet>79</a><span class="kw">impl </span>RegionRef {
+<a href=#80 id=80 data-nosnippet>80</a>    <span class="doccomment">/// The region this reference names, or `None` once the program has been
+<a href=#81 id=81 data-nosnippet>81</a>    /// edited out from under it (a stale path, or an id whose node is gone).
+<a href=#82 id=82 data-nosnippet>82</a>    </span><span class="attr">#[must_use]
+<a href=#83 id=83 data-nosnippet>83</a>    </span><span class="kw">pub fn </span>resolve&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, bloq: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Bloq) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>RegionNode&gt; {
+<a href=#84 id=84 data-nosnippet>84</a>        bloq.level_at(<span class="kw-2">&amp;</span><span class="self">self</span>.path)<span class="question-mark">?</span>.node(<span class="self">self</span>.node)<span class="question-mark">?</span>.try_region()
+<a href=#85 id=85 data-nosnippet>85</a>    }
+<a href=#86 id=86 data-nosnippet>86</a>}
+<a href=#87 id=87 data-nosnippet>87</a>
+<a href=#88 id=88 data-nosnippet>88</a><span class="kw">impl </span>Bloq {
+<a href=#89 id=89 data-nosnippet>89</a>    <span class="doccomment">/// Every region node of `kind`, at every nesting level.
+<a href=#90 id=90 data-nosnippet>90</a>    ///
+<a href=#91 id=91 data-nosnippet>91</a>    /// Ordered by [`Bloq::levels`]: levels pre-order top-down, ascending node
+<a href=#92 id=92 data-nosnippet>92</a>    /// id within a level. Filter on [`RegionRef::path`] being
+<a href=#93 id=93 data-nosnippet>93</a>    /// [top-level](LevelPath::is_top_level) when only the outermost regions
+<a href=#94 id=94 data-nosnippet>94</a>    /// matter.
+<a href=#95 id=95 data-nosnippet>95</a>    </span><span class="attr">#[must_use]
+<a href=#96 id=96 data-nosnippet>96</a>    </span><span class="kw">pub fn </span>regions_of(<span class="kw-2">&amp;</span><span class="self">self</span>, kind: RegionKind) -&gt; Vec&lt;RegionRef&gt; {
+<a href=#97 id=97 data-nosnippet>97</a>        <span class="self">self</span>.levels()
+<a href=#98 id=98 data-nosnippet>98</a>            .flat_map(|(path, level)| {
+<a href=#99 id=99 data-nosnippet>99</a>                level
+<a href=#100 id=100 data-nosnippet>100</a>                    .nodes()
+<a href=#101 id=101 data-nosnippet>101</a>                    .filter(<span class="kw">move </span>|(<span class="kw">_</span>, node)| {
+<a href=#102 id=102 data-nosnippet>102</a>                        node.try_region()
+<a href=#103 id=103 data-nosnippet>103</a>                            .is_some_and(|region| region.kind() == kind)
+<a href=#104 id=104 data-nosnippet>104</a>                    })
+<a href=#105 id=105 data-nosnippet>105</a>                    .map(<span class="kw">move </span>|(node, <span class="kw">_</span>)| RegionRef {
+<a href=#106 id=106 data-nosnippet>106</a>                        path: path.clone(),
+<a href=#107 id=107 data-nosnippet>107</a>                        node,
+<a href=#108 id=108 data-nosnippet>108</a>                    })
+<a href=#109 id=109 data-nosnippet>109</a>            })
+<a href=#110 id=110 data-nosnippet>110</a>            .collect()
+<a href=#111 id=111 data-nosnippet>111</a>    }
+<a href=#112 id=112 data-nosnippet>112</a>
+<a href=#113 id=113 data-nosnippet>113</a>    <span class="doccomment">/// The quantum seams each top-level guarded component waits on, as
+<a href=#114 id=114 data-nosnippet>114</a>    /// `(source, selection)` pairs in ascending selection-node-id order.
+<a href=#115 id=115 data-nosnippet>115</a>    ///
+<a href=#116 id=116 data-nosnippet>116</a>    /// Subdividing those edges ([`Bloq::insert_memory_rounds_batch`]) delays the
+<a href=#117 id=117 data-nosnippet>117</a>    /// component until its guard inputs are ready. Within one component, seams
+<a href=#118 id=118 data-nosnippet>118</a>    /// are ordered by source node id. This query does not certify that an
+<a href=#119 id=119 data-nosnippet>119</a>    /// unresolved selection supports scheduling or memory edits.
+<a href=#120 id=120 data-nosnippet>120</a>    ///
+<a href=#121 id=121 data-nosnippet>121</a>    /// # Errors
+<a href=#122 id=122 data-nosnippet>122</a>    ///
+<a href=#123 id=123 data-nosnippet>123</a>    /// Returns [`StructureError::SelectionInputMissing`] if a guarded component has no
+<a href=#124 id=124 data-nosnippet>124</a>    /// incoming quantum edge.
+<a href=#125 id=125 data-nosnippet>125</a>    </span><span class="kw">pub fn </span>selection_seams(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;(BloqNodeId, BloqNodeId)&gt;, StructureError&gt; {
+<a href=#126 id=126 data-nosnippet>126</a>        <span class="kw">let </span><span class="kw-2">mut </span>seams = Vec::new();
+<a href=#127 id=127 data-nosnippet>127</a>        <span class="kw">for </span>(node, <span class="kw">_</span>) <span class="kw">in </span><span class="self">self
+<a href=#128 id=128 data-nosnippet>128</a>            </span>.top()
+<a href=#129 id=129 data-nosnippet>129</a>            .quantum_nodes()
+<a href=#130 id=130 data-nosnippet>130</a>            .filter(|(<span class="kw">_</span>, quantum)| !quantum.guards.is_empty())
+<a href=#131 id=131 data-nosnippet>131</a>        {
+<a href=#132 id=132 data-nosnippet>132</a>            <span class="kw">let </span><span class="kw-2">mut </span>sources: Vec&lt;<span class="kw">_</span>&gt; = <span class="self">self
+<a href=#133 id=133 data-nosnippet>133</a>                </span>.incoming(node)
+<a href=#134 id=134 data-nosnippet>134</a>                .filter(|edge| <span class="macro">matches!</span>(edge.edge, BloqEdge::Quantum(<span class="kw">_</span>)))
+<a href=#135 id=135 data-nosnippet>135</a>                .map(|edge| edge.source)
+<a href=#136 id=136 data-nosnippet>136</a>                .collect();
+<a href=#137 id=137 data-nosnippet>137</a>            <span class="kw">if </span>sources.is_empty() {
+<a href=#138 id=138 data-nosnippet>138</a>                <span class="kw">return </span><span class="prelude-val">Err</span>(StructureError::SelectionInputMissing { node });
+<a href=#139 id=139 data-nosnippet>139</a>            }
+<a href=#140 id=140 data-nosnippet>140</a>            sources.sort_unstable();
+<a href=#141 id=141 data-nosnippet>141</a>            seams.extend(sources.into_iter().map(|source| (source, node)));
+<a href=#142 id=142 data-nosnippet>142</a>        }
+<a href=#143 id=143 data-nosnippet>143</a>        <span class="prelude-val">Ok</span>(seams)
+<a href=#144 id=144 data-nosnippet>144</a>    }
+<a href=#145 id=145 data-nosnippet>145</a>
+<a href=#146 id=146 data-nosnippet>146</a>    <span class="doccomment">/// The top-level node realizing source block `pos`, or `None` when no node
+<a href=#147 id=147 data-nosnippet>147</a>    /// carries it.
+<a href=#148 id=148 data-nosnippet>148</a>    ///
+<a href=#149 id=149 data-nosnippet>149</a>    /// Lowering partitions the source blocks across
+<a href=#150 id=150 data-nosnippet>150</a>    /// [`NodeProvenance::BlockComponent`](crate::NodeProvenance::BlockComponent)
+<a href=#151 id=151 data-nosnippet>151</a>    /// nodes, so at most one node can match — this is a lookup, not a search
+<a href=#152 id=152 data-nosnippet>152</a>    /// with a preferred answer.
+<a href=#153 id=153 data-nosnippet>153</a>    </span><span class="attr">#[must_use]
+<a href=#154 id=154 data-nosnippet>154</a>    </span><span class="kw">pub fn </span>node_by_block(<span class="kw-2">&amp;</span><span class="self">self</span>, pos: IVec3) -&gt; <span class="prelude-ty">Option</span>&lt;BloqNodeId&gt; {
+<a href=#155 id=155 data-nosnippet>155</a>        <span class="self">self</span>.nodes().find_map(|(id, node)| {
+<a href=#156 id=156 data-nosnippet>156</a>            node.block_members()
+<a href=#157 id=157 data-nosnippet>157</a>                .iter()
+<a href=#158 id=158 data-nosnippet>158</a>                .any(|member| member.pos == pos)
+<a href=#159 id=159 data-nosnippet>159</a>                .then_some(id)
+<a href=#160 id=160 data-nosnippet>160</a>        })
+<a href=#161 id=161 data-nosnippet>161</a>    }
+<a href=#162 id=162 data-nosnippet>162</a>}
+<a href=#163 id=163 data-nosnippet>163</a>
+<a href=#164 id=164 data-nosnippet>164</a><span class="kw">impl </span>SubGraph {
+<a href=#165 id=165 data-nosnippet>165</a>    <span class="doccomment">/// The source of the single quantum edge into `node`.
+<a href=#166 id=166 data-nosnippet>166</a>    ///
+<a href=#167 id=167 data-nosnippet>167</a>    /// This is the seam a padding edit subdivides: every consumer that idles
+<a href=#168 id=168 data-nosnippet>168</a>    /// before a node first has to establish that the node has exactly one
+<a href=#169 id=169 data-nosnippet>169</a>    /// quantum predecessor to idle behind.
+<a href=#170 id=170 data-nosnippet>170</a>    ///
+<a href=#171 id=171 data-nosnippet>171</a>    /// # Errors
+<a href=#172 id=172 data-nosnippet>172</a>    ///
+<a href=#173 id=173 data-nosnippet>173</a>    /// Returns [`StructureError::QuantumInputNotUnique`] when `node` has zero
+<a href=#174 id=174 data-nosnippet>174</a>    /// or several incoming quantum edges (a stale id reads as zero).
+<a href=#175 id=175 data-nosnippet>175</a>    </span><span class="kw">pub fn </span>quantum_input(<span class="kw-2">&amp;</span><span class="self">self</span>, node: BloqNodeId) -&gt; <span class="prelude-ty">Result</span>&lt;BloqNodeId, StructureError&gt; {
+<a href=#176 id=176 data-nosnippet>176</a>        <span class="kw">let </span>sources: Vec&lt;<span class="kw">_</span>&gt; = <span class="self">self
+<a href=#177 id=177 data-nosnippet>177</a>            </span>.incoming(node)
+<a href=#178 id=178 data-nosnippet>178</a>            .filter(|edge| <span class="macro">matches!</span>(edge.edge, BloqEdge::Quantum(<span class="kw">_</span>)))
+<a href=#179 id=179 data-nosnippet>179</a>            .map(|edge| edge.source)
+<a href=#180 id=180 data-nosnippet>180</a>            .collect();
+<a href=#181 id=181 data-nosnippet>181</a>        <span class="kw">match </span>sources[..] {
+<a href=#182 id=182 data-nosnippet>182</a>            [source] =&gt; <span class="prelude-val">Ok</span>(source),
+<a href=#183 id=183 data-nosnippet>183</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(StructureError::QuantumInputNotUnique {
+<a href=#184 id=184 data-nosnippet>184</a>                node,
+<a href=#185 id=185 data-nosnippet>185</a>                count: sources.len(),
+<a href=#186 id=186 data-nosnippet>186</a>            }),
+<a href=#187 id=187 data-nosnippet>187</a>        }
+<a href=#188 id=188 data-nosnippet>188</a>    }
+<a href=#189 id=189 data-nosnippet>189</a>
+<a href=#190 id=190 data-nosnippet>190</a>    <span class="doccomment">/// The unique quantum tail of this graph level: a quantum node with no
+<a href=#191 id=191 data-nosnippet>191</a>    /// outgoing quantum edge. Classical consumers do not disqualify it.
+<a href=#192 id=192 data-nosnippet>192</a>    ///
+<a href=#193 id=193 data-nosnippet>193</a>    /// This query applies to top-level graphs and nested bodies alike.
+<a href=#194 id=194 data-nosnippet>194</a>    ///
+<a href=#195 id=195 data-nosnippet>195</a>    /// # Errors
+<a href=#196 id=196 data-nosnippet>196</a>    ///
+<a href=#197 id=197 data-nosnippet>197</a>    /// Returns [`StructureError::QuantumTailNotUnique`] unless exactly one
+<a href=#198 id=198 data-nosnippet>198</a>    /// quantum node is terminal.
+<a href=#199 id=199 data-nosnippet>199</a>    </span><span class="kw">pub fn </span>quantum_tail(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;BloqNodeId, StructureError&gt; {
+<a href=#200 id=200 data-nosnippet>200</a>        <span class="kw">let </span>tails: Vec&lt;<span class="kw">_</span>&gt; = <span class="self">self
+<a href=#201 id=201 data-nosnippet>201</a>            </span>.quantum_nodes()
+<a href=#202 id=202 data-nosnippet>202</a>            .map(|(id, <span class="kw">_</span>)| id)
+<a href=#203 id=203 data-nosnippet>203</a>            .filter(|<span class="kw-2">&amp;</span>id| {
+<a href=#204 id=204 data-nosnippet>204</a>                !<span class="self">self
+<a href=#205 id=205 data-nosnippet>205</a>                    </span>.outgoing(id)
+<a href=#206 id=206 data-nosnippet>206</a>                    .any(|edge| <span class="macro">matches!</span>(edge.edge, BloqEdge::Quantum(<span class="kw">_</span>)))
+<a href=#207 id=207 data-nosnippet>207</a>            })
+<a href=#208 id=208 data-nosnippet>208</a>            .collect();
+<a href=#209 id=209 data-nosnippet>209</a>        <span class="kw">match </span>tails[..] {
+<a href=#210 id=210 data-nosnippet>210</a>            [tail] =&gt; <span class="prelude-val">Ok</span>(tail),
+<a href=#211 id=211 data-nosnippet>211</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(StructureError::QuantumTailNotUnique { count: tails.len() }),
+<a href=#212 id=212 data-nosnippet>212</a>        }
+<a href=#213 id=213 data-nosnippet>213</a>    }
+<a href=#214 id=214 data-nosnippet>214</a>}
+<a href=#215 id=215 data-nosnippet>215</a>
+<a href=#216 id=216 data-nosnippet>216</a><span class="attr">#[cfg(test)]
+<a href=#217 id=217 data-nosnippet>217</a></span><span class="kw">mod </span>tests {
+<a href=#218 id=218 data-nosnippet>218</a>    <span class="kw">use </span>glam::ivec3;
+<a href=#219 id=219 data-nosnippet>219</a>
+<a href=#220 id=220 data-nosnippet>220</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#221 id=221 data-nosnippet>221</a>    <span class="kw">use </span><span class="kw">crate</span>::BodySelector;
+<a href=#222 id=222 data-nosnippet>222</a>
+<a href=#223 id=223 data-nosnippet>223</a>    <span class="doccomment">/// One `RepeatUntilSuccess` (its body a source node feeding an escape node
+<a href=#224 id=224 data-nosnippet>224</a>    /// that has no quantum successor) followed by a guarded component fed by one quantum
+<a href=#225 id=225 data-nosnippet>225</a>    /// seam — the landmark set every query here answers about.
+<a href=#226 id=226 data-nosnippet>226</a>    </span><span class="kw">fn </span>program() -&gt; Bloq {
+<a href=#227 id=227 data-nosnippet>227</a>        Bloq::from_text(
+<a href=#228 id=228 data-nosnippet>228</a>            <span class="string">"\
+<a href=#229 id=229 data-nosnippet>229</a>BLOQIR 1
+<a href=#230 id=230 data-nosnippet>230</a>
+<a href=#231 id=231 data-nosnippet>231</a>template t0 {
+<a href=#232 id=232 data-nosnippet>232</a>  circuit {
+<a href=#233 id=233 data-nosnippet>233</a>    MPP X(0,0):m0
+<a href=#234 id=234 data-nosnippet>234</a>  }
+<a href=#235 id=235 data-nosnippet>235</a>}
+<a href=#236 id=236 data-nosnippet>236</a>
+<a href=#237 id=237 data-nosnippet>237</a>graph {
+<a href=#238 id=238 data-nosnippet>238</a>  n0 quantum {
+<a href=#239 id=239 data-nosnippet>239</a>    instance i0 t0 @ (0,0)
+<a href=#240 id=240 data-nosnippet>240</a>    from blocks (0,0,0)
+<a href=#241 id=241 data-nosnippet>241</a>  }
+<a href=#242 id=242 data-nosnippet>242</a>  n1 rus in0 source n2 {
+<a href=#243 id=243 data-nosnippet>243</a>    body {
+<a href=#244 id=244 data-nosnippet>244</a>      n0 quantum {
+<a href=#245 id=245 data-nosnippet>245</a>        instance i1 t0 @ (2,0)
+<a href=#246 id=246 data-nosnippet>246</a>      }
+<a href=#247 id=247 data-nosnippet>247</a>      n1 quantum {
+<a href=#248 id=248 data-nosnippet>248</a>        instance i2 t0 @ (2,2)
+<a href=#249 id=249 data-nosnippet>249</a>      }
+<a href=#250 id=250 data-nosnippet>250</a>      n2 observable fragment measurements i2:m0 from generator 0
+<a href=#251 id=251 data-nosnippet>251</a>      n0 -&gt; n1 quantum (0,0,0)&gt;(0,0,1)
+<a href=#252 id=252 data-nosnippet>252</a>      n1 -&gt; n2 order
+<a href=#253 id=253 data-nosnippet>253</a>    }
+<a href=#254 id=254 data-nosnippet>254</a>  }
+<a href=#255 id=255 data-nosnippet>255</a>  n2 quantum {
+<a href=#256 id=256 data-nosnippet>256</a>    instance i3 t0 @ (4,0)
+<a href=#257 id=257 data-nosnippet>257</a>    from blocks (1,0,2)
+<a href=#258 id=258 data-nosnippet>258</a>  }
+<a href=#259 id=259 data-nosnippet>259</a>  n3 quantum {
+<a href=#260 id=260 data-nosnippet>260</a>    instance i4 t0 @ (4,0)
+<a href=#261 id=261 data-nosnippet>261</a>    guard 0 i4
+<a href=#262 id=262 data-nosnippet>262</a>  }
+<a href=#263 id=263 data-nosnippet>263</a>  n4 compute 1
+<a href=#264 id=264 data-nosnippet>264</a>  n4 -&gt; n3 value 0
+<a href=#265 id=265 data-nosnippet>265</a>  n0 -&gt; n2 quantum (0,0,0)&gt;(0,0,1)
+<a href=#266 id=266 data-nosnippet>266</a>  n2 -&gt; n3 quantum (1,0,2)&gt;(1,0,3)
+<a href=#267 id=267 data-nosnippet>267</a>}
+<a href=#268 id=268 data-nosnippet>268</a>"</span>,
+<a href=#269 id=269 data-nosnippet>269</a>        )
+<a href=#270 id=270 data-nosnippet>270</a>        .expect(<span class="string">"valid .bloqir text"</span>)
+<a href=#271 id=271 data-nosnippet>271</a>    }
+<a href=#272 id=272 data-nosnippet>272</a>
+<a href=#273 id=273 data-nosnippet>273</a>    <span class="attr">#[test]
+<a href=#274 id=274 data-nosnippet>274</a>    </span><span class="kw">fn </span>regions_of_selects_one_variant_across_levels() {
+<a href=#275 id=275 data-nosnippet>275</a>        <span class="kw">let </span>program = program();
+<a href=#276 id=276 data-nosnippet>276</a>
+<a href=#277 id=277 data-nosnippet>277</a>        <span class="macro">assert_eq!</span>(
+<a href=#278 id=278 data-nosnippet>278</a>            program.regions_of(RegionKind::RepeatUntilSuccess),
+<a href=#279 id=279 data-nosnippet>279</a>            [RegionRef {
+<a href=#280 id=280 data-nosnippet>280</a>                path: LevelPath::default(),
+<a href=#281 id=281 data-nosnippet>281</a>                node: BloqNodeId(<span class="number">1</span>),
+<a href=#282 id=282 data-nosnippet>282</a>            }]
+<a href=#283 id=283 data-nosnippet>283</a>        );
+<a href=#284 id=284 data-nosnippet>284</a>    }
+<a href=#285 id=285 data-nosnippet>285</a>
+<a href=#286 id=286 data-nosnippet>286</a>    <span class="attr">#[test]
+<a href=#287 id=287 data-nosnippet>287</a>    </span><span class="kw">fn </span>selection_seams_report_the_edge_each_selection_waits_on() {
+<a href=#288 id=288 data-nosnippet>288</a>        <span class="macro">assert_eq!</span>(
+<a href=#289 id=289 data-nosnippet>289</a>            program().selection_seams(),
+<a href=#290 id=290 data-nosnippet>290</a>            <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[(BloqNodeId(<span class="number">2</span>), BloqNodeId(<span class="number">3</span>))])
+<a href=#291 id=291 data-nosnippet>291</a>        );
+<a href=#292 id=292 data-nosnippet>292</a>    }
+<a href=#293 id=293 data-nosnippet>293</a>
+<a href=#294 id=294 data-nosnippet>294</a>    <span class="attr">#[test]
+<a href=#295 id=295 data-nosnippet>295</a>    </span><span class="kw">fn </span>selection_seams_report_every_quantum_input() {
+<a href=#296 id=296 data-nosnippet>296</a>        <span class="kw">let </span><span class="kw-2">mut </span>program = program();
+<a href=#297 id=297 data-nosnippet>297</a>        program.add_edge(
+<a href=#298 id=298 data-nosnippet>298</a>            BloqNodeId(<span class="number">0</span>),
+<a href=#299 id=299 data-nosnippet>299</a>            BloqNodeId(<span class="number">3</span>),
+<a href=#300 id=300 data-nosnippet>300</a>            BloqEdge::quantum(<span class="macro">vec!</span>[<span class="kw">crate</span>::TemporalPipeRef {
+<a href=#301 id=301 data-nosnippet>301</a>                src: ivec3(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>),
+<a href=#302 id=302 data-nosnippet>302</a>                dst: ivec3(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>),
+<a href=#303 id=303 data-nosnippet>303</a>                hadamard: <span class="bool-val">false</span>,
+<a href=#304 id=304 data-nosnippet>304</a>            }]),
+<a href=#305 id=305 data-nosnippet>305</a>        );
+<a href=#306 id=306 data-nosnippet>306</a>
+<a href=#307 id=307 data-nosnippet>307</a>        <span class="macro">assert_eq!</span>(
+<a href=#308 id=308 data-nosnippet>308</a>            program.selection_seams(),
+<a href=#309 id=309 data-nosnippet>309</a>            <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[
+<a href=#310 id=310 data-nosnippet>310</a>                (BloqNodeId(<span class="number">0</span>), BloqNodeId(<span class="number">3</span>)),
+<a href=#311 id=311 data-nosnippet>311</a>                (BloqNodeId(<span class="number">2</span>), BloqNodeId(<span class="number">3</span>)),
+<a href=#312 id=312 data-nosnippet>312</a>            ])
+<a href=#313 id=313 data-nosnippet>313</a>        );
+<a href=#314 id=314 data-nosnippet>314</a>    }
+<a href=#315 id=315 data-nosnippet>315</a>
+<a href=#316 id=316 data-nosnippet>316</a>    <span class="attr">#[test]
+<a href=#317 id=317 data-nosnippet>317</a>    </span><span class="kw">fn </span>selection_seams_reject_a_component_without_quantum_inputs() {
+<a href=#318 id=318 data-nosnippet>318</a>        <span class="kw">use </span>petgraph::visit::EdgeRef;
+<a href=#319 id=319 data-nosnippet>319</a>        <span class="kw">let </span><span class="kw-2">mut </span>program = program();
+<a href=#320 id=320 data-nosnippet>320</a>        <span class="kw">let </span>edge = program
+<a href=#321 id=321 data-nosnippet>321</a>            .graph()
+<a href=#322 id=322 data-nosnippet>322</a>            .edges_connecting(
+<a href=#323 id=323 data-nosnippet>323</a>                petgraph::stable_graph::NodeIndex::new(<span class="number">2</span>),
+<a href=#324 id=324 data-nosnippet>324</a>                petgraph::stable_graph::NodeIndex::new(<span class="number">3</span>),
+<a href=#325 id=325 data-nosnippet>325</a>            )
+<a href=#326 id=326 data-nosnippet>326</a>            .next()
+<a href=#327 id=327 data-nosnippet>327</a>            .unwrap()
+<a href=#328 id=328 data-nosnippet>328</a>            .id();
+<a href=#329 id=329 data-nosnippet>329</a>        program.graph_mut_internal().remove_edge(edge);
+<a href=#330 id=330 data-nosnippet>330</a>
+<a href=#331 id=331 data-nosnippet>331</a>        <span class="macro">assert_eq!</span>(
+<a href=#332 id=332 data-nosnippet>332</a>            program.selection_seams(),
+<a href=#333 id=333 data-nosnippet>333</a>            <span class="prelude-val">Err</span>(StructureError::SelectionInputMissing {
+<a href=#334 id=334 data-nosnippet>334</a>                node: BloqNodeId(<span class="number">3</span>),
+<a href=#335 id=335 data-nosnippet>335</a>            })
+<a href=#336 id=336 data-nosnippet>336</a>        );
+<a href=#337 id=337 data-nosnippet>337</a>    }
+<a href=#338 id=338 data-nosnippet>338</a>
+<a href=#339 id=339 data-nosnippet>339</a>    <span class="attr">#[test]
+<a href=#340 id=340 data-nosnippet>340</a>    </span><span class="kw">fn </span>quantum_tail_is_the_terminal_quantum_node_of_a_region_body() {
+<a href=#341 id=341 data-nosnippet>341</a>        <span class="kw">let </span>program = program();
+<a href=#342 id=342 data-nosnippet>342</a>        <span class="kw">let </span>body = program
+<a href=#343 id=343 data-nosnippet>343</a>            .level_at(<span class="kw-2">&amp;</span>LevelPath::default().child(BloqNodeId(<span class="number">1</span>), BodySelector::Body))
+<a href=#344 id=344 data-nosnippet>344</a>            .expect(<span class="string">"rus body"</span>);
+<a href=#345 id=345 data-nosnippet>345</a>
+<a href=#346 id=346 data-nosnippet>346</a>        <span class="macro">assert_eq!</span>(body.quantum_tail(), <span class="prelude-val">Ok</span>(BloqNodeId(<span class="number">1</span>)));
+<a href=#347 id=347 data-nosnippet>347</a>        <span class="macro">assert_eq!</span>(program.top().quantum_tail(), <span class="prelude-val">Ok</span>(BloqNodeId(<span class="number">3</span>)));
+<a href=#348 id=348 data-nosnippet>348</a>    }
+<a href=#349 id=349 data-nosnippet>349</a>
+<a href=#350 id=350 data-nosnippet>350</a>    <span class="attr">#[test]
+<a href=#351 id=351 data-nosnippet>351</a>    </span><span class="kw">fn </span>quantum_tail_ignores_classical_consumers_and_requires_a_unique_tail() {
+<a href=#352 id=352 data-nosnippet>352</a>        <span class="kw">use crate</span>::{BloqNode, ClassicalExpr, ClassicalNode, QuantumNode};
+<a href=#353 id=353 data-nosnippet>353</a>
+<a href=#354 id=354 data-nosnippet>354</a>        <span class="kw">let </span><span class="kw-2">mut </span>graph = SubGraph::new();
+<a href=#355 id=355 data-nosnippet>355</a>        <span class="macro">assert_eq!</span>(
+<a href=#356 id=356 data-nosnippet>356</a>            graph.quantum_tail(),
+<a href=#357 id=357 data-nosnippet>357</a>            <span class="prelude-val">Err</span>(StructureError::QuantumTailNotUnique { count: <span class="number">0 </span>})
+<a href=#358 id=358 data-nosnippet>358</a>        );
+<a href=#359 id=359 data-nosnippet>359</a>        <span class="kw">let </span>head = graph.add_node(BloqNode::quantum(QuantumNode::default()));
+<a href=#360 id=360 data-nosnippet>360</a>        <span class="kw">let </span>tail = graph.add_node(BloqNode::quantum(QuantumNode::default()));
+<a href=#361 id=361 data-nosnippet>361</a>        <span class="kw">let </span>readout = graph.add_node(BloqNode::classical(ClassicalNode::Compute {
+<a href=#362 id=362 data-nosnippet>362</a>            expr: ClassicalExpr::Const(<span class="bool-val">false</span>),
+<a href=#363 id=363 data-nosnippet>363</a>        }));
+<a href=#364 id=364 data-nosnippet>364</a>        graph.add_edge(head, tail, BloqEdge::quantum(<span class="macro">vec!</span>[]));
+<a href=#365 id=365 data-nosnippet>365</a>        graph.add_edge(tail, readout, BloqEdge::Order);
+<a href=#366 id=366 data-nosnippet>366</a>        <span class="macro">assert_eq!</span>(graph.quantum_tail(), <span class="prelude-val">Ok</span>(tail));
+<a href=#367 id=367 data-nosnippet>367</a>        graph.add_node(BloqNode::quantum(QuantumNode::default()));
+<a href=#368 id=368 data-nosnippet>368</a>        <span class="macro">assert_eq!</span>(
+<a href=#369 id=369 data-nosnippet>369</a>            graph.quantum_tail(),
+<a href=#370 id=370 data-nosnippet>370</a>            <span class="prelude-val">Err</span>(StructureError::QuantumTailNotUnique { count: <span class="number">2 </span>})
+<a href=#371 id=371 data-nosnippet>371</a>        );
+<a href=#372 id=372 data-nosnippet>372</a>    }
+<a href=#373 id=373 data-nosnippet>373</a>
+<a href=#374 id=374 data-nosnippet>374</a>    <span class="attr">#[test]
+<a href=#375 id=375 data-nosnippet>375</a>    </span><span class="kw">fn </span>node_by_block_addresses_a_node_by_its_source_coordinates() {
+<a href=#376 id=376 data-nosnippet>376</a>        <span class="kw">let </span>program = program();
+<a href=#377 id=377 data-nosnippet>377</a>
+<a href=#378 id=378 data-nosnippet>378</a>        <span class="macro">assert_eq!</span>(program.node_by_block(ivec3(<span class="number">1</span>, <span class="number">0</span>, <span class="number">2</span>)), <span class="prelude-val">Some</span>(BloqNodeId(<span class="number">2</span>)));
+<a href=#379 id=379 data-nosnippet>379</a>        <span class="comment">// A block inside a region body is not a top-level member.
+<a href=#380 id=380 data-nosnippet>380</a>        </span><span class="macro">assert_eq!</span>(program.node_by_block(ivec3(<span class="number">9</span>, <span class="number">9</span>, <span class="number">9</span>)), <span class="prelude-val">None</span>);
+<a href=#381 id=381 data-nosnippet>381</a>    }
+<a href=#382 id=382 data-nosnippet>382</a>}
+</code></pre></div></section></main></body></html>

@@ -1,0 +1,3457 @@
+
+
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="concepts.html">
+      
+      
+        <link rel="next" href="../modules/index.html">
+      
+      
+      <link rel="icon" href="../_static/bloq-mark-light.png">
+    
+    
+      
+        <title>Actions - bloq</title>
+      
+    
+    
+      
+        
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+        <link rel="stylesheet" type="text/css" href="../_static/sphinx_immaterial_theme.6efbe22605a23fcd6.min.css?v=b2ceb110" />
+        <link rel="stylesheet" type="text/css" href="../_static/site.css?v=8e1ee51e" />
+    <script>__md_scope=new URL("/",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+
+<meta name="bloq-doc-root" content="../index.html">
+<meta name="bloq-page" content="graphs/actions.html">
+<meta name="bloq-doc-version" content="v0.1.1">
+<meta name="bloq-package-version" content="0.1.1">
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#action-kinds" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../index.html" title="bloq" class="md-header__button md-logo" aria-label="bloq" data-md-component="logo">
+      <img src="../_static/bloq-mark-light.png" alt="logo">
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            bloq
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Actions
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/inmzhang/bloq" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inmzhang/bloq
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../index.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Home</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../getting-started/installation.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Getting Started</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="../user-guide.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>User Guide</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../gallery/index.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Examples</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../reference/cli.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Reference</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../development/contributing.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Development</span>
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../index.html" title="bloq" class="md-nav__button md-logo" aria-label="bloq" data-md-component="logo">
+      <img src="../_static/bloq-mark-light.png" alt="logo">
+    </a>
+    bloq
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/inmzhang/bloq" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inmzhang/bloq
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Home</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Home</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Home</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Getting Started</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Getting Started</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/installation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Installation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/quickstart.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Quick Start</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>User Guide</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            <span>User Guide</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Overview</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theory/prerequisites.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Preliminaries</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theory/existing-works.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Existing Works</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="concepts.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Blocks and Pipes</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    <span>Actions</span>
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="#" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Actions</span>
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+  
+
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#action-kinds" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Action kinds</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Action kinds">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#named-measurement" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Named measurement</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#binding" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Binding</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resolve" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Resolve</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pauli-feedback" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Pauli feedback</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#discard" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Discard</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#action-dag" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Action DAG</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Examples</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Examples">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#logical-t-gate" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Logical T gate</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ccz-gate-teleportation" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>CCZ gate teleportation</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../modules/index.html" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Modules</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6" id="__nav_3_6_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Modules</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../modules/index.html#examples" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Examples</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6_1" id="__nav_3_6_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Examples</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6_1_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../modules/index.html#controlled-adder" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Controlled-<wbr>adder</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6_1_1" id="__nav_3_6_1_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_3_6_1_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6_1_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Controlled-<wbr>adder</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../modules/adder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Controlled Addition</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../modules/phase-gradient.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Phase-<wbr>Gradient Rotations</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="blog.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>BLOG Format</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theory/correlation-surfaces.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Correlation Surfaces</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patch-alignment.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Patch Alignment</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../circuit-constructions.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Circuit Constructions</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theory/compilation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Compilation Pipeline</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/ir.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Bloq IR</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/emission.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Backend Emission</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/synchronization.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Synchronization</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_15" id="__nav_3_15_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Tutorials</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_15_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_15">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Tutorials</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/cnot.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Logical CNOT</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/t-cultivation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T State Cultivation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/t-gate.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Logical T Gate</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/ccz-factory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>8T-<wbr>1CCZ Distillation Factory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/thth.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Emulate Hardware Synchronization</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../gallery/index.html" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Examples</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Examples</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/cnot.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CNOT</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/cz_spatial_h.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CZ with a spatial Hadamard</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/cz_temporal_h.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CZ with a temporal Hadamard</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/s_gate.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>S gate</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/t_gate.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T gate</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/t_with_prepared_y.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T gate with a prepared Y state</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/t_comparison.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T-<wbr>state comparison</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/phase_gradient.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Phase-<wbr>gradient sequence</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/and_4t.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Four-<wbr>T AND</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_injected_and.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ-<wbr>injected AND</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_injected_maj.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ-<wbr>injected MAJ</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/uma.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>UMA</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/three_bit_adder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Three-<wbr>bit controlled adder</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ten_bit_adder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Ten-<wbr>bit controlled adder</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/toffoli_from_and_delayed_cz.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Toffoli from AND</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_4x3x7_tels.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ factory with TELS</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_4x3x6.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ factory without TELS</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_gate_teleport.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ gate teleportation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/bell_state.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Bell state</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ghz.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>GHZ state</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ghz_slide_then_glide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>GHZ with slides and glides</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ghz_patch_rotations.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>GHZ with patch rotations</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/1d-yoked.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>1D yoked layout</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/thth.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T–H–T–H sequence</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/three_cnots.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Compressed three CNOTs</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/steane_encoding.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Steane encoding</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/x_memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>X-<wbr>basis memory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/y_memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Y-<wbr>basis memory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/move_rotation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Rotation through movement</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/stability.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Stability experiment</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Reference</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Reference</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/cli.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CLI Reference</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/python.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Python API</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/rust.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Rust API Reference</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Rust Feature Flags</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Development</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Development</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/contributing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Contributing</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/benchmarks.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Benchmarking</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/generic-module-scalability.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Generic module compilation:<wbr> evidence and claim boundary</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/classical-storage.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Classical data and evaluation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../releasing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Releases</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../site-maintenance.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Website Maintenance</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+  
+
+<nav class="md-nav md-nav--secondary">
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#action-kinds" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Action kinds</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Action kinds">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#named-measurement" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Named measurement</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#binding" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Binding</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resolve" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Resolve</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pauli-feedback" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Pauli feedback</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#discard" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Discard</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#action-dag" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Action DAG</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Examples</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Examples">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#logical-t-gate" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Logical T gate</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ccz-gate-teleportation" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>CCZ gate teleportation</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset" role="main">
+                
+                
+
+
+                  
+
+
+<h1 id="actions">Actions<a class="headerlink" href="#actions" title="Link to this heading">¶</a></h1>
+<p>Blocks and pipes describe the geometry layout of the surface code computation.
+Actions name logical measurements, combine their results, and use those values
+to choose a measurement basis, apply a Pauli correction, or keep a shot.
+Bloq derives the physical readout recipes and their dependencies during compilation.</p>
+<h2 id="action-kinds">Action kinds<a class="headerlink" href="#action-kinds" title="Link to this heading">¶</a></h2>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Action</p></th>
+<th class="head"><p>BLOG example</p></th>
+<th class="head"><p>Effect</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Named measurement</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">mzz</span> <span class="pre">=</span> <span class="pre">measure</span> <span class="pre">1</span> <span class="pre">-&gt;</span> <span class="pre">+X</span></code></p></td>
+<td><p>Name a logical observable on a block or spatial pipe</p></td>
+</tr>
+<tr class="row-odd"><td><p>Binding</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">odd</span> <span class="pre">=</span> <span class="pre">m1</span> <span class="pre">^</span> <span class="pre">m2</span></code></p></td>
+<td><p>Name a Boolean expression</p></td>
+</tr>
+<tr class="row-even"><td><p>Resolve</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">resolve</span> <span class="pre">5</span> <span class="pre">if</span> <span class="pre">odd</span></code> or <code class="docutils literal notranslate"><span class="pre">resolve</span> <span class="pre">correction</span> <span class="pre">if</span> <span class="pre">odd</span></code></p></td>
+<td><p>Select a measurement basis or a branch geometry</p></td>
+</tr>
+<tr class="row-odd"><td><p>Pauli feedback</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">feedback</span> <span class="pre">Z</span> <span class="pre">1</span> <span class="pre">-&gt;</span> <span class="pre">+Z</span> <span class="pre">if</span> <span class="pre">odd</span></code></p></td>
+<td><p>Apply a logical correction at a block or wire target</p></td>
+</tr>
+<tr class="row-even"><td><p>Discard</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">discard</span> <span class="pre">if</span> <span class="pre">bad</span></code></p></td>
+<td><p>Reject the shot when the condition is true</p></td>
+</tr>
+</tbody>
+</table>
+<p>Targets refer to the authored spacetime layout. A block reference can be its
+ID or coordinate, such as <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">0,</span> <span class="pre">1]</span></code>. A pipe reference adds a direction from
+one endpoint, such as <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">0,</span> <span class="pre">1]</span> <span class="pre">-&gt;</span> <span class="pre">+X</span></code>. These coordinates identify logical
+geometry, while the compiler determines physical qubits and execution times.</p>
+<h3 id="named-measurement">Named measurement<a class="headerlink" href="#named-measurement" title="Link to this heading">¶</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">name</span> <span class="pre">=</span> <span class="pre">measure</span> <span class="pre">target</span></code> names a logical observable already measured by the
+geometry. Its value is a bit: zero for eigenvalue <span class="math notranslate nohighlight">\(+1\)</span> and one for eigenvalue
+<span class="math notranslate nohighlight">\(-1\)</span>.</p>
+<p>For a <strong>block target</strong>, the patch terminates at a measured top face, facing
+forward in time. The observable has a correlation surface whose support at
+that face agrees with its measurement basis. For example, an <code class="docutils literal notranslate"><span class="pre">XZX</span></code> cube has
+an X top face, so <code class="docutils literal notranslate"><span class="pre">mx</span> <span class="pre">=</span> <span class="pre">measure</span> <span class="pre">block_id</span></code> names its logical X measurement.
+Fixed <code class="docutils literal notranslate"><span class="pre">X</span></code> and <code class="docutils literal notranslate"><span class="pre">Z</span></code> caps and a terminal <code class="docutils literal notranslate"><span class="pre">Y</span></code> block supply their corresponding
+bases. A selective cap supplies the basis chosen by its resolve action.
+A block with a continuing temporal wire does not become a terminal measurement
+merely because a <code class="docutils literal notranslate"><span class="pre">measure</span></code> statement names it. Ports and T resources are not
+block measurement targets.</p>
+<p>For a <strong>pipe target</strong>, the pipe must be spatial, along X or Y. It represents
+lattice surgery between patches. The named observable is the joint parity
+whose correlation surface crosses that pipe in the surgery measurement basis.
+For an ordinary pipe, this is the Pauli basis complementary to its time face.
+For example, the spatial pipe between the two <code class="docutils literal notranslate"><span class="pre">XZX</span></code> cubes in the T example
+below measures <span class="math notranslate nohighlight">\(Z\otimes Z\)</span>, even though its direction is <code class="docutils literal notranslate"><span class="pre">+X</span></code>. The direction
+locates the pipe and does not specify the Pauli basis. Hadamard pipes exchange
+the endpoint frames, so their support must be interpreted in each local frame.
+Temporal pipes continue a patch and cannot be named parity measurement targets.</p>
+<p>The named value combines physical records, signs, frame terms, and the decoder’s
+flip estimate. Conditions use this <strong>corrected logical value</strong>. Bloq must find
+an output safe readout in every reachable choice. Naming a relation that touches
+a live output does not authorize measuring that output. See
+<a class="reference internal" href="../theory/correlation-surfaces.html"><span class="std std-doc">Correlation Surfaces</span></a> for the readout closure rule.</p>
+<h3 id="binding">Binding<a class="headerlink" href="#binding" title="Link to this heading">¶</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">odd</span> <span class="pre">=</span> <span class="pre">m1</span> <span class="pre">^</span> <span class="pre">m2</span></code> gives a name to a Boolean expression. It has no block or pipe
+target and adds no quantum operation. Its inputs can be named measurements,
+other bindings, or declared classical module inputs.</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Operator, from highest to lowest precedence</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">!</span></code></p></td>
+<td><p>NOT</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">&amp;</span></code></p></td>
+<td><p>AND</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">^</span></code></p></td>
+<td><p>XOR</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">|</span></code></p></td>
+<td><p>OR</p></td>
+</tr>
+</tbody>
+</table>
+<p>Parentheses make grouping explicit, as in <code class="docutils literal notranslate"><span class="pre">odd</span> <span class="pre">=</span> <span class="pre">(m1</span> <span class="pre">^</span> <span class="pre">m2)</span> <span class="pre">&amp;</span> <span class="pre">!bad</span></code>.
+All operands must be available. An OR expression still waits for both inputs
+when one is already true.</p>
+<h3 id="resolve">Resolve<a class="headerlink" href="#resolve" title="Link to this heading">¶</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">resolve</span> <span class="pre">target</span> <span class="pre">if</span> <span class="pre">condition</span></code> selects one of two authored alternatives.</p>
+<p>For a <strong>selective measurement block</strong>, the target is the cap’s position or ID.
+The condition chooses its Pauli basis. In <code class="docutils literal notranslate"><span class="pre">XY</span></code>, true selects X and false
+selects Y. In <code class="docutils literal notranslate"><span class="pre">XZ</span></code>, true selects X and false selects Z. In <code class="docutils literal notranslate"><span class="pre">YZ</span></code>, true selects
+Y and false selects Z. Reversed spellings reverse this assignment and are
+canonicalized when saved. The choice acts at the cap’s time boundary and must
+wait for its corrected selector before the measurement can execute.</p>
+<p>For a <strong>structural branch</strong>, the target is its name, such as <code class="docutils literal notranslate"><span class="pre">correction</span></code>.
+True selects the <code class="docutils literal notranslate"><span class="pre">true</span></code> geometry and false selects the <code class="docutils literal notranslate"><span class="pre">false</span></code> geometry.
+The arms occupy a bounded spacetime region with matching external connections.
+Only the selected arm executes. It reconnects to the shared continuation if
+the region has one. Both arms remain in the source. Supported arms cannot
+contain nested branches, Ports, T resources, or selective caps.</p>
+<h3 id="pauli-feedback">Pauli feedback<a class="headerlink" href="#pauli-feedback" title="Link to this heading">¶</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">feedback</span> <span class="pre">Z</span> <span class="pre">target</span> <span class="pre">if</span> <span class="pre">odd</span></code> applies a logical Pauli correction when the
+condition is true. Its target locates where the logical operator acts in the
+spacetime layout.</p>
+<p>For a <strong>block target</strong>, such as <code class="docutils literal notranslate"><span class="pre">feedback</span> <span class="pre">Z</span> <span class="pre">block_id</span> <span class="pre">if</span> <span class="pre">odd</span></code>, Bloq selects
+an outgoing temporal wire at the block, then an incoming temporal wire,
+then a sole spatial wire. A multiplex Port selects its retained logical
+output. The block reference therefore places the correction on a particular
+logical continuation.</p>
+<p>For a <strong>wire target</strong>, such as <code class="docutils literal notranslate"><span class="pre">feedback</span> <span class="pre">Z</span> <span class="pre">block_id</span> <span class="pre">-&gt;</span> <span class="pre">+Z</span> <span class="pre">if</span> <span class="pre">odd</span></code>, the
+direction explicitly selects the incident pipe from that block’s endpoint.
+Use this form to distinguish wires when several meet at a block. The Pauli
+is expressed in the selected endpoint’s frame. Across a Hadamard pipe,
+X and Z exchange, so moving the correction to the other end requires changing
+its basis.</p>
+<p>Interpret either target through the <a class="reference internal" href="../theory/correlation-surfaces.html"><span class="std std-doc">correlation surfaces</span></a>
+that cross it. At the selected wire, compare the feedback Pauli with each
+surface’s local Pauli support. Anticommuting support flips the sign of that
+relation and hence the logical observable it carries. For example, Z feedback
+flips an X observable whose surface crosses the target with X support. The
+observable’s bit is XORed with <code class="docutils literal notranslate"><span class="pre">odd</span></code>. Z or identity support commutes with the
+same feedback and contributes no flip. A geometric intersection alone does
+not determine the effect, since the Pauli labels and endpoint frames matter.
+Bloq uses these crossings to propagate feedback into named readouts and output
+frame relations.</p>
+<p>Feedback can list several targets separated by commas. Omitting <code class="docutils literal notranslate"><span class="pre">if</span></code> makes
+it unconditional. For each correlation surface, the contributions combine by
+XOR, including repeated targets. An odd number of anticommuting crossings
+flips its observable, while two identical corrections cancel.</p>
+<h3 id="discard">Discard<a class="headerlink" href="#discard" title="Link to this heading">¶</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">discard</span> <span class="pre">if</span> <span class="pre">bad</span></code> rejects the current shot when its condition is true.
+It has no geometric target and waits for the values in its condition.
+The runtime cancels work that has not yet issued once rejection is known.
+It does not undo operations that have already executed.</p>
+<p>Discard is postselection on the computation. A T resource’s cultivation retry
+protocol instead repeats that resource preparation inside its compiled region.
+Discard does not request a retry of the whole computation.</p>
+<h2 id="action-dag">Action DAG<a class="headerlink" href="#action-dag" title="Link to this heading">¶</a></h2>
+<p>Actions form a directed acyclic graph, or <strong>DAG</strong>. Each node is an action and
+each arrow points from a prerequisite to its consumer. Named values give
+explicit dependencies, such as a measurement feeding a resolve. Analysis also
+finds dependencies from correlation surfaces: a readout can wait for a selected
+cap, a branch containing its support, an earlier corrected parity, or feedback
+that changes its sign.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:2">
+<input checked type="radio" id="__tabbed_1_1" name="__tabbed_1"><input type="radio" id="__tabbed_1_2" name="__tabbed_1"><div class="tabbed-labels docutils">
+<label class="tabbed-label" for="__tabbed_1_1">
+Python</label><label class="tabbed-label" for="__tabbed_1_2">
+Rust</label></div>
+<div class="tabbed-content docutils">
+<div class="tabbed-block docutils">
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">bloq</span>
+
+<span class="n">source</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">GalleryItem</span><span class="o">.</span><span class="n">THREE_BIT_ADDER</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>
+<span class="n">dag</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">analyze_action_graph</span><span class="p">()</span>
+
+<span class="n">Path</span><span class="p">(</span><span class="s2">&quot;three-bit-adder-action-dag.svg&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">dag</span><span class="o">.</span><span class="n">to_svg</span><span class="p">(),</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><code><span class="w">    </span><span class="k">use</span><span class="w"> </span><span class="n">bloq</span><span class="p">::</span><span class="n">prelude</span><span class="p">::</span><span class="o">*</span><span class="p">;</span>
+
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">source</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">GalleryItem</span><span class="p">::</span><span class="n">ThreeBitAdder</span><span class="p">.</span><span class="n">build</span><span class="p">();</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">dag</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">source</span><span class="p">.</span><span class="n">analyze_action_graph</span><span class="p">()</span><span class="o">?</span><span class="p">;</span>
+
+<span class="w">    </span><span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;three-bit-adder-action-dag.svg&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">dag</span><span class="p">.</span><span class="n">to_svg</span><span class="p">()</span><span class="o">?</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
+</code></pre></div>
+</div>
+</div>
+</div>
+</div><p>The complete three bit adder graph below contains 51 actions.</p>
+<div class="bloq-output bloq-ir-graph" role="region" aria-label="Three bit adder action DAG" tabindex="0"><img alt="Complete analyzed source action DAG for the three bit adder with measurements, bindings, branch resolves, feedback and their dependencies." src="../_images/three-bit-adder-action-dag.svg" />
+</div><p>Source line order does not set start times. Independent actions can proceed
+concurrently, while a cycle means the required values cannot be produced in a
+causal order.</p>
+<h2 id="examples">Examples<a class="headerlink" href="#examples" title="Link to this heading">¶</a></h2>
+<h3 id="logical-t-gate">Logical T gate<a class="headerlink" href="#logical-t-gate" title="Link to this heading">¶</a></h3>
+<p>The data patch runs from <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">0,</span> <span class="pre">0]</span></code> to <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">0,</span> <span class="pre">2]</span></code>. A cultivated T resource
+enters beside it at <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">0,</span> <span class="pre">0]</span></code>. Two <code class="docutils literal notranslate"><span class="pre">XZX</span></code> cubes join through a spatial pipe,
+and an <code class="docutils literal notranslate"><span class="pre">XY</span></code> cap terminates the resource patch. Build the layout and its two
+actions directly:</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="2:3">
+<input checked type="radio" id="__tabbed_2_1" name="__tabbed_2"><input type="radio" id="__tabbed_2_2" name="__tabbed_2"><input type="radio" id="__tabbed_2_3" name="__tabbed_2"><div class="tabbed-labels docutils">
+<label class="tabbed-label" for="__tabbed_2_1">
+Python</label><label class="tabbed-label" for="__tabbed_2_2">
+Rust</label><label class="tabbed-label" for="__tabbed_2_3">
+BLOG</label></div>
+<div class="tabbed-content docutils">
+<div class="tabbed-block docutils">
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">bloq</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">build_graph</span><span class="p">():</span>
+    <span class="n">graph</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">BlockGraph</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">position</span><span class="p">,</span> <span class="n">kind</span> <span class="ow">in</span> <span class="p">[</span>
+        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="s2">&quot;Port&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;XZX&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;Port&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="s2">&quot;T&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;XZX&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;XY&quot;</span><span class="p">),</span>
+    <span class="p">]:</span>
+        <span class="n">graph</span><span class="o">.</span><span class="n">add_block</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="n">kind</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">position</span><span class="p">,</span> <span class="n">direction</span> <span class="ow">in</span> <span class="p">[</span>
+        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="s2">&quot;+Z&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;+Z&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;+X&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="s2">&quot;+Z&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;+Z&quot;</span><span class="p">),</span>
+    <span class="p">]:</span>
+        <span class="n">graph</span><span class="o">.</span><span class="n">add_pipe</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">Pipe</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="n">direction</span><span class="p">))</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">set_actions</span><span class="p">([</span>
+        <span class="n">bloq</span><span class="o">.</span><span class="n">Action</span><span class="o">.</span><span class="n">measure</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">MeasureTarget</span><span class="o">.</span><span class="n">edge</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;+X&quot;</span><span class="p">),</span> <span class="s2">&quot;mzz&quot;</span><span class="p">),</span>
+        <span class="n">bloq</span><span class="o">.</span><span class="n">Action</span><span class="o">.</span><span class="n">resolve</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="o">~</span><span class="n">bloq</span><span class="o">.</span><span class="n">Expr</span><span class="o">.</span><span class="n">var</span><span class="p">(</span><span class="s2">&quot;mzz&quot;</span><span class="p">)),</span>
+    <span class="p">])</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">graph</span>
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><code><span class="k">use</span><span class="w"> </span><span class="n">bloq</span><span class="p">::</span><span class="n">graph</span><span class="p">::{</span><span class="n">Action</span><span class="p">,</span><span class="w"> </span><span class="n">Expr</span><span class="p">,</span><span class="w"> </span><span class="n">MeasureTarget</span><span class="p">,</span><span class="w"> </span><span class="n">SelectiveKind</span><span class="p">};</span>
+<span class="k">use</span><span class="w"> </span><span class="n">bloq</span><span class="p">::</span><span class="n">prelude</span><span class="p">::</span><span class="o">*</span><span class="p">;</span>
+
+<span class="k">fn</span><span class="w"> </span><span class="nf">build_graph</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="n">BlockGraph</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">graph</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">BlockGraph</span><span class="p">::</span><span class="n">new</span><span class="p">();</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">position</span><span class="p">,</span><span class="w"> </span><span class="n">kind</span><span class="p">)</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">],</span><span class="w"> </span><span class="n">BlockKind</span><span class="p">::</span><span class="n">Port</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="n">BlockKind</span><span class="p">::</span><span class="n">Cube</span><span class="p">(</span><span class="n">CubeKind</span><span class="p">::</span><span class="n">XZX</span><span class="p">)),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="n">BlockKind</span><span class="p">::</span><span class="n">Port</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">],</span><span class="w"> </span><span class="n">BlockKind</span><span class="p">::</span><span class="n">T</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="n">BlockKind</span><span class="p">::</span><span class="n">Cube</span><span class="p">(</span><span class="n">CubeKind</span><span class="p">::</span><span class="n">XZX</span><span class="p">)),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="n">BlockKind</span><span class="p">::</span><span class="n">Selective</span><span class="p">(</span><span class="n">SelectiveKind</span><span class="p">::</span><span class="n">XY</span><span class="p">)),</span>
+<span class="w">    </span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">graph</span><span class="p">.</span><span class="n">try_add_block</span><span class="p">(</span><span class="n">Block</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="n">position</span><span class="p">,</span><span class="w"> </span><span class="n">kind</span><span class="p">))</span><span class="o">?</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">position</span><span class="p">,</span><span class="w"> </span><span class="n">direction</span><span class="p">)</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">],</span><span class="w"> </span><span class="n">Direction</span><span class="p">::</span><span class="n">ZPLUS</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="n">Direction</span><span class="p">::</span><span class="n">ZPLUS</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="n">Direction</span><span class="p">::</span><span class="n">XPLUS</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">],</span><span class="w"> </span><span class="n">Direction</span><span class="p">::</span><span class="n">ZPLUS</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="n">Direction</span><span class="p">::</span><span class="n">ZPLUS</span><span class="p">),</span>
+<span class="w">    </span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">graph</span><span class="p">.</span><span class="n">try_add_pipe</span><span class="p">(</span><span class="n">Pipe</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="n">position</span><span class="p">,</span><span class="w"> </span><span class="n">direction</span><span class="p">))</span><span class="o">?</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">graph</span><span class="p">.</span><span class="n">set_actions</span><span class="p">(</span><span class="fm">vec!</span><span class="p">[</span>
+<span class="w">        </span><span class="n">Action</span><span class="p">::</span><span class="n">Measure</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">target</span><span class="p">:</span><span class="w"> </span><span class="nc">MeasureTarget</span><span class="p">::</span><span class="n">Edge</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">src</span><span class="p">:</span><span class="w"> </span><span class="nc">IVec3</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">),</span>
+<span class="w">                </span><span class="n">dir</span><span class="p">:</span><span class="w"> </span><span class="nc">Direction</span><span class="p">::</span><span class="n">XPLUS</span><span class="p">,</span>
+<span class="w">            </span><span class="p">},</span>
+<span class="w">            </span><span class="n">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;mzz&quot;</span><span class="p">.</span><span class="n">into</span><span class="p">(),</span>
+<span class="w">        </span><span class="p">},</span>
+<span class="w">        </span><span class="n">Action</span><span class="p">::</span><span class="n">Resolve</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">target</span><span class="p">:</span><span class="w"> </span><span class="nc">IVec3</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">),</span>
+<span class="w">            </span><span class="n">condition</span><span class="p">:</span><span class="w"> </span><span class="nc">Expr</span><span class="p">::</span><span class="n">Not</span><span class="p">(</span><span class="nb">Box</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="n">Expr</span><span class="p">::</span><span class="n">Var</span><span class="p">(</span><span class="s">&quot;mzz&quot;</span><span class="p">.</span><span class="n">into</span><span class="p">()))),</span>
+<span class="w">        </span><span class="p">},</span>
+<span class="w">    </span><span class="p">])</span><span class="o">?</span><span class="p">;</span>
+<span class="w">    </span><span class="n">graph</span><span class="p">.</span><span class="n">validate</span><span class="p">()</span><span class="o">?</span><span class="p">;</span>
+<span class="w">    </span><span class="nb">Ok</span><span class="p">(</span><span class="n">graph</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-blog notranslate"><div class="highlight"><pre><span></span><code><span class="k">BLOG</span> <span class="m">1.0</span>
+
+<span class="k">module</span> <span class="n">main</span> <span class="p">{</span>
+  <span class="k">in</span> <span class="n">q0</span><span class="p">:</span> <span class="n">data</span> <span class="o">=</span> <span class="m">0</span>
+  <span class="k">out</span> <span class="n">q1</span><span class="p">:</span> <span class="n">data</span> <span class="o">=</span> <span class="m">2</span>
+
+  <span class="m">0</span><span class="p">:</span> <span class="kt">Port</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="m">0</span><span class="p">]</span>
+  <span class="m">1</span><span class="p">:</span> <span class="kt">XZX</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="m">1</span><span class="p">]</span>
+  <span class="m">2</span><span class="p">:</span> <span class="kt">Port</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="m">2</span><span class="p">]</span>
+  <span class="m">3</span><span class="p">:</span> <span class="kt">T</span> <span class="p">[</span><span class="m">1</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="m">0</span><span class="p">]</span>
+  <span class="m">4</span><span class="p">:</span> <span class="kt">XZX</span> <span class="p">[</span><span class="m">1</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="m">1</span><span class="p">]</span>
+  <span class="m">5</span><span class="p">:</span> <span class="kt">XY</span> <span class="p">[</span><span class="m">1</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="m">2</span><span class="p">]</span>
+  <span class="m">0</span> <span class="o">-&gt;</span> <span class="no">+Z</span>
+  <span class="m">1</span> <span class="o">-&gt;</span> <span class="no">+Z</span>
+  <span class="m">1</span> <span class="o">-&gt;</span> <span class="no">+X</span>
+  <span class="m">3</span> <span class="o">-&gt;</span> <span class="no">+Z</span>
+  <span class="m">4</span> <span class="o">-&gt;</span> <span class="no">+Z</span>
+
+  <span class="n">mzz</span> <span class="o">=</span> <span class="k">measure</span> <span class="m">1</span> <span class="o">-&gt;</span> <span class="no">+X</span>
+  <span class="k">resolve</span> <span class="m">5</span> <span class="k">if</span> <span class="o">!</span><span class="n">mzz</span>
+
+<span class="p">}</span>
+</code></pre></div>
+</div>
+</div>
+</div>
+</div><iframe class="bloq-block-view" src="../_static/block-graphs/action_t_gate.html" title="Interactive action t gate block graph" loading="lazy" allowfullscreen></iframe><p>The same graph with the <code class="docutils literal notranslate"><span class="pre">mzz</span></code> correlation surface:</p>
+<iframe class="bloq-block-view" src="../_static/block-graphs/action_t_gate-mzz.html" title="Interactive action t gate correlation surface mzz" loading="lazy" allowfullscreen></iframe><p><code class="docutils literal notranslate"><span class="pre">mzz</span></code> names the <span class="math notranslate nohighlight">\(Z\otimes Z\)</span> parity measured by the spatial pipe at
+<code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">0,</span> <span class="pre">1]</span> <span class="pre">-&gt;</span> <span class="pre">+X</span></code>. The Bloq compiler constructs a corresponding correlation
+surface for this measurement action and uses it to derive the physical
+readout recipe for <code class="docutils literal notranslate"><span class="pre">mzz</span></code>. Its corrected value controls the resource cap.
+<code class="docutils literal notranslate"><span class="pre">resolve</span> <span class="pre">[1,</span> <span class="pre">0,</span> <span class="pre">2]</span> <span class="pre">if</span> <span class="pre">!mzz</span></code> selects X when <code class="docutils literal notranslate"><span class="pre">mzz</span></code> is zero and Y when it is one.
+The compiler derives the remaining Pauli frame for the surviving data output.
+The <a class="reference internal" href="../tutorials/t-gate.html"><span class="std std-doc">logical T gate tutorial</span></a> continues with physical
+execution and output checks.</p>
+<h3 id="ccz-gate-teleportation">CCZ gate teleportation<a class="headerlink" href="#ccz-gate-teleportation" title="Link to this heading">¶</a></h3>
+<p>This layout consumes an externally supplied three qubit <span class="math notranslate nohighlight">\(|CCZ\rangle\)</span> state
+through the temporal input Ports at <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">2,</span> <span class="pre">0]</span></code>, <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">2,</span> <span class="pre">0]</span></code>, and <code class="docutils literal notranslate"><span class="pre">[2,</span> <span class="pre">2,</span> <span class="pre">0]</span></code>.
+Three multiplex Ports at <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">0,</span> <span class="pre">1]</span></code>, <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">0,</span> <span class="pre">1]</span></code>, and <code class="docutils literal notranslate"><span class="pre">[2,</span> <span class="pre">0,</span> <span class="pre">1]</span></code> couple the
+data to the resource while retaining the data outputs. Three correction regions
+choose either X measurement caps or a geometry implementing a CZ correction.
+The source supplies the teleportation protocol, without preparing the CCZ state.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="3:3">
+<input checked type="radio" id="__tabbed_3_1" name="__tabbed_3"><input type="radio" id="__tabbed_3_2" name="__tabbed_3"><input type="radio" id="__tabbed_3_3" name="__tabbed_3"><div class="tabbed-labels docutils">
+<label class="tabbed-label" for="__tabbed_3_1">
+Python</label><label class="tabbed-label" for="__tabbed_3_2">
+Rust</label><label class="tabbed-label" for="__tabbed_3_3">
+BLOG</label></div>
+<div class="tabbed-content docutils">
+<div class="tabbed-block docutils">
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">bloq</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">build_graph</span><span class="p">():</span>
+    <span class="n">graph</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">BlockGraph</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">position</span><span class="p">,</span> <span class="n">kind</span><span class="p">,</span> <span class="n">role</span><span class="p">,</span> <span class="n">tag</span> <span class="ow">in</span> <span class="p">[</span>
+        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="s2">&quot;Port&quot;</span><span class="p">,</span> <span class="s2">&quot;input&quot;</span><span class="p">,</span> <span class="s2">&quot;CCZ_0&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="s2">&quot;Port&quot;</span><span class="p">,</span> <span class="s2">&quot;input&quot;</span><span class="p">,</span> <span class="s2">&quot;CCZ_1&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="s2">&quot;Port&quot;</span><span class="p">,</span> <span class="s2">&quot;input&quot;</span><span class="p">,</span> <span class="s2">&quot;CCZ_2&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;Port&quot;</span><span class="p">,</span> <span class="s2">&quot;multiplex&quot;</span><span class="p">,</span> <span class="s2">&quot;x&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;ZXX&quot;</span><span class="p">,</span> <span class="s2">&quot;auto&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;ZXX&quot;</span><span class="p">,</span> <span class="s2">&quot;auto&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;Port&quot;</span><span class="p">,</span> <span class="s2">&quot;multiplex&quot;</span><span class="p">,</span> <span class="s2">&quot;y&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;ZZX&quot;</span><span class="p">,</span> <span class="s2">&quot;auto&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;ZXX&quot;</span><span class="p">,</span> <span class="s2">&quot;auto&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;Port&quot;</span><span class="p">,</span> <span class="s2">&quot;multiplex&quot;</span><span class="p">,</span> <span class="s2">&quot;z&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;ZZX&quot;</span><span class="p">,</span> <span class="s2">&quot;auto&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;ZXX&quot;</span><span class="p">,</span> <span class="s2">&quot;auto&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;ZZX&quot;</span><span class="p">,</span> <span class="s2">&quot;auto&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;XZX&quot;</span><span class="p">,</span> <span class="s2">&quot;auto&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;ZXX&quot;</span><span class="p">,</span> <span class="s2">&quot;auto&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+    <span class="p">]:</span>
+        <span class="n">graph</span><span class="o">.</span><span class="n">add_block</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="n">kind</span><span class="p">,</span> <span class="n">role</span><span class="o">=</span><span class="n">role</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="n">tag</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">position</span><span class="p">,</span> <span class="n">direction</span> <span class="ow">in</span> <span class="p">[</span>
+        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="s2">&quot;+Z&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="s2">&quot;+Z&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;+Y&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;+Y&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;+Y&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;+Y&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;+Y&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;+Y&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;+Y&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;-Z&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;+Y&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;-X&quot;</span><span class="p">),</span>
+    <span class="p">]:</span>
+        <span class="n">graph</span><span class="o">.</span><span class="n">add_pipe</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">Pipe</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="n">direction</span><span class="p">))</span>
+
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_branches</span><span class="p">(</span>
+        <span class="p">[</span>
+            <span class="n">bloq</span><span class="o">.</span><span class="n">Branch</span><span class="p">(</span>
+                <span class="s2">&quot;b0&quot;</span><span class="p">,</span> <span class="s2">&quot;m0x&quot;</span><span class="p">,</span>
+                <span class="n">on_false</span><span class="o">=</span><span class="n">bloq</span><span class="o">.</span><span class="n">BranchArm</span><span class="p">([((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;X&quot;</span><span class="p">),</span> <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;X&quot;</span><span class="p">)]),</span>
+                <span class="n">on_true</span><span class="o">=</span><span class="n">bloq</span><span class="o">.</span><span class="n">BranchArm</span><span class="p">(</span>
+                    <span class="p">[((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;ZXZ&quot;</span><span class="p">),</span> <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;ZXX&quot;</span><span class="p">),</span> <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;ZZX&quot;</span><span class="p">)],</span>
+                    <span class="n">pipes</span><span class="o">=</span><span class="p">[</span><span class="n">bloq</span><span class="o">.</span><span class="n">Pipe</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;-X&quot;</span><span class="p">,</span> <span class="n">hadamard</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+                           <span class="n">bloq</span><span class="o">.</span><span class="n">Pipe</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;-Y&quot;</span><span class="p">)],</span>
+                <span class="p">),</span>
+            <span class="p">),</span>
+            <span class="n">bloq</span><span class="o">.</span><span class="n">Branch</span><span class="p">(</span>
+                <span class="s2">&quot;b1&quot;</span><span class="p">,</span> <span class="s2">&quot;m1y&quot;</span><span class="p">,</span>
+                <span class="n">on_false</span><span class="o">=</span><span class="n">bloq</span><span class="o">.</span><span class="n">BranchArm</span><span class="p">([((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;X&quot;</span><span class="p">),</span> <span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;X&quot;</span><span class="p">)]),</span>
+                <span class="n">on_true</span><span class="o">=</span><span class="n">bloq</span><span class="o">.</span><span class="n">BranchArm</span><span class="p">(</span>
+                    <span class="p">[((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;ZXZ&quot;</span><span class="p">),</span> <span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;ZXX&quot;</span><span class="p">),</span>
+                     <span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;ZZX&quot;</span><span class="p">),</span> <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;ZZX&quot;</span><span class="p">)],</span>
+                    <span class="n">pipes</span><span class="o">=</span><span class="p">[</span><span class="n">bloq</span><span class="o">.</span><span class="n">Pipe</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;-Y&quot;</span><span class="p">),</span>
+                           <span class="n">bloq</span><span class="o">.</span><span class="n">Pipe</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;-X&quot;</span><span class="p">),</span>
+                           <span class="n">bloq</span><span class="o">.</span><span class="n">Pipe</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;-X&quot;</span><span class="p">,</span> <span class="n">hadamard</span><span class="o">=</span><span class="kc">True</span><span class="p">)],</span>
+                <span class="p">),</span>
+            <span class="p">),</span>
+            <span class="n">bloq</span><span class="o">.</span><span class="n">Branch</span><span class="p">(</span>
+                <span class="s2">&quot;b2&quot;</span><span class="p">,</span> <span class="s2">&quot;m2z&quot;</span><span class="p">,</span>
+                <span class="n">on_false</span><span class="o">=</span><span class="n">bloq</span><span class="o">.</span><span class="n">BranchArm</span><span class="p">([((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;X&quot;</span><span class="p">),</span> <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;X&quot;</span><span class="p">)]),</span>
+                <span class="n">on_true</span><span class="o">=</span><span class="n">bloq</span><span class="o">.</span><span class="n">BranchArm</span><span class="p">(</span>
+                    <span class="p">[((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;XZZ&quot;</span><span class="p">),</span> <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;ZXX&quot;</span><span class="p">)],</span>
+                    <span class="n">pipes</span><span class="o">=</span><span class="p">[</span><span class="n">bloq</span><span class="o">.</span><span class="n">Pipe</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;+Y&quot;</span><span class="p">,</span> <span class="n">hadamard</span><span class="o">=</span><span class="kc">True</span><span class="p">)],</span>
+                <span class="p">),</span>
+            <span class="p">),</span>
+        <span class="p">],</span>
+        <span class="n">pipes</span><span class="o">=</span><span class="p">[</span><span class="n">bloq</span><span class="o">.</span><span class="n">Pipe</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="s2">&quot;+Z&quot;</span><span class="p">)</span> <span class="k">for</span> <span class="n">position</span> <span class="ow">in</span>
+               <span class="p">[(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]],</span>
+        <span class="n">actions</span><span class="o">=</span><span class="p">[</span><span class="n">bloq</span><span class="o">.</span><span class="n">Action</span><span class="o">.</span><span class="n">measure</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">MeasureTarget</span><span class="o">.</span><span class="n">edge</span><span class="p">((</span><span class="n">x</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;+Y&quot;</span><span class="p">),</span> <span class="n">name</span><span class="p">)</span>
+                 <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">([</span><span class="s2">&quot;m0x&quot;</span><span class="p">,</span> <span class="s2">&quot;m1y&quot;</span><span class="p">,</span> <span class="s2">&quot;m2z&quot;</span><span class="p">])],</span>
+    <span class="p">)</span>
+    <span class="n">m0x</span><span class="p">,</span> <span class="n">m1y</span><span class="p">,</span> <span class="n">m2z</span> <span class="o">=</span> <span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">Expr</span><span class="o">.</span><span class="n">var</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;m0x&quot;</span><span class="p">,</span> <span class="s2">&quot;m1y&quot;</span><span class="p">,</span> <span class="s2">&quot;m2z&quot;</span><span class="p">])</span>
+    <span class="k">for</span> <span class="n">position</span><span class="p">,</span> <span class="n">condition</span> <span class="ow">in</span> <span class="p">[</span>
+        <span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">m0x</span> <span class="o">&amp;</span> <span class="n">m1y</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">m0x</span> <span class="o">&amp;</span> <span class="n">m2z</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">m1y</span> <span class="o">&amp;</span> <span class="n">m2z</span><span class="p">),</span>
+    <span class="p">]:</span>
+        <span class="n">graph</span><span class="o">.</span><span class="n">add_action</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">Action</span><span class="o">.</span><span class="n">feedback</span><span class="p">([(</span><span class="s2">&quot;Z&quot;</span><span class="p">,</span> <span class="n">position</span><span class="p">)],</span> <span class="n">condition</span><span class="o">=</span><span class="n">condition</span><span class="p">))</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">graph</span>
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><code><span class="k">use</span><span class="w"> </span><span class="n">bloq</span><span class="p">::</span><span class="n">graph</span><span class="p">::{</span><span class="n">Expr</span><span class="p">,</span><span class="w"> </span><span class="n">parse_actions</span><span class="p">};</span>
+<span class="k">use</span><span class="w"> </span><span class="n">bloq</span><span class="p">::</span><span class="n">prelude</span><span class="p">::</span><span class="o">*</span><span class="p">;</span>
+
+<span class="k">fn</span><span class="w"> </span><span class="nf">build_graph</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="n">BlockGraph</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">graph</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">BlockGraph</span><span class="p">::</span><span class="n">new</span><span class="p">();</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">position</span><span class="p">,</span><span class="w"> </span><span class="n">kind</span><span class="p">,</span><span class="w"> </span><span class="n">role</span><span class="p">,</span><span class="w"> </span><span class="n">tag</span><span class="p">)</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;Port&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">PortRole</span><span class="p">::</span><span class="n">Input</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;CCZ_0&quot;</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;Port&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">PortRole</span><span class="p">::</span><span class="n">Input</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;CCZ_1&quot;</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;Port&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">PortRole</span><span class="p">::</span><span class="n">Input</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;CCZ_2&quot;</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;Port&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">PortRole</span><span class="p">::</span><span class="n">Multiplex</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;x&quot;</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;ZXX&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">PortRole</span><span class="p">::</span><span class="n">Auto</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;ZXX&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">PortRole</span><span class="p">::</span><span class="n">Auto</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;Port&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">PortRole</span><span class="p">::</span><span class="n">Multiplex</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;y&quot;</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;ZZX&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">PortRole</span><span class="p">::</span><span class="n">Auto</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;ZXX&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">PortRole</span><span class="p">::</span><span class="n">Auto</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;Port&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">PortRole</span><span class="p">::</span><span class="n">Multiplex</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;z&quot;</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;ZZX&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">PortRole</span><span class="p">::</span><span class="n">Auto</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;ZXX&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">PortRole</span><span class="p">::</span><span class="n">Auto</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;ZZX&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">PortRole</span><span class="p">::</span><span class="n">Auto</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;XZX&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">PortRole</span><span class="p">::</span><span class="n">Auto</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;ZXX&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">PortRole</span><span class="p">::</span><span class="n">Auto</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">),</span>
+<span class="w">    </span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">block</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Block</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="n">position</span><span class="p">,</span><span class="w"> </span><span class="n">kind</span><span class="p">.</span><span class="n">parse</span><span class="p">::</span><span class="o">&lt;</span><span class="n">BlockKind</span><span class="o">&gt;</span><span class="p">()</span><span class="o">?</span><span class="p">).</span><span class="n">with_tag</span><span class="p">(</span><span class="n">tag</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="n">block</span><span class="p">.</span><span class="n">kind</span><span class="p">().</span><span class="n">is_port</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">block</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">block</span><span class="p">.</span><span class="n">with_port_role</span><span class="p">(</span><span class="n">role</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">graph</span><span class="p">.</span><span class="n">try_add_block</span><span class="p">(</span><span class="n">block</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">position</span><span class="p">,</span><span class="w"> </span><span class="n">direction</span><span class="p">)</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">],</span><span class="w"> </span><span class="n">Direction</span><span class="p">::</span><span class="n">ZPLUS</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">],</span><span class="w"> </span><span class="n">Direction</span><span class="p">::</span><span class="n">ZPLUS</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="n">Direction</span><span class="p">::</span><span class="n">YPLUS</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="n">Direction</span><span class="p">::</span><span class="n">YPLUS</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="n">Direction</span><span class="p">::</span><span class="n">YPLUS</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="n">Direction</span><span class="p">::</span><span class="n">YPLUS</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="n">Direction</span><span class="p">::</span><span class="n">YPLUS</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="n">Direction</span><span class="p">::</span><span class="n">YPLUS</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="n">Direction</span><span class="p">::</span><span class="n">YPLUS</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="n">Direction</span><span class="p">::</span><span class="n">ZMINUS</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="n">Direction</span><span class="p">::</span><span class="n">YPLUS</span><span class="p">),</span>
+<span class="w">        </span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="n">Direction</span><span class="p">::</span><span class="n">XMINUS</span><span class="p">),</span>
+<span class="w">    </span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">graph</span><span class="p">.</span><span class="n">try_add_pipe</span><span class="p">(</span><span class="n">Pipe</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="n">position</span><span class="p">,</span><span class="w"> </span><span class="n">direction</span><span class="p">))</span><span class="o">?</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">graph</span><span class="p">.</span><span class="n">try_add_branches</span><span class="p">(</span>
+<span class="w">        </span><span class="p">[</span>
+<span class="w">            </span><span class="n">Branch</span><span class="p">::</span><span class="n">new</span><span class="p">(</span>
+<span class="w">                </span><span class="s">&quot;b0&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="n">Expr</span><span class="p">::</span><span class="n">Var</span><span class="p">(</span><span class="s">&quot;m0x&quot;</span><span class="p">.</span><span class="n">into</span><span class="p">()),</span>
+<span class="w">                </span><span class="n">BranchArm</span><span class="p">::</span><span class="n">try_from_blocks</span><span class="p">([([</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;X&quot;</span><span class="p">),</span><span class="w"> </span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;X&quot;</span><span class="p">)])</span><span class="o">?</span><span class="p">,</span>
+<span class="w">                </span><span class="n">BranchArm</span><span class="p">::</span><span class="n">try_from_blocks</span><span class="p">([</span>
+<span class="w">                    </span><span class="p">([</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;ZXZ&quot;</span><span class="p">),</span>
+<span class="w">                    </span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;ZXX&quot;</span><span class="p">),</span>
+<span class="w">                    </span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;ZZX&quot;</span><span class="p">),</span>
+<span class="w">                </span><span class="p">])</span><span class="o">?</span>
+<span class="w">                </span><span class="p">.</span><span class="n">with_pipes</span><span class="p">([</span>
+<span class="w">                    </span><span class="n">Pipe</span><span class="p">::</span><span class="n">new</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="n">Direction</span><span class="p">::</span><span class="n">XMINUS</span><span class="p">).</span><span class="n">with_hadamard</span><span class="p">(),</span>
+<span class="w">                    </span><span class="n">Pipe</span><span class="p">::</span><span class="n">new</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="n">Direction</span><span class="p">::</span><span class="n">YMINUS</span><span class="p">),</span>
+<span class="w">                </span><span class="p">]),</span>
+<span class="w">            </span><span class="p">),</span>
+<span class="w">            </span><span class="n">Branch</span><span class="p">::</span><span class="n">new</span><span class="p">(</span>
+<span class="w">                </span><span class="s">&quot;b1&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="n">Expr</span><span class="p">::</span><span class="n">Var</span><span class="p">(</span><span class="s">&quot;m1y&quot;</span><span class="p">.</span><span class="n">into</span><span class="p">()),</span>
+<span class="w">                </span><span class="n">BranchArm</span><span class="p">::</span><span class="n">try_from_blocks</span><span class="p">([([</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;X&quot;</span><span class="p">),</span><span class="w"> </span><span class="p">([</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;X&quot;</span><span class="p">)])</span><span class="o">?</span><span class="p">,</span>
+<span class="w">                </span><span class="n">BranchArm</span><span class="p">::</span><span class="n">try_from_blocks</span><span class="p">([</span>
+<span class="w">                    </span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;ZXZ&quot;</span><span class="p">),</span>
+<span class="w">                    </span><span class="p">([</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;ZXX&quot;</span><span class="p">),</span>
+<span class="w">                    </span><span class="p">([</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;ZZX&quot;</span><span class="p">),</span>
+<span class="w">                    </span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;ZZX&quot;</span><span class="p">),</span>
+<span class="w">                </span><span class="p">])</span><span class="o">?</span>
+<span class="w">                </span><span class="p">.</span><span class="n">with_pipes</span><span class="p">([</span>
+<span class="w">                    </span><span class="n">Pipe</span><span class="p">::</span><span class="n">new</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="n">Direction</span><span class="p">::</span><span class="n">YMINUS</span><span class="p">),</span>
+<span class="w">                    </span><span class="n">Pipe</span><span class="p">::</span><span class="n">new</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="n">Direction</span><span class="p">::</span><span class="n">XMINUS</span><span class="p">),</span>
+<span class="w">                    </span><span class="n">Pipe</span><span class="p">::</span><span class="n">new</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="n">Direction</span><span class="p">::</span><span class="n">XMINUS</span><span class="p">).</span><span class="n">with_hadamard</span><span class="p">(),</span>
+<span class="w">                </span><span class="p">]),</span>
+<span class="w">            </span><span class="p">),</span>
+<span class="w">            </span><span class="n">Branch</span><span class="p">::</span><span class="n">new</span><span class="p">(</span>
+<span class="w">                </span><span class="s">&quot;b2&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="n">Expr</span><span class="p">::</span><span class="n">Var</span><span class="p">(</span><span class="s">&quot;m2z&quot;</span><span class="p">.</span><span class="n">into</span><span class="p">()),</span>
+<span class="w">                </span><span class="n">BranchArm</span><span class="p">::</span><span class="n">try_from_blocks</span><span class="p">([([</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;X&quot;</span><span class="p">),</span><span class="w"> </span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;X&quot;</span><span class="p">)])</span><span class="o">?</span><span class="p">,</span>
+<span class="w">                </span><span class="n">BranchArm</span><span class="p">::</span><span class="n">try_from_blocks</span><span class="p">([([</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;XZZ&quot;</span><span class="p">),</span><span class="w"> </span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="s">&quot;ZXX&quot;</span><span class="p">)])</span><span class="o">?</span>
+<span class="w">                    </span><span class="p">.</span><span class="n">with_pipes</span><span class="p">([</span><span class="n">Pipe</span><span class="p">::</span><span class="n">new</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="n">Direction</span><span class="p">::</span><span class="n">YPLUS</span><span class="p">).</span><span class="n">with_hadamard</span><span class="p">()]),</span>
+<span class="w">            </span><span class="p">),</span>
+<span class="w">        </span><span class="p">],</span>
+<span class="w">        </span><span class="p">[</span>
+<span class="w">            </span><span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span>
+<span class="w">            </span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span>
+<span class="w">            </span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span>
+<span class="w">            </span><span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span>
+<span class="w">            </span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span>
+<span class="w">            </span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span>
+<span class="w">        </span><span class="p">]</span>
+<span class="w">        </span><span class="p">.</span><span class="n">map</span><span class="p">(</span><span class="o">|</span><span class="n">position</span><span class="o">|</span><span class="w"> </span><span class="n">Pipe</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="n">position</span><span class="p">,</span><span class="w"> </span><span class="n">Direction</span><span class="p">::</span><span class="n">ZPLUS</span><span class="p">)),</span>
+<span class="w">        </span><span class="n">parse_actions</span><span class="p">(</span>
+<span class="w">            </span><span class="s">r&quot;m0x = measure [0, 0, 1] -&gt; +Y</span>
+<span class="s">m1y = measure [1, 0, 1] -&gt; +Y</span>
+<span class="s">m2z = measure [2, 0, 1] -&gt; +Y</span>
+<span class="s">feedback Z [2, 0, 1] if m0x &amp; m1y</span>
+<span class="s">feedback Z [1, 0, 1] if m0x &amp; m2z</span>
+<span class="s">feedback Z [0, 0, 1] if m1y &amp; m2z&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="o">|</span><span class="n">_</span><span class="p">,</span><span class="w"> </span><span class="n">_</span><span class="o">|</span><span class="w"> </span><span class="nb">None</span><span class="p">,</span>
+<span class="w">        </span><span class="p">)</span><span class="o">?</span><span class="p">,</span>
+<span class="w">    </span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
+<span class="w">    </span><span class="n">graph</span><span class="p">.</span><span class="n">validate</span><span class="p">()</span><span class="o">?</span><span class="p">;</span>
+<span class="w">    </span><span class="nb">Ok</span><span class="p">(</span><span class="n">graph</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-blog notranslate"><div class="highlight"><pre><span></span><code><span class="k">BLOG</span> <span class="m">1.0</span>
+
+<span class="k">module</span> <span class="n">main</span> <span class="p">{</span>
+  <span class="k">in</span> <span class="n">q0</span><span class="p">:</span> <span class="n">data</span> <span class="o">=</span> <span class="m">0</span>
+  <span class="k">in</span> <span class="n">q1</span><span class="p">:</span> <span class="n">data</span> <span class="o">=</span> <span class="m">1</span>
+  <span class="k">in</span> <span class="n">q2</span><span class="p">:</span> <span class="n">data</span> <span class="o">=</span> <span class="m">2</span>
+  <span class="k">in</span> <span class="n">q3</span><span class="p">:</span> <span class="n">data</span> <span class="o">=</span> <span class="m">3</span>
+  <span class="k">in</span> <span class="n">q4</span><span class="p">:</span> <span class="n">data</span> <span class="o">=</span> <span class="m">6</span>
+  <span class="k">in</span> <span class="n">q5</span><span class="p">:</span> <span class="n">data</span> <span class="o">=</span> <span class="m">9</span>
+
+  <span class="m">0</span><span class="p">:</span> <span class="kt">Port</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">2</span><span class="p">,</span> <span class="m">0</span><span class="p">]</span> <span class="na">role</span><span class="o">=</span><span class="nb">input</span> <span class="sx">&lt;CCZ_0&gt;</span>
+  <span class="m">1</span><span class="p">:</span> <span class="kt">Port</span> <span class="p">[</span><span class="m">1</span><span class="p">,</span> <span class="m">2</span><span class="p">,</span> <span class="m">0</span><span class="p">]</span> <span class="na">role</span><span class="o">=</span><span class="nb">input</span> <span class="sx">&lt;CCZ_1&gt;</span>
+  <span class="m">2</span><span class="p">:</span> <span class="kt">Port</span> <span class="p">[</span><span class="m">2</span><span class="p">,</span> <span class="m">2</span><span class="p">,</span> <span class="m">0</span><span class="p">]</span> <span class="na">role</span><span class="o">=</span><span class="nb">input</span> <span class="sx">&lt;CCZ_2&gt;</span>
+  <span class="m">3</span><span class="p">:</span> <span class="kt">Port</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="m">1</span><span class="p">]</span> <span class="na">role</span><span class="o">=</span><span class="nb">multiplex</span> <span class="sx">&lt;x&gt;</span>
+  <span class="m">4</span><span class="p">:</span> <span class="kt">ZXX</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">1</span><span class="p">,</span> <span class="m">1</span><span class="p">]</span>
+  <span class="m">5</span><span class="p">:</span> <span class="kt">ZXX</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">2</span><span class="p">,</span> <span class="m">1</span><span class="p">]</span>
+  <span class="m">6</span><span class="p">:</span> <span class="kt">Port</span> <span class="p">[</span><span class="m">1</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="m">1</span><span class="p">]</span> <span class="na">role</span><span class="o">=</span><span class="nb">multiplex</span> <span class="sx">&lt;y&gt;</span>
+  <span class="m">7</span><span class="p">:</span> <span class="kt">ZZX</span> <span class="p">[</span><span class="m">1</span><span class="p">,</span> <span class="m">1</span><span class="p">,</span> <span class="m">1</span><span class="p">]</span>
+  <span class="m">8</span><span class="p">:</span> <span class="kt">ZXX</span> <span class="p">[</span><span class="m">1</span><span class="p">,</span> <span class="m">2</span><span class="p">,</span> <span class="m">1</span><span class="p">]</span>
+  <span class="m">9</span><span class="p">:</span> <span class="kt">Port</span> <span class="p">[</span><span class="m">2</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="m">1</span><span class="p">]</span> <span class="na">role</span><span class="o">=</span><span class="nb">multiplex</span> <span class="sx">&lt;z&gt;</span>
+  <span class="m">10</span><span class="p">:</span> <span class="kt">ZZX</span> <span class="p">[</span><span class="m">2</span><span class="p">,</span> <span class="m">1</span><span class="p">,</span> <span class="m">1</span><span class="p">]</span>
+  <span class="m">11</span><span class="p">:</span> <span class="kt">ZXX</span> <span class="p">[</span><span class="m">2</span><span class="p">,</span> <span class="m">2</span><span class="p">,</span> <span class="m">1</span><span class="p">]</span>
+  <span class="m">12</span><span class="p">:</span> <span class="kt">ZZX</span> <span class="p">[</span><span class="m">1</span><span class="p">,</span> <span class="m">3</span><span class="p">,</span> <span class="m">1</span><span class="p">]</span>
+  <span class="m">13</span><span class="p">:</span> <span class="kt">XZX</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">3</span><span class="p">,</span> <span class="m">1</span><span class="p">]</span>
+  <span class="m">14</span><span class="p">:</span> <span class="kt">ZXX</span> <span class="p">[</span><span class="m">2</span><span class="p">,</span> <span class="m">3</span><span class="p">,</span> <span class="m">1</span><span class="p">]</span>
+  <span class="m">3</span> <span class="o">-&gt;</span> <span class="no">+Y</span>
+  <span class="m">4</span> <span class="o">-&gt;</span> <span class="no">+Z</span>
+  <span class="m">4</span> <span class="o">-&gt;</span> <span class="no">+Y</span>
+  <span class="m">0</span> <span class="o">-&gt;</span> <span class="no">+Z</span>
+  <span class="m">5</span> <span class="o">-&gt;</span> <span class="no">+Z</span>
+  <span class="m">13</span> <span class="o">-&gt;</span> <span class="no">+Z</span>
+  <span class="m">6</span> <span class="o">-&gt;</span> <span class="no">+Y</span>
+  <span class="m">7</span> <span class="o">-&gt;</span> <span class="no">+Y</span>
+  <span class="m">1</span> <span class="o">-&gt;</span> <span class="no">+Z</span>
+  <span class="m">8</span> <span class="o">-&gt;</span> <span class="no">+Z</span>
+  <span class="m">8</span> <span class="o">-&gt;</span> <span class="no">+Y</span>
+  <span class="m">12</span> <span class="o">-&gt;</span> <span class="no">-X</span>
+  <span class="m">9</span> <span class="o">-&gt;</span> <span class="no">+Y</span>
+  <span class="m">10</span> <span class="o">-&gt;</span> <span class="no">+Y</span>
+  <span class="m">11</span> <span class="o">-&gt;</span> <span class="no">-Z</span>
+  <span class="m">11</span> <span class="o">-&gt;</span> <span class="no">+Z</span>
+  <span class="m">11</span> <span class="o">-&gt;</span> <span class="no">+Y</span>
+  <span class="m">14</span> <span class="o">-&gt;</span> <span class="no">+Z</span>
+  <span class="k">branch</span> <span class="n">b0</span> <span class="p">{</span>
+    <span class="k">false</span> <span class="p">{</span>
+      <span class="m">15</span><span class="p">:</span> <span class="kt">X</span> <span class="p">[</span><span class="m">1</span><span class="p">,</span> <span class="m">2</span><span class="p">,</span> <span class="m">2</span><span class="p">]</span>
+      <span class="m">16</span><span class="p">:</span> <span class="kt">X</span> <span class="p">[</span><span class="m">2</span><span class="p">,</span> <span class="m">3</span><span class="p">,</span> <span class="m">2</span><span class="p">]</span>
+    <span class="p">}</span>
+    <span class="k">true</span> <span class="p">{</span>
+      <span class="m">17</span><span class="p">:</span> <span class="kt">ZXX</span> <span class="p">[</span><span class="m">1</span><span class="p">,</span> <span class="m">2</span><span class="p">,</span> <span class="m">2</span><span class="p">]</span>
+      <span class="m">18</span><span class="p">:</span> <span class="kt">ZZX</span> <span class="p">[</span><span class="m">1</span><span class="p">,</span> <span class="m">3</span><span class="p">,</span> <span class="m">2</span><span class="p">]</span>
+      <span class="m">19</span><span class="p">:</span> <span class="kt">ZXZ</span> <span class="p">[</span><span class="m">2</span><span class="p">,</span> <span class="m">3</span><span class="p">,</span> <span class="m">2</span><span class="p">]</span>
+      <span class="m">18</span> <span class="o">-&gt;</span> <span class="no">-Y</span>
+      <span class="m">19</span> <span class="o">-H&gt;</span> <span class="no">-X</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+  <span class="k">branch</span> <span class="n">b1</span> <span class="p">{</span>
+    <span class="k">false</span> <span class="p">{</span>
+      <span class="m">20</span><span class="p">:</span> <span class="kt">X</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">1</span><span class="p">,</span> <span class="m">2</span><span class="p">]</span>
+      <span class="m">21</span><span class="p">:</span> <span class="kt">X</span> <span class="p">[</span><span class="m">2</span><span class="p">,</span> <span class="m">2</span><span class="p">,</span> <span class="m">2</span><span class="p">]</span>
+    <span class="p">}</span>
+    <span class="k">true</span> <span class="p">{</span>
+      <span class="m">22</span><span class="p">:</span> <span class="kt">ZXZ</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">1</span><span class="p">,</span> <span class="m">2</span><span class="p">]</span>
+      <span class="m">23</span><span class="p">:</span> <span class="kt">ZZX</span> <span class="p">[</span><span class="m">1</span><span class="p">,</span> <span class="m">1</span><span class="p">,</span> <span class="m">2</span><span class="p">]</span>
+      <span class="m">24</span><span class="p">:</span> <span class="kt">ZZX</span> <span class="p">[</span><span class="m">2</span><span class="p">,</span> <span class="m">1</span><span class="p">,</span> <span class="m">2</span><span class="p">]</span>
+      <span class="m">25</span><span class="p">:</span> <span class="kt">ZXX</span> <span class="p">[</span><span class="m">2</span><span class="p">,</span> <span class="m">2</span><span class="p">,</span> <span class="m">2</span><span class="p">]</span>
+      <span class="m">23</span> <span class="o">-H&gt;</span> <span class="no">-X</span>
+      <span class="m">24</span> <span class="o">-&gt;</span> <span class="no">-X</span>
+      <span class="m">25</span> <span class="o">-&gt;</span> <span class="no">-Y</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+  <span class="k">branch</span> <span class="n">b2</span> <span class="p">{</span>
+    <span class="k">false</span> <span class="p">{</span>
+      <span class="m">26</span><span class="p">:</span> <span class="kt">X</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">2</span><span class="p">,</span> <span class="m">2</span><span class="p">]</span>
+      <span class="m">27</span><span class="p">:</span> <span class="kt">X</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">3</span><span class="p">,</span> <span class="m">2</span><span class="p">]</span>
+    <span class="p">}</span>
+    <span class="k">true</span> <span class="p">{</span>
+      <span class="m">28</span><span class="p">:</span> <span class="kt">ZXX</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">2</span><span class="p">,</span> <span class="m">2</span><span class="p">]</span>
+      <span class="m">29</span><span class="p">:</span> <span class="kt">XZZ</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">3</span><span class="p">,</span> <span class="m">2</span><span class="p">]</span>
+      <span class="m">28</span> <span class="o">-H&gt;</span> <span class="no">+Y</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+
+  <span class="n">m0x</span> <span class="o">=</span> <span class="k">measure</span> <span class="m">3</span> <span class="o">-&gt;</span> <span class="no">+Y</span>
+  <span class="n">m1y</span> <span class="o">=</span> <span class="k">measure</span> <span class="m">6</span> <span class="o">-&gt;</span> <span class="no">+Y</span>
+  <span class="n">m2z</span> <span class="o">=</span> <span class="k">measure</span> <span class="m">9</span> <span class="o">-&gt;</span> <span class="no">+Y</span>
+  <span class="k">resolve</span> <span class="n">b0</span> <span class="k">if</span> <span class="n">m0x</span>
+  <span class="k">resolve</span> <span class="n">b1</span> <span class="k">if</span> <span class="n">m1y</span>
+  <span class="k">resolve</span> <span class="n">b2</span> <span class="k">if</span> <span class="n">m2z</span>
+  <span class="k">feedback</span> <span class="kt">Z</span> <span class="m">9</span> <span class="k">if</span> <span class="n">m0x</span> <span class="o">&amp;</span> <span class="n">m1y</span>
+  <span class="k">feedback</span> <span class="kt">Z</span> <span class="m">6</span> <span class="k">if</span> <span class="n">m0x</span> <span class="o">&amp;</span> <span class="n">m2z</span>
+  <span class="k">feedback</span> <span class="kt">Z</span> <span class="m">3</span> <span class="k">if</span> <span class="n">m1y</span> <span class="o">&amp;</span> <span class="n">m2z</span>
+
+<span class="p">}</span>
+</code></pre></div>
+</div>
+</div>
+</div>
+</div><iframe class="bloq-block-view" src="../_static/block-graphs/action_ccz_teleport.html" title="Interactive action ccz teleport block graph" loading="lazy" allowfullscreen></iframe><p>The three measurement correlation surfaces are shown with all correction
+branches projected to their true arms:</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="4:3">
+<input checked type="radio" id="__tabbed_4_1" name="__tabbed_4"><input type="radio" id="__tabbed_4_2" name="__tabbed_4"><input type="radio" id="__tabbed_4_3" name="__tabbed_4"><div class="tabbed-labels docutils">
+<label class="tabbed-label" for="__tabbed_4_1">
+m0x</label><label class="tabbed-label" for="__tabbed_4_2">
+m1y</label><label class="tabbed-label" for="__tabbed_4_3">
+m2z</label></div>
+<div class="tabbed-content docutils">
+<div class="tabbed-block docutils">
+<iframe class="bloq-block-view" src="../_static/block-graphs/action_ccz_teleport-m0x.html" title="Interactive action ccz teleport correlation surface m0x" loading="lazy" allowfullscreen></iframe></div>
+<div class="tabbed-block docutils">
+<iframe class="bloq-block-view" src="../_static/block-graphs/action_ccz_teleport-m1y.html" title="Interactive action ccz teleport correlation surface m1y" loading="lazy" allowfullscreen></iframe></div>
+<div class="tabbed-block docutils">
+<iframe class="bloq-block-view" src="../_static/block-graphs/action_ccz_teleport-m2z.html" title="Interactive action ccz teleport correlation surface m2z" loading="lazy" allowfullscreen></iframe></div>
+</div>
+</div><p><code class="docutils literal notranslate"><span class="pre">m0x</span></code>, <code class="docutils literal notranslate"><span class="pre">m1y</span></code>, and <code class="docutils literal notranslate"><span class="pre">m2z</span></code> name the three joint measurements at the multiplex
+connections. The suffixes label the data wires. Each outcome selects one CZ
+correction region: <code class="docutils literal notranslate"><span class="pre">b0</span></code>, <code class="docutils literal notranslate"><span class="pre">b1</span></code>, or <code class="docutils literal notranslate"><span class="pre">b2</span></code>. False selects the pair of X caps,
+while true selects the connected correction geometry. The remaining Pauli
+corrections depend on pairs of outcomes:</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Retained data output</p></th>
+<th class="head"><p>Z feedback condition</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">z</span></code> at <code class="docutils literal notranslate"><span class="pre">[2,</span> <span class="pre">0,</span> <span class="pre">1]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">m0x</span> <span class="pre">&amp;</span> <span class="pre">m1y</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">y</span></code> at <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">0,</span> <span class="pre">1]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">m0x</span> <span class="pre">&amp;</span> <span class="pre">m2z</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">x</span></code> at <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">0,</span> <span class="pre">1]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">m1y</span> <span class="pre">&amp;</span> <span class="pre">m2z</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p>These nonlinear conditions and the three branch selectors remain separate
+actions in the DAG. They consume corrected values from the same signed
+correlation relation.</p>
+<p>Continue with <a class="reference internal" href="../modules/index.html"><span class="std std-doc">Modules</span></a> to compose geometry and classical
+interfaces, then <a class="reference internal" href="blog.html"><span class="std std-doc">BLOG Format</span></a> to write the complete source as text.</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+
+
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  
+  
+  <div class="md-footer-meta md-typeset">
+    
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-footer-copyright__highlight">
+        &#169; Copyright Bloq contributors.
+        
+    </div>
+  
+    Created using
+    <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
+    8.1.3.
+     and
+    <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
+  
+</div>
+      
+    </div>
+    
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.highlight", "content.tabs.link", "content.code.copy"], "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+      
+        <script src="../_static/sphinx_immaterial_theme.32136f45f91ae6956.min.js?v=a7a9472a"></script>
+        <script>window.MathJax = {"options": {"processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+        <script id="MathJax-script" src="../_static/mathjax/tex-mml-chtml.js?v=cadf963e"></script>
+        <script src="../_static/versions.js?v=2f43aabb"></script>
+        <script src="../_static/graph-viewer.js?v=b2321b27"></script>
+    
+  </body>
+</html>

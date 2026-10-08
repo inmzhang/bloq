@@ -1,0 +1,10 @@
+BLOG 1.0
+
+module main {
+  in q_in: data = 0
+  0: Port [0,0,0]
+  1: ZXZ [0,0,1]
+  2: Y [0,0,2]
+  0 -> +Z
+  1 -> +Z
+}

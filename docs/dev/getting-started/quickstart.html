@@ -1,0 +1,5094 @@
+
+
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="installation.html">
+      
+      
+        <link rel="next" href="../user-guide.html">
+      
+      
+      <link rel="icon" href="../_static/bloq-mark-light.png">
+    
+    
+      
+        <title>Quick Start - bloq</title>
+      
+    
+    
+      
+        
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+        <link rel="stylesheet" type="text/css" href="../_static/sphinx_immaterial_theme.6efbe22605a23fcd6.min.css?v=b2ceb110" />
+        <link rel="stylesheet" type="text/css" href="../_static/site.css?v=8e1ee51e" />
+    <script>__md_scope=new URL("/",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+
+<meta name="bloq-doc-root" content="../index.html">
+<meta name="bloq-page" content="getting-started/quickstart.html">
+<meta name="bloq-doc-version" content="Development (0.1.1)">
+<meta name="bloq-package-version" content="0.1.1">
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#static-logical-cnot" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../index.html" title="bloq" class="md-header__button md-logo" aria-label="bloq" data-md-component="logo">
+      <img src="../_static/bloq-mark-light.png" alt="logo">
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            bloq
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Quick Start
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/inmzhang/bloq" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inmzhang/bloq
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../index.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Home</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="installation.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Getting Started</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../user-guide.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>User Guide</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../gallery/index.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Examples</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../reference/cli.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Reference</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../development/contributing.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Development</span>
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../index.html" title="bloq" class="md-nav__button md-logo" aria-label="bloq" data-md-component="logo">
+      <img src="../_static/bloq-mark-light.png" alt="logo">
+    </a>
+    bloq
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/inmzhang/bloq" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inmzhang/bloq
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Home</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Home</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Home</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Getting Started</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Getting Started</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="installation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Installation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    <span>Quick Start</span>
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="#" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Quick Start</span>
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+  
+
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#static-logical-cnot" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Static Logical CNOT</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Static Logical CNOT">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#load-the-gallery-graph" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Load the gallery graph</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#compile-to-bloq-ir" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Compile to Bloq IR</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#visualize-the-ir-graph" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Visualize the IR graph</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optional-emit-to-stim" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Optional:<wbr> emit to Stim</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dynamic-logical-t-gate" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Dynamic Logical T Gate</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Dynamic Logical T Gate">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id1" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Load the gallery graph</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id2" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Compile to Bloq IR</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id3" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Visualize the IR graph</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-steps" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Next steps</span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>User Guide</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            <span>User Guide</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Overview</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theory/prerequisites.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Preliminaries</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theory/existing-works.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Existing Works</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphs/concepts.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Blocks and Pipes</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphs/actions.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Actions</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../modules/index.html" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Modules</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Modules</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../modules/index.html#examples" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Examples</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6_1" id="__nav_3_6_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Examples</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6_1_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../modules/index.html#controlled-adder" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Controlled-<wbr>adder</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6_1_1" id="__nav_3_6_1_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_3_6_1_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6_1_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Controlled-<wbr>adder</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../modules/adder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Controlled Addition</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../modules/phase-gradient.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Phase-<wbr>Gradient Rotations</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphs/blog.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>BLOG Format</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theory/correlation-surfaces.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Correlation Surfaces</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patch-alignment.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Patch Alignment</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../circuit-constructions.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Circuit Constructions</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theory/compilation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Compilation Pipeline</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/ir.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Bloq IR</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/emission.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Backend Emission</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/synchronization.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Synchronization</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_15" id="__nav_3_15_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Tutorials</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_15_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_15">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Tutorials</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/cnot.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Logical CNOT</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/t-cultivation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T State Cultivation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/t-gate.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Logical T Gate</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/ccz-factory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>8T-<wbr>1CCZ Distillation Factory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/thth.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Emulate Hardware Synchronization</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../gallery/index.html" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Examples</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Examples</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/cnot.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CNOT</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/cz_spatial_h.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CZ with a spatial Hadamard</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/cz_temporal_h.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CZ with a temporal Hadamard</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/s_gate.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>S gate</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/t_gate.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T gate</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/t_with_prepared_y.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T gate with a prepared Y state</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/t_comparison.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T-<wbr>state comparison</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/phase_gradient.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Phase-<wbr>gradient sequence</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/and_4t.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Four-<wbr>T AND</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_injected_and.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ-<wbr>injected AND</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_injected_maj.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ-<wbr>injected MAJ</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/uma.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>UMA</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/three_bit_adder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Three-<wbr>bit controlled adder</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ten_bit_adder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Ten-<wbr>bit controlled adder</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/toffoli_from_and_delayed_cz.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Toffoli from AND</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_4x3x7_tels.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ factory with TELS</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_4x3x6.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ factory without TELS</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_gate_teleport.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ gate teleportation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/bell_state.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Bell state</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ghz.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>GHZ state</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ghz_slide_then_glide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>GHZ with slides and glides</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ghz_patch_rotations.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>GHZ with patch rotations</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/1d-yoked.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>1D yoked layout</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/thth.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T–H–T–H sequence</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/three_cnots.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Compressed three CNOTs</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/steane_encoding.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Steane encoding</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/x_memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>X-<wbr>basis memory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/y_memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Y-<wbr>basis memory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/move_rotation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Rotation through movement</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/stability.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Stability experiment</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Reference</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Reference</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/cli.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CLI Reference</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/python.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Python API</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/rust.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Rust API Reference</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Rust Feature Flags</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Development</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Development</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/contributing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Contributing</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/benchmarks.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Benchmarking</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/generic-module-scalability.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Generic module compilation:<wbr> evidence and claim boundary</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/classical-storage.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Classical data and evaluation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../releasing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Releases</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../site-maintenance.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Website Maintenance</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+  
+
+<nav class="md-nav md-nav--secondary">
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#static-logical-cnot" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Static Logical CNOT</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Static Logical CNOT">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#load-the-gallery-graph" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Load the gallery graph</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#compile-to-bloq-ir" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Compile to Bloq IR</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#visualize-the-ir-graph" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Visualize the IR graph</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optional-emit-to-stim" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Optional:<wbr> emit to Stim</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dynamic-logical-t-gate" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Dynamic Logical T Gate</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Dynamic Logical T Gate">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id1" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Load the gallery graph</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id2" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Compile to Bloq IR</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id3" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Visualize the IR graph</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-steps" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Next steps</span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset" role="main">
+                
+                
+
+
+                  
+
+
+<h1 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Link to this heading">¶</a></h1>
+<p>In this guide, we walk through compiling two simple logical computations:
+a static logical CNOT and a dynamic logical T gate. Each step is shown in
+Python, Rust, and the <code class="docutils literal notranslate"><span class="pre">bloq</span></code> CLI; pick whichever you installed in
+<a class="reference internal" href="installation.html"><span class="std std-doc">Installation</span></a>. Both examples load built-in gallery graphs, so
+you do not need to write any source yet.</p>
+<h2 id="static-logical-cnot">Static Logical CNOT<a class="headerlink" href="#static-logical-cnot" title="Link to this heading">¶</a></h2>
+<h3 id="load-the-gallery-graph">Load the gallery graph<a class="headerlink" href="#load-the-gallery-graph" title="Link to this heading">¶</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">cnot</span></code> gallery entry implements a logical CNOT with control and target input
+and output ports. Load it and print its BLOG definition:</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:3">
+<input checked type="radio" id="__tabbed_1_1" name="__tabbed_1"><input type="radio" id="__tabbed_1_2" name="__tabbed_1"><input type="radio" id="__tabbed_1_3" name="__tabbed_1"><div class="tabbed-labels docutils">
+<label class="tabbed-label" for="__tabbed_1_1">
+Python</label><label class="tabbed-label" for="__tabbed_1_2">
+Rust</label><label class="tabbed-label" for="__tabbed_1_3">
+CLI</label></div>
+<div class="tabbed-content docutils">
+<div class="tabbed-block docutils">
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">bloq</span>
+
+<span class="n">cnot</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">GalleryItem</span><span class="o">.</span><span class="n">CNOT</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">cnot</span><span class="o">.</span><span class="n">to_text</span><span class="p">())</span>
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">cnot</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">GalleryItem</span><span class="p">::</span><span class="n">CNOT</span><span class="p">.</span><span class="n">build</span><span class="p">();</span>
+<span class="fm">println!</span><span class="p">(</span><span class="s">&quot;{}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">cnot</span><span class="p">.</span><span class="n">to_blog_text</span><span class="p">());</span>
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>bloq<span class="w"> </span>gallery
+bloq<span class="w"> </span>view<span class="w"> </span>--gallery<span class="w"> </span>cnot<span class="w"> </span>--html
+</code></pre></div>
+</div>
+<p>The gallery command lists available entries; the viewer writes <code class="docutils literal notranslate"><span class="pre">cnot.html</span></code>.
+The BLOG source is displayed below and can also be opened in the editor’s gallery.</p>
+</div>
+</div>
+</div><div class="bloq-example-layout docutils container">
+<div class="highlight-blog notranslate"><div class="highlight"><pre><span></span><code><span class="k">BLOG</span> <span class="m">1.0</span>
+
+<span class="k">module</span> <span class="n">main</span> <span class="p">{</span>
+  <span class="k">in</span> <span class="n">control_in</span><span class="p">:</span> <span class="n">data</span> <span class="o">=</span> <span class="m">0</span>
+  <span class="k">out</span> <span class="n">control_out</span><span class="p">:</span> <span class="n">data</span> <span class="o">=</span> <span class="m">3</span>
+  <span class="k">in</span> <span class="n">target_in</span><span class="p">:</span> <span class="n">data</span> <span class="o">=</span> <span class="m">6</span>
+  <span class="k">out</span> <span class="n">target_out</span><span class="p">:</span> <span class="n">data</span> <span class="o">=</span> <span class="m">9</span>
+
+  <span class="m">0</span><span class="p">:</span> <span class="kt">Port</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="m">0</span><span class="p">]</span> <span class="sx">&lt;In_Control&gt;</span>
+  <span class="m">1</span><span class="p">:</span> <span class="kt">ZXZ</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="m">1</span><span class="p">]</span>
+  <span class="m">2</span><span class="p">:</span> <span class="kt">ZXZ</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="m">2</span><span class="p">]</span>
+  <span class="m">3</span><span class="p">:</span> <span class="kt">Port</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="m">3</span><span class="p">]</span> <span class="sx">&lt;Out_Control&gt;</span>
+  <span class="m">4</span><span class="p">:</span> <span class="kt">ZXX</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">1</span><span class="p">,</span> <span class="m">1</span><span class="p">]</span>
+  <span class="m">5</span><span class="p">:</span> <span class="kt">ZXZ</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">1</span><span class="p">,</span> <span class="m">2</span><span class="p">]</span>
+  <span class="m">6</span><span class="p">:</span> <span class="kt">Port</span> <span class="p">[</span><span class="m">1</span><span class="p">,</span> <span class="m">1</span><span class="p">,</span> <span class="m">0</span><span class="p">]</span> <span class="sx">&lt;In_Target&gt;</span>
+  <span class="m">7</span><span class="p">:</span> <span class="kt">ZXZ</span> <span class="p">[</span><span class="m">1</span><span class="p">,</span> <span class="m">1</span><span class="p">,</span> <span class="m">1</span><span class="p">]</span>
+  <span class="m">8</span><span class="p">:</span> <span class="kt">ZXZ</span> <span class="p">[</span><span class="m">1</span><span class="p">,</span> <span class="m">1</span><span class="p">,</span> <span class="m">2</span><span class="p">]</span>
+  <span class="m">9</span><span class="p">:</span> <span class="kt">Port</span> <span class="p">[</span><span class="m">1</span><span class="p">,</span> <span class="m">1</span><span class="p">,</span> <span class="m">3</span><span class="p">]</span> <span class="sx">&lt;Out_Target&gt;</span>
+  <span class="m">0</span> <span class="o">-&gt;</span> <span class="no">+Z</span>
+  <span class="m">1</span> <span class="o">-&gt;</span> <span class="no">+Z</span>
+  <span class="m">1</span> <span class="o">-&gt;</span> <span class="no">+Y</span>
+  <span class="m">2</span> <span class="o">-&gt;</span> <span class="no">+Z</span>
+  <span class="m">4</span> <span class="o">-&gt;</span> <span class="no">+Z</span>
+  <span class="m">5</span> <span class="o">-&gt;</span> <span class="no">+X</span>
+  <span class="m">6</span> <span class="o">-&gt;</span> <span class="no">+Z</span>
+  <span class="m">7</span> <span class="o">-&gt;</span> <span class="no">+Z</span>
+  <span class="m">8</span> <span class="o">-&gt;</span> <span class="no">+Z</span>
+
+<span class="p">}</span>
+</code></pre></div>
+</div>
+<div class="bloq-example-render docutils container">
+<iframe class="bloq-block-view" src="../_static/block-graphs/cnot.html" title="Interactive cnot block graph" loading="lazy" allowfullscreen></iframe></div>
+</div>
+<h3 id="compile-to-bloq-ir">Compile to Bloq IR<a class="headerlink" href="#compile-to-bloq-ir" title="Link to this heading">¶</a></h3>
+<p>We then compile the block graph into Bloq IR format.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="2:3">
+<input checked type="radio" id="__tabbed_2_1" name="__tabbed_2"><input type="radio" id="__tabbed_2_2" name="__tabbed_2"><input type="radio" id="__tabbed_2_3" name="__tabbed_2"><div class="tabbed-labels docutils">
+<label class="tabbed-label" for="__tabbed_2_1">
+Python</label><label class="tabbed-label" for="__tabbed_2_2">
+Rust</label><label class="tabbed-label" for="__tabbed_2_3">
+CLI</label></div>
+<div class="tabbed-content docutils">
+<div class="tabbed-block docutils">
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span class="n">cnot_program</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">cnot</span><span class="p">,</span> <span class="n">distance</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<span class="n">cnot_program</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;cnot.bloqir&quot;</span><span class="p">)</span>
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">cnot_program</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">compile</span><span class="p">(</span><span class="o">&amp;</span><span class="n">cnot</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
+<span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;cnot.bloqir&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">cnot_program</span><span class="p">.</span><span class="n">to_text</span><span class="p">())</span><span class="o">?</span><span class="p">;</span>
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>bloq<span class="w"> </span>compile<span class="w"> </span>--gallery<span class="w"> </span>cnot<span class="w"> </span>-d<span class="w"> </span><span class="m">3</span><span class="w"> </span>--backend<span class="w"> </span>ir-text<span class="w"> </span>-o<span class="w"> </span>cnot.bloqir
+</code></pre></div>
+</div>
+</div>
+</div>
+</div><p>Bloq IR is a graph-based representation of a physical quantum program. Quantum
+nodes place reusable circuit templates; classical nodes construct logical
+readouts, decode measurements, and compute control values. Quantum, value, and
+order edges describe their dependencies. The IR also retains detectors, logical
+boundary operators, dynamic regions, and source provenance.</p>
+<p>The same program can be saved as human-readable text (<code class="docutils literal notranslate"><span class="pre">.bloqir</span></code>) or compact binary
+(<code class="docutils literal notranslate"><span class="pre">.bloq</span></code>). See <a class="reference internal" href="../backends/ir.html"><span class="std std-doc">Inspect and exchange Bloq IR</span></a> for its structure,
+codecs, and inspection APIs. Here is the compiled CNOT in text form:</p>
+<div class="bloq-output" role="region" aria-label="Compiled CNOT Bloq IR" tabindex="0"><div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code>BLOQIR 1
+metadata bloq_compile.code_distance u64 3
+metadata bloq_compile.convention string fixed-bulk
+logical-input (0,0,0) instance i2 x X(3,1)*X(3,3)*X(3,5) z Z(1,3)*Z(3,3)*Z(5,3)
+logical-input (1,1,0) instance i0 x X(11,9)*X(11,11)*X(11,13) z Z(9,11)*Z(11,11)*Z(13,11)
+logical-output (0,0,3) instance i9 x X(3,1)*X(3,3)*X(3,5) z Z(1,3)*Z(3,3)*Z(5,3)
+logical-output (1,1,3) instance i7 x X(11,9)*X(11,11)*X(11,13) z Z(9,11)*Z(11,11)*Z(13,11)
+
+template t0 {
+  circuit {
+    MPP X(3,1)*X(5,1):m0 Z(1,1)*Z(1,3):m1 X(1,1)*X(1,3)*X(3,1)*X(3,3):m2 Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3):m3 Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5):m4 X(3,3)*X(3,5)*X(5,3)*X(5,5):m5 Z(5,3)*Z(5,5):m6 X(1,5)*X(3,5):m7
+  }
+  flow _ -&gt; X(3,1)*X(5,1) meas m0 center (4,0)
+  flow _ -&gt; Z(1,1)*Z(1,3) meas m1 center (0,2)
+  flow _ -&gt; X(1,1)*X(1,3)*X(3,1)*X(3,3) meas m2 center (2,2)
+  flow _ -&gt; Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) meas m3 center (4,2)
+  flow _ -&gt; Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) meas m4 center (2,4)
+  flow _ -&gt; X(3,3)*X(3,5)*X(5,3)*X(5,5) meas m5 center (4,4)
+  flow _ -&gt; Z(5,3)*Z(5,5) meas m6 center (6,4)
+  flow _ -&gt; X(1,5)*X(3,5) meas m7 center (2,6)
+}
+
+template t1 {
+  circuit {
+    R (0,2) (4,2) (2,4) (6,4)
+    RX (4,0) (2,2) (4,4) (2,6)
+    TICK
+    CX (4,0) (3,1) (2,2) (1,3) (3,3) (4,2) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (4,0) (5,1) (2,2) (3,3) (3,1) (4,2) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (0,2):m0 (4,2):m1 (2,4):m2 (6,4):m3
+    MX (4,0):m4 (2,2):m5 (4,4):m6 (2,6):m7
+    TICK
+    R (0,2) (4,2) (2,4) (6,4)
+    RX (4,0) (2,2) (4,4) (2,6)
+    TICK
+    CX (4,0) (3,1) (2,2) (1,3) (3,3) (4,2) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (4,0) (5,1) (2,2) (3,3) (3,1) (4,2) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (0,2):m8 (4,2):m9 (2,4):m10 (6,4):m11
+    MX (4,0):m12 (2,2):m13 (4,4):m14 (2,6):m15
+    TICK
+    R (0,2) (4,2) (2,4) (6,4)
+    RX (4,0) (2,2) (4,4) (2,6)
+    TICK
+    CX (4,0) (3,1) (2,2) (1,3) (3,3) (4,2) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (4,0) (5,1) (2,2) (3,3) (3,1) (4,2) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (0,2):m16 (4,2):m17 (2,4):m18 (6,4):m19
+    MX (4,0):m20 (2,2):m21 (4,4):m22 (2,6):m23
+  }
+  detector m4*m12 @ (4,0)
+  detector m0*m8 @ (0,2)
+  detector m5*m13 @ (2,2)
+  detector m1*m9 @ (4,2)
+  detector m2*m10 @ (2,4)
+  detector m6*m14 @ (4,4)
+  detector m3*m11 @ (6,4)
+  detector m7*m15 @ (2,6)
+  detector m12*m20 @ (4,0)
+  detector m8*m16 @ (0,2)
+  detector m13*m21 @ (2,2)
+  detector m9*m17 @ (4,2)
+  detector m10*m18 @ (2,4)
+  detector m14*m22 @ (4,4)
+  detector m11*m19 @ (6,4)
+  detector m15*m23 @ (2,6)
+  flow Z(1,1)*Z(1,3) -&gt; _ meas m0 center (0,2)
+  flow Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) -&gt; _ meas m1 center (4,2)
+  flow Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) -&gt; _ meas m2 center (2,4)
+  flow Z(5,3)*Z(5,5) -&gt; _ meas m3 center (6,4)
+  flow X(3,1)*X(5,1) -&gt; _ meas m4 center (4,0)
+  flow X(1,1)*X(1,3)*X(3,1)*X(3,3) -&gt; _ meas m5 center (2,2)
+  flow X(3,3)*X(3,5)*X(5,3)*X(5,5) -&gt; _ meas m6 center (4,4)
+  flow X(1,5)*X(3,5) -&gt; _ meas m7 center (2,6)
+  flow _ -&gt; Z(1,1)*Z(1,3) meas m16 center (0,2)
+  flow _ -&gt; Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) meas m17 center (4,2)
+  flow _ -&gt; Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) meas m18 center (2,4)
+  flow _ -&gt; Z(5,3)*Z(5,5) meas m19 center (6,4)
+  flow _ -&gt; X(3,1)*X(5,1) meas m20 center (4,0)
+  flow _ -&gt; X(1,1)*X(1,3)*X(3,1)*X(3,3) meas m21 center (2,2)
+  flow _ -&gt; X(3,3)*X(3,5)*X(5,3)*X(5,5) meas m22 center (4,4)
+  flow _ -&gt; X(1,5)*X(3,5) meas m23 center (2,6)
+}
+
+template t2 {
+  circuit {
+    R (0,2) (4,2) (2,4) (6,4) (0,6) (4,6)
+    RX (4,0) (2,2) (4,4) (2,6)
+    RX (1,7) (3,7) (5,7)
+    TICK
+    CX (4,0) (3,1) (2,2) (1,3) (3,3) (4,2) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4) (2,6) (1,7) (3,7) (4,6)
+    TICK
+    CX (4,0) (5,1) (2,2) (3,3) (3,1) (4,2) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4) (2,6) (3,7) (3,5) (4,6)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (3,5) (2,4) (4,4) (3,3) (1,7) (0,6) (2,6) (1,5) (5,7) (4,6)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (1,5) (0,6) (2,6) (3,5) (5,5) (4,6)
+    TICK
+    M (0,2):m0 (4,2):m1 (2,4):m2 (6,4):m3 (0,6):m4 (4,6):m5
+    MX (4,0):m6 (2,2):m7 (4,4):m8 (2,6):m9
+    TICK
+    R (0,2) (4,2) (2,4) (6,4) (0,6) (4,6)
+    RX (4,0) (2,2) (4,4) (2,6)
+    TICK
+    CX (4,0) (3,1) (2,2) (1,3) (3,3) (4,2) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4) (2,6) (1,7) (3,7) (4,6)
+    TICK
+    CX (4,0) (5,1) (2,2) (3,3) (3,1) (4,2) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4) (2,6) (3,7) (3,5) (4,6)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (3,5) (2,4) (4,4) (3,3) (1,7) (0,6) (2,6) (1,5) (5,7) (4,6)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (1,5) (0,6) (2,6) (3,5) (5,5) (4,6)
+    TICK
+    M (0,2):m10 (4,2):m11 (2,4):m12 (6,4):m13 (0,6):m14 (4,6):m15
+    MX (4,0):m16 (2,2):m17 (4,4):m18 (2,6):m19
+    TICK
+    R (0,2) (4,2) (2,4) (6,4) (0,6) (4,6)
+    RX (4,0) (2,2) (4,4) (2,6)
+    TICK
+    CX (4,0) (3,1) (2,2) (1,3) (3,3) (4,2) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4) (2,6) (1,7) (3,7) (4,6)
+    TICK
+    CX (4,0) (5,1) (2,2) (3,3) (3,1) (4,2) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4) (2,6) (3,7) (3,5) (4,6)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (3,5) (2,4) (4,4) (3,3) (1,7) (0,6) (2,6) (1,5) (5,7) (4,6)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (1,5) (0,6) (2,6) (3,5) (5,5) (4,6)
+    TICK
+    M (0,2):m20 (4,2):m21 (2,4):m22 (6,4):m23 (0,6):m24 (4,6):m25
+    MX (4,0):m26 (2,2):m27 (4,4):m28 (2,6):m29
+    MX (1,7):m30 (3,7):m31 (5,7):m32
+  }
+  detector m6*m16 @ (4,0)
+  detector m0*m10 @ (0,2)
+  detector m7*m17 @ (2,2)
+  detector m1*m11 @ (4,2)
+  detector m2*m12 @ (2,4)
+  detector m8*m18 @ (4,4)
+  detector m3*m13 @ (6,4)
+  detector m4*m14 @ (0,6)
+  detector m9*m19 @ (2,6)
+  detector m5*m15 @ (4,6)
+  detector m16*m26 @ (4,0)
+  detector m10*m20 @ (0,2)
+  detector m17*m27 @ (2,2)
+  detector m11*m21 @ (4,2)
+  detector m12*m22 @ (2,4)
+  detector m18*m28 @ (4,4)
+  detector m13*m23 @ (6,4)
+  detector m14*m24 @ (0,6)
+  detector m19*m29 @ (2,6)
+  detector m15*m25 @ (4,6)
+  flow Z(1,1)*Z(1,3) -&gt; _ meas m0 center (0,2)
+  flow Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) -&gt; _ meas m1 center (4,2)
+  flow Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) -&gt; _ meas m2 center (2,4)
+  flow Z(5,3)*Z(5,5) -&gt; _ meas m3 center (6,4)
+  flow X(3,1)*X(5,1) -&gt; _ meas m6 center (4,0)
+  flow X(1,1)*X(1,3)*X(3,1)*X(3,3) -&gt; _ meas m7 center (2,2)
+  flow X(3,3)*X(3,5)*X(5,3)*X(5,5) -&gt; _ meas m8 center (4,4)
+  flow X(1,5)*X(3,5) -&gt; _ meas m9 center (2,6)
+  flow _ -&gt; Z(1,1)*Z(1,3) meas m20 center (0,2)
+  flow _ -&gt; Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) meas m21 center (4,2)
+  flow _ -&gt; Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) meas m22 center (2,4)
+  flow _ -&gt; Z(5,3)*Z(5,5) meas m23 center (6,4)
+  flow _ -&gt; X(3,1)*X(5,1) meas m26 center (4,0)
+  flow _ -&gt; X(1,1)*X(1,3)*X(3,1)*X(3,3) meas m27 center (2,2)
+  flow _ -&gt; X(3,3)*X(3,5)*X(5,3)*X(5,5) meas m28 center (4,4)
+  flow _ -&gt; X(1,5)*X(3,5) meas m30*m31*m29 center (2,6)
+}
+
+template t3 {
+  circuit {
+    R (2,0) (6,0) (0,2) (4,2) (2,4) (6,4)
+    RX (4,0) (2,2) (4,4) (2,6)
+    RX (1,-1) (3,-1) (5,-1) (1,1) (3,1) (5,1) (1,3) (3,3) (5,3) (1,5) (3,5) (5,5)
+    TICK
+    CX (1,1) (2,0) (4,0) (3,1) (5,1) (6,0) (2,2) (1,3) (3,3) (4,2) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (1,-1) (2,0) (4,0) (5,1) (5,-1) (6,0) (2,2) (3,3) (3,1) (4,2) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (3,1) (2,0) (4,0) (3,-1) (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (3,-1) (2,0) (4,0) (5,-1) (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (2,0):m0 (6,0):m1 (0,2):m2 (4,2):m3 (2,4):m4 (6,4):m5
+    MX (4,0):m6 (2,2):m7 (4,4):m8 (2,6):m9
+    TICK
+    R (2,0) (6,0) (0,2) (4,2) (2,4) (6,4)
+    RX (4,0) (2,2) (4,4) (2,6)
+    TICK
+    CX (1,1) (2,0) (4,0) (3,1) (5,1) (6,0) (2,2) (1,3) (3,3) (4,2) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (1,-1) (2,0) (4,0) (5,1) (5,-1) (6,0) (2,2) (3,3) (3,1) (4,2) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (3,1) (2,0) (4,0) (3,-1) (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (3,-1) (2,0) (4,0) (5,-1) (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (2,0):m10 (6,0):m11 (0,2):m12 (4,2):m13 (2,4):m14 (6,4):m15
+    MX (4,0):m16 (2,2):m17 (4,4):m18 (2,6):m19
+    TICK
+    R (2,0) (6,0) (0,2) (4,2) (2,4) (6,4)
+    RX (4,0) (2,2) (4,4) (2,6)
+    TICK
+    CX (1,1) (2,0) (4,0) (3,1) (5,1) (6,0) (2,2) (1,3) (3,3) (4,2) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (1,-1) (2,0) (4,0) (5,1) (5,-1) (6,0) (2,2) (3,3) (3,1) (4,2) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (3,1) (2,0) (4,0) (3,-1) (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (3,-1) (2,0) (4,0) (5,-1) (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (2,0):m20 (6,0):m21 (0,2):m22 (4,2):m23 (2,4):m24 (6,4):m25
+    MX (4,0):m26 (2,2):m27 (4,4):m28 (2,6):m29
+    MX (1,-1):m30 (3,-1):m31 (5,-1):m32
+  }
+  detector m6 @ (4,0)
+  detector m7 @ (2,2)
+  detector m8 @ (4,4)
+  detector m9 @ (2,6)
+  detector m0*m10 @ (2,0)
+  detector m6*m16 @ (4,0)
+  detector m1*m11 @ (6,0)
+  detector m2*m12 @ (0,2)
+  detector m7*m17 @ (2,2)
+  detector m3*m13 @ (4,2)
+  detector m4*m14 @ (2,4)
+  detector m8*m18 @ (4,4)
+  detector m5*m15 @ (6,4)
+  detector m9*m19 @ (2,6)
+  detector m10*m20 @ (2,0)
+  detector m16*m26 @ (4,0)
+  detector m11*m21 @ (6,0)
+  detector m12*m22 @ (0,2)
+  detector m17*m27 @ (2,2)
+  detector m13*m23 @ (4,2)
+  detector m14*m24 @ (2,4)
+  detector m18*m28 @ (4,4)
+  detector m15*m25 @ (6,4)
+  detector m19*m29 @ (2,6)
+  flow _ -&gt; Z(1,1)*Z(1,3) meas m22 center (0,2)
+  flow _ -&gt; Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) meas m23 center (4,2)
+  flow _ -&gt; Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) meas m24 center (2,4)
+  flow _ -&gt; Z(5,3)*Z(5,5) meas m25 center (6,4)
+  flow _ -&gt; X(1,1)*X(1,3)*X(3,1)*X(3,3) meas m27 center (2,2)
+  flow _ -&gt; X(3,3)*X(3,5)*X(5,3)*X(5,5) meas m28 center (4,4)
+  flow _ -&gt; X(1,5)*X(3,5) meas m29 center (2,6)
+  flow _ -&gt; X(3,1)*X(5,1) meas m31*m32*m26 center (4,0)
+}
+
+template t4 {
+  circuit {
+    R (0,2) (4,2) (2,4) (6,4)
+    RX (4,0) (2,2) (6,2) (4,4) (2,6) (6,6)
+    R (7,1) (7,3) (7,5)
+    TICK
+    CX (4,0) (3,1) (2,2) (1,3) (3,3) (4,2) (6,2) (5,3) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (4,0) (5,1) (2,2) (3,3) (3,1) (4,2) (6,2) (7,3) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (6,2) (5,1) (3,5) (2,4) (4,4) (3,3) (7,5) (6,4) (2,6) (1,5) (6,6) (5,5)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (6,2) (7,1) (3,3) (2,4) (4,4) (5,3) (7,3) (6,4) (2,6) (3,5) (6,6) (7,5)
+    TICK
+    M (0,2):m0 (4,2):m1 (2,4):m2 (6,4):m3
+    MX (4,0):m4 (2,2):m5 (6,2):m6 (4,4):m7 (2,6):m8 (6,6):m9
+    TICK
+    R (0,2) (4,2) (2,4) (6,4)
+    RX (4,0) (2,2) (6,2) (4,4) (2,6) (6,6)
+    TICK
+    CX (4,0) (3,1) (2,2) (1,3) (3,3) (4,2) (6,2) (5,3) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (4,0) (5,1) (2,2) (3,3) (3,1) (4,2) (6,2) (7,3) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (6,2) (5,1) (3,5) (2,4) (4,4) (3,3) (7,5) (6,4) (2,6) (1,5) (6,6) (5,5)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (6,2) (7,1) (3,3) (2,4) (4,4) (5,3) (7,3) (6,4) (2,6) (3,5) (6,6) (7,5)
+    TICK
+    M (0,2):m10 (4,2):m11 (2,4):m12 (6,4):m13
+    MX (4,0):m14 (2,2):m15 (6,2):m16 (4,4):m17 (2,6):m18 (6,6):m19
+    TICK
+    R (0,2) (4,2) (2,4) (6,4)
+    RX (4,0) (2,2) (6,2) (4,4) (2,6) (6,6)
+    TICK
+    CX (4,0) (3,1) (2,2) (1,3) (3,3) (4,2) (6,2) (5,3) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (4,0) (5,1) (2,2) (3,3) (3,1) (4,2) (6,2) (7,3) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (6,2) (5,1) (3,5) (2,4) (4,4) (3,3) (7,5) (6,4) (2,6) (1,5) (6,6) (5,5)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (6,2) (7,1) (3,3) (2,4) (4,4) (5,3) (7,3) (6,4) (2,6) (3,5) (6,6) (7,5)
+    TICK
+    M (0,2):m20 (4,2):m21 (2,4):m22 (6,4):m23
+    MX (4,0):m24 (2,2):m25 (6,2):m26 (4,4):m27 (2,6):m28 (6,6):m29
+    M (1,1):m30 (3,1):m31 (5,1):m32 (7,1):m33 (1,3):m34 (3,3):m35 (5,3):m36 (7,3):m37 (1,5):m38 (3,5):m39 (5,5):m40 (7,5):m41
+  }
+  detector m4*m14 @ (4,0)
+  detector m0*m10 @ (0,2)
+  detector m5*m15 @ (2,2)
+  detector m1*m11 @ (4,2)
+  detector m6*m16 @ (6,2)
+  detector m2*m12 @ (2,4)
+  detector m7*m17 @ (4,4)
+  detector m3*m13 @ (6,4)
+  detector m8*m18 @ (2,6)
+  detector m9*m19 @ (6,6)
+  detector m14*m24 @ (4,0)
+  detector m10*m20 @ (0,2)
+  detector m15*m25 @ (2,2)
+  detector m11*m21 @ (4,2)
+  detector m16*m26 @ (6,2)
+  detector m12*m22 @ (2,4)
+  detector m17*m27 @ (4,4)
+  detector m13*m23 @ (6,4)
+  detector m18*m28 @ (2,6)
+  detector m19*m29 @ (6,6)
+  detector m20*m30*m34 @ (0,2)
+  detector m21*m31*m32*m35*m36 @ (4,2)
+  detector m22*m34*m35*m38*m39 @ (2,4)
+  detector m23*m36*m37*m40*m41 @ (6,4)
+  flow Z(1,1)*Z(1,3) -&gt; _ meas m0 center (0,2)
+  flow Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) -&gt; _ meas m1 center (4,2)
+  flow Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) -&gt; _ meas m2 center (2,4)
+  flow Z(5,3)*Z(5,5) -&gt; _ meas m3 center (6,4)
+  flow X(3,1)*X(5,1) -&gt; _ meas m4 center (4,0)
+  flow X(1,1)*X(1,3)*X(3,1)*X(3,3) -&gt; _ meas m5 center (2,2)
+  flow X(3,3)*X(3,5)*X(5,3)*X(5,5) -&gt; _ meas m7 center (4,4)
+  flow X(1,5)*X(3,5) -&gt; _ meas m8 center (2,6)
+}
+
+template t5 {
+  circuit {
+    R (0,2) (4,2) (2,4) (6,4)
+    RX (0,0) (4,0) (2,2) (0,4) (4,4) (2,6)
+    R (-1,1) (-1,3) (-1,5)
+    TICK
+    CX (0,0) (-1,1) (4,0) (3,1) (-1,3) (0,2) (2,2) (1,3) (3,3) (4,2) (0,4) (-1,5) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (0,0) (1,1) (4,0) (5,1) (-1,1) (0,2) (2,2) (3,3) (3,1) (4,2) (0,4) (1,5) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (0,4) (-1,3) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (0,4) (1,3) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (0,2):m0 (4,2):m1 (2,4):m2 (6,4):m3
+    MX (0,0):m4 (4,0):m5 (2,2):m6 (0,4):m7 (4,4):m8 (2,6):m9
+    TICK
+    R (0,2) (4,2) (2,4) (6,4)
+    RX (0,0) (4,0) (2,2) (0,4) (4,4) (2,6)
+    TICK
+    CX (0,0) (-1,1) (4,0) (3,1) (-1,3) (0,2) (2,2) (1,3) (3,3) (4,2) (0,4) (-1,5) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (0,0) (1,1) (4,0) (5,1) (-1,1) (0,2) (2,2) (3,3) (3,1) (4,2) (0,4) (1,5) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (0,4) (-1,3) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (0,4) (1,3) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (0,2):m10 (4,2):m11 (2,4):m12 (6,4):m13
+    MX (0,0):m14 (4,0):m15 (2,2):m16 (0,4):m17 (4,4):m18 (2,6):m19
+    TICK
+    R (0,2) (4,2) (2,4) (6,4)
+    RX (0,0) (4,0) (2,2) (0,4) (4,4) (2,6)
+    TICK
+    CX (0,0) (-1,1) (4,0) (3,1) (-1,3) (0,2) (2,2) (1,3) (3,3) (4,2) (0,4) (-1,5) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (0,0) (1,1) (4,0) (5,1) (-1,1) (0,2) (2,2) (3,3) (3,1) (4,2) (0,4) (1,5) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (0,4) (-1,3) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (0,4) (1,3) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (0,2):m20 (4,2):m21 (2,4):m22 (6,4):m23
+    MX (0,0):m24 (4,0):m25 (2,2):m26 (0,4):m27 (4,4):m28 (2,6):m29
+    M (-1,1):m30 (-1,3):m31 (-1,5):m32
+  }
+  detector m4*m14 @ (0,0)
+  detector m5*m15 @ (4,0)
+  detector m0*m10 @ (0,2)
+  detector m6*m16 @ (2,2)
+  detector m1*m11 @ (4,2)
+  detector m7*m17 @ (0,4)
+  detector m2*m12 @ (2,4)
+  detector m8*m18 @ (4,4)
+  detector m3*m13 @ (6,4)
+  detector m9*m19 @ (2,6)
+  detector m14*m24 @ (0,0)
+  detector m15*m25 @ (4,0)
+  detector m10*m20 @ (0,2)
+  detector m16*m26 @ (2,2)
+  detector m11*m21 @ (4,2)
+  detector m17*m27 @ (0,4)
+  detector m12*m22 @ (2,4)
+  detector m18*m28 @ (4,4)
+  detector m13*m23 @ (6,4)
+  detector m19*m29 @ (2,6)
+  flow Z(1,1)*Z(1,3) -&gt; _ meas m0 center (0,2)
+  flow Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) -&gt; _ meas m1 center (4,2)
+  flow Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) -&gt; _ meas m2 center (2,4)
+  flow Z(5,3)*Z(5,5) -&gt; _ meas m3 center (6,4)
+  flow X(3,1)*X(5,1) -&gt; _ meas m5 center (4,0)
+  flow X(1,1)*X(1,3)*X(3,1)*X(3,3) -&gt; _ meas m6 center (2,2)
+  flow X(3,3)*X(3,5)*X(5,3)*X(5,5) -&gt; _ meas m8 center (4,4)
+  flow X(1,5)*X(3,5) -&gt; _ meas m9 center (2,6)
+  flow _ -&gt; Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) meas m21 center (4,2)
+  flow _ -&gt; Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) meas m22 center (2,4)
+  flow _ -&gt; Z(5,3)*Z(5,5) meas m23 center (6,4)
+  flow _ -&gt; X(3,1)*X(5,1) meas m25 center (4,0)
+  flow _ -&gt; X(1,1)*X(1,3)*X(3,1)*X(3,3) meas m26 center (2,2)
+  flow _ -&gt; X(3,3)*X(3,5)*X(5,3)*X(5,5) meas m28 center (4,4)
+  flow _ -&gt; X(1,5)*X(3,5) meas m29 center (2,6)
+  flow _ -&gt; Z(1,1)*Z(1,3) meas m30*m31*m20 center (0,2)
+}
+
+template t6 {
+  circuit {
+    MPP X(3,1)*X(5,1):m0 Z(1,1)*Z(1,3):m1 X(1,1)*X(1,3)*X(3,1)*X(3,3):m2 Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3):m3 Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5):m4 X(3,3)*X(3,5)*X(5,3)*X(5,5):m5 Z(5,3)*Z(5,5):m6 X(1,5)*X(3,5):m7
+  }
+  flow X(3,1)*X(5,1) -&gt; _ meas m0 center (4,0)
+  flow Z(1,1)*Z(1,3) -&gt; _ meas m1 center (0,2)
+  flow X(1,1)*X(1,3)*X(3,1)*X(3,3) -&gt; _ meas m2 center (2,2)
+  flow Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) -&gt; _ meas m3 center (4,2)
+  flow Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) -&gt; _ meas m4 center (2,4)
+  flow X(3,3)*X(3,5)*X(5,3)*X(5,5) -&gt; _ meas m5 center (4,4)
+  flow Z(5,3)*Z(5,5) -&gt; _ meas m6 center (6,4)
+  flow X(1,5)*X(3,5) -&gt; _ meas m7 center (2,6)
+}
+
+template t7 {
+  circuit {
+    R (0,2) (4,2) (2,4) (6,4)
+    RX (4,0) (2,2) (4,4) (2,6)
+    TICK
+    CX (4,0) (3,1) (2,2) (1,3) (3,3) (4,2) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (4,0) (5,1) (2,2) (3,3) (3,1) (4,2) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (0,2):m0 (4,2):m1 (2,4):m2 (6,4):m3
+    MX (4,0):m4 (2,2):m5 (4,4):m6 (2,6):m7
+  }
+  flow _ -&gt; Z(1,1)*Z(1,3) meas m0 center (0,2)
+  flow Z(1,1)*Z(1,3) -&gt; _ meas m0 center (0,2)
+  flow _ -&gt; Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) meas m1 center (4,2)
+  flow Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) -&gt; _ meas m1 center (4,2)
+  flow _ -&gt; Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) meas m2 center (2,4)
+  flow Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) -&gt; _ meas m2 center (2,4)
+  flow _ -&gt; Z(5,3)*Z(5,5) meas m3 center (6,4)
+  flow Z(5,3)*Z(5,5) -&gt; _ meas m3 center (6,4)
+  flow _ -&gt; X(3,1)*X(5,1) meas m4 center (4,0)
+  flow X(3,1)*X(5,1) -&gt; _ meas m4 center (4,0)
+  flow _ -&gt; X(1,1)*X(1,3)*X(3,1)*X(3,3) meas m5 center (2,2)
+  flow X(1,1)*X(1,3)*X(3,1)*X(3,3) -&gt; _ meas m5 center (2,2)
+  flow _ -&gt; X(3,3)*X(3,5)*X(5,3)*X(5,5) meas m6 center (4,4)
+  flow X(3,3)*X(3,5)*X(5,3)*X(5,5) -&gt; _ meas m6 center (4,4)
+  flow _ -&gt; X(1,5)*X(3,5) meas m7 center (2,6)
+  flow X(1,5)*X(3,5) -&gt; _ meas m7 center (2,6)
+}
+
+template t8 {
+  circuit {
+    R (0,2) (4,2) (2,4) (6,4)
+    RX (4,0) (2,2) (4,4) (2,6)
+    TICK
+    CX (4,0) (3,1) (2,2) (1,3) (3,3) (4,2) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (4,0) (5,1) (2,2) (3,3) (3,1) (4,2) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (0,2):m0 (4,2):m1 (2,4):m2 (6,4):m3
+    MX (4,0):m4 (2,2):m5 (4,4):m6 (2,6):m7
+    TICK
+    REPEAT 2 b1
+  }
+  body b1 {
+    R (0,2) (4,2) (2,4) (6,4)
+    RX (4,0) (2,2) (4,4) (2,6)
+    TICK
+    CX (4,0) (3,1) (2,2) (1,3) (3,3) (4,2) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (4,0) (5,1) (2,2) (3,3) (3,1) (4,2) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (0,2):m8 (4,2):m9 (2,4):m10 (6,4):m11
+    MX (4,0):m12 (2,2):m13 (4,4):m14 (2,6):m15
+    TICK
+  }
+  detector body(b1) m8*s0 @ (0,2)
+  detector body(b1) m9*s1 @ (4,2)
+  detector body(b1) m10*s2 @ (2,4)
+  detector body(b1) m11*s3 @ (6,4)
+  detector body(b1) m12*s4 @ (4,0)
+  detector body(b1) m13*s5 @ (2,2)
+  detector body(b1) m14*s6 @ (4,4)
+  detector body(b1) m15*s7 @ (2,6)
+  loop(b1,s0) init m0 next m8
+  loop(b1,s1) init m1 next m9
+  loop(b1,s2) init m2 next m10
+  loop(b1,s3) init m3 next m11
+  loop(b1,s4) init m4 next m12
+  loop(b1,s5) init m5 next m13
+  loop(b1,s6) init m6 next m14
+  loop(b1,s7) init m7 next m15
+  flow Z(1,1)*Z(1,3) -&gt; _ meas m0 center (0,2)
+  flow Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) -&gt; _ meas m1 center (4,2)
+  flow Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) -&gt; _ meas m2 center (2,4)
+  flow Z(5,3)*Z(5,5) -&gt; _ meas m3 center (6,4)
+  flow X(3,1)*X(5,1) -&gt; _ meas m4 center (4,0)
+  flow X(1,1)*X(1,3)*X(3,1)*X(3,3) -&gt; _ meas m5 center (2,2)
+  flow X(3,3)*X(3,5)*X(5,3)*X(5,5) -&gt; _ meas m6 center (4,4)
+  flow X(1,5)*X(3,5) -&gt; _ meas m7 center (2,6)
+  flow _ -&gt; Z(1,1)*Z(1,3) meas m8 center (0,2)
+  flow _ -&gt; Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) meas m9 center (4,2)
+  flow _ -&gt; Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) meas m10 center (2,4)
+  flow _ -&gt; Z(5,3)*Z(5,5) meas m11 center (6,4)
+  flow _ -&gt; X(3,1)*X(5,1) meas m12 center (4,0)
+  flow _ -&gt; X(1,1)*X(1,3)*X(3,1)*X(3,3) meas m13 center (2,2)
+  flow _ -&gt; X(3,3)*X(3,5)*X(5,3)*X(5,5) meas m14 center (4,4)
+  flow _ -&gt; X(1,5)*X(3,5) meas m15 center (2,6)
+}
+
+bundle b0 owners t0 t1 {
+  detector o0:m1*o1:m0 @ (0,2)
+  detector o0:m3*o1:m1 @ (4,2)
+  detector o0:m4*o1:m2 @ (2,4)
+  detector o0:m6*o1:m3 @ (6,4)
+  detector o0:m0*o1:m4 @ (4,0)
+  detector o0:m2*o1:m5 @ (2,2)
+  detector o0:m5*o1:m6 @ (4,4)
+  detector o0:m7*o1:m7 @ (2,6)
+}
+
+bundle b1 owners t0 t2 {
+  detector o0:m1*o1:m0 @ (0,2)
+  detector o0:m3*o1:m1 @ (4,2)
+  detector o0:m4*o1:m2 @ (2,4)
+  detector o0:m6*o1:m3 @ (6,4)
+  detector o0:m0*o1:m6 @ (4,0)
+  detector o0:m2*o1:m7 @ (2,2)
+  detector o0:m5*o1:m8 @ (4,4)
+  detector o0:m7*o1:m9 @ (2,6)
+}
+
+bundle b2 owners t3 t4 {
+  detector o0:m22*o1:m0 @ (0,2)
+  detector o0:m23*o1:m1 @ (4,2)
+  detector o0:m24*o1:m2 @ (2,4)
+  detector o0:m25*o1:m3 @ (6,4)
+  detector o0:m26*o0:m31*o0:m32*o1:m4 @ (4,0)
+  detector o0:m27*o1:m5 @ (2,2)
+  detector o0:m28*o1:m7 @ (4,4)
+  detector o0:m29*o1:m8 @ (2,6)
+}
+
+bundle b3 owners t1 t5 {
+  detector o0:m16*o1:m0 @ (0,2)
+  detector o0:m17*o1:m1 @ (4,2)
+  detector o0:m18*o1:m2 @ (2,4)
+  detector o0:m19*o1:m3 @ (6,4)
+  detector o0:m20*o1:m5 @ (4,0)
+  detector o0:m21*o1:m6 @ (2,2)
+  detector o0:m22*o1:m8 @ (4,4)
+  detector o0:m23*o1:m9 @ (2,6)
+}
+
+bundle b4 owners t2 t1 {
+  detector o0:m20*o1:m0 @ (0,2)
+  detector o0:m21*o1:m1 @ (4,2)
+  detector o0:m22*o1:m2 @ (2,4)
+  detector o0:m23*o1:m3 @ (6,4)
+  detector o0:m26*o1:m4 @ (4,0)
+  detector o0:m27*o1:m5 @ (2,2)
+  detector o0:m28*o1:m6 @ (4,4)
+  detector o0:m29*o0:m30*o0:m31*o1:m7 @ (2,6)
+}
+
+bundle b5 owners t5 t6 {
+  detector o0:m25*o1:m0 @ (4,0)
+  detector o0:m20*o0:m30*o0:m31*o1:m1 @ (0,2)
+  detector o0:m26*o1:m2 @ (2,2)
+  detector o0:m21*o1:m3 @ (4,2)
+  detector o0:m22*o1:m4 @ (2,4)
+  detector o0:m28*o1:m5 @ (4,4)
+  detector o0:m23*o1:m6 @ (6,4)
+  detector o0:m29*o1:m7 @ (2,6)
+}
+
+bundle b6 owners t1 t6 {
+  detector o0:m20*o1:m0 @ (4,0)
+  detector o0:m16*o1:m1 @ (0,2)
+  detector o0:m21*o1:m2 @ (2,2)
+  detector o0:m17*o1:m3 @ (4,2)
+  detector o0:m18*o1:m4 @ (2,4)
+  detector o0:m22*o1:m5 @ (4,4)
+  detector o0:m19*o1:m6 @ (6,4)
+  detector o0:m23*o1:m7 @ (2,6)
+}
+
+graph {
+  n0 quantum {
+    instance i0 t0 @ (8,8) from block (1,1,0)
+    from blocks (1,1,0)
+  }
+  n1 quantum {
+    instance i1 t1 @ (8,8) from block (1,1,1)
+    use b0 i0 i1 @ (8,8)
+    from blocks (1,1,1)
+  }
+  n2 quantum {
+    instance i2 t0 @ (0,0) from block (0,0,0)
+    from blocks (0,0,0)
+  }
+  n3 quantum {
+    instance i3 t2 @ (0,0) from block (0,0,1)
+    instance i4 t3 @ (0,8) from block (0,1,1)
+    use b1 i2 i3 @ (0,0)
+    from blocks (0,0,1) (0,1,1)
+  }
+  n4 quantum {
+    instance i5 t4 @ (0,8) from block (0,1,2)
+    instance i6 t5 @ (8,8) from block (1,1,2)
+    use b2 i4 i5 @ (0,8)
+    use b3 i1 i6 @ (8,8)
+    from blocks (0,1,2) (1,1,2)
+  }
+  n5 quantum {
+    instance i7 t6 @ (8,8) from block (1,1,3)
+    use b5 i6 i7 @ (8,8)
+    from blocks (1,1,3)
+  }
+  n6 quantum {
+    instance i8 t1 @ (0,0) from block (0,0,2)
+    use b4 i3 i8 @ (0,0)
+    from blocks (0,0,2)
+  }
+  n7 quantum {
+    instance i9 t6 @ (0,0) from block (0,0,3)
+    use b6 i8 i9 @ (0,0)
+    from blocks (0,0,3)
+  }
+  n10 observable 0 operators i0 input X(11,9)*X(11,11)*X(11,13), i7 output X(11,9)*X(11,11)*X(11,13) from generator 0
+  n11 compute in0 from frame z (1,1,3)
+  n18 observable 1 measurements i3:m2*i3:m3*i3:m4*i3:m5*i4:m0*i4:m1*i4:m2*i4:m3*i5:m34*i5:m35*i5:m36*i5:m37 operators i0 input Z(9,11)*Z(11,11)*Z(13,11), i2 input Z(1,3)*Z(3,3)*Z(5,3), i7 output Z(9,11)*Z(11,11)*Z(13,11) from generator 1
+  n19 compute in0 from frame x (1,1,3)
+  n25 observable 2 measurements i3:m31*i5:m4*i5:m6*i5:m7*i5:m9*i6:m4*i6:m6*i6:m7*i6:m9 operators i0 input X(11,9)*X(11,11)*X(11,13), i2 input X(3,1)*X(3,3)*X(3,5), i9 output X(3,1)*X(3,3)*X(3,5) from generator 2
+  n26 compute in0 from frame z (0,0,3)
+  n28 observable 3 operators i2 input Z(1,3)*Z(3,3)*Z(5,3), i9 output Z(1,3)*Z(3,3)*Z(5,3) from generator 3
+  n29 compute in0 from frame x (0,0,3)
+  n0 -&gt; n1 quantum (1,1,0)&gt;(1,1,1) padding offset (8,8) one t7 loop t8
+  n1 -&gt; n4 quantum (1,1,1)&gt;(1,1,2) padding offset (8,8) one t7 loop t8
+  n2 -&gt; n3 quantum (0,0,0)&gt;(0,0,1) padding offset (0,0) one t7 loop t8
+  n3 -&gt; n4 quantum (0,1,1)&gt;(0,1,2) padding offset (0,8) one t7 loop t8
+  n3 -&gt; n6 quantum (0,0,1)&gt;(0,0,2) padding offset (0,0) one t7 loop t8
+  n4 -&gt; n5 quantum (1,1,2)&gt;(1,1,3) padding offset (8,8) one t7 loop t8
+  n6 -&gt; n7 quantum (0,0,2)&gt;(0,0,3) padding offset (0,0) one t7 loop t8
+  n0 -&gt; n1 order
+  n2 -&gt; n3 order
+  n3 -&gt; n4 order
+  n1 -&gt; n4 order
+  n3 -&gt; n6 order
+  n4 -&gt; n5 order
+  n6 -&gt; n7 order
+  n10 -&gt; n11 value 0
+  n18 -&gt; n19 value 0
+  n25 -&gt; n26 value 0
+  n28 -&gt; n29 value 0
+  n5 -&gt; n10 order
+  n5 -&gt; n18 order
+  n4 -&gt; n25 order
+  n7 -&gt; n25 order
+  n7 -&gt; n28 order
+}
+</code></pre></div>
+</div>
+</div><p><a class="reference download internal" download="" href="../_downloads/be70f651d539da561e082c94441e3f5a/quickstart-cnot.bloqir"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">the</span> <span class="pre">CNOT</span> <span class="pre">IR</span></code></a>.</p>
+<h3 id="visualize-the-ir-graph">Visualize the IR graph<a class="headerlink" href="#visualize-the-ir-graph" title="Link to this heading">¶</a></h3>
+<p>Export the graph as SVG, including its classical nodes:</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="3:3">
+<input checked type="radio" id="__tabbed_3_1" name="__tabbed_3"><input type="radio" id="__tabbed_3_2" name="__tabbed_3"><input type="radio" id="__tabbed_3_3" name="__tabbed_3"><div class="tabbed-labels docutils">
+<label class="tabbed-label" for="__tabbed_3_1">
+Python</label><label class="tabbed-label" for="__tabbed_3_2">
+Rust</label><label class="tabbed-label" for="__tabbed_3_3">
+CLI</label></div>
+<div class="tabbed-content docutils">
+<div class="tabbed-block docutils">
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span class="n">Path</span><span class="p">(</span><span class="s2">&quot;cnot.svg&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">cnot_program</span><span class="o">.</span><span class="n">to_svg</span><span class="p">(</span><span class="n">include_classical</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><code><span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;cnot.svg&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">cnot_program</span><span class="p">.</span><span class="n">to_svg</span><span class="p">(</span><span class="kc">true</span><span class="p">))</span><span class="o">?</span><span class="p">;</span>
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>bloq<span class="w"> </span>view<span class="w"> </span>cnot.bloqir<span class="w"> </span>--svg<span class="w"> </span>--include-classical<span class="w"> </span>-o<span class="w"> </span>cnot.svg
+</code></pre></div>
+</div>
+</div>
+</div>
+</div><div class="bloq-output bloq-ir-graph" role="region" aria-label="CNOT IR graph including classical nodes" tabindex="0"><img alt="Compiled CNOT dependency graph including quantum and classical nodes and nested regions." src="../_images/quickstart-cnot-ir.svg" />
+</div><h3 id="optional-emit-to-stim">Optional: emit to Stim<a class="headerlink" href="#optional-emit-to-stim" title="Link to this heading">¶</a></h3>
+<p>Bloq includes a default emitter from static Bloq IR to the Stim backend. It
+translates physical operations and logical readouts into a circuit with detector
+and observable annotations. See <a class="reference internal" href="../backends/emission.html#stim"><span class="std std-ref">Stim emission</span></a> for supported
+IR constructs and emission options.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="4:3">
+<input checked type="radio" id="__tabbed_4_1" name="__tabbed_4"><input type="radio" id="__tabbed_4_2" name="__tabbed_4"><input type="radio" id="__tabbed_4_3" name="__tabbed_4"><div class="tabbed-labels docutils">
+<label class="tabbed-label" for="__tabbed_4_1">
+Python</label><label class="tabbed-label" for="__tabbed_4_2">
+Rust</label><label class="tabbed-label" for="__tabbed_4_3">
+CLI</label></div>
+<div class="tabbed-content docutils">
+<div class="tabbed-block docutils">
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span class="n">circuit</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">emit_stim</span><span class="p">(</span><span class="n">cnot_program</span><span class="p">)</span>
+<span class="n">circuit</span><span class="o">.</span><span class="n">to_file</span><span class="p">(</span><span class="s2">&quot;cnot.stim&quot;</span><span class="p">)</span>
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">stim_text</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">emit_bloq_stim</span><span class="p">(</span><span class="o">&amp;</span><span class="n">cnot_program</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
+<span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;cnot.stim&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">stim_text</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>bloq<span class="w"> </span>emit<span class="w"> </span>cnot.bloqir<span class="w"> </span>-o<span class="w"> </span>cnot.stim
+</code></pre></div>
+</div>
+</div>
+</div>
+</div><p>The following is the emitted noiseless CNOT circuit:</p>
+<div class="bloq-output" role="region" aria-label="Emitted CNOT Stim circuit" tabindex="0"><div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code>QUBIT_COORDS(0, 2) 0
+QUBIT_COORDS(0, 6) 1
+QUBIT_COORDS(0, 10) 2
+QUBIT_COORDS(1, 1) 3
+QUBIT_COORDS(1, 3) 4
+QUBIT_COORDS(1, 5) 5
+QUBIT_COORDS(1, 7) 6
+QUBIT_COORDS(1, 9) 7
+QUBIT_COORDS(1, 11) 8
+QUBIT_COORDS(1, 13) 9
+QUBIT_COORDS(2, 2) 10
+QUBIT_COORDS(2, 4) 11
+QUBIT_COORDS(2, 6) 12
+QUBIT_COORDS(2, 8) 13
+QUBIT_COORDS(2, 10) 14
+QUBIT_COORDS(2, 12) 15
+QUBIT_COORDS(2, 14) 16
+QUBIT_COORDS(3, 1) 17
+QUBIT_COORDS(3, 3) 18
+QUBIT_COORDS(3, 5) 19
+QUBIT_COORDS(3, 7) 20
+QUBIT_COORDS(3, 9) 21
+QUBIT_COORDS(3, 11) 22
+QUBIT_COORDS(3, 13) 23
+QUBIT_COORDS(4, 0) 24
+QUBIT_COORDS(4, 2) 25
+QUBIT_COORDS(4, 4) 26
+QUBIT_COORDS(4, 6) 27
+QUBIT_COORDS(4, 8) 28
+QUBIT_COORDS(4, 10) 29
+QUBIT_COORDS(4, 12) 30
+QUBIT_COORDS(5, 1) 31
+QUBIT_COORDS(5, 3) 32
+QUBIT_COORDS(5, 5) 33
+QUBIT_COORDS(5, 7) 34
+QUBIT_COORDS(5, 9) 35
+QUBIT_COORDS(5, 11) 36
+QUBIT_COORDS(5, 13) 37
+QUBIT_COORDS(6, 4) 38
+QUBIT_COORDS(6, 8) 39
+QUBIT_COORDS(6, 10) 40
+QUBIT_COORDS(6, 12) 41
+QUBIT_COORDS(6, 14) 42
+QUBIT_COORDS(7, 9) 43
+QUBIT_COORDS(7, 11) 44
+QUBIT_COORDS(7, 13) 45
+QUBIT_COORDS(8, 8) 46
+QUBIT_COORDS(8, 10) 47
+QUBIT_COORDS(8, 12) 48
+QUBIT_COORDS(9, 9) 49
+QUBIT_COORDS(9, 11) 50
+QUBIT_COORDS(9, 13) 51
+QUBIT_COORDS(10, 10) 52
+QUBIT_COORDS(10, 12) 53
+QUBIT_COORDS(10, 14) 54
+QUBIT_COORDS(11, 9) 55
+QUBIT_COORDS(11, 11) 56
+QUBIT_COORDS(11, 13) 57
+QUBIT_COORDS(12, 8) 58
+QUBIT_COORDS(12, 10) 59
+QUBIT_COORDS(12, 12) 60
+QUBIT_COORDS(13, 9) 61
+QUBIT_COORDS(13, 11) 62
+QUBIT_COORDS(13, 13) 63
+QUBIT_COORDS(14, 12) 64
+# node 0: quantum blocks (1,1,0)
+OBSERVABLE_INCLUDE(0) X55 X56 X57
+OBSERVABLE_INCLUDE(1) Z50 Z56 Z62
+OBSERVABLE_INCLUDE(2) X55 X56 X57
+MPP X55*X61 Z49*Z50 X49*X50*X55*X56 Z55*Z56*Z61*Z62 Z50*Z51*Z56*Z57 X56*X57*X62*X63 Z62*Z63 X51*X57
+TICK
+# node 1: quantum blocks (1,1,1)
+R 47 59 53 64
+RX 58 52 60 54
+TICK
+CX 58 55 52 50 56 59 51 53 60 57 63 64
+TICK
+CX 58 61 52 56 55 59 50 53 60 63 62 64
+TICK
+CX 50 47 52 49 62 59 57 53 60 56 54 51
+TICK
+CX 49 47 52 55 61 59 56 53 60 62 54 57
+TICK
+M 47 59 53 64
+MX 58 52 60 54
+TICK
+R 47 59 53 64
+RX 58 52 60 54
+TICK
+CX 58 55 52 50 56 59 51 53 60 57 63 64
+TICK
+CX 58 61 52 56 55 59 50 53 60 63 62 64
+TICK
+CX 50 47 52 49 62 59 57 53 60 56 54 51
+TICK
+CX 49 47 52 55 61 59 56 53 60 62 54 57
+TICK
+M 47 59 53 64
+MX 58 52 60 54
+TICK
+R 47 59 53 64
+RX 58 52 60 54
+TICK
+CX 58 55 52 50 56 59 51 53 60 57 63 64
+TICK
+CX 58 61 52 56 55 59 50 53 60 63 62 64
+TICK
+CX 50 47 52 49 62 59 57 53 60 56 54 51
+TICK
+CX 49 47 52 55 61 59 56 53 60 62 54 57
+TICK
+M 47 59 53 64
+MX 58 52 60 54
+DETECTOR(12, 8) rec[-20] rec[-12]
+DETECTOR(8, 10) rec[-24] rec[-16]
+DETECTOR(10, 10) rec[-19] rec[-11]
+DETECTOR(12, 10) rec[-23] rec[-15]
+DETECTOR(10, 12) rec[-22] rec[-14]
+DETECTOR(12, 12) rec[-18] rec[-10]
+DETECTOR(14, 12) rec[-21] rec[-13]
+DETECTOR(10, 14) rec[-17] rec[-9]
+DETECTOR(12, 8) rec[-12] rec[-4]
+DETECTOR(8, 10) rec[-16] rec[-8]
+DETECTOR(10, 10) rec[-11] rec[-3]
+DETECTOR(12, 10) rec[-15] rec[-7]
+DETECTOR(10, 12) rec[-14] rec[-6]
+DETECTOR(12, 12) rec[-10] rec[-2]
+DETECTOR(14, 12) rec[-13] rec[-5]
+DETECTOR(10, 14) rec[-9] rec[-1]
+DETECTOR(8, 10) rec[-31] rec[-24]
+DETECTOR(12, 10) rec[-29] rec[-23]
+DETECTOR(10, 12) rec[-28] rec[-22]
+DETECTOR(14, 12) rec[-26] rec[-21]
+DETECTOR(12, 8) rec[-32] rec[-20]
+DETECTOR(10, 10) rec[-30] rec[-19]
+DETECTOR(12, 12) rec[-27] rec[-18]
+DETECTOR(10, 14) rec[-25] rec[-17]
+TICK
+# node 2: quantum blocks (0,0,0)
+OBSERVABLE_INCLUDE(1) Z4 Z18 Z32
+OBSERVABLE_INCLUDE(2) X17 X18 X19
+OBSERVABLE_INCLUDE(3) Z4 Z18 Z32
+MPP X17*X31 Z3*Z4 X3*X4*X17*X18 Z17*Z18*Z31*Z32 Z4*Z5*Z18*Z19 X18*X19*X32*X33 Z32*Z33 X5*X19
+TICK
+# node 3: quantum blocks (0,0,1) (0,1,1)
+R 0 25 11 38 1 27
+RX 24 10 26 12
+RX 6 20 34
+R 13 39 2 29 15 41
+RX 28 14 30 16
+RX 7 21 35 8 22 36 9 23 37
+TICK
+CX 24 17 10 4 18 25 5 11 26 19 33 38 12 6 20 27
+CX 7 13 28 21 35 39 14 8 22 29 9 15 30 23 37 41
+TICK
+CX 24 31 10 18 17 25 4 11 26 33 32 38 12 20 19 27
+CX 6 13 28 35 34 39 14 22 21 29 8 15 30 37 36 41
+TICK
+CX 4 0 10 3 32 25 19 11 26 18 6 1 12 5 34 27
+CX 21 13 28 20 8 2 14 7 36 29 23 15 30 22 16 9
+TICK
+CX 3 0 10 17 31 25 18 11 26 32 5 1 12 19 33 27
+CX 20 13 28 34 7 2 14 21 35 29 22 15 30 36 16 23
+TICK
+M 0 25 11 38 1 27
+MX 24 10 26 12
+M 13 39 2 29 15 41
+MX 28 14 30 16
+TICK
+R 0 25 11 38 1 27
+RX 24 10 26 12
+R 13 39 2 29 15 41
+RX 28 14 30 16
+TICK
+CX 24 17 10 4 18 25 5 11 26 19 33 38 12 6 20 27
+CX 7 13 28 21 35 39 14 8 22 29 9 15 30 23 37 41
+TICK
+CX 24 31 10 18 17 25 4 11 26 33 32 38 12 20 19 27
+CX 6 13 28 35 34 39 14 22 21 29 8 15 30 37 36 41
+TICK
+CX 4 0 10 3 32 25 19 11 26 18 6 1 12 5 34 27
+CX 21 13 28 20 8 2 14 7 36 29 23 15 30 22 16 9
+TICK
+CX 3 0 10 17 31 25 18 11 26 32 5 1 12 19 33 27
+CX 20 13 28 34 7 2 14 21 35 29 22 15 30 36 16 23
+TICK
+M 0 25 11 38 1 27
+MX 24 10 26 12
+M 13 39 2 29 15 41
+MX 28 14 30 16
+TICK
+R 0 25 11 38 1 27
+RX 24 10 26 12
+R 13 39 2 29 15 41
+RX 28 14 30 16
+TICK
+CX 24 17 10 4 18 25 5 11 26 19 33 38 12 6 20 27
+CX 7 13 28 21 35 39 14 8 22 29 9 15 30 23 37 41
+TICK
+CX 24 31 10 18 17 25 4 11 26 33 32 38 12 20 19 27
+CX 6 13 28 35 34 39 14 22 21 29 8 15 30 37 36 41
+TICK
+CX 4 0 10 3 32 25 19 11 26 18 6 1 12 5 34 27
+CX 21 13 28 20 8 2 14 7 36 29 23 15 30 22 16 9
+TICK
+CX 3 0 10 17 31 25 18 11 26 32 5 1 12 19 33 27
+CX 20 13 28 34 7 2 14 21 35 29 22 15 30 36 16 23
+TICK
+M 0 25 11 38 1 27
+MX 24 10 26 12
+MX 6 20 34
+M 13 39 2 29 15 41
+MX 28 14 30 16
+DETECTOR(4, 0) rec[-57] rec[-37]
+DETECTOR(0, 2) rec[-63] rec[-43]
+DETECTOR(2, 2) rec[-56] rec[-36]
+DETECTOR(4, 2) rec[-62] rec[-42]
+DETECTOR(2, 4) rec[-61] rec[-41]
+DETECTOR(4, 4) rec[-55] rec[-35]
+DETECTOR(6, 4) rec[-60] rec[-40]
+DETECTOR(0, 6) rec[-59] rec[-39]
+DETECTOR(2, 6) rec[-54] rec[-34]
+DETECTOR(4, 6) rec[-58] rec[-38]
+DETECTOR(4, 0) rec[-37] rec[-17]
+DETECTOR(0, 2) rec[-43] rec[-23]
+DETECTOR(2, 2) rec[-36] rec[-16]
+DETECTOR(4, 2) rec[-42] rec[-22]
+DETECTOR(2, 4) rec[-41] rec[-21]
+DETECTOR(4, 4) rec[-35] rec[-15]
+DETECTOR(6, 4) rec[-40] rec[-20]
+DETECTOR(0, 6) rec[-39] rec[-19]
+DETECTOR(2, 6) rec[-34] rec[-14]
+DETECTOR(4, 6) rec[-38] rec[-18]
+DETECTOR(4, 8) rec[-47]
+DETECTOR(2, 10) rec[-46]
+DETECTOR(4, 12) rec[-45]
+DETECTOR(2, 14) rec[-44]
+DETECTOR(2, 8) rec[-53] rec[-33]
+DETECTOR(4, 8) rec[-47] rec[-27]
+DETECTOR(6, 8) rec[-52] rec[-32]
+DETECTOR(0, 10) rec[-51] rec[-31]
+DETECTOR(2, 10) rec[-46] rec[-26]
+DETECTOR(4, 10) rec[-50] rec[-30]
+DETECTOR(2, 12) rec[-49] rec[-29]
+DETECTOR(4, 12) rec[-45] rec[-25]
+DETECTOR(6, 12) rec[-48] rec[-28]
+DETECTOR(2, 14) rec[-44] rec[-24]
+DETECTOR(2, 8) rec[-33] rec[-10]
+DETECTOR(4, 8) rec[-27] rec[-4]
+DETECTOR(6, 8) rec[-32] rec[-9]
+DETECTOR(0, 10) rec[-31] rec[-8]
+DETECTOR(2, 10) rec[-26] rec[-3]
+DETECTOR(4, 10) rec[-30] rec[-7]
+DETECTOR(2, 12) rec[-29] rec[-6]
+DETECTOR(4, 12) rec[-25] rec[-2]
+DETECTOR(6, 12) rec[-28] rec[-5]
+DETECTOR(2, 14) rec[-24] rec[-1]
+DETECTOR(0, 2) rec[-70] rec[-63]
+DETECTOR(4, 2) rec[-68] rec[-62]
+DETECTOR(2, 4) rec[-67] rec[-61]
+DETECTOR(6, 4) rec[-65] rec[-60]
+DETECTOR(4, 0) rec[-71] rec[-57]
+DETECTOR(2, 2) rec[-69] rec[-56]
+DETECTOR(4, 4) rec[-66] rec[-55]
+DETECTOR(2, 6) rec[-64] rec[-54]
+TICK
+# node 4: quantum blocks (0,1,2) (1,1,2)
+R 2 29 15 41
+RX 28 14 40 30 16 42
+R 43 44 45
+R 47 59 53 64
+RX 46 58 52 48 60 54
+TICK
+CX 28 21 14 8 22 29 40 36 9 15 30 23 37 41
+CX 46 43 58 55 44 47 52 50 56 59 48 45 51 53 60 57 63 64
+TICK
+CX 28 35 14 22 21 29 40 44 8 15 30 37 36 41
+CX 46 49 58 61 43 47 52 56 55 59 48 51 50 53 60 63 62 64
+TICK
+CX 8 2 14 7 36 29 40 35 23 15 30 22 45 41 16 9 42 37
+CX 50 47 52 49 62 59 48 44 57 53 60 56 54 51
+TICK
+CX 7 2 14 21 35 29 40 43 22 15 30 36 44 41 16 23 42 45
+CX 49 47 52 55 61 59 48 50 56 53 60 62 54 57
+TICK
+M 2 29 15 41
+MX 28 14 40 30 16 42
+M 47 59 53 64
+MX 46 58 52 48 60 54
+TICK
+R 2 29 15 41
+RX 28 14 40 30 16 42
+R 47 59 53 64
+RX 46 58 52 48 60 54
+TICK
+CX 28 21 14 8 22 29 40 36 9 15 30 23 37 41
+CX 46 43 58 55 44 47 52 50 56 59 48 45 51 53 60 57 63 64
+TICK
+CX 28 35 14 22 21 29 40 44 8 15 30 37 36 41
+CX 46 49 58 61 43 47 52 56 55 59 48 51 50 53 60 63 62 64
+TICK
+CX 8 2 14 7 36 29 40 35 23 15 30 22 45 41 16 9 42 37
+CX 50 47 52 49 62 59 48 44 57 53 60 56 54 51
+TICK
+CX 7 2 14 21 35 29 40 43 22 15 30 36 44 41 16 23 42 45
+CX 49 47 52 55 61 59 48 50 56 53 60 62 54 57
+TICK
+M 2 29 15 41
+MX 28 14 40 30 16 42
+M 47 59 53 64
+MX 46 58 52 48 60 54
+TICK
+R 2 29 15 41
+RX 28 14 40 30 16 42
+R 47 59 53 64
+RX 46 58 52 48 60 54
+TICK
+CX 28 21 14 8 22 29 40 36 9 15 30 23 37 41
+CX 46 43 58 55 44 47 52 50 56 59 48 45 51 53 60 57 63 64
+TICK
+CX 28 35 14 22 21 29 40 44 8 15 30 37 36 41
+CX 46 49 58 61 43 47 52 56 55 59 48 51 50 53 60 63 62 64
+TICK
+CX 8 2 14 7 36 29 40 35 23 15 30 22 45 41 16 9 42 37
+CX 50 47 52 49 62 59 48 44 57 53 60 56 54 51
+TICK
+CX 7 2 14 21 35 29 40 43 22 15 30 36 44 41 16 23 42 45
+CX 49 47 52 55 61 59 48 50 56 53 60 62 54 57
+TICK
+M 2 29 15 41
+MX 28 14 40 30 16 42
+M 7 21 35 43 8 22 36 44 9 23 37 45
+M 47 59 53 64
+MX 46 58 52 48 60 54
+DETECTOR(4, 8) rec[-68] rec[-48]
+DETECTOR(0, 10) rec[-72] rec[-52]
+DETECTOR(2, 10) rec[-67] rec[-47]
+DETECTOR(4, 10) rec[-71] rec[-51]
+DETECTOR(6, 10) rec[-66] rec[-46]
+DETECTOR(2, 12) rec[-70] rec[-50]
+DETECTOR(4, 12) rec[-65] rec[-45]
+DETECTOR(6, 12) rec[-69] rec[-49]
+DETECTOR(2, 14) rec[-64] rec[-44]
+DETECTOR(6, 14) rec[-63] rec[-43]
+DETECTOR(4, 8) rec[-48] rec[-28]
+DETECTOR(0, 10) rec[-52] rec[-32]
+DETECTOR(2, 10) rec[-47] rec[-27]
+DETECTOR(4, 10) rec[-51] rec[-31]
+DETECTOR(6, 10) rec[-46] rec[-26]
+DETECTOR(2, 12) rec[-50] rec[-30]
+DETECTOR(4, 12) rec[-45] rec[-25]
+DETECTOR(6, 12) rec[-49] rec[-29]
+DETECTOR(2, 14) rec[-44] rec[-24]
+DETECTOR(6, 14) rec[-43] rec[-23]
+DETECTOR(0, 10) rec[-32] rec[-22] rec[-18]
+DETECTOR(4, 10) rec[-31] rec[-21] rec[-20] rec[-17] rec[-16]
+DETECTOR(2, 12) rec[-30] rec[-18] rec[-17] rec[-14] rec[-13]
+DETECTOR(6, 12) rec[-29] rec[-16] rec[-15] rec[-12] rec[-11]
+DETECTOR(8, 8) rec[-58] rec[-38]
+DETECTOR(12, 8) rec[-57] rec[-37]
+DETECTOR(8, 10) rec[-62] rec[-42]
+DETECTOR(10, 10) rec[-56] rec[-36]
+DETECTOR(12, 10) rec[-61] rec[-41]
+DETECTOR(8, 12) rec[-55] rec[-35]
+DETECTOR(10, 12) rec[-60] rec[-40]
+DETECTOR(12, 12) rec[-54] rec[-34]
+DETECTOR(14, 12) rec[-59] rec[-39]
+DETECTOR(10, 14) rec[-53] rec[-33]
+DETECTOR(8, 8) rec[-38] rec[-6]
+DETECTOR(12, 8) rec[-37] rec[-5]
+DETECTOR(8, 10) rec[-42] rec[-10]
+DETECTOR(10, 10) rec[-36] rec[-4]
+DETECTOR(12, 10) rec[-41] rec[-9]
+DETECTOR(8, 12) rec[-35] rec[-3]
+DETECTOR(10, 12) rec[-40] rec[-8]
+DETECTOR(12, 12) rec[-34] rec[-2]
+DETECTOR(14, 12) rec[-39] rec[-7]
+DETECTOR(10, 14) rec[-33] rec[-1]
+DETECTOR(0, 10) rec[-80] rec[-72]
+DETECTOR(4, 10) rec[-79] rec[-71]
+DETECTOR(2, 12) rec[-78] rec[-70]
+DETECTOR(6, 12) rec[-77] rec[-69]
+DETECTOR(4, 8) rec[-84] rec[-83] rec[-76] rec[-68]
+DETECTOR(2, 10) rec[-75] rec[-67]
+DETECTOR(4, 12) rec[-74] rec[-65]
+DETECTOR(2, 14) rec[-73] rec[-64]
+DETECTOR(8, 10) rec[-151] rec[-62]
+DETECTOR(12, 10) rec[-150] rec[-61]
+DETECTOR(10, 12) rec[-149] rec[-60]
+DETECTOR(14, 12) rec[-148] rec[-59]
+DETECTOR(12, 8) rec[-147] rec[-57]
+DETECTOR(10, 10) rec[-146] rec[-56]
+DETECTOR(12, 12) rec[-145] rec[-54]
+DETECTOR(10, 14) rec[-144] rec[-53]
+TICK
+# node 5: quantum blocks (1,1,3)
+MPP X55*X61 Z49*Z50 X49*X50*X55*X56 Z55*Z56*Z61*Z62 Z50*Z51*Z56*Z57 X56*X57*X62*X63 Z62*Z63 X51*X57
+DETECTOR(12, 8) rec[-13] rec[-8]
+DETECTOR(8, 10) rec[-27] rec[-23] rec[-18] rec[-7]
+DETECTOR(10, 10) rec[-12] rec[-6]
+DETECTOR(12, 10) rec[-17] rec[-5]
+DETECTOR(10, 12) rec[-16] rec[-4]
+DETECTOR(12, 12) rec[-10] rec[-3]
+DETECTOR(14, 12) rec[-15] rec[-2]
+DETECTOR(10, 14) rec[-9] rec[-1]
+TICK
+OBSERVABLE_INCLUDE(0) X55 X56 X57
+OBSERVABLE_INCLUDE(1) Z50 Z56 Z62
+# node 6: quantum blocks (0,0,2)
+R 0 25 11 38
+RX 24 10 26 12
+TICK
+CX 24 17 10 4 18 25 5 11 26 19 33 38
+TICK
+CX 24 31 10 18 17 25 4 11 26 33 32 38
+TICK
+CX 4 0 10 3 32 25 19 11 26 18 12 5
+TICK
+CX 3 0 10 17 31 25 18 11 26 32 12 19
+TICK
+M 0 25 11 38
+MX 24 10 26 12
+TICK
+R 0 25 11 38
+RX 24 10 26 12
+TICK
+CX 24 17 10 4 18 25 5 11 26 19 33 38
+TICK
+CX 24 31 10 18 17 25 4 11 26 33 32 38
+TICK
+CX 4 0 10 3 32 25 19 11 26 18 12 5
+TICK
+CX 3 0 10 17 31 25 18 11 26 32 12 19
+TICK
+M 0 25 11 38
+MX 24 10 26 12
+TICK
+R 0 25 11 38
+RX 24 10 26 12
+TICK
+CX 24 17 10 4 18 25 5 11 26 19 33 38
+TICK
+CX 24 31 10 18 17 25 4 11 26 33 32 38
+TICK
+CX 4 0 10 3 32 25 19 11 26 18 12 5
+TICK
+CX 3 0 10 17 31 25 18 11 26 32 12 19
+TICK
+M 0 25 11 38
+MX 24 10 26 12
+DETECTOR(4, 0) rec[-20] rec[-12]
+DETECTOR(0, 2) rec[-24] rec[-16]
+DETECTOR(2, 2) rec[-19] rec[-11]
+DETECTOR(4, 2) rec[-23] rec[-15]
+DETECTOR(2, 4) rec[-22] rec[-14]
+DETECTOR(4, 4) rec[-18] rec[-10]
+DETECTOR(6, 4) rec[-21] rec[-13]
+DETECTOR(2, 6) rec[-17] rec[-9]
+DETECTOR(4, 0) rec[-12] rec[-4]
+DETECTOR(0, 2) rec[-16] rec[-8]
+DETECTOR(2, 2) rec[-11] rec[-3]
+DETECTOR(4, 2) rec[-15] rec[-7]
+DETECTOR(2, 4) rec[-14] rec[-6]
+DETECTOR(4, 4) rec[-10] rec[-2]
+DETECTOR(6, 4) rec[-13] rec[-5]
+DETECTOR(2, 6) rec[-9] rec[-1]
+DETECTOR(0, 2) rec[-127] rec[-24]
+DETECTOR(4, 2) rec[-126] rec[-23]
+DETECTOR(2, 4) rec[-125] rec[-22]
+DETECTOR(6, 4) rec[-124] rec[-21]
+DETECTOR(4, 0) rec[-121] rec[-20]
+DETECTOR(2, 2) rec[-120] rec[-19]
+DETECTOR(4, 4) rec[-119] rec[-18]
+DETECTOR(2, 6) rec[-118] rec[-117] rec[-116] rec[-17]
+TICK
+# node 7: quantum blocks (0,0,3)
+MPP X17*X31 Z3*Z4 X3*X4*X17*X18 Z17*Z18*Z31*Z32 Z4*Z5*Z18*Z19 X18*X19*X32*X33 Z32*Z33 X5*X19
+DETECTOR(4, 0) rec[-12] rec[-8]
+DETECTOR(0, 2) rec[-16] rec[-7]
+DETECTOR(2, 2) rec[-11] rec[-6]
+DETECTOR(4, 2) rec[-15] rec[-5]
+DETECTOR(2, 4) rec[-14] rec[-4]
+DETECTOR(4, 4) rec[-10] rec[-3]
+DETECTOR(6, 4) rec[-13] rec[-2]
+DETECTOR(2, 6) rec[-9] rec[-1]
+TICK
+OBSERVABLE_INCLUDE(2) X17 X18 X19
+OBSERVABLE_INCLUDE(3) Z4 Z18 Z32
+# node 18: observable 1 generator 1
+OBSERVABLE_INCLUDE(1) rec[-173] rec[-172] rec[-171] rec[-170] rec[-165] rec[-164] rec[-163] rec[-162] rec[-58] rec[-57] rec[-56] rec[-55]
+# node 25: observable 2 generator 2
+OBSERVABLE_INCLUDE(2) rec[-124] rec[-108] rec[-106] rec[-105] rec[-103] rec[-98] rec[-96] rec[-95] rec[-93]
+</code></pre></div>
+</div>
+</div><p><a class="reference download internal" download="" href="../_downloads/1dc4fbad16fdcdb866c83e013ea0722d/quickstart-cnot.stim"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">the</span> <span class="pre">Stim</span> <span class="pre">circuit</span></code></a>.</p>
+<h2 id="dynamic-logical-t-gate">Dynamic Logical T Gate<a class="headerlink" href="#dynamic-logical-t-gate" title="Link to this heading">¶</a></h2>
+<h3 id="id1">Load the gallery graph<a class="headerlink" href="#id1" title="Link to this heading">¶</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">t_gate</span></code> implements a logical T gate using a cultivated T resource state
+and gate teleportation. It demonstrates dynamic features: a repeat-until-success
+cultivation protocol and measurement-basis selection conditioned on a logical
+measurement result.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="5:3">
+<input checked type="radio" id="__tabbed_5_1" name="__tabbed_5"><input type="radio" id="__tabbed_5_2" name="__tabbed_5"><input type="radio" id="__tabbed_5_3" name="__tabbed_5"><div class="tabbed-labels docutils">
+<label class="tabbed-label" for="__tabbed_5_1">
+Python</label><label class="tabbed-label" for="__tabbed_5_2">
+Rust</label><label class="tabbed-label" for="__tabbed_5_3">
+CLI</label></div>
+<div class="tabbed-content docutils">
+<div class="tabbed-block docutils">
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span class="n">t_gate</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">GalleryItem</span><span class="o">.</span><span class="n">T_GATE</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">t_gate</span><span class="o">.</span><span class="n">to_text</span><span class="p">())</span>
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">t_gate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">GalleryItem</span><span class="p">::</span><span class="n">T</span><span class="p">.</span><span class="n">build</span><span class="p">();</span>
+<span class="fm">println!</span><span class="p">(</span><span class="s">&quot;{}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">t_gate</span><span class="p">.</span><span class="n">to_blog_text</span><span class="p">());</span>
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>bloq<span class="w"> </span>view<span class="w"> </span>--gallery<span class="w"> </span>t_gate<span class="w"> </span>--html
+</code></pre></div>
+</div>
+<p>Open <code class="docutils literal notranslate"><span class="pre">t_gate.html</span></code> to inspect the gallery graph.</p>
+</div>
+</div>
+</div><div class="bloq-example-layout docutils container">
+<div class="highlight-blog notranslate"><div class="highlight"><pre><span></span><code><span class="k">BLOG</span> <span class="m">1.0</span>
+
+<span class="k">module</span> <span class="n">main</span> <span class="p">{</span>
+  <span class="k">in</span> <span class="n">q_in</span><span class="p">:</span> <span class="n">data</span> <span class="o">=</span> <span class="m">0</span>
+  <span class="k">out</span> <span class="n">q_out</span><span class="p">:</span> <span class="n">data</span> <span class="o">=</span> <span class="m">2</span>
+
+  <span class="m">0</span><span class="p">:</span> <span class="kt">Port</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="m">0</span><span class="p">]</span>
+  <span class="m">1</span><span class="p">:</span> <span class="kt">XZX</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="m">1</span><span class="p">]</span>
+  <span class="m">2</span><span class="p">:</span> <span class="kt">Port</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="m">2</span><span class="p">]</span>
+  <span class="m">3</span><span class="p">:</span> <span class="kt">T</span> <span class="p">[</span><span class="m">1</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="m">0</span><span class="p">]</span>
+  <span class="m">4</span><span class="p">:</span> <span class="kt">XZX</span> <span class="p">[</span><span class="m">1</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="m">1</span><span class="p">]</span>
+  <span class="m">5</span><span class="p">:</span> <span class="kt">XY</span> <span class="p">[</span><span class="m">1</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="m">2</span><span class="p">]</span>
+  <span class="m">0</span> <span class="o">-&gt;</span> <span class="no">+Z</span>
+  <span class="m">1</span> <span class="o">-&gt;</span> <span class="no">+Z</span>
+  <span class="m">1</span> <span class="o">-&gt;</span> <span class="no">+X</span>
+  <span class="m">3</span> <span class="o">-&gt;</span> <span class="no">+Z</span>
+  <span class="m">5</span> <span class="o">-&gt;</span> <span class="no">-Z</span>
+
+  <span class="n">mzz</span> <span class="o">=</span> <span class="k">measure</span> <span class="m">1</span> <span class="o">-&gt;</span> <span class="no">+X</span>
+  <span class="k">resolve</span> <span class="m">5</span> <span class="k">if</span> <span class="o">!</span><span class="n">mzz</span>
+
+<span class="p">}</span>
+</code></pre></div>
+</div>
+<div class="bloq-example-render docutils container">
+<iframe class="bloq-block-view" src="../_static/block-graphs/t_gate.html" title="Interactive t gate block graph" loading="lazy" allowfullscreen></iframe></div>
+</div>
+<h3 id="id2">Compile to Bloq IR<a class="headerlink" href="#id2" title="Link to this heading">¶</a></h3>
+<div class="tabbed-set tabbed-alternate" data-tabs="6:3">
+<input checked type="radio" id="__tabbed_6_1" name="__tabbed_6"><input type="radio" id="__tabbed_6_2" name="__tabbed_6"><input type="radio" id="__tabbed_6_3" name="__tabbed_6"><div class="tabbed-labels docutils">
+<label class="tabbed-label" for="__tabbed_6_1">
+Python</label><label class="tabbed-label" for="__tabbed_6_2">
+Rust</label><label class="tabbed-label" for="__tabbed_6_3">
+CLI</label></div>
+<div class="tabbed-content docutils">
+<div class="tabbed-block docutils">
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span class="n">t_program</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">t_gate</span><span class="p">,</span> <span class="n">distance</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<span class="n">t_program</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;t-gate.bloqir&quot;</span><span class="p">)</span>
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">t_program</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">compile</span><span class="p">(</span><span class="o">&amp;</span><span class="n">t_gate</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
+<span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;t-gate.bloqir&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">t_program</span><span class="p">.</span><span class="n">to_text</span><span class="p">())</span><span class="o">?</span><span class="p">;</span>
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>bloq<span class="w"> </span>compile<span class="w"> </span>--gallery<span class="w"> </span>t_gate<span class="w"> </span>-d<span class="w"> </span><span class="m">3</span><span class="w"> </span>--backend<span class="w"> </span>ir-text<span class="w"> </span>-o<span class="w"> </span>t-gate.bloqir
+</code></pre></div>
+</div>
+</div>
+</div>
+</div><p>The resulting IR retains runtime control alongside physical circuits:</p>
+<div class="bloq-output" role="region" aria-label="Compiled dynamic T gate Bloq IR" tabindex="0"><div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code>BLOQIR 1
+metadata bloq_compile.code_distance u64 3
+metadata bloq_compile.convention string fixed-bulk
+logical-input (0,0,0) instance i2 x X(1,3)*X(3,3)*X(5,3) z Z(3,1)*Z(3,3)*Z(3,5)
+logical-output (0,0,2) instance i7 x X(1,3)*X(3,3)*X(5,3) z Z(3,1)*Z(3,3)*Z(3,5)
+
+template t0 {
+  circuit {
+    RX (5,-3) (3,-3) (3,-1) (1,-3) (6,-4) (3,-5) (5,-1) (2,-4) (2,-6) (0,-2)
+    R (4,-4) (4,-2) (2,-2)
+    TICK
+    CX (5,-3) (4,-4) (3,-3) (4,-2) (3,-1) (2,-2)
+    TICK
+    CX (5,-3) (4,-2) (3,-3) (2,-2)
+    TICK
+    CX (3,-3) (4,-4) (3,-1) (4,-2) (1,-3) (2,-2) (6,-4) (5,-3)
+    TICK
+    CX (3,-5) (4,-4) (5,-1) (4,-2) (2,-4) (1,-3) (5,-3) (6,-4)
+    TICK
+    CX (2,-4) (3,-5) (4,-2) (5,-1) (2,-2) (1,-3)
+    TICK
+    CX (4,-4) (3,-5) (1,-3) (2,-4)
+    TICK
+    CX (3,-5) (2,-4)
+    TICK
+    T (2,-4)
+    TICK
+    CX (3,-5) (2,-4)
+    TICK
+    CX (1,-3) (2,-4)
+    TICK
+    CX (2,-6) (3,-5) (0,-2) (1,-3)
+    TICK
+    CX (3,-5) (2,-6) (1,-3) (0,-2)
+    TICK
+    RX (1,-3)
+    R (2,-2) (1,-1)
+    RX (4,-2)
+    R (5,-3)
+    RX (3,-5)
+    R (4,-4) (5,-5)
+    TICK
+    CX (0,-2) (1,-1) (1,-3) (2,-2) (4,-2) (5,-3) (3,-5) (4,-4) (6,-4) (5,-5)
+    TICK
+    CX (3,-1) (2,-2) (0,-2) (1,-3) (5,-1) (4,-2) (6,-4) (5,-3) (2,-6) (3,-5) (3,-3) (4,-4)
+    TICK
+    CX (1,-1) (0,-2) (3,-3) (4,-2) (2,-4) (3,-5) (5,-5) (6,-4)
+    TICK
+    CX (2,-4) (1,-3) (3,-3) (2,-2) (3,-1) (4,-2) (5,-5) (4,-4)
+    TICK
+    CX (1,-3) (2,-4) (2,-2) (3,-3) (4,-2) (3,-1) (4,-4) (5,-5)
+    TICK
+    CX (2,-2) (3,-1) (4,-2) (3,-3) (3,-5) (2,-6) (6,-4) (5,-5)
+    TICK
+    CX (2,-2) (1,-1) (4,-2) (5,-1) (5,-3) (6,-4) (3,-5) (2,-4) (4,-4) (3,-3)
+    TICK
+    CX (1,-3) (2,-2) (4,-2) (5,-3) (3,-5) (4,-4) (5,-5) (6,-4)
+    TICK
+    MX (1,-3):m0
+    M (2,-2):m1
+    M (0,-2):m2
+    MX (4,-2):m3
+    M (5,-3):m4
+    MX (3,-5):m5
+    M (4,-4):m6
+    MX (5,-5):m7
+    TICK
+    RX (3,-5) (4,-4) (5,-3) (4,-2) (1,-3) (2,-2)
+    TICK
+    T (3,-3) (1,-1) (6,-4) (5,-1) (2,-4) (3,-1) (2,-6)
+    TICK
+    CX (3,-5) (2,-6) (4,-4) (3,-3) (5,-3) (6,-4) (4,-2) (5,-1) (1,-3) (2,-4) (2,-2) (1,-1)
+    TICK
+    CX (2,-4) (3,-5) (4,-2) (5,-3) (3,-3) (2,-2)
+    TICK
+    CX (3,-3) (2,-4) (4,-2) (3,-1)
+    TICK
+    CX (3,-3) (4,-2)
+    TICK
+    MX (3,-3):m8
+    TICK
+    RX (3,-3)
+    TICK
+    CX (3,-3) (4,-2)
+    TICK
+    CX (3,-3) (2,-4) (4,-2) (3,-1)
+    TICK
+    CX (2,-4) (3,-5) (4,-2) (5,-3) (3,-3) (2,-2)
+    TICK
+    CX (3,-5) (2,-6) (4,-4) (3,-3) (5,-3) (6,-4) (4,-2) (5,-1) (1,-3) (2,-4) (2,-2) (1,-1)
+    TICK
+    T_DAG (3,-3) (1,-1) (6,-4) (5,-1) (2,-4) (3,-1) (2,-6)
+    TICK
+    MX (3,-5):m9
+    MX (4,-4):m10
+    MX (5,-3):m11
+    MX (4,-2):m12
+    MX (1,-3):m13
+    MX (2,-2):m14
+  }
+  flow _ -&gt; Z(3,-3)*Z(3,-1)*Z(5,-1)*Z(6,-4) restart
+  flow _ -&gt; Z(2,-6)*Z(2,-4)*Z(3,-3)*Z(6,-4) meas m1*m4*m6 restart
+  flow _ -&gt; Z(1,-1)*Z(2,-4)*Z(3,-3)*Z(3,-1) meas m6 restart
+  flow _ -&gt; X(1,-1)*X(2,-4)*X(3,-3)*X(3,-1) meas m8*m0 restart
+  flow _ -&gt; X(3,-3)*X(3,-1)*X(5,-1)*X(6,-4) meas m8*m3 restart
+  flow _ -&gt; X(2,-6)*X(2,-4)*X(3,-3)*X(6,-4) meas m8*m5*m7 restart
+  restart m0
+  restart m1
+  restart m3*m7
+  restart m4
+  restart m5
+  restart m6
+  restart m2
+  restart m1*m4*m7*m8
+  restart m9
+  restart m11
+  restart m12
+  restart m13
+  restart m14
+  restart m8*m10
+}
+
+template t1 {
+  circuit {
+    R (1,-3) (4,-2) (3,-5) (1,1) (3,1) (5,1) (1,3) (3,3) (5,3) (1,5) (3,5) (5,5) (4,2) (2,4) (4,6)
+    RX (2,-2) (5,-3) (4,-4) (5,-5) (2,0) (4,0) (2,2) (6,2) (0,4) (4,4)
+    TICK
+    CX (2,-2) (1,-3) (5,-3) (4,-2) (4,-4) (3,-5) (5,-5) (6,-4) (4,0) (3,-1) (2,2) (1,1) (3,1) (4,2) (6,2) (5,1) (1,3) (2,4) (4,4) (3,3) (3,5) (4,6)
+    TICK
+    CX (2,-2) (3,-1) (4,-2) (3,-3) (5,-3) (6,-4) (3,-5) (2,-6) (2,0) (1,-1) (4,0) (3,1) (2,2) (1,3) (5,1) (4,2) (6,2) (5,3) (3,3) (2,4) (4,4) (3,5) (5,5) (4,6)
+    TICK
+    CX (2,-2) (1,-1) (4,-2) (3,-1) (3,-5) (2,-4) (4,-4) (3,-3) (6,-4) (5,-5) (2,0) (1,1) (4,0) (5,-1) (2,2) (3,1) (3,3) (4,2) (0,4) (1,3) (1,5) (2,4) (4,4) (5,3)
+    TICK
+    CX (1,-3) (2,-4) (2,-2) (3,-3) (4,-2) (5,-1) (4,-4) (5,-5) (4,0) (5,1) (2,2) (3,3) (5,3) (4,2) (0,4) (1,5) (3,5) (2,4) (4,4) (5,5)
+    TICK
+    CX (2,-2) (1,-3) (3,-1) (4,-2) (5,-5) (4,-4)
+    TICK
+    MX (2,0):m0 (2,-2):m1 (4,0):m2 (2,2):m3 (6,2):m4 (0,4):m5 (4,4):m6
+    M (1,-3):m7 (4,2):m8 (2,4):m9 (4,6):m10
+    TICK
+    R (1,-3) (4,2) (2,4) (4,6)
+    RX (2,-2) (0,0) (2,0) (4,0) (2,2) (6,2) (0,4) (4,4)
+    TICK
+    CX (3,-3) (4,-2) (2,-6) (3,-5) (5,-5) (6,-4) (2,-2) (1,-3) (0,0) (1,-1) (4,0) (3,-1) (2,2) (1,1) (3,1) (4,2) (6,2) (5,1) (1,3) (2,4) (4,4) (3,3) (3,5) (4,6)
+    TICK
+    CX (5,-1) (4,-2) (6,-4) (5,-3) (2,-4) (3,-5) (3,-3) (4,-4) (0,0) (1,1) (2,-2) (1,-1) (4,0) (3,1) (2,2) (1,3) (5,1) (4,2) (6,2) (5,3) (3,3) (2,4) (4,4) (3,5) (5,5) (4,6)
+    TICK
+    CX (5,-3) (4,-2) (4,-4) (3,-5) (6,-4) (5,-5) (1,-3) (2,-4) (2,-2) (3,-3) (2,0) (1,-1) (4,0) (5,-1) (2,2) (3,1) (3,3) (4,2) (0,4) (1,3) (1,5) (2,4) (4,4) (5,3)
+    TICK
+    CX (2,-2) (3,-1) (2,0) (1,1) (4,0) (5,1) (2,2) (3,3) (5,3) (4,2) (0,4) (1,5) (3,5) (2,4) (4,4) (5,5)
+    TICK
+    CX (2,-2) (1,-3)
+    TICK
+    M (4,-2):m11 (3,-5):m12 (5,-5):m13 (1,-3):m14 (1,-1):m15 (4,2):m16 (2,4):m17 (4,6):m18
+    MX (5,-3):m19 (4,-4):m20 (0,0):m21 (2,0):m22 (2,-2):m23 (4,0):m24 (2,2):m25 (6,2):m26 (0,4):m27 (4,4):m28
+    TICK
+    R (4,-2) (3,-5) (2,0) (4,2) (2,4) (4,6)
+    RX (5,-3) (4,-4) (5,-5) (4,0) (2,2) (6,2) (0,4) (4,4)
+    TICK
+    CX (5,-3) (4,-2) (4,-4) (3,-5) (5,-5) (6,-4) (4,0) (3,-1) (2,2) (1,1) (3,1) (4,2) (6,2) (5,1) (1,3) (2,4) (4,4) (3,3) (3,5) (4,6)
+    TICK
+    CX (3,-5) (2,-6) (4,-4) (3,-3) (4,-2) (3,-1) (4,0) (3,1) (2,2) (1,3) (5,1) (4,2) (6,2) (5,3) (3,3) (2,4) (4,4) (3,5) (5,5) (4,6)
+    TICK
+    CX (1,1) (2,0) (3,-5) (2,-4) (4,-4) (5,-5) (4,-2) (3,-3) (5,-3) (6,-4) (4,0) (5,-1) (2,2) (3,1) (3,3) (4,2) (0,4) (1,3) (1,5) (2,4) (4,4) (5,3)
+    TICK
+    CX (3,1) (2,0) (4,-2) (5,-1) (4,-4) (3,-5) (4,0) (5,1) (2,2) (3,3) (5,3) (4,2) (0,4) (1,5) (3,5) (2,4) (4,4) (5,5)
+    TICK
+    CX (5,-3) (4,-2)
+    TICK
+    MX (4,-4):m29 (5,-3):m30 (4,0):m31 (2,2):m32 (6,2):m33 (0,4):m34 (4,4):m35
+    M (3,-3):m36 (6,-4):m37 (5,-5):m38 (2,-4):m39 (3,-1):m40 (2,-6):m41 (5,-1):m42 (3,-5):m43 (4,-2):m44 (2,0):m45 (4,2):m46 (2,4):m47 (4,6):m48
+    TICK
+    R (2,0) (4,2) (2,4) (4,6)
+    RX (2,2) (6,2) (0,4) (4,4)
+    TICK
+    CX (1,1) (2,0) (2,2) (1,3) (3,3) (4,2) (6,2) (5,3) (1,5) (2,4) (4,4) (3,5)
+    TICK
+    CX (3,1) (2,0) (2,2) (1,1) (5,3) (4,2) (6,2) (5,1) (3,5) (2,4) (4,4) (3,3)
+    TICK
+    CX (2,2) (3,3) (3,1) (4,2) (0,4) (1,5) (1,3) (2,4) (4,4) (5,5) (3,5) (4,6)
+    TICK
+    CX (2,2) (3,1) (5,1) (4,2) (0,4) (1,3) (3,3) (2,4) (4,4) (5,3) (5,5) (4,6)
+    TICK
+    M (2,0):m49 (4,2):m50 (2,4):m51 (4,6):m52
+    MX (2,2):m53 (6,2):m54 (0,4):m55 (4,4):m56
+    TICK
+    REPEAT 3 b1
+  }
+  body b1 {
+    R (2,0) (4,2) (2,4) (4,6)
+    RX (2,2) (6,2) (0,4) (4,4)
+    TICK
+    CX (1,1) (2,0) (2,2) (1,3) (3,3) (4,2) (6,2) (5,3) (1,5) (2,4) (4,4) (3,5)
+    TICK
+    CX (3,1) (2,0) (2,2) (1,1) (5,3) (4,2) (6,2) (5,1) (3,5) (2,4) (4,4) (3,3)
+    TICK
+    CX (2,2) (3,3) (3,1) (4,2) (0,4) (1,5) (1,3) (2,4) (4,4) (5,5) (3,5) (4,6)
+    TICK
+    CX (2,2) (3,1) (5,1) (4,2) (0,4) (1,3) (3,3) (2,4) (4,4) (5,3) (5,5) (4,6)
+    TICK
+    M (2,0):m57 (4,2):m58 (2,4):m59 (4,6):m60
+    MX (2,2):m61 (6,2):m62 (0,4):m63 (4,4):m64
+    TICK
+  }
+  detector m3*m25 @ (2,2)
+  detector m25*m32 @ (2,2)
+  detector m8 @ (4,2)
+  detector m8*m16 @ (4,2)
+  detector m16*m46 @ (4,2)
+  detector m4*m26 @ (6,2)
+  detector m26*m33 @ (6,2)
+  detector m5*m27 @ (0,4)
+  detector m27*m34 @ (0,4)
+  detector m9 @ (2,4)
+  detector m9*m17 @ (2,4)
+  detector m17*m47 @ (2,4)
+  detector m6*m28 @ (4,4)
+  detector m28*m35 @ (4,4)
+  detector m10 @ (4,6)
+  detector m10*m18 @ (4,6)
+  detector m18*m48 @ (4,6)
+  detector m45*m49 @ (2,0)
+  detector m46*m50 @ (4,2)
+  detector m47*m51 @ (2,4)
+  detector m48*m52 @ (4,6)
+  detector m32*m53 @ (2,2)
+  detector m33*m54 @ (6,2)
+  detector m34*m55 @ (0,4)
+  detector m35*m56 @ (4,4)
+  detector body(b1) m57*s0 @ (2,0)
+  detector body(b1) m58*s1 @ (4,2)
+  detector body(b1) m59*s2 @ (2,4)
+  detector body(b1) m60*s3 @ (4,6)
+  detector body(b1) m61*s4 @ (2,2)
+  detector body(b1) m62*s5 @ (6,2)
+  detector body(b1) m63*s6 @ (0,4)
+  detector body(b1) m64*s7 @ (4,4)
+  loop(b1,s0) init m49 next m57
+  loop(b1,s1) init m50 next m58
+  loop(b1,s2) init m51 next m59
+  loop(b1,s3) init m52 next m60
+  loop(b1,s4) init m53 next m61
+  loop(b1,s5) init m54 next m62
+  loop(b1,s6) init m55 next m63
+  loop(b1,s7) init m56 next m64
+  flow X(1,-1)*X(2,-4)*X(3,-3)*X(3,-1) -&gt; _ meas m1 restart
+  flow Z(3,-3)*Z(3,-1)*Z(5,-1)*Z(6,-4) -&gt; _ meas m11*m13 restart
+  flow Z(2,-6)*Z(2,-4)*Z(3,-3)*Z(6,-4) -&gt; _ meas m12 restart
+  flow X(3,-3)*X(3,-1)*X(5,-1)*X(6,-4) -&gt; _ meas m19 restart
+  flow X(2,-6)*X(2,-4)*X(3,-3)*X(6,-4) -&gt; _ meas m20 restart
+  flow Z(1,-1)*Z(2,-4)*Z(3,-3)*Z(3,-1) -&gt; _ meas m36*m15*m39*m40*m45 restart
+  flow _ -&gt; Z(1,1)*Z(3,1) meas m57 center (2,0)
+  flow _ -&gt; Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) meas m58 center (4,2)
+  flow _ -&gt; Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) meas m59 center (2,4)
+  flow _ -&gt; Z(3,5)*Z(5,5) meas m60 center (4,6)
+  flow _ -&gt; X(1,1)*X(1,3)*X(3,1)*X(3,3) meas m61 center (2,2)
+  flow _ -&gt; X(5,1)*X(5,3) meas m62 center (6,2)
+  flow _ -&gt; X(1,3)*X(1,5) meas m63 center (0,4)
+  flow _ -&gt; X(3,3)*X(3,5)*X(5,3)*X(5,5) meas m64 center (4,4)
+  restart m7
+  restart m1*m20*m23
+  restart m14
+  restart m44
+  restart m30
+  restart m43
+  restart m19*m20*m29
+  restart m11*m36*m37*m38*m40*m42
+  restart m12*m13*m36*m37*m38*m39*m41
+  restart m0*m21
+  restart m21*m22
+  restart m2*m24
+  restart m24*m31
+}
+
+template t2 {
+  circuit {
+    MPP Z(1,1)*Z(3,1):m0 X(1,1)*X(1,3)*X(3,1)*X(3,3):m1 Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3):m2 X(5,1)*X(5,3):m3 X(1,3)*X(1,5):m4 Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5):m5 X(3,3)*X(3,5)*X(5,3)*X(5,5):m6 Z(3,5)*Z(5,5):m7
+  }
+  flow _ -&gt; Z(1,1)*Z(3,1) meas m0 center (2,0)
+  flow _ -&gt; X(1,1)*X(1,3)*X(3,1)*X(3,3) meas m1 center (2,2)
+  flow _ -&gt; Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) meas m2 center (4,2)
+  flow _ -&gt; X(5,1)*X(5,3) meas m3 center (6,2)
+  flow _ -&gt; X(1,3)*X(1,5) meas m4 center (0,4)
+  flow _ -&gt; Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) meas m5 center (2,4)
+  flow _ -&gt; X(3,3)*X(3,5)*X(5,3)*X(5,5) meas m6 center (4,4)
+  flow _ -&gt; Z(3,5)*Z(5,5) meas m7 center (4,6)
+}
+
+template t3 {
+  circuit {
+    R (2,0) (6,0) (4,2) (2,4) (6,4) (4,6)
+    RX (2,2) (6,2) (0,4) (4,4)
+    RX (7,1) (7,3) (7,5)
+    TICK
+    CX (1,1) (2,0) (5,1) (6,0) (2,2) (1,3) (3,3) (4,2) (6,2) (5,3) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (3,1) (2,0) (7,1) (6,0) (2,2) (1,1) (5,3) (4,2) (6,2) (5,1) (3,5) (2,4) (4,4) (3,3) (7,5) (6,4)
+    TICK
+    CX (2,2) (3,3) (3,1) (4,2) (6,2) (7,3) (0,4) (1,5) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4) (3,5) (4,6)
+    TICK
+    CX (2,2) (3,1) (5,1) (4,2) (6,2) (7,1) (0,4) (1,3) (3,3) (2,4) (4,4) (5,3) (7,3) (6,4) (5,5) (4,6)
+    TICK
+    M (2,0):m0 (6,0):m1 (4,2):m2 (2,4):m3 (6,4):m4 (4,6):m5
+    MX (2,2):m6 (6,2):m7 (0,4):m8 (4,4):m9
+    TICK
+    R (2,0) (6,0) (4,2) (2,4) (6,4) (4,6)
+    RX (2,2) (6,2) (0,4) (4,4)
+    TICK
+    CX (1,1) (2,0) (5,1) (6,0) (2,2) (1,3) (3,3) (4,2) (6,2) (5,3) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (3,1) (2,0) (7,1) (6,0) (2,2) (1,1) (5,3) (4,2) (6,2) (5,1) (3,5) (2,4) (4,4) (3,3) (7,5) (6,4)
+    TICK
+    CX (2,2) (3,3) (3,1) (4,2) (6,2) (7,3) (0,4) (1,5) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4) (3,5) (4,6)
+    TICK
+    CX (2,2) (3,1) (5,1) (4,2) (6,2) (7,1) (0,4) (1,3) (3,3) (2,4) (4,4) (5,3) (7,3) (6,4) (5,5) (4,6)
+    TICK
+    M (2,0):m10 (6,0):m11 (4,2):m12 (2,4):m13 (6,4):m14 (4,6):m15
+    MX (2,2):m16 (6,2):m17 (0,4):m18 (4,4):m19
+    TICK
+    R (2,0) (6,0) (4,2) (2,4) (6,4) (4,6)
+    RX (2,2) (6,2) (0,4) (4,4)
+    TICK
+    CX (1,1) (2,0) (5,1) (6,0) (2,2) (1,3) (3,3) (4,2) (6,2) (5,3) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (3,1) (2,0) (7,1) (6,0) (2,2) (1,1) (5,3) (4,2) (6,2) (5,1) (3,5) (2,4) (4,4) (3,3) (7,5) (6,4)
+    TICK
+    CX (2,2) (3,3) (3,1) (4,2) (6,2) (7,3) (0,4) (1,5) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4) (3,5) (4,6)
+    TICK
+    CX (2,2) (3,1) (5,1) (4,2) (6,2) (7,1) (0,4) (1,3) (3,3) (2,4) (4,4) (5,3) (7,3) (6,4) (5,5) (4,6)
+    TICK
+    M (2,0):m20 (6,0):m21 (4,2):m22 (2,4):m23 (6,4):m24 (4,6):m25
+    MX (2,2):m26 (6,2):m27 (0,4):m28 (4,4):m29
+    MX (7,1):m30 (7,3):m31 (7,5):m32
+  }
+  detector m0*m10 @ (2,0)
+  detector m1*m11 @ (6,0)
+  detector m6*m16 @ (2,2)
+  detector m2*m12 @ (4,2)
+  detector m7*m17 @ (6,2)
+  detector m8*m18 @ (0,4)
+  detector m3*m13 @ (2,4)
+  detector m9*m19 @ (4,4)
+  detector m4*m14 @ (6,4)
+  detector m5*m15 @ (4,6)
+  detector m10*m20 @ (2,0)
+  detector m11*m21 @ (6,0)
+  detector m16*m26 @ (2,2)
+  detector m12*m22 @ (4,2)
+  detector m17*m27 @ (6,2)
+  detector m18*m28 @ (0,4)
+  detector m13*m23 @ (2,4)
+  detector m19*m29 @ (4,4)
+  detector m14*m24 @ (6,4)
+  detector m15*m25 @ (4,6)
+  flow Z(1,1)*Z(3,1) -&gt; _ meas m0 center (2,0)
+  flow Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) -&gt; _ meas m2 center (4,2)
+  flow Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) -&gt; _ meas m3 center (2,4)
+  flow Z(3,5)*Z(5,5) -&gt; _ meas m5 center (4,6)
+  flow X(1,1)*X(1,3)*X(3,1)*X(3,3) -&gt; _ meas m6 center (2,2)
+  flow X(5,1)*X(5,3) -&gt; _ meas m7 center (6,2)
+  flow X(1,3)*X(1,5) -&gt; _ meas m8 center (0,4)
+  flow X(3,3)*X(3,5)*X(5,3)*X(5,5) -&gt; _ meas m9 center (4,4)
+  flow _ -&gt; Z(1,1)*Z(3,1) meas m20 center (2,0)
+  flow _ -&gt; Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) meas m22 center (4,2)
+  flow _ -&gt; Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) meas m23 center (2,4)
+  flow _ -&gt; Z(3,5)*Z(5,5) meas m25 center (4,6)
+  flow _ -&gt; X(1,1)*X(1,3)*X(3,1)*X(3,3) meas m26 center (2,2)
+  flow _ -&gt; X(1,3)*X(1,5) meas m28 center (0,4)
+  flow _ -&gt; X(3,3)*X(3,5)*X(5,3)*X(5,5) meas m29 center (4,4)
+  flow _ -&gt; X(5,1)*X(5,3) meas m30*m31*m27 center (6,2)
+}
+
+template t4 {
+  circuit {
+    R (2,0) (0,2) (4,2) (2,4) (0,6) (4,6)
+    RX (2,2) (6,2) (0,4) (4,4)
+    RX (-1,1) (-1,3) (-1,5)
+    TICK
+    CX (1,1) (2,0) (-1,3) (0,2) (2,2) (1,3) (3,3) (4,2) (6,2) (5,3) (0,4) (-1,5) (1,5) (2,4) (4,4) (3,5)
+    TICK
+    CX (3,1) (2,0) (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (6,2) (5,1) (0,4) (-1,3) (3,5) (2,4) (4,4) (3,3)
+    TICK
+    CX (-1,1) (0,2) (2,2) (3,3) (3,1) (4,2) (0,4) (1,5) (1,3) (2,4) (4,4) (5,5) (-1,5) (0,6) (3,5) (4,6)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (0,4) (1,3) (3,3) (2,4) (4,4) (5,3) (1,5) (0,6) (5,5) (4,6)
+    TICK
+    M (2,0):m0 (0,2):m1 (4,2):m2 (2,4):m3 (0,6):m4 (4,6):m5
+    MX (2,2):m6 (6,2):m7 (0,4):m8 (4,4):m9
+    TICK
+    R (2,0) (0,2) (4,2) (2,4) (0,6) (4,6)
+    RX (2,2) (6,2) (0,4) (4,4)
+    TICK
+    CX (1,1) (2,0) (-1,3) (0,2) (2,2) (1,3) (3,3) (4,2) (6,2) (5,3) (0,4) (-1,5) (1,5) (2,4) (4,4) (3,5)
+    TICK
+    CX (3,1) (2,0) (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (6,2) (5,1) (0,4) (-1,3) (3,5) (2,4) (4,4) (3,3)
+    TICK
+    CX (-1,1) (0,2) (2,2) (3,3) (3,1) (4,2) (0,4) (1,5) (1,3) (2,4) (4,4) (5,5) (-1,5) (0,6) (3,5) (4,6)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (0,4) (1,3) (3,3) (2,4) (4,4) (5,3) (1,5) (0,6) (5,5) (4,6)
+    TICK
+    M (2,0):m10 (0,2):m11 (4,2):m12 (2,4):m13 (0,6):m14 (4,6):m15
+    MX (2,2):m16 (6,2):m17 (0,4):m18 (4,4):m19
+    TICK
+    R (2,0) (0,2) (4,2) (2,4) (0,6) (4,6)
+    RX (2,2) (6,2) (0,4) (4,4)
+    TICK
+    CX (1,1) (2,0) (-1,3) (0,2) (2,2) (1,3) (3,3) (4,2) (6,2) (5,3) (0,4) (-1,5) (1,5) (2,4) (4,4) (3,5)
+    TICK
+    CX (3,1) (2,0) (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (6,2) (5,1) (0,4) (-1,3) (3,5) (2,4) (4,4) (3,3)
+    TICK
+    CX (-1,1) (0,2) (2,2) (3,3) (3,1) (4,2) (0,4) (1,5) (1,3) (2,4) (4,4) (5,5) (-1,5) (0,6) (3,5) (4,6)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (0,4) (1,3) (3,3) (2,4) (4,4) (5,3) (1,5) (0,6) (5,5) (4,6)
+    TICK
+    M (2,0):m20 (0,2):m21 (4,2):m22 (2,4):m23 (0,6):m24 (4,6):m25
+    MX (2,2):m26 (6,2):m27 (0,4):m28 (4,4):m29
+    MX (-1,1):m30 (-1,3):m31 (-1,5):m32
+  }
+  detector m0*m10 @ (2,0)
+  detector m1*m11 @ (0,2)
+  detector m6*m16 @ (2,2)
+  detector m2*m12 @ (4,2)
+  detector m7*m17 @ (6,2)
+  detector m8*m18 @ (0,4)
+  detector m3*m13 @ (2,4)
+  detector m9*m19 @ (4,4)
+  detector m4*m14 @ (0,6)
+  detector m5*m15 @ (4,6)
+  detector m10*m20 @ (2,0)
+  detector m11*m21 @ (0,2)
+  detector m16*m26 @ (2,2)
+  detector m12*m22 @ (4,2)
+  detector m17*m27 @ (6,2)
+  detector m18*m28 @ (0,4)
+  detector m13*m23 @ (2,4)
+  detector m19*m29 @ (4,4)
+  detector m14*m24 @ (0,6)
+  detector m15*m25 @ (4,6)
+  flow Z(1,1)*Z(3,1) -&gt; _ meas m0 center (2,0)
+  flow Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) -&gt; _ meas m2 center (4,2)
+  flow Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) -&gt; _ meas m3 center (2,4)
+  flow Z(3,5)*Z(5,5) -&gt; _ meas m5 center (4,6)
+  flow X(1,1)*X(1,3)*X(3,1)*X(3,3) -&gt; _ meas m6 center (2,2)
+  flow X(5,1)*X(5,3) -&gt; _ meas m7 center (6,2)
+  flow X(1,3)*X(1,5) -&gt; _ meas m8 center (0,4)
+  flow X(3,3)*X(3,5)*X(5,3)*X(5,5) -&gt; _ meas m9 center (4,4)
+  flow _ -&gt; Z(1,1)*Z(3,1) meas m20 center (2,0)
+  flow _ -&gt; Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) meas m22 center (4,2)
+  flow _ -&gt; Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) meas m23 center (2,4)
+  flow _ -&gt; Z(3,5)*Z(5,5) meas m25 center (4,6)
+  flow _ -&gt; X(1,1)*X(1,3)*X(3,1)*X(3,3) meas m26 center (2,2)
+  flow _ -&gt; X(5,1)*X(5,3) meas m27 center (6,2)
+  flow _ -&gt; X(3,3)*X(3,5)*X(5,3)*X(5,5) meas m29 center (4,4)
+  flow _ -&gt; X(1,3)*X(1,5) meas m31*m32*m28 center (0,4)
+}
+
+template t5 {
+  circuit {
+    MX (1,1):m0 (3,1):m1 (5,1):m2 (1,3):m3 (3,3):m4 (5,3):m5 (1,5):m6 (3,5):m7 (5,5):m8
+  }
+  flow Z(1,1)*Z(3,1) -&gt; _ center (2,0) discard
+  flow Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) -&gt; _ center (2,4) discard
+  flow Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) -&gt; _ center (4,2) discard
+  flow Z(3,5)*Z(5,5) -&gt; _ center (4,6) discard
+  flow X(1,1)*X(1,3)*X(3,1)*X(3,3) -&gt; _ meas m0*m1*m3*m4 center (2,2)
+  flow X(5,1)*X(5,3) -&gt; _ meas m2*m5 center (6,2)
+  flow X(1,3)*X(1,5) -&gt; _ meas m3*m6 center (0,4)
+  flow X(3,3)*X(3,5)*X(5,3)*X(5,5) -&gt; _ meas m4*m5*m7*m8 center (4,4)
+}
+
+template t6 {
+  circuit {
+    RX (0,2) (2,2) (6,2) (0,4) (4,4)
+    R (2,0) (4,2) (2,4) (2,6) (4,6)
+    TICK
+    CX (2,2) (3,1) (0,4) (1,3) (4,4) (5,3)
+    CX (5,1) (4,2) (3,3) (2,4) (5,5) (4,6)
+    TICK
+    CX (2,2) (3,3) (0,4) (1,5) (4,4) (5,5)
+    CX (3,1) (4,2) (1,3) (2,4) (3,5) (4,6)
+    TICK
+    CX (1,5) (2,6)
+    CX (0,2) (1,3) (2,4) (3,5)
+    CY (2,2) (1,1) (4,4) (3,3)
+    CX (6,2) (5,1)
+    CX (3,1) (2,0) (5,3) (4,2)
+    TICK
+    CX (1,3) (0,4) (3,5) (2,6)
+    CX (6,2) (5,3)
+    CX (1,1) (2,0) (3,3) (4,2)
+    TICK
+    CY (1,1) (0,2) (3,3) (2,4)
+    TICK
+    H (0,2) (1,3) (0,4) (2,4) (1,5) (3,5) (2,6) (4,6)
+    S (2,2) (4,4)
+    TICK
+    MX (2,2):m0 (6,2):m1 (4,4):m2 (2,6):m3 (4,6):m4
+    MY (5,5):m5
+    M (2,0):m6 (0,2):m7 (4,2):m8 (0,4):m9 (2,4):m10
+    TICK
+    R (2,0) (0,2) (4,2) (2,4)
+    RX (2,2) (6,2) (4,4) (2,6)
+    TICK
+    CX (1,1) (2,0) (2,2) (1,3) (3,3) (4,2) (6,2) (5,3) (1,5) (2,4) (4,4) (3,5)
+    TICK
+    CX (3,1) (2,0) (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (6,2) (5,1) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (2,2) (3,3) (3,1) (4,2) (1,3) (2,4)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (2,0):m11 (0,2):m12 (4,2):m13 (2,4):m14
+    MX (2,2):m15 (6,2):m16 (4,4):m17 (2,6):m18
+    TICK
+    R (2,0) (0,2) (4,2) (2,4)
+    RX (2,2) (6,2) (4,4) (2,6)
+    TICK
+    CX (1,1) (2,0) (2,2) (1,3) (3,3) (4,2) (6,2) (5,3) (1,5) (2,4) (4,4) (3,5)
+    TICK
+    CX (3,1) (2,0) (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (6,2) (5,1) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (2,2) (3,3) (3,1) (4,2) (1,3) (2,4)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (2,0):m19 (0,2):m20 (4,2):m21 (2,4):m22
+    MX (2,2):m23 (6,2):m24 (4,4):m25 (2,6):m26
+    MX (5,1):m27 (3,3):m28 (5,3):m29 (1,5):m30 (3,5):m31
+    M (1,1):m32 (3,1):m33 (1,3):m34
+  }
+  detector m6*m11 @ (2,0)
+  detector m7*m9*m12 @ (0,2)
+  detector m8*m13 @ (4,2)
+  detector m10*m14 @ (2,4)
+  detector m0*m7*m10*m15 @ (2,2)
+  detector m1*m16 @ (6,2)
+  detector -m2*m4*m5*m10*m17 @ (4,4)
+  detector m3*m18 @ (2,6)
+  detector m11*m19 @ (2,0)
+  detector m12*m20 @ (0,2)
+  detector m15*m23 @ (2,2)
+  detector m13*m21 @ (4,2)
+  detector m16*m24 @ (6,2)
+  detector m14*m22 @ (2,4)
+  detector m17*m25 @ (4,4)
+  detector m18*m26 @ (2,6)
+  detector m19*m32*m33 @ (2,0)
+  detector m20*m32*m34 @ (0,2)
+  detector m24*m27*m29 @ (6,2)
+  detector m25*m28*m29*m31 @ (4,4)
+  detector m26*m30*m31 @ (2,6)
+  flow X(1,1)*X(1,3)*X(3,1)*X(3,3) -&gt; _ meas m0*m7 center (2,2)
+  flow X(5,1)*X(5,3) -&gt; _ meas m1 center (6,2)
+  flow X(3,3)*X(3,5)*X(5,3)*X(5,5) -&gt; _ meas m2*m10 center (4,4)
+  flow Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) -&gt; _ meas m3 center (2,4)
+  flow Z(3,5)*Z(5,5) -&gt; _ meas m4 center (4,6)
+  flow Z(1,1)*Z(3,1) -&gt; _ meas m6 center (2,0)
+  flow Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) -&gt; _ meas m8 center (4,2)
+  flow X(1,3)*X(1,5) -&gt; _ meas m9 center (0,4)
+}
+
+template t7 {
+  circuit {
+    MPP Z(1,1)*Z(3,1):m0 X(1,1)*X(1,3)*X(3,1)*X(3,3):m1 Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3):m2 X(5,1)*X(5,3):m3 X(1,3)*X(1,5):m4 Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5):m5 X(3,3)*X(3,5)*X(5,3)*X(5,5):m6 Z(3,5)*Z(5,5):m7
+  }
+  flow Z(1,1)*Z(3,1) -&gt; _ meas m0 center (2,0)
+  flow X(1,1)*X(1,3)*X(3,1)*X(3,3) -&gt; _ meas m1 center (2,2)
+  flow Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) -&gt; _ meas m2 center (4,2)
+  flow X(5,1)*X(5,3) -&gt; _ meas m3 center (6,2)
+  flow X(1,3)*X(1,5) -&gt; _ meas m4 center (0,4)
+  flow Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) -&gt; _ meas m5 center (2,4)
+  flow X(3,3)*X(3,5)*X(5,3)*X(5,5) -&gt; _ meas m6 center (4,4)
+  flow Z(3,5)*Z(5,5) -&gt; _ meas m7 center (4,6)
+}
+
+template t8 {
+  circuit {
+    R (2,0) (4,2) (2,4) (4,6)
+    RX (2,2) (6,2) (0,4) (4,4)
+    TICK
+    CX (1,1) (2,0) (2,2) (1,3) (3,3) (4,2) (6,2) (5,3) (1,5) (2,4) (4,4) (3,5)
+    TICK
+    CX (3,1) (2,0) (2,2) (1,1) (5,3) (4,2) (6,2) (5,1) (3,5) (2,4) (4,4) (3,3)
+    TICK
+    CX (2,2) (3,3) (3,1) (4,2) (0,4) (1,5) (1,3) (2,4) (4,4) (5,5) (3,5) (4,6)
+    TICK
+    CX (2,2) (3,1) (5,1) (4,2) (0,4) (1,3) (3,3) (2,4) (4,4) (5,3) (5,5) (4,6)
+    TICK
+    M (2,0):m0 (4,2):m1 (2,4):m2 (4,6):m3
+    MX (2,2):m4 (6,2):m5 (0,4):m6 (4,4):m7
+  }
+  flow _ -&gt; Z(1,1)*Z(3,1) meas m0 center (2,0)
+  flow Z(1,1)*Z(3,1) -&gt; _ meas m0 center (2,0)
+  flow _ -&gt; Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) meas m1 center (4,2)
+  flow Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) -&gt; _ meas m1 center (4,2)
+  flow _ -&gt; Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) meas m2 center (2,4)
+  flow Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) -&gt; _ meas m2 center (2,4)
+  flow _ -&gt; Z(3,5)*Z(5,5) meas m3 center (4,6)
+  flow Z(3,5)*Z(5,5) -&gt; _ meas m3 center (4,6)
+  flow _ -&gt; X(1,1)*X(1,3)*X(3,1)*X(3,3) meas m4 center (2,2)
+  flow X(1,1)*X(1,3)*X(3,1)*X(3,3) -&gt; _ meas m4 center (2,2)
+  flow _ -&gt; X(5,1)*X(5,3) meas m5 center (6,2)
+  flow X(5,1)*X(5,3) -&gt; _ meas m5 center (6,2)
+  flow _ -&gt; X(1,3)*X(1,5) meas m6 center (0,4)
+  flow X(1,3)*X(1,5) -&gt; _ meas m6 center (0,4)
+  flow _ -&gt; X(3,3)*X(3,5)*X(5,3)*X(5,5) meas m7 center (4,4)
+  flow X(3,3)*X(3,5)*X(5,3)*X(5,5) -&gt; _ meas m7 center (4,4)
+}
+
+template t9 {
+  circuit {
+    R (2,0) (4,2) (2,4) (4,6)
+    RX (2,2) (6,2) (0,4) (4,4)
+    TICK
+    CX (1,1) (2,0) (2,2) (1,3) (3,3) (4,2) (6,2) (5,3) (1,5) (2,4) (4,4) (3,5)
+    TICK
+    CX (3,1) (2,0) (2,2) (1,1) (5,3) (4,2) (6,2) (5,1) (3,5) (2,4) (4,4) (3,3)
+    TICK
+    CX (2,2) (3,3) (3,1) (4,2) (0,4) (1,5) (1,3) (2,4) (4,4) (5,5) (3,5) (4,6)
+    TICK
+    CX (2,2) (3,1) (5,1) (4,2) (0,4) (1,3) (3,3) (2,4) (4,4) (5,3) (5,5) (4,6)
+    TICK
+    M (2,0):m0 (4,2):m1 (2,4):m2 (4,6):m3
+    MX (2,2):m4 (6,2):m5 (0,4):m6 (4,4):m7
+    TICK
+    REPEAT 2 b1
+  }
+  body b1 {
+    R (2,0) (4,2) (2,4) (4,6)
+    RX (2,2) (6,2) (0,4) (4,4)
+    TICK
+    CX (1,1) (2,0) (2,2) (1,3) (3,3) (4,2) (6,2) (5,3) (1,5) (2,4) (4,4) (3,5)
+    TICK
+    CX (3,1) (2,0) (2,2) (1,1) (5,3) (4,2) (6,2) (5,1) (3,5) (2,4) (4,4) (3,3)
+    TICK
+    CX (2,2) (3,3) (3,1) (4,2) (0,4) (1,5) (1,3) (2,4) (4,4) (5,5) (3,5) (4,6)
+    TICK
+    CX (2,2) (3,1) (5,1) (4,2) (0,4) (1,3) (3,3) (2,4) (4,4) (5,3) (5,5) (4,6)
+    TICK
+    M (2,0):m8 (4,2):m9 (2,4):m10 (4,6):m11
+    MX (2,2):m12 (6,2):m13 (0,4):m14 (4,4):m15
+    TICK
+  }
+  detector body(b1) m8*s0 @ (2,0)
+  detector body(b1) m9*s1 @ (4,2)
+  detector body(b1) m10*s2 @ (2,4)
+  detector body(b1) m11*s3 @ (4,6)
+  detector body(b1) m12*s4 @ (2,2)
+  detector body(b1) m13*s5 @ (6,2)
+  detector body(b1) m14*s6 @ (0,4)
+  detector body(b1) m15*s7 @ (4,4)
+  loop(b1,s0) init m0 next m8
+  loop(b1,s1) init m1 next m9
+  loop(b1,s2) init m2 next m10
+  loop(b1,s3) init m3 next m11
+  loop(b1,s4) init m4 next m12
+  loop(b1,s5) init m5 next m13
+  loop(b1,s6) init m6 next m14
+  loop(b1,s7) init m7 next m15
+  flow Z(1,1)*Z(3,1) -&gt; _ meas m0 center (2,0)
+  flow Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) -&gt; _ meas m1 center (4,2)
+  flow Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) -&gt; _ meas m2 center (2,4)
+  flow Z(3,5)*Z(5,5) -&gt; _ meas m3 center (4,6)
+  flow X(1,1)*X(1,3)*X(3,1)*X(3,3) -&gt; _ meas m4 center (2,2)
+  flow X(5,1)*X(5,3) -&gt; _ meas m5 center (6,2)
+  flow X(1,3)*X(1,5) -&gt; _ meas m6 center (0,4)
+  flow X(3,3)*X(3,5)*X(5,3)*X(5,5) -&gt; _ meas m7 center (4,4)
+  flow _ -&gt; Z(1,1)*Z(3,1) meas m8 center (2,0)
+  flow _ -&gt; Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) meas m9 center (4,2)
+  flow _ -&gt; Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) meas m10 center (2,4)
+  flow _ -&gt; Z(3,5)*Z(5,5) meas m11 center (4,6)
+  flow _ -&gt; X(1,1)*X(1,3)*X(3,1)*X(3,3) meas m12 center (2,2)
+  flow _ -&gt; X(5,1)*X(5,3) meas m13 center (6,2)
+  flow _ -&gt; X(1,3)*X(1,5) meas m14 center (0,4)
+  flow _ -&gt; X(3,3)*X(3,5)*X(5,3)*X(5,5) meas m15 center (4,4)
+}
+
+bundle b0 owners t2 t3 {
+  detector o0:m0*o1:m0 @ (2,0)
+  detector o0:m2*o1:m2 @ (4,2)
+  detector o0:m5*o1:m3 @ (2,4)
+  detector o0:m7*o1:m5 @ (4,6)
+  detector o0:m1*o1:m6 @ (2,2)
+  detector o0:m3*o1:m7 @ (6,2)
+  detector o0:m4*o1:m8 @ (0,4)
+  detector o0:m6*o1:m9 @ (4,4)
+}
+
+bundle b1 owners t1 t4 {
+  detector o0:m57*o1:m0 @ (2,0)
+  detector o0:m58*o1:m2 @ (4,2)
+  detector o0:m59*o1:m3 @ (2,4)
+  detector o0:m60*o1:m5 @ (4,6)
+  detector o0:m61*o1:m6 @ (2,2)
+  detector o0:m62*o1:m7 @ (6,2)
+  detector o0:m63*o1:m8 @ (0,4)
+  detector o0:m64*o1:m9 @ (4,4)
+}
+
+bundle b2 owners t3 t7 {
+  detector o0:m20*o1:m0 @ (2,0)
+  detector o0:m26*o1:m1 @ (2,2)
+  detector o0:m22*o1:m2 @ (4,2)
+  detector o0:m27*o0:m30*o0:m31*o1:m3 @ (6,2)
+  detector o0:m28*o1:m4 @ (0,4)
+  detector o0:m23*o1:m5 @ (2,4)
+  detector o0:m29*o1:m6 @ (4,4)
+  detector o0:m25*o1:m7 @ (4,6)
+}
+
+bundle b3 owners t4 t5 {
+  detector o0:m26*o1:m0*o1:m1*o1:m3*o1:m4 @ (2,2)
+  detector o0:m27*o1:m2*o1:m5 @ (6,2)
+  detector o0:m28*o0:m31*o0:m32*o1:m3*o1:m6 @ (0,4)
+  detector o0:m29*o1:m4*o1:m5*o1:m7*o1:m8 @ (4,4)
+}
+
+bundle b4 owners t4 t6 {
+  detector o0:m26*o1:m0*o1:m7 @ (2,2)
+  detector o0:m27*o1:m1 @ (6,2)
+  detector o0:m29*o1:m2*o1:m10 @ (4,4)
+  detector o0:m23*o1:m3 @ (2,4)
+  detector o0:m25*o1:m4 @ (4,6)
+  detector o0:m20*o1:m6 @ (2,0)
+  detector o0:m22*o1:m8 @ (4,2)
+  detector o0:m28*o0:m31*o0:m32*o1:m9 @ (0,4)
+}
+
+graph {
+  n0 quantum {
+    instance i2 t2 @ (0,0) from block (0,0,0)
+    from blocks (0,0,0)
+  }
+  n1 quantum {
+    instance i3 t3 @ (0,0) from block (0,0,1)
+    instance i4 t4 @ (8,0) from block (1,0,1)
+    use b0 i2 i3 @ (0,0)
+    use b1 i1 i4 @ (8,0)
+    from blocks (0,0,1) (1,0,1)
+  }
+  n2 quantum {
+    instance i5 t5 @ (8,0)
+    instance i6 t6 @ (8,0)
+    use b3 i4 i5 @ (8,0)
+    use b4 i4 i6 @ (8,0)
+    guard 0 i5 b0
+    guard 1 i6 b1
+    from blocks (1,0,2)
+  }
+  n3 quantum {
+    instance i7 t7 @ (0,0) from block (0,0,2)
+    use b2 i3 i7 @ (0,0)
+    from blocks (0,0,2)
+  }
+  n4 rus in0 source n4 {
+    body {
+      n0 quantum {
+        instance i0 t0 @ (8,0)
+        from blocks (1,0,0)
+      }
+      n1 quantum {
+        instance i1 t1 @ (8,0)
+        restart i0:m0*i0:m8*i1:m1
+        restart i1:m11*i1:m13
+        restart i0:m1*i0:m4*i0:m6*i1:m12
+        restart i0:m3*i0:m8*i1:m19
+        restart i0:m5*i0:m7*i0:m8*i1:m20
+        restart i0:m6*i1:m15*i1:m36*i1:m39*i1:m40*i1:m45
+        from blocks (1,0,0)
+      }
+      n2 observable 0 measurements i1:m15*i1:m39*i1:m41*i1:m49*i1:m51 operators i1 input Z(9,-1)*Z(10,-6)*Z(10,-4), i1 output Z(11,1)*Z(11,3)*Z(11,5) from generator 0
+      n3 observable 1 measurements i1:m0*i1:m2*i1:m53*i1:m54 operators i1 input X(9,-1)*X(11,-1)*X(13,-1), i1 output X(9,3)*X(11,3)*X(13,3) from generator 1
+      n4 compute in0 | in1
+      n0 -&gt; n1 quantum
+      n1 -&gt; n2 order
+      n1 -&gt; n3 order
+      n2 -&gt; n4 value 0 flip
+      n3 -&gt; n4 value 1 flip
+    }
+  }
+  n5 compute in0
+  n6 compute parity(1, in0)
+  n7 compute in0 from selector selective%20%5B1%2C0%2C2%5D
+  n13 observable 2 measurements i1:m15*i1:m39*i1:m41*i1:m49*i1:m51*i3:m1*i3:m2*i3:m4*i3:m5*i4:m0*i4:m1*i4:m3*i4:m4 operators i1 input Z(9,-1)*Z(10,-6)*Z(10,-4), i2 input Z(3,1)*Z(3,3)*Z(3,5) from action 0
+  n15 observable fragment measurements i1:m15*i1:m39*i1:m41*i1:m49*i1:m51*i6:m2*i6:m4*i6:m5*i6:m6*i6:m7 operators i1 input Y(9,-1)*Z(10,-6)*Z(10,-4)*X(11,-1)*X(13,-1) when v0
+  n17 observable fragment measurements i5:m3*i5:m4*i5:m5 operators i1 input X(9,-1)*X(11,-1)*X(13,-1) when v0
+  n23 observable 3 measurements i1:m0*i1:m2*i1:m53*i1:m54*i3:m31 operators i2 input X(1,3)*X(3,3)*X(5,3), i7 output X(1,3)*X(3,3)*X(5,3) from generator 3
+  n24 compute in0 from frame z (0,0,2)
+  n26 observable 4 operators i2 input Z(3,1)*Z(3,3)*Z(3,5), i7 output Z(3,1)*Z(3,3)*Z(3,5) from generator 4
+  n27 compute in0 from frame x (0,0,2)
+  n5 -&gt; n6 value 0
+  n6 -&gt; n7 value 0
+  n6 -&gt; n2 value 0
+  n5 -&gt; n2 value 1
+  n0 -&gt; n1 quantum (0,0,0)&gt;(0,0,1) padding offset (0,0) one t8 loop t9
+  n1 -&gt; n2 quantum (1,0,1)&gt;(1,0,2) padding offset (8,0) one t8 loop t9
+  n1 -&gt; n3 quantum (0,0,1)&gt;(0,0,2) padding offset (0,0) one t8 loop t9
+  n4 -&gt; n1 quantum (1,0,0)&gt;(1,0,1) padding offset (8,0) one t8 loop t9
+  n0 -&gt; n1 order
+  n4 -&gt; n1 order
+  n1 -&gt; n3 order
+  n1 -&gt; n2 order
+  n5 -&gt; n15 value 0
+  n4 -&gt; n15 order
+  n6 -&gt; n17 value 0
+  n2 -&gt; n17 order
+  n15 -&gt; n23 compose 1
+  n17 -&gt; n23 compose 3
+  n23 -&gt; n24 value 0
+  n26 -&gt; n27 value 0
+  n13 -&gt; n5 value 0
+  n4 -&gt; n13 order
+  n1 -&gt; n13 order
+  n4 -&gt; n23 order
+  n2 -&gt; n15 order
+  n3 -&gt; n23 order
+  n3 -&gt; n26 order
+}
+</code></pre></div>
+</div>
+</div><p><a class="reference download internal" download="" href="../_downloads/dcdce6577496fb8d956f314b44dffc3e/quickstart-t.bloqir"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">the</span> <span class="pre">T-gate</span> <span class="pre">IR</span></code></a>.
+The cultivation region uses <code class="docutils literal notranslate"><span class="pre">RepeatUntilSuccess</span></code>. Decoded <code class="docutils literal notranslate"><span class="pre">mzz</span></code> controls guarded
+quantum instances for the selective X/Y measurement, and classical dependencies
+carry corrected logical readouts. Inside the region, a <code class="docutils literal notranslate"><span class="pre">Compute</span></code> node ORs the
+two observables’ <code class="docutils literal notranslate"><span class="pre">Flip</span></code> outputs and supplies the explicit restart predicate.
+Both decoder predictions must be false for success; physical postselection
+failures also retry.</p>
+<h3 id="id3">Visualize the IR graph<a class="headerlink" href="#id3" title="Link to this heading">¶</a></h3>
+<div class="tabbed-set tabbed-alternate" data-tabs="7:3">
+<input checked type="radio" id="__tabbed_7_1" name="__tabbed_7"><input type="radio" id="__tabbed_7_2" name="__tabbed_7"><input type="radio" id="__tabbed_7_3" name="__tabbed_7"><div class="tabbed-labels docutils">
+<label class="tabbed-label" for="__tabbed_7_1">
+Python</label><label class="tabbed-label" for="__tabbed_7_2">
+Rust</label><label class="tabbed-label" for="__tabbed_7_3">
+CLI</label></div>
+<div class="tabbed-content docutils">
+<div class="tabbed-block docutils">
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span class="n">Path</span><span class="p">(</span><span class="s2">&quot;t-gate.svg&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">t_program</span><span class="o">.</span><span class="n">to_svg</span><span class="p">(</span><span class="n">include_classical</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><code><span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;t-gate.svg&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">t_program</span><span class="p">.</span><span class="n">to_svg</span><span class="p">(</span><span class="kc">true</span><span class="p">))</span><span class="o">?</span><span class="p">;</span>
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>bloq<span class="w"> </span>view<span class="w"> </span>t-gate.bloqir<span class="w"> </span>--svg<span class="w"> </span>--include-classical<span class="w"> </span>-o<span class="w"> </span>t-gate.svg
+</code></pre></div>
+</div>
+</div>
+</div>
+</div><div class="bloq-output bloq-ir-graph" role="region" aria-label="T Gate IR graph including classical nodes" tabindex="0"><img alt="Compiled T Gate dependency graph including quantum and classical nodes and nested regions." src="../_images/quickstart-t-ir.svg" />
+</div><p>See the <a class="reference internal" href="../backends/ir.html"><span class="std std-doc">Bloq IR chapter</span></a> of the User Guide for node kinds,
+output frames, observable composition, and retry conditions.</p>
+<h2 id="next-steps">Next steps<a class="headerlink" href="#next-steps" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>Read the <a class="reference internal" href="../user-guide.html"><span class="std std-doc">User Guide</span></a> to learn the basic concepts and how
+compilation works.</p></li>
+<li><p>Explore the <a class="reference internal" href="../gallery/index.html"><span class="std std-doc">Examples</span></a> to see built-in computations and
+their block graphs in <a class="reference internal" href="../graphs/blog.html"><span class="std std-doc">BLOG format</span></a>.</p></li>
+<li><p>Consult the references for the complete <a class="reference internal" href="../api/python.html"><span class="std std-doc">Python API</span></a>,
+<a class="reference internal" href="../api/rust.html"><span class="std std-doc">Rust API</span></a>, and <a class="reference internal" href="../reference/cli.html"><span class="std std-doc">CLI</span></a>.</p></li>
+</ul>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+
+
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  
+  
+  <div class="md-footer-meta md-typeset">
+    
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-footer-copyright__highlight">
+        &#169; Copyright Bloq contributors.
+        
+    </div>
+  
+    Created using
+    <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
+    8.1.3.
+     and
+    <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
+  
+</div>
+      
+    </div>
+    
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.highlight", "content.tabs.link", "content.code.copy"], "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+      
+        <script src="../_static/sphinx_immaterial_theme.32136f45f91ae6956.min.js?v=a7a9472a"></script>
+        <script src="../_static/versions.js?v=2f43aabb"></script>
+        <script src="../_static/graph-viewer.js?v=b2321b27"></script>
+    
+  </body>
+</html>

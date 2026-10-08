@@ -1,0 +1,695 @@
+BLOQIR 1
+metadata bloq_compile.code_distance u64 3
+metadata bloq_compile.convention string fixed-bulk
+logical-input (0,0,0) instance i2 x X(3,1)*X(3,3)*X(3,5) z Z(1,3)*Z(3,3)*Z(5,3)
+logical-input (1,1,0) instance i0 x X(11,9)*X(11,11)*X(11,13) z Z(9,11)*Z(11,11)*Z(13,11)
+logical-output (0,0,3) instance i9 x X(3,1)*X(3,3)*X(3,5) z Z(1,3)*Z(3,3)*Z(5,3)
+logical-output (1,1,3) instance i7 x X(11,9)*X(11,11)*X(11,13) z Z(9,11)*Z(11,11)*Z(13,11)
+
+template t0 {
+  circuit {
+    MPP X(3,1)*X(5,1):m0 Z(1,1)*Z(1,3):m1 X(1,1)*X(1,3)*X(3,1)*X(3,3):m2 Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3):m3 Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5):m4 X(3,3)*X(3,5)*X(5,3)*X(5,5):m5 Z(5,3)*Z(5,5):m6 X(1,5)*X(3,5):m7
+  }
+  flow _ -> X(3,1)*X(5,1) meas m0 center (4,0)
+  flow _ -> Z(1,1)*Z(1,3) meas m1 center (0,2)
+  flow _ -> X(1,1)*X(1,3)*X(3,1)*X(3,3) meas m2 center (2,2)
+  flow _ -> Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) meas m3 center (4,2)
+  flow _ -> Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) meas m4 center (2,4)
+  flow _ -> X(3,3)*X(3,5)*X(5,3)*X(5,5) meas m5 center (4,4)
+  flow _ -> Z(5,3)*Z(5,5) meas m6 center (6,4)
+  flow _ -> X(1,5)*X(3,5) meas m7 center (2,6)
+}
+
+template t1 {
+  circuit {
+    R (0,2) (4,2) (2,4) (6,4)
+    RX (4,0) (2,2) (4,4) (2,6)
+    TICK
+    CX (4,0) (3,1) (2,2) (1,3) (3,3) (4,2) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (4,0) (5,1) (2,2) (3,3) (3,1) (4,2) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (0,2):m0 (4,2):m1 (2,4):m2 (6,4):m3
+    MX (4,0):m4 (2,2):m5 (4,4):m6 (2,6):m7
+    TICK
+    R (0,2) (4,2) (2,4) (6,4)
+    RX (4,0) (2,2) (4,4) (2,6)
+    TICK
+    CX (4,0) (3,1) (2,2) (1,3) (3,3) (4,2) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (4,0) (5,1) (2,2) (3,3) (3,1) (4,2) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (0,2):m8 (4,2):m9 (2,4):m10 (6,4):m11
+    MX (4,0):m12 (2,2):m13 (4,4):m14 (2,6):m15
+    TICK
+    R (0,2) (4,2) (2,4) (6,4)
+    RX (4,0) (2,2) (4,4) (2,6)
+    TICK
+    CX (4,0) (3,1) (2,2) (1,3) (3,3) (4,2) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (4,0) (5,1) (2,2) (3,3) (3,1) (4,2) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (0,2):m16 (4,2):m17 (2,4):m18 (6,4):m19
+    MX (4,0):m20 (2,2):m21 (4,4):m22 (2,6):m23
+  }
+  detector m4*m12 @ (4,0)
+  detector m0*m8 @ (0,2)
+  detector m5*m13 @ (2,2)
+  detector m1*m9 @ (4,2)
+  detector m2*m10 @ (2,4)
+  detector m6*m14 @ (4,4)
+  detector m3*m11 @ (6,4)
+  detector m7*m15 @ (2,6)
+  detector m12*m20 @ (4,0)
+  detector m8*m16 @ (0,2)
+  detector m13*m21 @ (2,2)
+  detector m9*m17 @ (4,2)
+  detector m10*m18 @ (2,4)
+  detector m14*m22 @ (4,4)
+  detector m11*m19 @ (6,4)
+  detector m15*m23 @ (2,6)
+  flow Z(1,1)*Z(1,3) -> _ meas m0 center (0,2)
+  flow Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) -> _ meas m1 center (4,2)
+  flow Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) -> _ meas m2 center (2,4)
+  flow Z(5,3)*Z(5,5) -> _ meas m3 center (6,4)
+  flow X(3,1)*X(5,1) -> _ meas m4 center (4,0)
+  flow X(1,1)*X(1,3)*X(3,1)*X(3,3) -> _ meas m5 center (2,2)
+  flow X(3,3)*X(3,5)*X(5,3)*X(5,5) -> _ meas m6 center (4,4)
+  flow X(1,5)*X(3,5) -> _ meas m7 center (2,6)
+  flow _ -> Z(1,1)*Z(1,3) meas m16 center (0,2)
+  flow _ -> Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) meas m17 center (4,2)
+  flow _ -> Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) meas m18 center (2,4)
+  flow _ -> Z(5,3)*Z(5,5) meas m19 center (6,4)
+  flow _ -> X(3,1)*X(5,1) meas m20 center (4,0)
+  flow _ -> X(1,1)*X(1,3)*X(3,1)*X(3,3) meas m21 center (2,2)
+  flow _ -> X(3,3)*X(3,5)*X(5,3)*X(5,5) meas m22 center (4,4)
+  flow _ -> X(1,5)*X(3,5) meas m23 center (2,6)
+}
+
+template t2 {
+  circuit {
+    R (0,2) (4,2) (2,4) (6,4) (0,6) (4,6)
+    RX (4,0) (2,2) (4,4) (2,6)
+    RX (1,7) (3,7) (5,7)
+    TICK
+    CX (4,0) (3,1) (2,2) (1,3) (3,3) (4,2) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4) (2,6) (1,7) (3,7) (4,6)
+    TICK
+    CX (4,0) (5,1) (2,2) (3,3) (3,1) (4,2) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4) (2,6) (3,7) (3,5) (4,6)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (3,5) (2,4) (4,4) (3,3) (1,7) (0,6) (2,6) (1,5) (5,7) (4,6)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (1,5) (0,6) (2,6) (3,5) (5,5) (4,6)
+    TICK
+    M (0,2):m0 (4,2):m1 (2,4):m2 (6,4):m3 (0,6):m4 (4,6):m5
+    MX (4,0):m6 (2,2):m7 (4,4):m8 (2,6):m9
+    TICK
+    R (0,2) (4,2) (2,4) (6,4) (0,6) (4,6)
+    RX (4,0) (2,2) (4,4) (2,6)
+    TICK
+    CX (4,0) (3,1) (2,2) (1,3) (3,3) (4,2) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4) (2,6) (1,7) (3,7) (4,6)
+    TICK
+    CX (4,0) (5,1) (2,2) (3,3) (3,1) (4,2) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4) (2,6) (3,7) (3,5) (4,6)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (3,5) (2,4) (4,4) (3,3) (1,7) (0,6) (2,6) (1,5) (5,7) (4,6)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (1,5) (0,6) (2,6) (3,5) (5,5) (4,6)
+    TICK
+    M (0,2):m10 (4,2):m11 (2,4):m12 (6,4):m13 (0,6):m14 (4,6):m15
+    MX (4,0):m16 (2,2):m17 (4,4):m18 (2,6):m19
+    TICK
+    R (0,2) (4,2) (2,4) (6,4) (0,6) (4,6)
+    RX (4,0) (2,2) (4,4) (2,6)
+    TICK
+    CX (4,0) (3,1) (2,2) (1,3) (3,3) (4,2) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4) (2,6) (1,7) (3,7) (4,6)
+    TICK
+    CX (4,0) (5,1) (2,2) (3,3) (3,1) (4,2) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4) (2,6) (3,7) (3,5) (4,6)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (3,5) (2,4) (4,4) (3,3) (1,7) (0,6) (2,6) (1,5) (5,7) (4,6)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (1,5) (0,6) (2,6) (3,5) (5,5) (4,6)
+    TICK
+    M (0,2):m20 (4,2):m21 (2,4):m22 (6,4):m23 (0,6):m24 (4,6):m25
+    MX (4,0):m26 (2,2):m27 (4,4):m28 (2,6):m29
+    MX (1,7):m30 (3,7):m31 (5,7):m32
+  }
+  detector m6*m16 @ (4,0)
+  detector m0*m10 @ (0,2)
+  detector m7*m17 @ (2,2)
+  detector m1*m11 @ (4,2)
+  detector m2*m12 @ (2,4)
+  detector m8*m18 @ (4,4)
+  detector m3*m13 @ (6,4)
+  detector m4*m14 @ (0,6)
+  detector m9*m19 @ (2,6)
+  detector m5*m15 @ (4,6)
+  detector m16*m26 @ (4,0)
+  detector m10*m20 @ (0,2)
+  detector m17*m27 @ (2,2)
+  detector m11*m21 @ (4,2)
+  detector m12*m22 @ (2,4)
+  detector m18*m28 @ (4,4)
+  detector m13*m23 @ (6,4)
+  detector m14*m24 @ (0,6)
+  detector m19*m29 @ (2,6)
+  detector m15*m25 @ (4,6)
+  flow Z(1,1)*Z(1,3) -> _ meas m0 center (0,2)
+  flow Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) -> _ meas m1 center (4,2)
+  flow Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) -> _ meas m2 center (2,4)
+  flow Z(5,3)*Z(5,5) -> _ meas m3 center (6,4)
+  flow X(3,1)*X(5,1) -> _ meas m6 center (4,0)
+  flow X(1,1)*X(1,3)*X(3,1)*X(3,3) -> _ meas m7 center (2,2)
+  flow X(3,3)*X(3,5)*X(5,3)*X(5,5) -> _ meas m8 center (4,4)
+  flow X(1,5)*X(3,5) -> _ meas m9 center (2,6)
+  flow _ -> Z(1,1)*Z(1,3) meas m20 center (0,2)
+  flow _ -> Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) meas m21 center (4,2)
+  flow _ -> Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) meas m22 center (2,4)
+  flow _ -> Z(5,3)*Z(5,5) meas m23 center (6,4)
+  flow _ -> X(3,1)*X(5,1) meas m26 center (4,0)
+  flow _ -> X(1,1)*X(1,3)*X(3,1)*X(3,3) meas m27 center (2,2)
+  flow _ -> X(3,3)*X(3,5)*X(5,3)*X(5,5) meas m28 center (4,4)
+  flow _ -> X(1,5)*X(3,5) meas m30*m31*m29 center (2,6)
+}
+
+template t3 {
+  circuit {
+    R (2,0) (6,0) (0,2) (4,2) (2,4) (6,4)
+    RX (4,0) (2,2) (4,4) (2,6)
+    RX (1,-1) (3,-1) (5,-1) (1,1) (3,1) (5,1) (1,3) (3,3) (5,3) (1,5) (3,5) (5,5)
+    TICK
+    CX (1,1) (2,0) (4,0) (3,1) (5,1) (6,0) (2,2) (1,3) (3,3) (4,2) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (1,-1) (2,0) (4,0) (5,1) (5,-1) (6,0) (2,2) (3,3) (3,1) (4,2) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (3,1) (2,0) (4,0) (3,-1) (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (3,-1) (2,0) (4,0) (5,-1) (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (2,0):m0 (6,0):m1 (0,2):m2 (4,2):m3 (2,4):m4 (6,4):m5
+    MX (4,0):m6 (2,2):m7 (4,4):m8 (2,6):m9
+    TICK
+    R (2,0) (6,0) (0,2) (4,2) (2,4) (6,4)
+    RX (4,0) (2,2) (4,4) (2,6)
+    TICK
+    CX (1,1) (2,0) (4,0) (3,1) (5,1) (6,0) (2,2) (1,3) (3,3) (4,2) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (1,-1) (2,0) (4,0) (5,1) (5,-1) (6,0) (2,2) (3,3) (3,1) (4,2) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (3,1) (2,0) (4,0) (3,-1) (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (3,-1) (2,0) (4,0) (5,-1) (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (2,0):m10 (6,0):m11 (0,2):m12 (4,2):m13 (2,4):m14 (6,4):m15
+    MX (4,0):m16 (2,2):m17 (4,4):m18 (2,6):m19
+    TICK
+    R (2,0) (6,0) (0,2) (4,2) (2,4) (6,4)
+    RX (4,0) (2,2) (4,4) (2,6)
+    TICK
+    CX (1,1) (2,0) (4,0) (3,1) (5,1) (6,0) (2,2) (1,3) (3,3) (4,2) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (1,-1) (2,0) (4,0) (5,1) (5,-1) (6,0) (2,2) (3,3) (3,1) (4,2) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (3,1) (2,0) (4,0) (3,-1) (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (3,-1) (2,0) (4,0) (5,-1) (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (2,0):m20 (6,0):m21 (0,2):m22 (4,2):m23 (2,4):m24 (6,4):m25
+    MX (4,0):m26 (2,2):m27 (4,4):m28 (2,6):m29
+    MX (1,-1):m30 (3,-1):m31 (5,-1):m32
+  }
+  detector m6 @ (4,0)
+  detector m7 @ (2,2)
+  detector m8 @ (4,4)
+  detector m9 @ (2,6)
+  detector m0*m10 @ (2,0)
+  detector m6*m16 @ (4,0)
+  detector m1*m11 @ (6,0)
+  detector m2*m12 @ (0,2)
+  detector m7*m17 @ (2,2)
+  detector m3*m13 @ (4,2)
+  detector m4*m14 @ (2,4)
+  detector m8*m18 @ (4,4)
+  detector m5*m15 @ (6,4)
+  detector m9*m19 @ (2,6)
+  detector m10*m20 @ (2,0)
+  detector m16*m26 @ (4,0)
+  detector m11*m21 @ (6,0)
+  detector m12*m22 @ (0,2)
+  detector m17*m27 @ (2,2)
+  detector m13*m23 @ (4,2)
+  detector m14*m24 @ (2,4)
+  detector m18*m28 @ (4,4)
+  detector m15*m25 @ (6,4)
+  detector m19*m29 @ (2,6)
+  flow _ -> Z(1,1)*Z(1,3) meas m22 center (0,2)
+  flow _ -> Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) meas m23 center (4,2)
+  flow _ -> Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) meas m24 center (2,4)
+  flow _ -> Z(5,3)*Z(5,5) meas m25 center (6,4)
+  flow _ -> X(1,1)*X(1,3)*X(3,1)*X(3,3) meas m27 center (2,2)
+  flow _ -> X(3,3)*X(3,5)*X(5,3)*X(5,5) meas m28 center (4,4)
+  flow _ -> X(1,5)*X(3,5) meas m29 center (2,6)
+  flow _ -> X(3,1)*X(5,1) meas m31*m32*m26 center (4,0)
+}
+
+template t4 {
+  circuit {
+    R (0,2) (4,2) (2,4) (6,4)
+    RX (4,0) (2,2) (6,2) (4,4) (2,6) (6,6)
+    R (7,1) (7,3) (7,5)
+    TICK
+    CX (4,0) (3,1) (2,2) (1,3) (3,3) (4,2) (6,2) (5,3) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (4,0) (5,1) (2,2) (3,3) (3,1) (4,2) (6,2) (7,3) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (6,2) (5,1) (3,5) (2,4) (4,4) (3,3) (7,5) (6,4) (2,6) (1,5) (6,6) (5,5)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (6,2) (7,1) (3,3) (2,4) (4,4) (5,3) (7,3) (6,4) (2,6) (3,5) (6,6) (7,5)
+    TICK
+    M (0,2):m0 (4,2):m1 (2,4):m2 (6,4):m3
+    MX (4,0):m4 (2,2):m5 (6,2):m6 (4,4):m7 (2,6):m8 (6,6):m9
+    TICK
+    R (0,2) (4,2) (2,4) (6,4)
+    RX (4,0) (2,2) (6,2) (4,4) (2,6) (6,6)
+    TICK
+    CX (4,0) (3,1) (2,2) (1,3) (3,3) (4,2) (6,2) (5,3) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (4,0) (5,1) (2,2) (3,3) (3,1) (4,2) (6,2) (7,3) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (6,2) (5,1) (3,5) (2,4) (4,4) (3,3) (7,5) (6,4) (2,6) (1,5) (6,6) (5,5)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (6,2) (7,1) (3,3) (2,4) (4,4) (5,3) (7,3) (6,4) (2,6) (3,5) (6,6) (7,5)
+    TICK
+    M (0,2):m10 (4,2):m11 (2,4):m12 (6,4):m13
+    MX (4,0):m14 (2,2):m15 (6,2):m16 (4,4):m17 (2,6):m18 (6,6):m19
+    TICK
+    R (0,2) (4,2) (2,4) (6,4)
+    RX (4,0) (2,2) (6,2) (4,4) (2,6) (6,6)
+    TICK
+    CX (4,0) (3,1) (2,2) (1,3) (3,3) (4,2) (6,2) (5,3) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (4,0) (5,1) (2,2) (3,3) (3,1) (4,2) (6,2) (7,3) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (6,2) (5,1) (3,5) (2,4) (4,4) (3,3) (7,5) (6,4) (2,6) (1,5) (6,6) (5,5)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (6,2) (7,1) (3,3) (2,4) (4,4) (5,3) (7,3) (6,4) (2,6) (3,5) (6,6) (7,5)
+    TICK
+    M (0,2):m20 (4,2):m21 (2,4):m22 (6,4):m23
+    MX (4,0):m24 (2,2):m25 (6,2):m26 (4,4):m27 (2,6):m28 (6,6):m29
+    M (1,1):m30 (3,1):m31 (5,1):m32 (7,1):m33 (1,3):m34 (3,3):m35 (5,3):m36 (7,3):m37 (1,5):m38 (3,5):m39 (5,5):m40 (7,5):m41
+  }
+  detector m4*m14 @ (4,0)
+  detector m0*m10 @ (0,2)
+  detector m5*m15 @ (2,2)
+  detector m1*m11 @ (4,2)
+  detector m6*m16 @ (6,2)
+  detector m2*m12 @ (2,4)
+  detector m7*m17 @ (4,4)
+  detector m3*m13 @ (6,4)
+  detector m8*m18 @ (2,6)
+  detector m9*m19 @ (6,6)
+  detector m14*m24 @ (4,0)
+  detector m10*m20 @ (0,2)
+  detector m15*m25 @ (2,2)
+  detector m11*m21 @ (4,2)
+  detector m16*m26 @ (6,2)
+  detector m12*m22 @ (2,4)
+  detector m17*m27 @ (4,4)
+  detector m13*m23 @ (6,4)
+  detector m18*m28 @ (2,6)
+  detector m19*m29 @ (6,6)
+  detector m20*m30*m34 @ (0,2)
+  detector m21*m31*m32*m35*m36 @ (4,2)
+  detector m22*m34*m35*m38*m39 @ (2,4)
+  detector m23*m36*m37*m40*m41 @ (6,4)
+  flow Z(1,1)*Z(1,3) -> _ meas m0 center (0,2)
+  flow Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) -> _ meas m1 center (4,2)
+  flow Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) -> _ meas m2 center (2,4)
+  flow Z(5,3)*Z(5,5) -> _ meas m3 center (6,4)
+  flow X(3,1)*X(5,1) -> _ meas m4 center (4,0)
+  flow X(1,1)*X(1,3)*X(3,1)*X(3,3) -> _ meas m5 center (2,2)
+  flow X(3,3)*X(3,5)*X(5,3)*X(5,5) -> _ meas m7 center (4,4)
+  flow X(1,5)*X(3,5) -> _ meas m8 center (2,6)
+}
+
+template t5 {
+  circuit {
+    R (0,2) (4,2) (2,4) (6,4)
+    RX (0,0) (4,0) (2,2) (0,4) (4,4) (2,6)
+    R (-1,1) (-1,3) (-1,5)
+    TICK
+    CX (0,0) (-1,1) (4,0) (3,1) (-1,3) (0,2) (2,2) (1,3) (3,3) (4,2) (0,4) (-1,5) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (0,0) (1,1) (4,0) (5,1) (-1,1) (0,2) (2,2) (3,3) (3,1) (4,2) (0,4) (1,5) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (0,4) (-1,3) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (0,4) (1,3) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (0,2):m0 (4,2):m1 (2,4):m2 (6,4):m3
+    MX (0,0):m4 (4,0):m5 (2,2):m6 (0,4):m7 (4,4):m8 (2,6):m9
+    TICK
+    R (0,2) (4,2) (2,4) (6,4)
+    RX (0,0) (4,0) (2,2) (0,4) (4,4) (2,6)
+    TICK
+    CX (0,0) (-1,1) (4,0) (3,1) (-1,3) (0,2) (2,2) (1,3) (3,3) (4,2) (0,4) (-1,5) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (0,0) (1,1) (4,0) (5,1) (-1,1) (0,2) (2,2) (3,3) (3,1) (4,2) (0,4) (1,5) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (0,4) (-1,3) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (0,4) (1,3) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (0,2):m10 (4,2):m11 (2,4):m12 (6,4):m13
+    MX (0,0):m14 (4,0):m15 (2,2):m16 (0,4):m17 (4,4):m18 (2,6):m19
+    TICK
+    R (0,2) (4,2) (2,4) (6,4)
+    RX (0,0) (4,0) (2,2) (0,4) (4,4) (2,6)
+    TICK
+    CX (0,0) (-1,1) (4,0) (3,1) (-1,3) (0,2) (2,2) (1,3) (3,3) (4,2) (0,4) (-1,5) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (0,0) (1,1) (4,0) (5,1) (-1,1) (0,2) (2,2) (3,3) (3,1) (4,2) (0,4) (1,5) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (0,4) (-1,3) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (0,4) (1,3) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (0,2):m20 (4,2):m21 (2,4):m22 (6,4):m23
+    MX (0,0):m24 (4,0):m25 (2,2):m26 (0,4):m27 (4,4):m28 (2,6):m29
+    M (-1,1):m30 (-1,3):m31 (-1,5):m32
+  }
+  detector m4*m14 @ (0,0)
+  detector m5*m15 @ (4,0)
+  detector m0*m10 @ (0,2)
+  detector m6*m16 @ (2,2)
+  detector m1*m11 @ (4,2)
+  detector m7*m17 @ (0,4)
+  detector m2*m12 @ (2,4)
+  detector m8*m18 @ (4,4)
+  detector m3*m13 @ (6,4)
+  detector m9*m19 @ (2,6)
+  detector m14*m24 @ (0,0)
+  detector m15*m25 @ (4,0)
+  detector m10*m20 @ (0,2)
+  detector m16*m26 @ (2,2)
+  detector m11*m21 @ (4,2)
+  detector m17*m27 @ (0,4)
+  detector m12*m22 @ (2,4)
+  detector m18*m28 @ (4,4)
+  detector m13*m23 @ (6,4)
+  detector m19*m29 @ (2,6)
+  flow Z(1,1)*Z(1,3) -> _ meas m0 center (0,2)
+  flow Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) -> _ meas m1 center (4,2)
+  flow Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) -> _ meas m2 center (2,4)
+  flow Z(5,3)*Z(5,5) -> _ meas m3 center (6,4)
+  flow X(3,1)*X(5,1) -> _ meas m5 center (4,0)
+  flow X(1,1)*X(1,3)*X(3,1)*X(3,3) -> _ meas m6 center (2,2)
+  flow X(3,3)*X(3,5)*X(5,3)*X(5,5) -> _ meas m8 center (4,4)
+  flow X(1,5)*X(3,5) -> _ meas m9 center (2,6)
+  flow _ -> Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) meas m21 center (4,2)
+  flow _ -> Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) meas m22 center (2,4)
+  flow _ -> Z(5,3)*Z(5,5) meas m23 center (6,4)
+  flow _ -> X(3,1)*X(5,1) meas m25 center (4,0)
+  flow _ -> X(1,1)*X(1,3)*X(3,1)*X(3,3) meas m26 center (2,2)
+  flow _ -> X(3,3)*X(3,5)*X(5,3)*X(5,5) meas m28 center (4,4)
+  flow _ -> X(1,5)*X(3,5) meas m29 center (2,6)
+  flow _ -> Z(1,1)*Z(1,3) meas m30*m31*m20 center (0,2)
+}
+
+template t6 {
+  circuit {
+    MPP X(3,1)*X(5,1):m0 Z(1,1)*Z(1,3):m1 X(1,1)*X(1,3)*X(3,1)*X(3,3):m2 Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3):m3 Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5):m4 X(3,3)*X(3,5)*X(5,3)*X(5,5):m5 Z(5,3)*Z(5,5):m6 X(1,5)*X(3,5):m7
+  }
+  flow X(3,1)*X(5,1) -> _ meas m0 center (4,0)
+  flow Z(1,1)*Z(1,3) -> _ meas m1 center (0,2)
+  flow X(1,1)*X(1,3)*X(3,1)*X(3,3) -> _ meas m2 center (2,2)
+  flow Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) -> _ meas m3 center (4,2)
+  flow Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) -> _ meas m4 center (2,4)
+  flow X(3,3)*X(3,5)*X(5,3)*X(5,5) -> _ meas m5 center (4,4)
+  flow Z(5,3)*Z(5,5) -> _ meas m6 center (6,4)
+  flow X(1,5)*X(3,5) -> _ meas m7 center (2,6)
+}
+
+template t7 {
+  circuit {
+    R (0,2) (4,2) (2,4) (6,4)
+    RX (4,0) (2,2) (4,4) (2,6)
+    TICK
+    CX (4,0) (3,1) (2,2) (1,3) (3,3) (4,2) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (4,0) (5,1) (2,2) (3,3) (3,1) (4,2) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (0,2):m0 (4,2):m1 (2,4):m2 (6,4):m3
+    MX (4,0):m4 (2,2):m5 (4,4):m6 (2,6):m7
+  }
+  flow _ -> Z(1,1)*Z(1,3) meas m0 center (0,2)
+  flow Z(1,1)*Z(1,3) -> _ meas m0 center (0,2)
+  flow _ -> Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) meas m1 center (4,2)
+  flow Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) -> _ meas m1 center (4,2)
+  flow _ -> Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) meas m2 center (2,4)
+  flow Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) -> _ meas m2 center (2,4)
+  flow _ -> Z(5,3)*Z(5,5) meas m3 center (6,4)
+  flow Z(5,3)*Z(5,5) -> _ meas m3 center (6,4)
+  flow _ -> X(3,1)*X(5,1) meas m4 center (4,0)
+  flow X(3,1)*X(5,1) -> _ meas m4 center (4,0)
+  flow _ -> X(1,1)*X(1,3)*X(3,1)*X(3,3) meas m5 center (2,2)
+  flow X(1,1)*X(1,3)*X(3,1)*X(3,3) -> _ meas m5 center (2,2)
+  flow _ -> X(3,3)*X(3,5)*X(5,3)*X(5,5) meas m6 center (4,4)
+  flow X(3,3)*X(3,5)*X(5,3)*X(5,5) -> _ meas m6 center (4,4)
+  flow _ -> X(1,5)*X(3,5) meas m7 center (2,6)
+  flow X(1,5)*X(3,5) -> _ meas m7 center (2,6)
+}
+
+template t8 {
+  circuit {
+    R (0,2) (4,2) (2,4) (6,4)
+    RX (4,0) (2,2) (4,4) (2,6)
+    TICK
+    CX (4,0) (3,1) (2,2) (1,3) (3,3) (4,2) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (4,0) (5,1) (2,2) (3,3) (3,1) (4,2) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (0,2):m0 (4,2):m1 (2,4):m2 (6,4):m3
+    MX (4,0):m4 (2,2):m5 (4,4):m6 (2,6):m7
+    TICK
+    REPEAT 2 b1
+  }
+  body b1 {
+    R (0,2) (4,2) (2,4) (6,4)
+    RX (4,0) (2,2) (4,4) (2,6)
+    TICK
+    CX (4,0) (3,1) (2,2) (1,3) (3,3) (4,2) (1,5) (2,4) (4,4) (3,5) (5,5) (6,4)
+    TICK
+    CX (4,0) (5,1) (2,2) (3,3) (3,1) (4,2) (1,3) (2,4) (4,4) (5,5) (5,3) (6,4)
+    TICK
+    CX (1,3) (0,2) (2,2) (1,1) (5,3) (4,2) (3,5) (2,4) (4,4) (3,3) (2,6) (1,5)
+    TICK
+    CX (1,1) (0,2) (2,2) (3,1) (5,1) (4,2) (3,3) (2,4) (4,4) (5,3) (2,6) (3,5)
+    TICK
+    M (0,2):m8 (4,2):m9 (2,4):m10 (6,4):m11
+    MX (4,0):m12 (2,2):m13 (4,4):m14 (2,6):m15
+    TICK
+  }
+  detector body(b1) m8*s0 @ (0,2)
+  detector body(b1) m9*s1 @ (4,2)
+  detector body(b1) m10*s2 @ (2,4)
+  detector body(b1) m11*s3 @ (6,4)
+  detector body(b1) m12*s4 @ (4,0)
+  detector body(b1) m13*s5 @ (2,2)
+  detector body(b1) m14*s6 @ (4,4)
+  detector body(b1) m15*s7 @ (2,6)
+  loop(b1,s0) init m0 next m8
+  loop(b1,s1) init m1 next m9
+  loop(b1,s2) init m2 next m10
+  loop(b1,s3) init m3 next m11
+  loop(b1,s4) init m4 next m12
+  loop(b1,s5) init m5 next m13
+  loop(b1,s6) init m6 next m14
+  loop(b1,s7) init m7 next m15
+  flow Z(1,1)*Z(1,3) -> _ meas m0 center (0,2)
+  flow Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) -> _ meas m1 center (4,2)
+  flow Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) -> _ meas m2 center (2,4)
+  flow Z(5,3)*Z(5,5) -> _ meas m3 center (6,4)
+  flow X(3,1)*X(5,1) -> _ meas m4 center (4,0)
+  flow X(1,1)*X(1,3)*X(3,1)*X(3,3) -> _ meas m5 center (2,2)
+  flow X(3,3)*X(3,5)*X(5,3)*X(5,5) -> _ meas m6 center (4,4)
+  flow X(1,5)*X(3,5) -> _ meas m7 center (2,6)
+  flow _ -> Z(1,1)*Z(1,3) meas m8 center (0,2)
+  flow _ -> Z(3,1)*Z(3,3)*Z(5,1)*Z(5,3) meas m9 center (4,2)
+  flow _ -> Z(1,3)*Z(1,5)*Z(3,3)*Z(3,5) meas m10 center (2,4)
+  flow _ -> Z(5,3)*Z(5,5) meas m11 center (6,4)
+  flow _ -> X(3,1)*X(5,1) meas m12 center (4,0)
+  flow _ -> X(1,1)*X(1,3)*X(3,1)*X(3,3) meas m13 center (2,2)
+  flow _ -> X(3,3)*X(3,5)*X(5,3)*X(5,5) meas m14 center (4,4)
+  flow _ -> X(1,5)*X(3,5) meas m15 center (2,6)
+}
+
+bundle b0 owners t0 t1 {
+  detector o0:m1*o1:m0 @ (0,2)
+  detector o0:m3*o1:m1 @ (4,2)
+  detector o0:m4*o1:m2 @ (2,4)
+  detector o0:m6*o1:m3 @ (6,4)
+  detector o0:m0*o1:m4 @ (4,0)
+  detector o0:m2*o1:m5 @ (2,2)
+  detector o0:m5*o1:m6 @ (4,4)
+  detector o0:m7*o1:m7 @ (2,6)
+}
+
+bundle b1 owners t0 t2 {
+  detector o0:m1*o1:m0 @ (0,2)
+  detector o0:m3*o1:m1 @ (4,2)
+  detector o0:m4*o1:m2 @ (2,4)
+  detector o0:m6*o1:m3 @ (6,4)
+  detector o0:m0*o1:m6 @ (4,0)
+  detector o0:m2*o1:m7 @ (2,2)
+  detector o0:m5*o1:m8 @ (4,4)
+  detector o0:m7*o1:m9 @ (2,6)
+}
+
+bundle b2 owners t3 t4 {
+  detector o0:m22*o1:m0 @ (0,2)
+  detector o0:m23*o1:m1 @ (4,2)
+  detector o0:m24*o1:m2 @ (2,4)
+  detector o0:m25*o1:m3 @ (6,4)
+  detector o0:m26*o0:m31*o0:m32*o1:m4 @ (4,0)
+  detector o0:m27*o1:m5 @ (2,2)
+  detector o0:m28*o1:m7 @ (4,4)
+  detector o0:m29*o1:m8 @ (2,6)
+}
+
+bundle b3 owners t1 t5 {
+  detector o0:m16*o1:m0 @ (0,2)
+  detector o0:m17*o1:m1 @ (4,2)
+  detector o0:m18*o1:m2 @ (2,4)
+  detector o0:m19*o1:m3 @ (6,4)
+  detector o0:m20*o1:m5 @ (4,0)
+  detector o0:m21*o1:m6 @ (2,2)
+  detector o0:m22*o1:m8 @ (4,4)
+  detector o0:m23*o1:m9 @ (2,6)
+}
+
+bundle b4 owners t2 t1 {
+  detector o0:m20*o1:m0 @ (0,2)
+  detector o0:m21*o1:m1 @ (4,2)
+  detector o0:m22*o1:m2 @ (2,4)
+  detector o0:m23*o1:m3 @ (6,4)
+  detector o0:m26*o1:m4 @ (4,0)
+  detector o0:m27*o1:m5 @ (2,2)
+  detector o0:m28*o1:m6 @ (4,4)
+  detector o0:m29*o0:m30*o0:m31*o1:m7 @ (2,6)
+}
+
+bundle b5 owners t5 t6 {
+  detector o0:m25*o1:m0 @ (4,0)
+  detector o0:m20*o0:m30*o0:m31*o1:m1 @ (0,2)
+  detector o0:m26*o1:m2 @ (2,2)
+  detector o0:m21*o1:m3 @ (4,2)
+  detector o0:m22*o1:m4 @ (2,4)
+  detector o0:m28*o1:m5 @ (4,4)
+  detector o0:m23*o1:m6 @ (6,4)
+  detector o0:m29*o1:m7 @ (2,6)
+}
+
+bundle b6 owners t1 t6 {
+  detector o0:m20*o1:m0 @ (4,0)
+  detector o0:m16*o1:m1 @ (0,2)
+  detector o0:m21*o1:m2 @ (2,2)
+  detector o0:m17*o1:m3 @ (4,2)
+  detector o0:m18*o1:m4 @ (2,4)
+  detector o0:m22*o1:m5 @ (4,4)
+  detector o0:m19*o1:m6 @ (6,4)
+  detector o0:m23*o1:m7 @ (2,6)
+}
+
+graph {
+  n0 quantum {
+    instance i0 t0 @ (8,8) from block (1,1,0)
+    from blocks (1,1,0)
+  }
+  n1 quantum {
+    instance i1 t1 @ (8,8) from block (1,1,1)
+    use b0 i0 i1 @ (8,8)
+    from blocks (1,1,1)
+  }
+  n2 quantum {
+    instance i2 t0 @ (0,0) from block (0,0,0)
+    from blocks (0,0,0)
+  }
+  n3 quantum {
+    instance i3 t2 @ (0,0) from block (0,0,1)
+    instance i4 t3 @ (0,8) from block (0,1,1)
+    use b1 i2 i3 @ (0,0)
+    from blocks (0,0,1) (0,1,1)
+  }
+  n4 quantum {
+    instance i5 t4 @ (0,8) from block (0,1,2)
+    instance i6 t5 @ (8,8) from block (1,1,2)
+    use b2 i4 i5 @ (0,8)
+    use b3 i1 i6 @ (8,8)
+    from blocks (0,1,2) (1,1,2)
+  }
+  n5 quantum {
+    instance i7 t6 @ (8,8) from block (1,1,3)
+    use b5 i6 i7 @ (8,8)
+    from blocks (1,1,3)
+  }
+  n6 quantum {
+    instance i8 t1 @ (0,0) from block (0,0,2)
+    use b4 i3 i8 @ (0,0)
+    from blocks (0,0,2)
+  }
+  n7 quantum {
+    instance i9 t6 @ (0,0) from block (0,0,3)
+    use b6 i8 i9 @ (0,0)
+    from blocks (0,0,3)
+  }
+  n10 observable 0 operators i0 input X(11,9)*X(11,11)*X(11,13), i7 output X(11,9)*X(11,11)*X(11,13) from generator 0
+  n11 compute in0 from frame z (1,1,3)
+  n18 observable 1 measurements i3:m2*i3:m3*i3:m4*i3:m5*i4:m0*i4:m1*i4:m2*i4:m3*i5:m34*i5:m35*i5:m36*i5:m37 operators i0 input Z(9,11)*Z(11,11)*Z(13,11), i2 input Z(1,3)*Z(3,3)*Z(5,3), i7 output Z(9,11)*Z(11,11)*Z(13,11) from generator 1
+  n19 compute in0 from frame x (1,1,3)
+  n25 observable 2 measurements i3:m31*i5:m4*i5:m6*i5:m7*i5:m9*i6:m4*i6:m6*i6:m7*i6:m9 operators i0 input X(11,9)*X(11,11)*X(11,13), i2 input X(3,1)*X(3,3)*X(3,5), i9 output X(3,1)*X(3,3)*X(3,5) from generator 2
+  n26 compute in0 from frame z (0,0,3)
+  n28 observable 3 operators i2 input Z(1,3)*Z(3,3)*Z(5,3), i9 output Z(1,3)*Z(3,3)*Z(5,3) from generator 3
+  n29 compute in0 from frame x (0,0,3)
+  n0 -> n1 quantum (1,1,0)>(1,1,1) padding offset (8,8) one t7 loop t8
+  n1 -> n4 quantum (1,1,1)>(1,1,2) padding offset (8,8) one t7 loop t8
+  n2 -> n3 quantum (0,0,0)>(0,0,1) padding offset (0,0) one t7 loop t8
+  n3 -> n4 quantum (0,1,1)>(0,1,2) padding offset (0,8) one t7 loop t8
+  n3 -> n6 quantum (0,0,1)>(0,0,2) padding offset (0,0) one t7 loop t8
+  n4 -> n5 quantum (1,1,2)>(1,1,3) padding offset (8,8) one t7 loop t8
+  n6 -> n7 quantum (0,0,2)>(0,0,3) padding offset (0,0) one t7 loop t8
+  n0 -> n1 order
+  n2 -> n3 order
+  n3 -> n4 order
+  n1 -> n4 order
+  n3 -> n6 order
+  n4 -> n5 order
+  n6 -> n7 order
+  n10 -> n11 value 0
+  n18 -> n19 value 0
+  n25 -> n26 value 0
+  n28 -> n29 value 0
+  n5 -> n10 order
+  n5 -> n18 order
+  n4 -> n25 order
+  n7 -> n25 order
+  n7 -> n28 order
+}

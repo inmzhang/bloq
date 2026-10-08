@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["ccz_orbit_signatures","ccz_state_signature","logical_bloch","logical_signature","signatures_match"],"struct":["DetectorReport","FramePairReport","ObservableReport","VerifyReport"]};

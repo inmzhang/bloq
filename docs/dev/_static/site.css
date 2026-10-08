@@ -1,0 +1,107 @@
+/* Native Material layout with Bloq's blue accent in both schemes. */
+[data-md-color-scheme="default"] {
+  --md-accent-fg-color: #405ec5;
+  --md-accent-fg-color--transparent: #405ec51a;
+  --md-typeset-a-color: #405ec5;
+}
+[data-md-color-scheme="slate"] {
+  --md-accent-fg-color: #8ca6ff;
+  --md-accent-fg-color--transparent: #8ca6ff26;
+  --md-typeset-a-color: #8ca6ff;
+}
+.md-header__button.md-logo img { width: 1.8rem; height: 1.8rem; border-radius: .2rem; }
+[data-md-color-scheme="slate"] .md-logo img { content: url("bloq-mark-dark.png"); }
+.bloq-intro-logo { display: block; width: 220px; max-width: 100%; height: auto; border-radius: .3rem; margin: 0 auto 1.5rem; }
+[data-md-color-scheme="slate"] .bloq-intro-logo { content: url("bloq-logo-dark.png"); }
+.bloq-intro-tagline { font-size: 1.2em; text-align: center; }
+.bloq-index .grid.cards strong { display: block; margin-bottom: .8rem; }
+.bloq-example-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .8fr); gap: 1rem; align-items: stretch; }
+.bloq-example-layout .highlight-blog { margin: 0; }
+.bloq-example-layout .bloq-example-render { position: relative; min-height: 18rem; margin: 0; overflow: hidden; background: #fff; border: 1px solid var(--md-default-fg-color--lightest); border-radius: .2rem; }
+.bloq-block-view { display: block; width: 100%; height: 24rem; margin: 1rem 0; border: 1px solid var(--md-default-fg-color--lightest); border-radius: .2rem; }
+.bloq-example-render .bloq-block-view { position: absolute; inset: 0; height: 100%; margin: 0; border: 0; }
+@media(max-width: 760px) {
+  .bloq-example-layout { grid-template-columns: 1fr; }
+  .bloq-example-layout .bloq-example-render { height: 22rem; }
+}
+.bloq-index h1 { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.md-header__title { flex: 0 0 2.5rem; }
+.md-header__title .md-header__topic:first-child { opacity: 1; pointer-events: auto; transform: none; z-index: 0; }
+.md-header__title .md-header__topic + .md-header__topic { display: none; }
+.md-header__source { flex-shrink: 0; width: 8.5rem; }
+.bloq-version-select { min-width: 0; max-width: 12rem; margin-right: auto; padding: .3rem .5rem; border: 0; border-radius: .2rem; background: var(--md-primary-fg-color); color: var(--md-primary-bg-color); font: inherit; font-size: .65rem; }
+.bloq-header-link { display: flex; align-items: center; gap: .3rem; margin-left: .2rem; padding: .4rem .8rem; border-radius: 1rem; background: var(--md-accent-fg-color); color: var(--md-default-bg-color); white-space: nowrap; font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; text-decoration: none; transition: opacity 200ms; }
+.bloq-header-link:hover { opacity: .85; }
+.bloq-header-link svg { width: .9rem; height: .9rem; fill: currentColor; }
+.bloq-version-select:focus-visible, .bloq-header-link:focus-visible { outline: 2px solid var(--md-accent-fg-color); outline-offset: 3px; }
+.bloq-version-note { font-size: .68rem; padding: .45rem 1rem; background: var(--md-code-bg-color); color: var(--md-default-fg-color); text-align: center; }
+@media(max-width: 600px) {
+  .bloq-header-link { display: none; }
+  .bloq-version-select { max-width: 8rem; font-size: .6rem; }
+  .md-header__inner .md-header__title { margin-left: .1rem; }
+  .bloq-intro-logo { width: 180px; }
+}
+
+/* Full generated programs stay readable without expanding the tutorial. */
+.bloq-output { max-height: 24rem; overflow: auto; margin: 1rem 0; border: 1px solid var(--md-default-fg-color--lightest); border-radius: .2rem; }
+.bloq-output .highlight { margin: 0; }
+.bloq-output pre { width: max-content; min-width: 100%; margin: 0; overflow: visible; }
+.bloq-output:focus-visible { outline: 2px solid var(--md-accent-fg-color); outline-offset: 2px; }
+
+.md-typeset .footnote-backlink { font-size: .9em; margin-left: .2em; }
+
+.md-typeset .bloq-kind-catalog img { display: block; width: 104px; min-width: 88px; max-width: none; margin: 0; }
+.md-typeset .bloq-kind-catalog td { vertical-align: middle; }
+
+/* Gallery cards use the compiler's geometry and category tags. */
+.bloq-gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: .8rem; }
+.md-typeset .bloq-gallery-card { display: flex; flex-direction: column; align-items: center; padding: .8rem; border: 1px solid var(--md-default-fg-color--lightest); border-radius: .3rem; color: var(--md-default-fg-color); text-align: center; }
+.md-typeset .bloq-gallery-card img { display: block; width: 100%; height: 8rem; object-fit: contain; margin: 0 0 .6rem; }
+.bloq-gallery-card:hover { border-color: var(--md-accent-fg-color); background: var(--md-accent-fg-color--transparent); }
+.bloq-gallery-card:focus-visible, .bloq-gallery-filters button:focus-visible { outline: 2px solid var(--md-accent-fg-color); outline-offset: 3px; }
+.bloq-gallery-card[hidden], .bloq-gallery-filters[hidden] { display: none; }
+.bloq-gallery-filters { display: flex; flex-wrap: wrap; gap: .4rem; }
+.bloq-gallery-filters button { padding: .35rem .65rem; border: 1px solid var(--md-default-fg-color--lightest); border-radius: 1rem; cursor: pointer; }
+.bloq-gallery-filters button[aria-pressed="true"] { color: var(--md-typeset-a-color); border-color: var(--md-accent-fg-color); background: var(--md-accent-fg-color--transparent); }
+.md-typeset .bloq-gallery-count { font-size: .7rem; color: var(--md-default-fg-color--light); }
+
+.bloq-ir-graph img { max-width: none; display: block; }
+.bloq-panzoom { max-height: none; overflow: hidden; }
+.bloq-graph-toolbar { display: flex; align-items: center; gap: .5rem; padding: .4rem .6rem; background: var(--md-code-bg-color); font-size: .65rem; }
+.bloq-graph-toolbar button, .bloq-graph-download { min-width: 2rem; padding: .25rem .5rem; border: 1px solid var(--md-default-fg-color--lightest); border-radius: .2rem; cursor: pointer; }
+.bloq-graph-download { margin-left: auto; white-space: nowrap; text-decoration: none; }
+.bloq-graph-toolbar output { min-width: 3rem; }
+.bloq-graph-toolbar span { margin-left: auto; }
+.bloq-graph-viewport { position: relative; height: 24rem; overflow: hidden; background: white; cursor: grab; touch-action: none; }
+.bloq-graph-viewport.dragging { cursor: grabbing; }
+.bloq-graph-viewport img { position: absolute; top: 0; left: 0; margin: 0; transform-origin: 0 0; user-select: none; }
+.bloq-graph-viewport:focus-visible, .bloq-graph-toolbar button:focus-visible, .bloq-graph-download:focus-visible { outline: 2px solid var(--md-accent-fg-color); outline-offset: -2px; }
+
+/* Inline Python reference: object titles above typed signature cards. */
+.md-typeset .bloq-api-title { margin: 2rem 0 .6rem; font-size: 1.05rem; font-weight: 400; line-height: 1.4; }
+.bloq-api-title code { font-family: inherit; background: none; color: inherit; padding: 0; }
+.bloq-api-kind { font-size: .7em; font-weight: 700; padding: .1em .3em; background: #815eb21a; color: #815eb2; }
+.bloq-api-kind.class, .bloq-api-kind.attr, .bloq-api-kind.prop { background: #405ec51a; color: var(--md-typeset-a-color); }
+.md-typeset dt.bloq-api-signature { display: block; margin: 0 0 1rem; padding: .8rem; background: var(--md-code-bg-color); border: 0; font-family: var(--md-code-font-family); font-size: .68rem; line-height: 1.55; overflow-x: auto; }
+.md-typeset dl.py > dd { margin-left: 0; }
+[data-md-color-scheme="slate"] .bloq-api-kind { color: #c4a5f0; }
+
+/* Clifft-style outline badges: size to the label instead of a one-letter icon. */
+.md-nav .objinfo-icon {
+  width: auto;
+  height: auto;
+  padding: 0 .3em;
+  border: 0;
+  border-radius: .1rem;
+  font-size: .85em;
+  font-weight: 700;
+  line-height: inherit;
+  color: var(--objinfo-icon-fg-default);
+  background: var(--objinfo-icon-bg-default);
+}
+.md-nav .objinfo-icon__procedure { color: #8250df; background: #8250df1a; }
+.md-nav .objinfo-icon__data { color: #0550ae; background: #0550ae1a; }
+.md-nav .objinfo-icon__alias { color: #953800; background: #9538001a; }
+[data-md-color-scheme="slate"] .md-nav .objinfo-icon__procedure { color: #d2a8ff; background: #d2a8ff1a; }
+[data-md-color-scheme="slate"] .md-nav .objinfo-icon__data { color: #79c0ff; background: #79c0ff1a; }
+[data-md-color-scheme="slate"] .md-nav .objinfo-icon__alias { color: #ffa657; background: #ffa6571a; }

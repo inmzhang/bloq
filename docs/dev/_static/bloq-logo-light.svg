@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 1254 1254" role="img" aria-labelledby="title description">
+  <title id="title">bloq</title>
+  <desc id="description">Interlocking coral b and blue q above a light-theme bloq wordmark, on a transparent background.</desc>
+  <defs>
+    <linearGradient id="coral" x1="323" y1="130" x2="735" y2="788" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ff6963" />
+      <stop offset="1" stop-color="#ff726d" />
+    </linearGradient>
+    <linearGradient id="coral-side" x1="417" y1="217" x2="499" y2="365" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#e25450" />
+      <stop offset="1" stop-color="#eb5b55" />
+    </linearGradient>
+    <linearGradient id="blue" x1="551" y1="279" x2="932" y2="921" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6c89ff" />
+      <stop offset="1" stop-color="#6286fa" />
+    </linearGradient>
+    <linearGradient id="blue-side" x1="746" y1="424" x2="837" y2="892" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4666ca" />
+      <stop offset="1" stop-color="#4d70db" />
+    </linearGradient>
+    <mask id="interlock-cutout" maskUnits="userSpaceOnUse" x="0" y="0" width="1254" height="1254">
+      <rect width="1254" height="1254" fill="white" />
+      <path id="interlock-clearance" fill="none" stroke="black" stroke-width="12" d="       M624 512 V616 Q624 627 635 633 L735 680" />
+    </mask>
+  </defs>
+  <g id="emblem" mask="url(#interlock-cutout)">
+    <path id="q-loop" fill="url(#blue)" fill-rule="evenodd" d="       M515 319 583 281 Q594 275 606 280       L890 407 Q931 427 931 469       V890 L883 921 817 887 V843       L581 722 Q551 706 551 678 V340 Z       M632 404 V612 Q632 625 645 632       L801 717 Q817 726 817 710       V570 Q817 551 800 543       L769 529 Q753 522 753 507       V476 Q753 441 721 423 Z" />
+    <path id="q-inner-face" fill="url(#blue-side)" d="       M698 403 784 443 Q837 467 837 497       V899 L817 887 V570 Q817 551 800 543       L769 529 Q753 522 753 507       V476 Q753 441 721 423 Z" />
+    <path id="b-loop" fill="url(#coral)" fill-rule="evenodd" d="       M323 195 Q323 191 328 188 L436 130 498 166       V319 Q507 316 519 322       L691 400 Q735 421 735 467       V712 L614 780 Q599 792 583 784       L349 667 Q323 654 323 630 Z       M417 405 V581 Q417 591 429 598       L631 703 V512 Q631 499 618 492 Z" />
+    <path id="b-stem-face" fill="url(#coral-side)" d="M417 217 498 166 V319 L417 365 Z" />
+    <path id="b-lower-face" fill="#ea5c56" d="M552 715 644 764 616 780 Z" />
+    <path id="q-front-band" fill="url(#blue)" d="       M551 480 617 515 V612 Q617 626 631 633       L801 717 Q817 726 817 710       V843 L582 723 Q551 708 551 678 Z" />
+  </g>
+  <g id="wordmark" fill="#222222" fill-rule="evenodd">
+    <path id="letter-b" d="       M349 922 H386 V978       C399 970 415 964 432 964       C475 964 508 996 508 1039       C508 1082 475 1112 430 1112       C383 1112 349 1081 349 1039 Z       M430 997 C405 997 385 1015 385 1039       C385 1062 405 1077 430 1077       C454 1077 473 1062 473 1039       C473 1015 454 997 430 997 Z" />
+    <path id="letter-l" d="M525 922 H564 V1112 H525 Z" />
+    <path id="letter-o" d="       M660 963 C706 963 741 995 741 1039       C741 1082 706 1113 660 1113       C614 1113 579 1082 579 1039       C579 995 614 963 660 963 Z       M660 997 C635 997 615 1015 615 1039       C615 1063 635 1079 660 1079       C685 1079 705 1063 705 1039       C705 1015 685 997 660 997 Z" />
+    <path id="letter-q" d="       M909 969 V1163 H872 V1100       C859 1108 844 1112 828 1112       C786 1112 755 1081 755 1039       C755 997 787 965 829 965       C845 965 860 970 872 979 V969 Z       M832 998 C807 998 789 1016 789 1039       C789 1062 807 1078 832 1078       C856 1078 875 1062 875 1039       C875 1016 856 998 832 998 Z" />
+  </g>
+</svg>

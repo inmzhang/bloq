@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="104" viewBox="0 0 128 104">
+<title>t</title>
+<polygon points="25.89,74.00 64.00,96.00 25.89,30.00" fill="rgb(215,47,163)" fill-opacity="1.000"/>
+<polygon points="25.89,30.00 64.00,52.00 64.00,8.00" fill="rgb(215,47,163)" fill-opacity="1.000"/>
+<polygon points="102.11,30.00 64.00,8.00 64.00,52.00" fill="rgb(215,47,163)" fill-opacity="1.000"/>
+<polygon points="64.00,96.00 102.11,74.00 64.00,52.00" fill="rgb(215,47,163)" fill-opacity="1.000"/>
+<polygon points="102.11,30.00 64.00,52.00 102.11,74.00" fill="rgb(215,47,163)" fill-opacity="1.000"/>
+<polygon points="64.00,52.00 25.89,30.00 64.00,96.00" fill="rgb(215,47,163)" fill-opacity="1.000"/>
+<polyline points="25.89,74.00 64.00,96.00" fill="none" stroke="#343a40" stroke-width=".65"/>
+<polyline points="102.11,74.00 64.00,96.00" fill="none" stroke="#343a40" stroke-width=".65"/>
+<polyline points="25.89,30.00 64.00,52.00" fill="none" stroke="#343a40" stroke-width=".65"/>
+<polyline points="102.11,30.00 64.00,52.00" fill="none" stroke="#343a40" stroke-width=".65"/>
+<polyline points="25.89,30.00 64.00,8.00" fill="none" stroke="#343a40" stroke-width=".65"/>
+<polyline points="102.11,30.00 64.00,8.00" fill="none" stroke="#343a40" stroke-width=".65"/>
+<polyline points="25.89,74.00 64.00,96.00" fill="none" stroke="#343a40" stroke-width=".65"/>
+<polyline points="64.00,52.00 64.00,96.00" fill="none" stroke="#343a40" stroke-width=".65"/>
+<polyline points="25.89,74.00 25.89,30.00" fill="none" stroke="#343a40" stroke-width=".65"/>
+<polyline points="64.00,52.00 25.89,30.00" fill="none" stroke="#343a40" stroke-width=".65"/>
+<polyline points="102.11,30.00 64.00,8.00" fill="none" stroke="#343a40" stroke-width=".65"/>
+<polyline points="102.11,30.00 102.11,74.00" fill="none" stroke="#343a40" stroke-width=".65"/>
+<polyline points="25.89,74.00 25.89,30.00" fill="none" stroke="#343a40" stroke-width=".65"/>
+<polyline points="64.00,8.00 25.89,30.00" fill="none" stroke="#343a40" stroke-width=".65"/>
+<polyline points="64.00,96.00 102.11,74.00" fill="none" stroke="#343a40" stroke-width=".65"/>
+<polyline points="102.11,30.00 102.11,74.00" fill="none" stroke="#343a40" stroke-width=".65"/>
+<polyline points="64.00,96.00 64.00,52.00" fill="none" stroke="#343a40" stroke-width=".65"/>
+<polyline points="102.11,30.00 64.00,52.00" fill="none" stroke="#343a40" stroke-width=".65"/>
+</svg>

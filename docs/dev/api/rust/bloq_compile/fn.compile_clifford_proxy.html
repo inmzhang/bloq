@@ -1,0 +1,45 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Compile `graph` with every dynamic element replaced by a Clifford stand-in."><title>compile_clifford_proxy in bloq_compile - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-1ed95124.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="bloq_compile" data-themes="" data-resource-suffix="" data-rustdoc-version="1.98.1 (48a229cea 2026-09-01)" data-channel="1.98.1" data-search-js="search-9944d736.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../static.files/storage-41dd4d93.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc fn"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">compile_clifford_proxy</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../bloq_compile/index.html">bloq_<wbr>compile</a><span class="version">0.1.1</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">compile_<wbr>clifford_<wbr>proxy</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#errors" title="Errors">Errors</a></li><li><a href="#examples" title="Examples">Examples</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="index.html">In crate bloq_<wbr>compile</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="index.html">bloq_compile</a></div><h1>Function <span class="fn">compile_<wbr>clifford_<wbr>proxy</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/bloq_compile/compile.rs.html#603-609">Source</a> </span></div><pre class="rust item-decl"><code>pub fn compile_clifford_proxy(
+    config: <a class="struct" href="struct.CompileConfig.html" title="struct bloq_compile::CompileConfig">CompileConfig</a>,
+    graph: &amp;<a class="struct" href="../bloq_graph/graph/struct.BlockGraph.html" title="struct bloq_graph::graph::BlockGraph">BlockGraph</a>,
+    pins: &amp;[<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a>],
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="struct.CompileArtifacts.html" title="struct bloq_compile::CompileArtifacts">CompileArtifacts</a>, <a class="enum" href="enum.CompileError.html" title="enum bloq_compile::CompileError">CompileError</a>&gt;</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Compile <code>graph</code> with every dynamic element replaced by a Clifford stand-in.</p>
+<p>This is a <strong>distance oracle, not a semantics oracle</strong>. Exact graph-level ZX
+maps remain the logical-correctness oracle:</p>
+<ul>
+<li>Every T block becomes a perfect MPP <strong>input port</strong> on its escaped-patch
+footprint: a noiseless preparation of the <code>d×d</code> patch (one MPP record
+per stabilizer, closing the +Z neighbour’s seam like any memory face)
+whose passthrough gateway anchors a terminating logical at the past
+boundary via the ordinary boundary <code>OBSERVABLE_INCLUDE</code> MPP. A logical
+<code>Y</code> request resolves through the gateway’s X·Z composition — msc-ls’s
+S-for-T substitution lifted from per-gate to whole-block; the magic
+state’s phase does not affect circuit distance. The cultivation/escape
+circuits are dropped wholesale (the standalone harness owns their
+internal distance).</li>
+<li>Every selective block is statically pinned to one arm per <code>pins</code> bit
+(deterministic <code>ordered_blocks</code> order), eliminating the dynamic choice
+dispatch; sweeping pin combos covers the branch space.</li>
+<li>Structural <code>Branch</code> actions are rejected: these pins describe selective
+arms only and cannot choose an authored graph region.</li>
+<li>The action track (feedback, conditional-S corrections) is dropped —
+Clifford frame corrections cannot change circuit distance.</li>
+<li>Hierarchical inputs reuse their composed source certificate; topology is
+expanded only for this physical oracle.</li>
+<li>Source stabilizer rows are reused and resolved through the pinned fills,
+without re-deriving a basis from the rewritten graph. Output frames use
+those resolved rows without replaying source actions.</li>
+</ul>
+<p>The result is a fully determined program the static Stim backend accepts,
+suitable for <code>shortest_graphlike_error</code> / undetectable-error searches.</p>
+<h2 id="errors"><a class="doc-anchor" href="#errors">§</a>Errors</h2>
+<p>Returns <a href="enum.CompileError.html#variant.CliffordProxyPinCount" title="variant bloq_compile::CompileError::CliffordProxyPinCount"><code>CompileError::CliffordProxyPinCount</code></a> unless <code>pins</code> has exactly one
+bit per selective block in the expanded graph, and any compilation error the
+rewritten graph provokes. Pins follow expanded <code>(z, x, y)</code> block order.</p>
+<h2 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>bloq_compile::{CompileConfig, compile_clifford_proxy};
+<span class="kw">use </span>bloq_graph::GalleryItem;
+
+<span class="comment">// One pin per selective block; the T gallery graph has one.
+</span><span class="kw">let </span>proxy = compile_clifford_proxy(CompileConfig::default(), <span class="kw-2">&amp;</span>GalleryItem::T.build(), <span class="kw-2">&amp;</span>[<span class="bool-val">false</span>])<span class="question-mark">?</span>;
+<span class="comment">// Fully Clifford, so the static Stim backend accepts it.
+</span>bloq_stim::emit_bloq_stim(<span class="kw-2">&amp;</span>proxy.bloq).expect(<span class="string">"Clifford proxy emits static Stim"</span>);</code></pre></div></div></details></section></div></main></body></html>

@@ -1,0 +1,3067 @@
+
+
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../user-guide.html">
+      
+      
+        <link rel="next" href="existing-works.html">
+      
+      
+      <link rel="icon" href="../_static/bloq-mark-light.png">
+    
+    
+      
+        <title>Preliminaries - bloq</title>
+      
+    
+    
+      
+        
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+        <link rel="stylesheet" type="text/css" href="../_static/sphinx_immaterial_theme.6efbe22605a23fcd6.min.css?v=b2ceb110" />
+        <link rel="stylesheet" type="text/css" href="../_static/site.css?v=8e1ee51e" />
+    <script>__md_scope=new URL("/",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+
+<meta name="bloq-doc-root" content="../index.html">
+<meta name="bloq-page" content="theory/prerequisites.html">
+<meta name="bloq-doc-version" content="v0.1.1">
+<meta name="bloq-package-version" content="0.1.1">
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#pauli-operators-and-stabilizer-codes" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../index.html" title="bloq" class="md-header__button md-logo" aria-label="bloq" data-md-component="logo">
+      <img src="../_static/bloq-mark-light.png" alt="logo">
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            bloq
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Preliminaries
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/inmzhang/bloq" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inmzhang/bloq
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../index.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Home</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../getting-started/installation.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Getting Started</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="../user-guide.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>User Guide</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../gallery/index.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Examples</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../reference/cli.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Reference</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../development/contributing.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Development</span>
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../index.html" title="bloq" class="md-nav__button md-logo" aria-label="bloq" data-md-component="logo">
+      <img src="../_static/bloq-mark-light.png" alt="logo">
+    </a>
+    bloq
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/inmzhang/bloq" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inmzhang/bloq
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Home</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Home</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Home</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Getting Started</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Getting Started</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/installation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Installation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/quickstart.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Quick Start</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>User Guide</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            <span>User Guide</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Overview</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    <span>Preliminaries</span>
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="#" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Preliminaries</span>
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+  
+
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#pauli-operators-and-stabilizer-codes" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Pauli operators and stabilizer codes</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flows-detectors-and-logical-observables" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Flows, detectors, and logical observables</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#surface-code-and-lattice-surgery" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Surface code and lattice surgery</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pipe-diagrams" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Pipe diagrams</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#correlation-surfaces" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Correlation surfaces</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#zx-calculus" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>ZX Calculus</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>References</span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="existing-works.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Existing Works</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphs/concepts.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Blocks and Pipes</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphs/actions.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Actions</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../modules/index.html" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Modules</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6" id="__nav_3_6_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Modules</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../modules/index.html#examples" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Examples</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6_1" id="__nav_3_6_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Examples</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6_1_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../modules/index.html#controlled-adder" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Controlled-<wbr>adder</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6_1_1" id="__nav_3_6_1_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_3_6_1_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6_1_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Controlled-<wbr>adder</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../modules/adder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Controlled Addition</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../modules/phase-gradient.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Phase-<wbr>Gradient Rotations</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphs/blog.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>BLOG Format</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="correlation-surfaces.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Correlation Surfaces</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patch-alignment.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Patch Alignment</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../circuit-constructions.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Circuit Constructions</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="compilation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Compilation Pipeline</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/ir.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Bloq IR</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/emission.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Backend Emission</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/synchronization.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Synchronization</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_15" id="__nav_3_15_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Tutorials</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_15_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_15">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Tutorials</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/cnot.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Logical CNOT</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/t-cultivation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T State Cultivation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/t-gate.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Logical T Gate</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/ccz-factory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>8T-<wbr>1CCZ Distillation Factory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/thth.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Emulate Hardware Synchronization</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../gallery/index.html" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Examples</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Examples</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/cnot.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CNOT</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/cz_spatial_h.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CZ with a spatial Hadamard</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/cz_temporal_h.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CZ with a temporal Hadamard</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/s_gate.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>S gate</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/t_gate.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T gate</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/t_with_prepared_y.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T gate with a prepared Y state</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/t_comparison.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T-<wbr>state comparison</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/phase_gradient.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Phase-<wbr>gradient sequence</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/and_4t.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Four-<wbr>T AND</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_injected_and.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ-<wbr>injected AND</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_injected_maj.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ-<wbr>injected MAJ</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/uma.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>UMA</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/three_bit_adder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Three-<wbr>bit controlled adder</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ten_bit_adder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Ten-<wbr>bit controlled adder</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/toffoli_from_and_delayed_cz.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Toffoli from AND</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_4x3x7_tels.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ factory with TELS</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_4x3x6.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ factory without TELS</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_gate_teleport.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ gate teleportation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/bell_state.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Bell state</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ghz.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>GHZ state</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ghz_slide_then_glide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>GHZ with slides and glides</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ghz_patch_rotations.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>GHZ with patch rotations</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/1d-yoked.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>1D yoked layout</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/thth.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T–H–T–H sequence</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/three_cnots.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Compressed three CNOTs</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/steane_encoding.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Steane encoding</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/x_memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>X-<wbr>basis memory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/y_memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Y-<wbr>basis memory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/move_rotation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Rotation through movement</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/stability.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Stability experiment</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Reference</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Reference</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/cli.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CLI Reference</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/python.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Python API</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/rust.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Rust API Reference</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Rust Feature Flags</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Development</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Development</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/contributing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Contributing</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/benchmarks.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Benchmarking</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/generic-module-scalability.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Generic module compilation:<wbr> evidence and claim boundary</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/classical-storage.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Classical data and evaluation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../releasing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Releases</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../site-maintenance.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Website Maintenance</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+  
+
+<nav class="md-nav md-nav--secondary">
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#pauli-operators-and-stabilizer-codes" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Pauli operators and stabilizer codes</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flows-detectors-and-logical-observables" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Flows, detectors, and logical observables</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#surface-code-and-lattice-surgery" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Surface code and lattice surgery</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pipe-diagrams" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Pipe diagrams</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#correlation-surfaces" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Correlation surfaces</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#zx-calculus" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>ZX Calculus</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>References</span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset" role="main">
+                
+                
+
+
+                  
+
+
+<h1 id="preliminaries">Preliminaries<a class="headerlink" href="#preliminaries" title="Link to this heading">¶</a></h1>
+<p>This chapter reviews the surface code background used throughout the guide.</p>
+<h2 id="pauli-operators-and-stabilizer-codes">Pauli operators and stabilizer codes<a class="headerlink" href="#pauli-operators-and-stabilizer-codes" title="Link to this heading">¶</a></h2>
+<p>A <strong>Pauli string</strong> is a tensor product of <span class="math notranslate nohighlight">\(I\)</span>, <span class="math notranslate nohighlight">\(X\)</span>, <span class="math notranslate nohighlight">\(Y\)</span>, and <span class="math notranslate nohighlight">\(Z\)</span>, with an
+overall phase. Ignoring phase, its support is a pair of binary vectors <span class="math notranslate nohighlight">\((x,z)\)</span>:</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Operator on one qubit</p></th>
+<th class="head"><p><span class="math notranslate nohighlight">\(x\)</span></p></th>
+<th class="head"><p><span class="math notranslate nohighlight">\(z\)</span></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><span class="math notranslate nohighlight">\(I\)</span></p></td>
+<td><p>0</p></td>
+<td><p>0</p></td>
+</tr>
+<tr class="row-odd"><td><p><span class="math notranslate nohighlight">\(X\)</span></p></td>
+<td><p>1</p></td>
+<td><p>0</p></td>
+</tr>
+<tr class="row-even"><td><p><span class="math notranslate nohighlight">\(Z\)</span></p></td>
+<td><p>0</p></td>
+<td><p>1</p></td>
+</tr>
+<tr class="row-odd"><td><p><span class="math notranslate nohighlight">\(Y\)</span></p></td>
+<td><p>1</p></td>
+<td><p>1</p></td>
+</tr>
+</tbody>
+</table>
+<p>Two strings commute when <span class="math notranslate nohighlight">\(x\cdot z'+z\cdot x'=0\pmod 2\)</span> and anticommute
+when it is one. Support combines by XOR, but signs still matter:
+<span class="math notranslate nohighlight">\((X\otimes X)(Z\otimes Z)=-Y\otimes Y\)</span>.</p>
+<p>A <strong>stabilizer code</strong> stores information in the shared <span class="math notranslate nohighlight">\(+1\)</span> eigenspace of
+commuting Pauli operators. With <span class="math notranslate nohighlight">\(n-k\)</span> independent stabilizers on <span class="math notranslate nohighlight">\(n\)</span> physical
+qubits, this space encodes <span class="math notranslate nohighlight">\(k\)</span> logical qubits. Logical operators preserve the
+code space and act on that encoded information. Multiplying one by a stabilizer
+changes its physical support without changing its logical action.<a class="footnote-reference brackets" href="#gottesman" id="id1" role="doc-noteref"><span class="fn-bracket">[</span>1<span class="fn-bracket">]</span></a></p>
+<p>The <strong>code distance</strong> <span class="math notranslate nohighlight">\(d\)</span> is the smallest weight of a nontrivial logical
+operator. With ideal stabilizer measurements, a distance-<span class="math notranslate nohighlight">\(d\)</span> code corrects
+arbitrary errors on up to <span class="math notranslate nohighlight">\(\lfloor(d-1)/2\rfloor\)</span> physical qubits. Real circuits
+also have errors in gates, resets, measurements, and idles, so we repeatedly
+extract a syndrome and use a decoder to interpret it.</p>
+<h2 id="flows-detectors-and-logical-observables">Flows, detectors, and logical observables<a class="headerlink" href="#flows-detectors-and-logical-observables" title="Link to this heading">¶</a></h2>
+<p>A <strong>stabilizer flow</strong> <span class="math notranslate nohighlight">\(A\xrightarrow{M}B\)</span> relates a Pauli operator before a
+circuit fragment to one after it. Measurement records in <span class="math notranslate nohighlight">\(M\)</span> determine its
+sign. Consecutive flows compose when their intermediate operators agree:</p>
+<div class="math notranslate nohighlight">
+\[
+A\xrightarrow{M_1}B,\quad B\xrightarrow{M_2}C
+\quad\Longrightarrow\quad A\xrightarrow{M_1\triangle M_2}C.
+\]</div>
+<p>Here <span class="math notranslate nohighlight">\(\triangle\)</span> is symmetric difference: a measurement appearing twice
+cancels in the XOR parity.<a class="footnote-reference brackets" href="#time-dynamics" id="id2" role="doc-noteref"><span class="fn-bracket">[</span>2<span class="fn-bracket">]</span></a><a class="footnote-reference brackets" href="#cultivation" id="id3" role="doc-noteref"><span class="fn-bracket">[</span>3<span class="fn-bracket">]</span></a></p>
+<figure class="align-default" id="id20">
+<img alt="Two-round bit-flip detection circuit with a Z detector flow and an X logical flow." src="../_images/preliminary-flows.png" />
+<figcaption>
+<p><span class="caption-text"><span class="caption-text">
+Two measurements of <span class="math notranslate nohighlight">\(ZZ\)</span> give a detector <span class="math notranslate nohighlight">\(m_1\oplus m_2\)</span>. The same circuit
+preserves the logical operator <span class="math notranslate nohighlight">\(XX\)</span>. Blue and red shading show their detecting
+regions. This small example detects a bit flip.</span><a class="headerlink" href="#id20" title="Permalink to this image">¶</a></figcaption>
+</figure>
+<p>A <strong>detector</strong> closes a flow with empty input and output Pauli support. Its
+measurement parity has a known value in the noiseless circuit. Including that
+reference constant <span class="math notranslate nohighlight">\(c\)</span>, its detection-event bit is</p>
+<div class="math notranslate nohighlight">
+\[
+\delta=c\oplus\bigoplus_{j\in M}m_j.
+\]</div>
+<p>For example, two consecutive measurements of a preserved stabilizer have
+<span class="math notranslate nohighlight">\(\delta=m_1\oplus m_2\)</span>. Both records can be one while the detector is zero.
+A <strong>logical observable</strong> instead tracks an encoded operator. Its flow can
+have open quantum boundaries, and a logical measurement can be random even
+without errors.</p>
+<p>A <strong>detecting region</strong> follows a flow through the circuit with a Pauli label
+at each location. An error flips the relation when it anticommutes with that
+label. An <span class="math notranslate nohighlight">\(X\)</span> error flips a <span class="math notranslate nohighlight">\(Z\)</span>-labeled region, for example. A <strong>detector error
+model</strong> (DEM) records each error mechanism’s probability and which detectors
+and logical observables it flips. A decoder uses the detector record to predict
+the logical flips.<a class="footnote-reference brackets" href="#time-dynamics" id="id4" role="doc-noteref"><span class="fn-bracket">[</span>2<span class="fn-bracket">]</span></a><a class="footnote-reference brackets" href="#stim" id="id5" role="doc-noteref"><span class="fn-bracket">[</span>4<span class="fn-bracket">]</span></a></p>
+<div class="important tip admonition">
+<p class="admonition-title">Important</p>
+<p>Code distance and circuit distance describe different things. Circuit distance
+counts the fewest physical error mechanisms that can flip a logical observable
+without firing a detector. A single ancilla error can spread through several
+gates as a hook error and reduce this distance. The extraction schedule matters
+as much as the patch geometry.<a class="footnote-reference brackets" href="#tomita" id="id6" role="doc-noteref"><span class="fn-bracket">[</span>5<span class="fn-bracket">]</span></a></p>
+</div>
+<h2 id="surface-code-and-lattice-surgery"><span id="surface-code-patches-and-lattice-surgery"></span>Surface code and lattice surgery<a class="headerlink" href="#surface-code-and-lattice-surgery" title="Link to this heading">¶</a></h2>
+<p>A rotated surface code patch encodes one logical qubit in <span class="math notranslate nohighlight">\(d^2\)</span> data qubits,
+with <span class="math notranslate nohighlight">\(d^2-1\)</span> independent local <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> stabilizers. Ancillas measure these
+checks repeatedly. One ordinary extraction round consists of ancilla
+initialization, four CNOT layers, and ancilla measurement.<a class="footnote-reference brackets" href="#surface-code" id="id7" role="doc-noteref"><span class="fn-bracket">[</span>6<span class="fn-bracket">]</span></a></p>
+<figure class="align-default" id="id21">
+<img alt="Distance-five rotated patch with X and Z stabilizers, logical strings, and ancilla measurement schedules." src="../_images/preliminary-patch.png" />
+<figcaption>
+<p><span class="caption-text"><span class="caption-text">
+A distance-five patch and its physical circuits. Red denotes <span class="math notranslate nohighlight">\(X\)</span> and blue
+denotes <span class="math notranslate nohighlight">\(Z\)</span>. The CNOT order directs hook errors away from the corresponding
+shortest logical strings.</span><a class="headerlink" href="#id21" title="Permalink to this image">¶</a></figcaption>
+</figure>
+<p>Bloq names boundaries by their stabilizer basis. In the patch above,
+<span class="math notranslate nohighlight">\(\overline X\)</span> runs vertically between the <span class="math notranslate nohighlight">\(X\)</span> boundaries and <span class="math notranslate nohighlight">\(\overline Z\)</span>
+runs horizontally between the <span class="math notranslate nohighlight">\(Z\)</span> boundaries. The strings cross on one data
+qubit, so they anticommute. Stabilizer multiplication lets us deform their
+paths.</p>
+<p><strong>Lattice surgery</strong> measures a joint logical operator by merging neighboring
+patches and then splitting them. For <span class="math notranslate nohighlight">\(P=X\)</span> or <span class="math notranslate nohighlight">\(Z\)</span>, the ideal measurement has
+projectors</p>
+<div class="math notranslate nohighlight">
+\[
+\Pi_m^{PP}=\frac{I+(-1)^m\overline P_A\overline P_B}{2},
+\qquad m\in\{0,1\}.
+\]</div>
+<p>It learns the joint eigenvalue without resolving the two individual logical
+values. Stabilizers spanning the seam supply this parity. Repeating the merged
+checks, usually for <span class="math notranslate nohighlight">\(d\)</span> rounds, protects it against measurement errors.
+Preparation, joint measurements, and final readout together implement gates
+such as CNOT.<a class="footnote-reference brackets" href="#lattice-surgery" id="id8" role="doc-noteref"><span class="fn-bracket">[</span>7<span class="fn-bracket">]</span></a><a class="footnote-reference brackets" href="#litinski" id="id9" role="doc-noteref"><span class="fn-bracket">[</span>8<span class="fn-bracket">]</span></a></p>
+<figure class="align-default" id="id22">
+<img alt="Two separate surface code patches A and B merge to measure their joint logical X operator, then split again." src="../_images/preliminary-surgery.png" />
+<figcaption>
+<p><span class="caption-text"><span class="caption-text">
+Lattice surgery measures <span class="math notranslate nohighlight">\(\overline X_A\overline X_B\)</span>: (a) two separate patches,
+(b) the merged patch with checks spanning the seam, and (c) the split patches.</span><a class="headerlink" href="#id22" title="Permalink to this image">¶</a></figcaption>
+</figure>
+<p>Hadamard gates exchange logical <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span>; logical <span class="math notranslate nohighlight">\(Y\)</span> preparation and
+measurement support phase-gate teleportation.<a class="footnote-reference brackets" href="#y-basis" id="id10" role="doc-noteref"><span class="fn-bracket">[</span>9<span class="fn-bracket">]</span></a> These operations provide Clifford
+computation. Resource states and gate teleportation implement non-Clifford gates
+in surface code computation, enabling universal quantum computation.<a class="footnote-reference brackets" href="#teleportation" id="id11" role="doc-noteref"><span class="fn-bracket">[</span>10<span class="fn-bracket">]</span></a> For
+example, the T resource state is</p>
+<div class="math notranslate nohighlight">
+\[
+|T\rangle=\frac{|0\rangle+e^{i\pi/4}|1\rangle}{\sqrt2}.
+\]</div>
+<p>Clifford gates and measurements can consume this state to teleport a T gate,
+with a correction selected by the decoded measurement. <strong>Distillation</strong> combines
+noisy magic states into fewer states of higher fidelity.<a class="footnote-reference brackets" href="#distillation" id="id12" role="doc-noteref"><span class="fn-bracket">[</span>11<span class="fn-bracket">]</span></a> <strong>Cultivation</strong> tests
+and postselects a candidate while growing its protecting code.<a class="footnote-reference brackets" href="#cultivation" id="id13" role="doc-noteref"><span class="fn-bracket">[</span>3<span class="fn-bracket">]</span></a> Bloq’s <code class="docutils literal notranslate"><span class="pre">T</span></code> block
+uses cultivation and a lattice-surgery escape into a rotated surface code patch.<a class="footnote-reference brackets" href="#lattice-cultivation" id="id14" role="doc-noteref"><span class="fn-bracket">[</span>12<span class="fn-bracket">]</span></a></p>
+<h2 id="pipe-diagrams"><span id="pipe-diagrams-put-the-computation-in-spacetime"></span>Pipe diagrams<a class="headerlink" href="#pipe-diagrams" title="Link to this heading">¶</a></h2>
+<p>A <strong>pipe diagram</strong> represents the region swept out by patches in two spatial
+dimensions and one time dimension.<a class="footnote-reference brackets" href="#logical-blocks" id="id15" role="doc-noteref"><span class="fn-bracket">[</span>13<span class="fn-bracket">]</span></a> In Bloq, <span class="math notranslate nohighlight">\(x\)</span> and <span class="math notranslate nohighlight">\(y\)</span> are spatial and <span class="math notranslate nohighlight">\(z\)</span> is
+time. Time follows the positive Z axis, marked by the viewer’s XYZ helper.</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Diagram element</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Cube</p></td>
+<td><p>A patch maintained through syndrome extraction</p></td>
+</tr>
+<tr class="row-odd"><td><p>Temporal pipe</p></td>
+<td><p>Continue a patch into another time layer</p></td>
+</tr>
+<tr class="row-even"><td><p>Spatial pipe</p></td>
+<td><p>Join patches for lattice surgery</p></td>
+</tr>
+<tr class="row-odd"><td><p>Closed temporal face</p></td>
+<td><p>Initialize or measure in the face’s basis</p></td>
+</tr>
+<tr class="row-even"><td><p>Open port</p></td>
+<td><p>Retain a logical input or output</p></td>
+</tr>
+</tbody>
+</table>
+<iframe class="bloq-block-view" src="../_static/block-graphs/cnot.html" title="Interactive cnot block graph" loading="lazy" allowfullscreen></iframe><figure class="align-default" id="id23">
+<img alt="Logical CNOT measurement circuit and successive two-dimensional patch slices." src="../_images/preliminary-cnot-physical.svg" />
+<figcaption>
+<p><span class="caption-text"><span class="caption-text">
+The circuit and patch slices complement the interactive pipe diagram above.
+An ancilla starts in <span class="math notranslate nohighlight">\(|+\rangle\)</span>, joins the control
+for a <span class="math notranslate nohighlight">\(ZZ\)</span> measurement, joins the target for an <span class="math notranslate nohighlight">\(XX\)</span> measurement, and ends in a
+<span class="math notranslate nohighlight">\(Z\)</span> readout. Measurement-dependent Pauli corrections are omitted from the pipe
+diagram.</span><a class="headerlink" href="#id23" title="Permalink to this image">¶</a></figcaption>
+</figure>
+<p>The diagram is <strong>distance agnostic</strong>: the same layout describes a family of
+physical circuits. Choosing <span class="math notranslate nohighlight">\(d\)</span> sets the patch size; an ordinary cube uses <span class="math notranslate nohighlight">\(d\)</span>
+extraction rounds. Extensions beyond ordinary cubes and pipes include Y blocks
+for logical Y-basis preparation and measurement, Hadamard pipes that exchange
+logical X and Z, and T blocks for resource-state preparation. The
+<a class="reference internal" href="../graphs/concepts.html"><span class="std std-doc">Blocks and Pipes</span></a> chapter introduces these elements and
+the source API.</p>
+<h2 id="correlation-surfaces"><span id="correlation-surfaces-and-zx-diagrams"></span>Correlation surfaces<a class="headerlink" href="#correlation-surfaces" title="Link to this heading">¶</a></h2>
+<p>A <strong>correlation surface</strong> represents the stabilizer flow of a logical
+observable within a pipe diagram. It traces how logical operators evolve
+through the computation: its intersections with input and output ports specify
+the boundary logical operators, and its support in measurement regions
+identifies the flow’s measurement set <span class="math notranslate nohighlight">\(M\)</span>.<a class="footnote-reference brackets" href="#logical-blocks" id="id16" role="doc-noteref"><span class="fn-bracket">[</span>13<span class="fn-bracket">]</span></a></p>
+<p>Correlation surfaces serve three purposes:</p>
+<ol class="arabic simple">
+<li><p><strong>Determine the logical action.</strong> Their unsigned boundary relations determine
+the logical Clifford operation up to Pauli byproducts.</p></li>
+<li><p><strong>Track Pauli byproducts.</strong> Their measurement parities and decoder-predicted
+flips determine the output Pauli frame.</p></li>
+<li><p><strong>Define logical observables for decoding.</strong> Their flows specify protected
+logical relations; the corresponding detecting regions identify which
+physical errors flip those observables.</p></li>
+</ol>
+<p>For CNOT, the four generating surfaces give these boundary relations, with
+measurement-dependent signs omitted:</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Input</p></th>
+<th class="head"><p>Output</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><span class="math notranslate nohighlight">\(\overline X_C\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\overline X_C\overline X_T\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p><span class="math notranslate nohighlight">\(\overline Z_C\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\overline Z_C\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p><span class="math notranslate nohighlight">\(\overline X_T\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\overline X_T\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p><span class="math notranslate nohighlight">\(\overline Z_T\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(\overline Z_C\overline Z_T\)</span></p></td>
+</tr>
+</tbody>
+</table>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:4">
+<input checked type="radio" id="__tabbed_1_1" name="__tabbed_1"><input type="radio" id="__tabbed_1_2" name="__tabbed_1"><input type="radio" id="__tabbed_1_3" name="__tabbed_1"><input type="radio" id="__tabbed_1_4" name="__tabbed_1"><div class="tabbed-labels docutils">
+<label class="tabbed-label" for="__tabbed_1_1">
+<span class="math notranslate nohighlight">\(\overline X_C\to\overline X_C\overline X_T\)</span></label><label class="tabbed-label" for="__tabbed_1_2">
+<span class="math notranslate nohighlight">\(\overline Z_C\to\overline Z_C\)</span></label><label class="tabbed-label" for="__tabbed_1_3">
+<span class="math notranslate nohighlight">\(\overline X_T\to\overline X_T\)</span></label><label class="tabbed-label" for="__tabbed_1_4">
+<span class="math notranslate nohighlight">\(\overline Z_T\to\overline Z_C\overline Z_T\)</span></label></div>
+<div class="tabbed-content docutils">
+<div class="tabbed-block docutils">
+<iframe class="bloq-block-view" src="../_static/block-graphs/cnot-XXIX.html" title="Interactive cnot correlation surface XXIX" loading="lazy" allowfullscreen></iframe></div>
+<div class="tabbed-block docutils">
+<iframe class="bloq-block-view" src="../_static/block-graphs/cnot-ZZII.html" title="Interactive cnot correlation surface ZZII" loading="lazy" allowfullscreen></iframe></div>
+<div class="tabbed-block docutils">
+<iframe class="bloq-block-view" src="../_static/block-graphs/cnot-IIXX.html" title="Interactive cnot correlation surface IIXX" loading="lazy" allowfullscreen></iframe></div>
+<div class="tabbed-block docutils">
+<iframe class="bloq-block-view" src="../_static/block-graphs/cnot-IZZZ.html" title="Interactive cnot correlation surface IZZZ" loading="lazy" allowfullscreen></iframe></div>
+</div>
+</div><p>For the first surface, the input <span class="math notranslate nohighlight">\(\overline X_C\)</span> string extends through the
+ancilla and surgery seams, then reaches both outputs as
+<span class="math notranslate nohighlight">\(\overline X_C\overline X_T\)</span>. Measurements where that string crosses a split
+or merge contribute to its surface parity <span class="math notranslate nohighlight">\(q_{X_C}\)</span>.</p>
+<p>The measured parity <span class="math notranslate nohighlight">\(q_P\)</span> and decoder-predicted flip determine a corrected
+parity <span class="math notranslate nohighlight">\(q'_P=q_P\oplus[D(\delta)]_P\)</span>. These corrected relations determine the
+output Pauli frame. A surface can have an empty measurement set and still be
+sensitive to noise; a zero raw parity does not imply a zero decoder correction.
+See <a class="reference internal" href="correlation-surfaces.html"><span class="std std-doc">Correlation Surfaces</span></a> for the complete signed
+relations and their use in readouts.</p>
+<h2 id="zx-calculus">ZX Calculus<a class="headerlink" href="#zx-calculus" title="Link to this heading">¶</a></h2>
+<p>The <strong>ZX calculus</strong> gives an algebraic view of the pipe diagram. A Z-type cube
+(one Z-labeled pair of opposite faces and two X-labeled pairs) maps to a
+zero-phase Z spider; exchanging X and Z gives an X-type cube and an X spider.
+Each incident pipe contributes one spider leg, pipes become edges, and ports
+become boundary legs. Correlation surfaces become Pauli webs on those
+edges.<a class="footnote-reference brackets" href="#zx-surgery" id="id17" role="doc-noteref"><span class="fn-bracket">[</span>14<span class="fn-bracket">]</span></a><a class="footnote-reference brackets" href="#zx-fault-tolerance" id="id18" role="doc-noteref"><span class="fn-bracket">[</span>15<span class="fn-bracket">]</span></a></p>
+<p>Blue dots denote Z spiders and red dots denote X spiders; an unlabeled dot
+has zero phase.</p>
+<p>The same CNOT graph maps directly to the left diagram below. Its red Pauli
+web represents <span class="math notranslate nohighlight">\(X_C\to X_CX_T\)</span>. Removing the four two-leg identity spiders
+gives the standard CNOT diagram on the right, with the same boundary relation:</p>
+<figure class="align-default" id="id24">
+<img alt="The direct six-spider ZX representation of the CNOT block graph and its two-spider simplification, with the same control-X Pauli web highlighted." src="../_images/zx-cnot-correspondence.svg" />
+<figcaption>
+<p><span class="caption-text"><span class="caption-text">
+Direct translation and simplification of the CNOT graph. The highlighted web
+connects the control input to the control and target outputs.</span><a class="headerlink" href="#id24" title="Permalink to this image">¶</a></figcaption>
+</figure>
+<p>The local rules below apply to zero-phase spiders of any degree; the diagrams
+use four legs. In the middle column, a two-leg X spider with phase <span class="math notranslate nohighlight">\(\pi\)</span>
+represents a Pauli X, and a two-leg Z spider with phase <span class="math notranslate nohighlight">\(\pi\)</span> represents a
+Pauli Z. The right column shows their support as a web.<a class="footnote-reference brackets" href="#zx-fault-tolerance" id="id19" role="doc-noteref"><span class="fn-bracket">[</span>15<span class="fn-bracket">]</span></a></p>
+<figure class="align-default" id="id25">
+<img alt="Four local spider identities using pi-phase spiders for Pauli insertions: X on every leg and Z on a pair for a Z spider; Z on every leg and X on a pair for an X spider. Each identity is paired with its Pauli web." src="../_images/zx-spider-rules.svg" />
+<figcaption>
+<p><span class="caption-text"><span class="caption-text">
+A zero-phase spider is unchanged by the Pauli insertions shown. Red web lines
+carry X support and blue web lines carry Z support.</span><a class="headerlink" href="#id25" title="Permalink to this image">¶</a></figcaption>
+</figure>
+<ul class="simple">
+<li><p><strong>Z spider:</strong> X support occupies all legs or none; Z support occupies an even
+number of legs.</p></li>
+<li><p><strong>X spider:</strong> exchange X and Z in that rule.</p></li>
+<li><p><strong>Compose:</strong> match Pauli labels on connected legs. Combining webs cancels
+repeated support of the same basis; overlapping X and Z components give Y
+support, with the phase tracked in the complete Pauli relation.</p></li>
+</ul>
+<p>Correlation surfaces in pipe diagrams and Pauli webs in ZX diagrams follow
+the same underlying algebraic rules for mapping logical operators. A surface’s
+support through a cube becomes the web’s support on the corresponding spider
+legs, preserving the boundary logical relation. This connects the two diagram
+representations closely and lets ZX rewrites verify the logical Clifford
+action up to Pauli byproducts. Measurement parities and their signs remain part
+of the complete logical-observable flow tracked by Bloq.</p>
+<h2 id="references">References<a class="headerlink" href="#references" title="Link to this heading">¶</a></h2>
+<hr class="footnotes docutils" />
+<aside class="footnote-list brackets">
+<aside class="footnote brackets" id="gottesman" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span>1<span class="fn-bracket">]</span></span>
+<p>D. Gottesman, <a class="reference external" href="https://arxiv.org/abs/quant-ph/9705052">Stabilizer Codes and Quantum Error Correction</a>, PhD thesis, California Institute of Technology (1997). <a class="footnote-backlink reference internal" href="#id1" title="Back to citation 1">↩</a></p>
+</aside>
+<aside class="footnote brackets" id="time-dynamics" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span>2<span class="fn-bracket">]</span></span>
+<p>M. McEwen, D. Bacon, and C. Gidney, <a class="reference external" href="https://arxiv.org/abs/2302.02192">Relaxing Hardware Requirements for Surface Code Circuits using Time-dynamics</a>, <em>Quantum</em> <strong>7</strong>, 1172 (2023). <a class="footnote-backlink reference internal" href="#id2" title="Back to citation 1">↩</a> <a class="footnote-backlink reference internal" href="#id4" title="Back to citation 2">↩</a></p>
+</aside>
+<aside class="footnote brackets" id="cultivation" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span>3<span class="fn-bracket">]</span></span>
+<p>C. Gidney, N. Shutty, and C. Jones, <a class="reference external" href="https://arxiv.org/abs/2409.17595">Magic state cultivation: growing T states as cheap as CNOT gates</a>, arXiv:2409.17595 (2024). <a class="footnote-backlink reference internal" href="#id3" title="Back to citation 1">↩</a> <a class="footnote-backlink reference internal" href="#id13" title="Back to citation 2">↩</a></p>
+</aside>
+<aside class="footnote brackets" id="stim" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span>4<span class="fn-bracket">]</span></span>
+<p>C. Gidney, <a class="reference external" href="https://arxiv.org/abs/2103.02202">Stim: a fast stabilizer circuit simulator</a>, <em>Quantum</em> <strong>5</strong>, 497 (2021). <a class="footnote-backlink reference internal" href="#id5" title="Back to citation 1">↩</a></p>
+</aside>
+<aside class="footnote brackets" id="tomita" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span>5<span class="fn-bracket">]</span></span>
+<p>Y. Tomita and K. M. Svore, <a class="reference external" href="https://arxiv.org/abs/1404.3747">Low-distance surface codes under realistic quantum noise</a>, <em>Physical Review A</em> <strong>90</strong>, 062320 (2014). <a class="footnote-backlink reference internal" href="#id6" title="Back to citation 1">↩</a></p>
+</aside>
+<aside class="footnote brackets" id="surface-code" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span>6<span class="fn-bracket">]</span></span>
+<p>A. G. Fowler, M. Mariantoni, J. M. Martinis, and A. N. Cleland, <a class="reference external" href="https://arxiv.org/abs/1208.0928">Surface codes: Towards practical large-scale quantum computation</a>, <em>Physical Review A</em> <strong>86</strong>, 032324 (2012). <a class="footnote-backlink reference internal" href="#id7" title="Back to citation 1">↩</a></p>
+</aside>
+<aside class="footnote brackets" id="lattice-surgery" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span>7<span class="fn-bracket">]</span></span>
+<p>D. Horsman, A. G. Fowler, S. Devitt, and R. Van Meter, <a class="reference external" href="https://arxiv.org/abs/1111.4022">Surface code quantum computing by lattice surgery</a>, <em>New Journal of Physics</em> <strong>14</strong>, 123011 (2012). <a class="footnote-backlink reference internal" href="#id8" title="Back to citation 1">↩</a></p>
+</aside>
+<aside class="footnote brackets" id="litinski" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span>8<span class="fn-bracket">]</span></span>
+<p>D. Litinski, <a class="reference external" href="https://quantum-journal.org/papers/q-2019-03-05-128/">A Game of Surface Codes: Large-Scale Quantum Computing with Lattice Surgery</a>, <em>Quantum</em> <strong>3</strong>, 128 (2019). <a class="footnote-backlink reference internal" href="#id9" title="Back to citation 1">↩</a></p>
+</aside>
+<aside class="footnote brackets" id="y-basis" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span>9<span class="fn-bracket">]</span></span>
+<p>C. Gidney, <a class="reference external" href="https://arxiv.org/abs/2302.07395">Inplace Access to the Surface Code Y Basis</a>, <em>Quantum</em> <strong>8</strong>, 1310 (2024). <a class="footnote-backlink reference internal" href="#id10" title="Back to citation 1">↩</a></p>
+</aside>
+<aside class="footnote brackets" id="teleportation" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span>10<span class="fn-bracket">]</span></span>
+<p>D. Gottesman and I. L. Chuang, <a class="reference external" href="https://doi.org/10.1038/46503">Demonstrating the viability of universal quantum computation using teleportation and single-qubit operations</a>, <em>Nature</em> <strong>402</strong>, 390–393 (1999). <a class="footnote-backlink reference internal" href="#id11" title="Back to citation 1">↩</a></p>
+</aside>
+<aside class="footnote brackets" id="distillation" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span>11<span class="fn-bracket">]</span></span>
+<p>S. Bravyi and A. Kitaev, <a class="reference external" href="https://arxiv.org/abs/quant-ph/0403025">Universal quantum computation with ideal Clifford gates and noisy ancillas</a>, <em>Physical Review A</em> <strong>71</strong>, 022316 (2005). <a class="footnote-backlink reference internal" href="#id12" title="Back to citation 1">↩</a></p>
+</aside>
+<aside class="footnote brackets" id="lattice-cultivation" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span>12<span class="fn-bracket">]</span></span>
+<p>Y. Hirano, R. Toshio, T. Itogawa, and K. Fujii, <a class="reference external" href="https://arxiv.org/abs/2510.24615">Efficient magic state cultivation with lattice surgery</a>, arXiv:2510.24615 (2025). <a class="footnote-backlink reference internal" href="#id14" title="Back to citation 1">↩</a></p>
+</aside>
+<aside class="footnote brackets" id="logical-blocks" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span>13<span class="fn-bracket">]</span></span>
+<p>H. Bombín et al., <a class="reference external" href="https://arxiv.org/abs/2112.12160">Logical blocks for fault-tolerant topological quantum computation</a>, <em>PRX Quantum</em> <strong>4</strong>, 020303 (2023). <a class="footnote-backlink reference internal" href="#id15" title="Back to citation 1">↩</a> <a class="footnote-backlink reference internal" href="#id16" title="Back to citation 2">↩</a></p>
+</aside>
+<aside class="footnote brackets" id="zx-surgery" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span>14<span class="fn-bracket">]</span></span>
+<p>N. de Beaudrap and D. Horsman, <a class="reference external" href="https://arxiv.org/abs/1704.08670">The ZX calculus is a language for surface code lattice surgery</a>, <em>Quantum</em> <strong>4</strong>, 218 (2020). <a class="footnote-backlink reference internal" href="#id17" title="Back to citation 1">↩</a></p>
+</aside>
+<aside class="footnote brackets" id="zx-fault-tolerance" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span>15<span class="fn-bracket">]</span></span>
+<p>H. Bombín et al., <a class="reference external" href="https://arxiv.org/abs/2303.08829">Unifying flavors of fault tolerance with the ZX calculus</a>, <em>Quantum</em> <strong>8</strong>, 1379 (2024). <a class="footnote-backlink reference internal" href="#id18" title="Back to citation 1">↩</a> <a class="footnote-backlink reference internal" href="#id19" title="Back to citation 2">↩</a></p>
+</aside>
+</aside>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+
+
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  
+  
+  <div class="md-footer-meta md-typeset">
+    
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-footer-copyright__highlight">
+        &#169; Copyright Bloq contributors.
+        
+    </div>
+  
+    Created using
+    <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
+    8.1.3.
+     and
+    <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
+  
+</div>
+      
+    </div>
+    
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.highlight", "content.tabs.link", "content.code.copy"], "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+      
+        <script src="../_static/sphinx_immaterial_theme.32136f45f91ae6956.min.js?v=a7a9472a"></script>
+        <script>window.MathJax = {"options": {"processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+        <script id="MathJax-script" src="../_static/mathjax/tex-mml-chtml.js?v=cadf963e"></script>
+        <script src="../_static/versions.js?v=2f43aabb"></script>
+        <script src="../_static/graph-viewer.js?v=b2321b27"></script>
+    
+  </body>
+</html>

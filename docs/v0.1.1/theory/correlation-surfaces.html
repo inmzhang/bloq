@@ -1,0 +1,3470 @@
+
+
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../graphs/blog.html">
+      
+      
+        <link rel="next" href="../patch-alignment.html">
+      
+      
+      <link rel="icon" href="../_static/bloq-mark-light.png">
+    
+    
+      
+        <title>Correlation Surfaces - bloq</title>
+      
+    
+    
+      
+        
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+        <link rel="stylesheet" type="text/css" href="../_static/sphinx_immaterial_theme.6efbe22605a23fcd6.min.css?v=b2ceb110" />
+        <link rel="stylesheet" type="text/css" href="../_static/site.css?v=8e1ee51e" />
+    <script>__md_scope=new URL("/",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+
+<meta name="bloq-doc-root" content="../index.html">
+<meta name="bloq-page" content="theory/correlation-surfaces.html">
+<meta name="bloq-doc-version" content="v0.1.1">
+<meta name="bloq-package-version" content="0.1.1">
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#from-a-block-graph-to-a-zx-diagram" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../index.html" title="bloq" class="md-header__button md-logo" aria-label="bloq" data-md-component="logo">
+      <img src="../_static/bloq-mark-light.png" alt="logo">
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            bloq
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Correlation Surfaces
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/inmzhang/bloq" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inmzhang/bloq
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../index.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Home</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../getting-started/installation.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Getting Started</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="../user-guide.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>User Guide</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../gallery/index.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Examples</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../reference/cli.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Reference</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../development/contributing.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Development</span>
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../index.html" title="bloq" class="md-nav__button md-logo" aria-label="bloq" data-md-component="logo">
+      <img src="../_static/bloq-mark-light.png" alt="logo">
+    </a>
+    bloq
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/inmzhang/bloq" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inmzhang/bloq
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Home</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Home</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Home</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Getting Started</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Getting Started</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/installation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Installation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/quickstart.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Quick Start</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>User Guide</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            <span>User Guide</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Overview</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="prerequisites.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Preliminaries</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="existing-works.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Existing Works</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphs/concepts.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Blocks and Pipes</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphs/actions.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Actions</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../modules/index.html" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Modules</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6" id="__nav_3_6_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Modules</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../modules/index.html#examples" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Examples</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6_1" id="__nav_3_6_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Examples</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6_1_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../modules/index.html#controlled-adder" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Controlled-<wbr>adder</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6_1_1" id="__nav_3_6_1_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_3_6_1_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6_1_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Controlled-<wbr>adder</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../modules/adder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Controlled Addition</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../modules/phase-gradient.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Phase-<wbr>Gradient Rotations</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphs/blog.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>BLOG Format</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    <span>Correlation Surfaces</span>
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="#" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Correlation Surfaces</span>
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+  
+
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#from-a-block-graph-to-a-zx-diagram" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>From a block graph to a ZX diagram</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#surfaces-as-binary-vectors" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Surfaces as binary vectors</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-1-local-tensors" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Step 1:<wbr> Local tensors</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-2-seam-elimination" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Step 2:<wbr> Seam elimination</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Step 2: Seam elimination">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-size-of-the-space" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>The size of the space</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#signs" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Signs</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dynamic-choices" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Dynamic choices</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Dynamic choices">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#guarded-rows" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Guarded rows</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#selective-caps" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Selective caps</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-3-causal-readouts" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Step 3:<wbr> Causal readouts</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Step 3: Causal readouts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#corrected-values" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Corrected values</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-readouts-must-close-before-live-outputs" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Why readouts must close before live outputs</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#readouts-at-a-spider" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Readouts at a spider</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-4-terminal-frames" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Step 4:<wbr> Terminal frames</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Step 4: Terminal frames">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#feedback" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Feedback</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-plan-produces" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>What the plan produces</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#module-composition" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Module composition</span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patch-alignment.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Patch Alignment</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../circuit-constructions.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Circuit Constructions</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="compilation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Compilation Pipeline</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/ir.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Bloq IR</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/emission.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Backend Emission</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/synchronization.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Synchronization</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_15" id="__nav_3_15_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Tutorials</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_15_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_15">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Tutorials</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/cnot.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Logical CNOT</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/t-cultivation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T State Cultivation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/t-gate.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Logical T Gate</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/ccz-factory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>8T-<wbr>1CCZ Distillation Factory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/thth.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Emulate Hardware Synchronization</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../gallery/index.html" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Examples</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Examples</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/cnot.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CNOT</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/cz_spatial_h.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CZ with a spatial Hadamard</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/cz_temporal_h.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CZ with a temporal Hadamard</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/s_gate.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>S gate</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/t_gate.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T gate</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/t_with_prepared_y.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T gate with a prepared Y state</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/t_comparison.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T-<wbr>state comparison</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/phase_gradient.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Phase-<wbr>gradient sequence</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/and_4t.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Four-<wbr>T AND</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_injected_and.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ-<wbr>injected AND</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_injected_maj.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ-<wbr>injected MAJ</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/uma.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>UMA</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/three_bit_adder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Three-<wbr>bit controlled adder</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ten_bit_adder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Ten-<wbr>bit controlled adder</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/toffoli_from_and_delayed_cz.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Toffoli from AND</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_4x3x7_tels.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ factory with TELS</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_4x3x6.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ factory without TELS</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_gate_teleport.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ gate teleportation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/bell_state.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Bell state</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ghz.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>GHZ state</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ghz_slide_then_glide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>GHZ with slides and glides</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ghz_patch_rotations.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>GHZ with patch rotations</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/1d-yoked.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>1D yoked layout</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/thth.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T–H–T–H sequence</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/three_cnots.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Compressed three CNOTs</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/steane_encoding.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Steane encoding</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/x_memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>X-<wbr>basis memory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/y_memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Y-<wbr>basis memory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/move_rotation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Rotation through movement</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/stability.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Stability experiment</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Reference</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Reference</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/cli.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CLI Reference</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/python.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Python API</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/rust.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Rust API Reference</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Rust Feature Flags</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Development</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Development</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/contributing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Contributing</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/benchmarks.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Benchmarking</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/generic-module-scalability.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Generic module compilation:<wbr> evidence and claim boundary</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/classical-storage.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Classical data and evaluation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../releasing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Releases</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../site-maintenance.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Website Maintenance</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+  
+
+<nav class="md-nav md-nav--secondary">
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#from-a-block-graph-to-a-zx-diagram" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>From a block graph to a ZX diagram</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#surfaces-as-binary-vectors" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Surfaces as binary vectors</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-1-local-tensors" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Step 1:<wbr> Local tensors</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-2-seam-elimination" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Step 2:<wbr> Seam elimination</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Step 2: Seam elimination">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-size-of-the-space" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>The size of the space</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#signs" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Signs</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dynamic-choices" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Dynamic choices</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Dynamic choices">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#guarded-rows" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Guarded rows</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#selective-caps" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Selective caps</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-3-causal-readouts" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Step 3:<wbr> Causal readouts</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Step 3: Causal readouts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#corrected-values" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Corrected values</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-readouts-must-close-before-live-outputs" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Why readouts must close before live outputs</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#readouts-at-a-spider" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Readouts at a spider</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-4-terminal-frames" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Step 4:<wbr> Terminal frames</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Step 4: Terminal frames">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#feedback" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Feedback</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-plan-produces" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>What the plan produces</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#module-composition" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Module composition</span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset" role="main">
+                
+                
+
+
+                  
+
+
+<h1 id="correlation-surfaces">Correlation Surfaces<a class="headerlink" href="#correlation-surfaces" title="Link to this heading">¶</a></h1>
+<p><a class="reference internal" href="prerequisites.html#correlation-surfaces"><span class="std std-ref">Preliminaries</span></a>
+introduced correlation surfaces as representations of logical observables on
+a pipe diagram. To compute them, Bloq converts the block graph into a
+corresponding ZX diagram, where each block becomes a node and each pipe becomes
+an edge.</p>
+<h2 id="from-a-block-graph-to-a-zx-diagram">From a block graph to a ZX diagram<a class="headerlink" href="#from-a-block-graph-to-a-zx-diagram" title="Link to this heading">¶</a></h2>
+<p>Bloq extends the X and Z spiders from
+<a class="reference internal" href="prerequisites.html#zx-calculus"><span class="std std-ref">Preliminaries</span></a> with explicit nodes for open Ports,
+Y boundaries, T resources, and selective measurements. These specialized nodes
+retain the resource and measurement information needed to compute correlation
+surfaces:</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Block graph element</p></th>
+<th class="head"><p>Corresponding ZX element</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>X-type cube (<code class="docutils literal notranslate"><span class="pre">XZZ</span></code>, <code class="docutils literal notranslate"><span class="pre">ZXZ</span></code>, <code class="docutils literal notranslate"><span class="pre">ZZX</span></code>)</p></td>
+<td><p>Zero-phase X spider</p></td>
+<td><p>Each incident pipe contributes a leg</p></td>
+</tr>
+<tr class="row-odd"><td><p>Z-type cube (<code class="docutils literal notranslate"><span class="pre">ZXX</span></code>, <code class="docutils literal notranslate"><span class="pre">XZX</span></code>, <code class="docutils literal notranslate"><span class="pre">XXZ</span></code>)</p></td>
+<td><p>Zero-phase Z spider</p></td>
+<td><p>Each incident pipe contributes a leg</p></td>
+</tr>
+<tr class="row-even"><td><p>Walking block</p></td>
+<td><p>X or Z spider, according to its boundary type</p></td>
+<td><p>The extended block contributes one node; its pipes attach at its start and end positions</p></td>
+</tr>
+<tr class="row-odd"><td><p>Patch rotation</p></td>
+<td><p>Zero-phase Z spider</p></td>
+<td><p>The extended block contributes one node with its displaced endpoint geometry</p></td>
+</tr>
+<tr class="row-even"><td><p>Fixed X measurement cap</p></td>
+<td><p>One-legged, zero-phase Z spider</p></td>
+<td><p>Terminates the wire with an X-basis measurement</p></td>
+</tr>
+<tr class="row-odd"><td><p>Fixed Z measurement cap</p></td>
+<td><p>One-legged, zero-phase X spider</p></td>
+<td><p>Terminates the wire with a Z-basis measurement</p></td>
+</tr>
+<tr class="row-even"><td><p>Y block</p></td>
+<td><p>Specialized Y node</p></td>
+<td><p>Y preparation or measurement; its fixed tensor is a one-legged Z spider with phase <span class="math notranslate nohighlight">\(+\pi/2\)</span> for preparation and <span class="math notranslate nohighlight">\(-\pi/2\)</span> for measurement</p></td>
+</tr>
+<tr class="row-odd"><td><p>Port</p></td>
+<td><p>Open boundary node</p></td>
+<td><p>Exposes a logical input or output; a multiplex Port also retains its stationary output</p></td>
+</tr>
+<tr class="row-even"><td><p>T block</p></td>
+<td><p>Specialized T resource boundary</p></td>
+<td><p>An open resource leg during correlation analysis; its fixed T-state tensor is a one-legged Z spider with phase <span class="math notranslate nohighlight">\(\pi/4\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p>Selective cap (<code class="docutils literal notranslate"><span class="pre">XY</span></code>, <code class="docutils literal notranslate"><span class="pre">XZ</span></code>, <code class="docutils literal notranslate"><span class="pre">YZ</span></code>)</p></td>
+<td><p>Specialized selective boundary</p></td>
+<td><p>Keeps both allowed measurement bases and the condition selecting between them</p></td>
+</tr>
+<tr class="row-even"><td><p>Ordinary pipe</p></td>
+<td><p>Ordinary ZX edge</p></td>
+<td><p>Joins the corresponding nodes’ legs</p></td>
+</tr>
+<tr class="row-odd"><td><p>Hadamard pipe</p></td>
+<td><p>Hadamard ZX edge</p></td>
+<td><p>Exchanges X and Z across the connection</p></td>
+</tr>
+</tbody>
+</table>
+<p>Cube types use the boundary basis on the axis that differs from the other two.
+The conversion accounts for faces covered by pipe attachments before assigning
+the spider type. Pipe length and block duration affect the physical construction,
+while this diagram records the logical connectivity.</p>
+<p>A selective cap stays open while its basis is unresolved. For a fixed choice,
+it becomes the X, Z, or Y measurement tensor in the table. The first named basis
+is selected when the resolve condition is true and the second when it is false.
+Structural branches similarly provide alternative node and edge patterns, as
+described under <a class="reference internal" href="#dynamic-choices">Dynamic choices</a>.</p>
+<p>Bloq builds the <strong>correlation space</strong> from the diagram’s local tensors and the
+constraints joining their pipe ends, then chooses surfaces for named readouts
+and output corrections:</p>
+<div class="mermaid-diagram docutils">
+<pre class="mermaid">
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span><code>flowchart LR
+  src[&quot;ZX diagram&quot;] --&gt; loc[&quot;Local tensors&lt;br/&gt;rows per node&quot;]
+  loc --&gt; seam[&quot;Seam elimination&lt;br/&gt;match pipe ends&quot;]
+  seam --&gt; rel[&quot;Correlation space&lt;br/&gt;guarded basis&quot;]
+  rel --&gt; named[&quot;Causal readouts&lt;br/&gt;named measurements&quot;]
+  named --&gt; frames[&quot;Terminal frames&lt;br/&gt;output corrections&quot;]
+  frames --&gt; rest[&quot;Logical readouts&lt;br/&gt;closed surfaces&quot;]
+</code></pre></div>
+</div>
+</pre></div>
+<p>The physical records that realize each chosen surface are bound later, during
+<a class="reference internal" href="compilation.html"><span class="std std-doc">compilation</span></a>.</p>
+<h2 id="surfaces-as-binary-vectors">Surfaces as binary vectors<a class="headerlink" href="#surfaces-as-binary-vectors" title="Link to this heading">¶</a></h2>
+<p>A correlation surface assigns a Pauli operator to each place it can occupy.
+Bloq computes support on two kinds of places, called <strong>columns</strong>:</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Column</p></th>
+<th class="head"><p>Count</p></th>
+<th class="head"><p>Meaning of its Pauli</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Half-edge</p></td>
+<td><p>Two per pipe</p></td>
+<td><p>The surface’s operator on that pipe, in the frame of the block it leaves</p></td>
+</tr>
+<tr class="row-odd"><td><p>Isolated block</p></td>
+<td><p>One per block with no incident pipe</p></td>
+<td><p>The independent memory observable of a block whose prepared and measured faces have no connecting pipe</p></td>
+</tr>
+</tbody>
+</table>
+<p>Each Pauli is stored as two bits <span class="math notranslate nohighlight">\((x,z)\)</span>, with <span class="math notranslate nohighlight">\(I=00\)</span>, <span class="math notranslate nohighlight">\(X=10\)</span>, <span class="math notranslate nohighlight">\(Z=01\)</span>, and
+<span class="math notranslate nohighlight">\(Y=11\)</span>. A surface on <span class="math notranslate nohighlight">\(C\)</span> columns is therefore a vector in
+<span class="math notranslate nohighlight">\(\mathbb{F}_2^{2C}\)</span>. Multiplying two surfaces multiplies their Paulis column
+by column, which XORs their bit vectors. Support is linear, so linear algebra
+over <span class="math notranslate nohighlight">\(\mathbb{F}_2\)</span> applies. Signs are not linear, and
+<a class="reference internal" href="#signs">a later section</a> treats them separately.</p>
+<p>A Hadamard pipe exchanges X and Z between its two ends. Bloq keeps each
+half-edge in its own block’s frame and applies the exchange only where the two
+halves meet.</p>
+<p>For a block with an incident pipe, center support is derived from its legs.
+At a Z spider the broadcast X bit equals the X bit of any leg; the physical
+crossing Z bit is present when any incident leg has Z support. An X spider
+exchanges X and Z. A Port, T resource, selective cap, or Y boundary copies its
+single leg’s Pauli in the boundary’s frame. The crossing bit uses OR rather
+than XOR, so Bloq reconstructs it after combining edge vectors, when the
+surface is queried or bound to physical records. It is not an algebraic column.
+Guarded topologies retain an isolated-block column wherever an active variant
+has no incident pipe.</p>
+<h2 id="step-1-local-tensors">Step 1: Local tensors<a class="headerlink" href="#step-1-local-tensors" title="Link to this heading">¶</a></h2>
+<p>Bloq writes down a small set of generating rows for every ZX node. Each row is a
+surface confined to that block and its half-edges. The table below gives the
+rows for a node with <span class="math notranslate nohighlight">\(k\)</span> incident pipes:</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>ZX element</p></th>
+<th class="head"><p>Generating rows</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Z spider</p></td>
+<td><p><span class="math notranslate nohighlight">\(Z\)</span> on adjacent legs <span class="math notranslate nohighlight">\(i\)</span> and <span class="math notranslate nohighlight">\(i+1\)</span>, for <span class="math notranslate nohighlight">\(i=1,\dots,k-1\)</span>; <span class="math notranslate nohighlight">\(X\)</span> on every leg</p></td>
+</tr>
+<tr class="row-odd"><td><p>X spider</p></td>
+<td><p>Exchange <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Z\)</span> in the Z spider rows</p></td>
+</tr>
+<tr class="row-even"><td><p>Open boundary (Port, T resource, or selective cap)</p></td>
+<td><p><span class="math notranslate nohighlight">\(X\)</span> on the leg; <span class="math notranslate nohighlight">\(Z\)</span> on the leg</p></td>
+</tr>
+<tr class="row-odd"><td><p>Y node</p></td>
+<td><p><span class="math notranslate nohighlight">\(Y\)</span> on the leg</p></td>
+</tr>
+</tbody>
+</table>
+<p>For a Z spider with three legs, the rows are</p>
+<div class="math notranslate nohighlight">
+\[
+Z_1Z_2,\qquad Z_2Z_3,\qquad X_1X_2X_3,
+\]</div>
+<p>These rows generate exactly the spider rule
+from Preliminaries: X support occupies all legs or none, and Z support occupies
+an even number of legs. A block has at most six incident pipes, so it
+contributes at most six rows. Each row touches at most six columns.</p>
+<p>A closed face adds no leg. An isolated-block column carries its value instead: a
+single cube with a prepared and a measured face has only one row, on its
+center, which is the memory observable.</p>
+<h2 id="step-2-seam-elimination">Step 2: Seam elimination<a class="headerlink" href="#step-2-seam-elimination" title="Link to this heading">¶</a></h2>
+<p>A pipe joins two half-edges, <span class="math notranslate nohighlight">\(a\to b\)</span> and <span class="math notranslate nohighlight">\(b\to a\)</span>. A surface is consistent
+on the pipe when both halves carry the same Pauli. This gives two linear
+constraints per pipe:</p>
+<div class="math notranslate nohighlight">
+\[
+x_{a\to b}\oplus x_{b\to a}=0,\qquad z_{a\to b}\oplus z_{b\to a}=0.
+\]</div>
+<p>A Hadamard pipe pairs <span class="math notranslate nohighlight">\(x_{a\to b}\)</span> with <span class="math notranslate nohighlight">\(z_{b\to a}\)</span> and <span class="math notranslate nohighlight">\(z_{a\to b}\)</span> with
+<span class="math notranslate nohighlight">\(x_{b\to a}\)</span> instead.</p>
+<p>Bloq starts from all local rows and imposes the constraints one at a time:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code>for each seam constraint c, in sweep order:
+    S ← rows that violate c            (found through a column index)
+    if S is empty: continue            (c already holds)
+    p ← first row in S
+    for each other row r in S:
+        r ← r ⊕ p                      (r now satisfies c)
+    remove p
+</code></pre></div>
+</div>
+<p>Each step keeps exactly the combinations of rows that satisfy the constraint.
+After the last pipe, the remaining rows form a basis of the correlation space.
+The internal columns are not deleted: a row’s support on internal half-edges
+is the surface as it is drawn in the viewer.</p>
+<p>Constraints are processed in the order of their later endpoint’s time layer,
+so elimination sweeps forward through the computation. The column index
+visits only rows that touch the current pipe. Rows that no longer touch an
+unprocessed pipe are not visited again. Readout planning later reorders
+columns along the graph’s longest spatial extent to limit fill-in. That
+reordering does not change the source equation order.</p>
+<h3 id="the-size-of-the-space">The size of the space<a class="headerlink" href="#the-size-of-the-space" title="Link to this heading">¶</a></h3>
+<p>Let <span class="math notranslate nohighlight">\(P\)</span> be the number of pipes, <span class="math notranslate nohighlight">\(L\)</span> the number of open legs (Ports, T
+resources, and selective caps), and <span class="math notranslate nohighlight">\(I\)</span> the number of isolated X/Z blocks.
+Every pipe end belongs to a node’s leg list,
+so the local rows number</p>
+<div class="math notranslate nohighlight">
+\[
+R_0 = 2P + L + I.
+\]</div>
+<p>Each of the <span class="math notranslate nohighlight">\(2P\)</span> constraints either finds a pivot and removes one row, or
+already holds. Let <span class="math notranslate nohighlight">\(\delta\)</span> count those that already hold. The final basis then
+has</p>
+<div class="math notranslate nohighlight">
+\[
+r = R_0 - (2P-\delta) = L + I + \delta
+\]</div>
+<p>rows. <span class="math notranslate nohighlight">\(L\)</span> of them describe how open legs relate. The other <span class="math notranslate nohighlight">\(I+\delta\)</span> are
+<strong>closed surfaces</strong>, which touch no open leg. Memory and stability observables,
+and merge parities whose surface closes on measurements, belong to this
+group. Gallery graphs show both terms:</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Graph</p></th>
+<th class="head text-right"><p>Open legs <span class="math notranslate nohighlight">\(L\)</span></p></th>
+<th class="head text-right"><p>Basis size <span class="math notranslate nohighlight">\(r\)</span></p></th>
+<th class="head text-right"><p>Closed surfaces <span class="math notranslate nohighlight">\(I+\delta\)</span></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">x_memory</span></code></p></td>
+<td class="text-right"><p>0</p></td>
+<td class="text-right"><p>1</p></td>
+<td class="text-right"><p>1</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">bell_state</span></code></p></td>
+<td class="text-right"><p>2</p></td>
+<td class="text-right"><p>2</p></td>
+<td class="text-right"><p>0</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cnot</span></code></p></td>
+<td class="text-right"><p>4</p></td>
+<td class="text-right"><p>4</p></td>
+<td class="text-right"><p>0</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">t_gate</span></code></p></td>
+<td class="text-right"><p>4</p></td>
+<td class="text-right"><p>4</p></td>
+<td class="text-right"><p>0</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">steane_encoding</span></code></p></td>
+<td class="text-right"><p>7</p></td>
+<td class="text-right"><p>7</p></td>
+<td class="text-right"><p>0</p></td>
+</tr>
+</tbody>
+</table>
+<h2 id="signs">Signs<a class="headerlink" href="#signs" title="Link to this heading">¶</a></h2>
+<p>Support alone does not determine a relation. A three-leg Z spider has
+generators <span class="math notranslate nohighlight">\(g_1=X_1X_2X_3\)</span> and <span class="math notranslate nohighlight">\(g_2=Z_1Z_2\)</span>, both with eigenvalue <span class="math notranslate nohighlight">\(+1\)</span>.
+Their exact product is</p>
+<div class="math notranslate nohighlight">
+\[
+g_1g_2=(XZ)_1(XZ)_2X_3=-Y_1Y_2X_3.
+\]</div>
+<p>The unsigned operator <span class="math notranslate nohighlight">\(Y_1Y_2X_3\)</span> therefore has eigenvalue <span class="math notranslate nohighlight">\(-1\)</span>. If those three
+operators are measured, their outcome bits obey <span class="math notranslate nohighlight">\(y_1\oplus y_2\oplus x_3=1\)</span>.
+A detector or readout built from the correct support but the wrong sign
+reports the opposite parity.</p>
+<figure class="align-default" id="id1">
+<img alt="Three-legged Z spider with generators XXX and ZZI whose exact product is minus YYX." src="../_images/signed-junction.svg" />
+<figcaption>
+<p><span class="caption-text"><span class="caption-text">
+The sign is part of the relation.</span><a class="headerlink" href="#id1" title="Permalink to this image">¶</a></figcaption>
+</figure>
+<p>A correlation surface carries Pauli support and a <strong>constant sign</strong>. For a
+fixed Clifford process <span class="math notranslate nohighlight">\(K\)</span> with outcomes <span class="math notranslate nohighlight">\(\mu\)</span>, its complete relation reads</p>
+<div class="math notranslate nohighlight">
+\[
+QK(\mu)P=(-1)^{h\cdot\mu\oplus\sigma}K(\mu),
+\]</div>
+<p>where <span class="math notranslate nohighlight">\(P\)</span> acts on inputs and open resource legs, <span class="math notranslate nohighlight">\(Q\)</span> acts on outputs, <span class="math notranslate nohighlight">\(h\)</span>
+selects the measurement outcomes, and <span class="math notranslate nohighlight">\(\sigma\)</span> is the constant parity in the
+chosen operator and outcome convention. Each local minus toggles this bit.</p>
+<p>A complete tensor witness determines its sign from local Pauli algebra:</p>
+<ul class="simple">
+<li><p>Every pair of Y legs at an X/Z spider contributes a minus.</p></li>
+<li><p>An open boundary’s XX and ZZ generators multiply to a negative YY
+center-and-leg pair.</p></li>
+<li><p>A terminating Y effect contributes a minus from transposition.</p></li>
+<li><p>Moving Y through a Hadamard changes its sign: <span class="math notranslate nohighlight">\(HYH=-Y\)</span>.</p></li>
+<li><p>Contracting two Y half-edges contributes a minus.</p></li>
+</ul>
+<p>These rules use the tensor’s local frames. The tensor representation of an
+input-to-output map uses transposed input operators. Converting it to operator
+transport adds a minus for each input Y because <span class="math notranslate nohighlight">\(Y^T=-Y\)</span>. For example, the YY
+stabilizer of a Hadamard tensor is positive while Y transport through H still
+carries a minus. These are expressions of the same signed
+correlation in different conventions; count every factor once in the chosen
+convention.</p>
+<p>Compilation binds each local Pauli pattern to the physical measurement records
+and boundary operators that realize it. Known constants enter the resulting
+parity where required by the readout convention. Named measurements and output
+frames retain their authored outcome labels; closed logical checks absorb
+known offsets into their reference parity. Binding does not add the tensor
+sign a second time.</p>
+<p>Projection can erase local factors, so signed witnesses and module reference
+certificates preserve their contribution. Elimination multiplies these signed
+rows with phases modulo four instead of losing their signs through XOR alone.</p>
+<h2 id="dynamic-choices">Dynamic choices<a class="headerlink" href="#dynamic-choices" title="Link to this heading">¶</a></h2>
+<p>Selective caps and structural branches make a block graph a family of graphs.
+Assign a value to every selector variable, and you obtain one ordinary graph.
+With <span class="math notranslate nohighlight">\(s\)</span> independent selectors, eliminating each graph separately would cost
+<span class="math notranslate nohighlight">\(2^s\)</span> times one elimination. Bloq runs a single elimination instead, over
+coefficients that are Boolean functions of the selectors.</p>
+<h3 id="guarded-rows">Guarded rows<a class="headerlink" href="#guarded-rows" title="Link to this heading">¶</a></h3>
+<p>Each row has an <strong>activation guard</strong> <span class="math notranslate nohighlight">\(a(\chi)\)</span>, and each of its bits is a
+Boolean function of the selector assignment <span class="math notranslate nohighlight">\(\chi\)</span>. Bloq stores these
+functions as reduced ordered binary decision diagrams, so equal functions
+share storage. The construction changes in three places:</p>
+<ul class="simple">
+<li><p><strong>Local tensors.</strong> A block whose shape depends on a choice contributes each
+distinct local row once. That row is active on the OR of the guards of the
+variants that produce it.</p></li>
+<li><p><strong>Pivot choice.</strong> For each assignment, the pivot is the first candidate
+that violates the constraint under that assignment. Candidate <span class="math notranslate nohighlight">\(r\)</span> becomes
+the pivot on the guard <span class="math notranslate nohighlight">\(a_r(\chi)\wedge c(r)(\chi)\wedge\neg(\text{earlier
+pivot})\)</span>. Pivot guards stay disjoint.</p></li>
+<li><p><strong>Scaled XOR.</strong> A row is updated as <span class="math notranslate nohighlight">\(r\leftarrow r\oplus f(\chi)\,p\)</span>,
+where <span class="math notranslate nohighlight">\(f\)</span> is the row’s own constraint value.</p></li>
+</ul>
+<p>The invariant is pointwise. For every reachable assignment <span class="math notranslate nohighlight">\(\chi\)</span>, the active
+rows evaluated at <span class="math notranslate nohighlight">\(\chi\)</span> span the correlation space of the graph that <span class="math notranslate nohighlight">\(\chi\)</span>
+selects. Hadamard pipes inside a branch work the same way: the seam
+constraint receives the guard under which that pipe is a Hadamard.</p>
+<p>The number of independent surfaces can depend on the choice. Elimination with
+a guarded coefficient <span class="math notranslate nohighlight">\(b\)</span> can produce</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}
+\begin{pmatrix}1&amp;b\\b&amp;1\end{pmatrix}
+\longmapsto
+\begin{pmatrix}1&amp;b\\0&amp;1\oplus b\end{pmatrix},
+\end{split}\]</div>
+<p>which has rank two for <span class="math notranslate nohighlight">\(b=0\)</span> and rank one for <span class="math notranslate nohighlight">\(b=1\)</span>. The second row is active
+only on <span class="math notranslate nohighlight">\(b=0\)</span>, and the guarded basis retains it only there.</p>
+<h3 id="selective-caps">Selective caps<a class="headerlink" href="#selective-caps" title="Link to this heading">¶</a></h3>
+<p>A selective cap measures one of two bases. Its incident-leg Pauli must commute with
+the chosen basis <span class="math notranslate nohighlight">\(B\)</span>. For <span class="math notranslate nohighlight">\(B=(B_x,B_z)\)</span> this is the linear constraint</p>
+<div class="math notranslate nohighlight">
+\[
+B_z\,x_e\oplus B_x\,z_e=0,
+\]</div>
+<p>whose coefficients depend on the selector. An XY cap chooses <span class="math notranslate nohighlight">\(X\)</span> when its
+selector <span class="math notranslate nohighlight">\(b\)</span> is true and <span class="math notranslate nohighlight">\(Y\)</span> when it is false, so the constraint becomes
+<span class="math notranslate nohighlight">\((1\oplus b)\,x_e\oplus z_e=0\)</span>. It permits <span class="math notranslate nohighlight">\(\{I,Y\}\)</span> for <span class="math notranslate nohighlight">\(b=0\)</span> and
+<span class="math notranslate nohighlight">\(\{I,X\}\)</span> for <span class="math notranslate nohighlight">\(b=1\)</span>.
+Bloq imposes this constraint by the same elimination as a seam.</p>
+<p>Keeping alternatives as guarded rows matters because their union is not a
+vector space. Multiplying the <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Y\)</span> alternatives yields <span class="math notranslate nohighlight">\(Z\)</span> support,
+which neither arm admits.</p>
+<p>Guards describe <strong>source reachability</strong>: which Boolean assignments the
+authored control can produce. They say nothing about Born probabilities. A
+reachable choice can have zero probability for a particular input or resource
+state, and a signed stabilizer relation does not by itself establish a
+non-Clifford branch’s probability.</p>
+<h2 id="step-3-causal-readouts">Step 3: Causal readouts<a class="headerlink" href="#step-3-causal-readouts" title="Link to this heading">¶</a></h2>
+<p>A named measurement <code class="docutils literal notranslate"><span class="pre">m</span> <span class="pre">=</span> <span class="pre">measure</span> <span class="pre">target</span></code> needs a surface whose physical parity
+reads <span class="math notranslate nohighlight">\(m\)</span>. Bloq adds one <strong>named coordinate</strong> <span class="math notranslate nohighlight">\(n_m\)</span> to every row. Its value is
+the row’s bit at the target column on the measured axis. A surface <span class="math notranslate nohighlight">\(w\)</span> can
+serve as the readout of <span class="math notranslate nohighlight">\(m_i\)</span> when it meets four conditions:</p>
+<ol class="arabic simple">
+<li><p><strong>Named projection.</strong> <span class="math notranslate nohighlight">\(n_{m_i}(w)=1\)</span>, and every other named coordinate in
+<span class="math notranslate nohighlight">\(w\)</span> belongs to a measurement already known.</p></li>
+<li><p><strong>Output closure.</strong> <span class="math notranslate nohighlight">\(w\)</span> has identity support on every live output.</p></li>
+<li><p><strong>Availability.</strong> Every guard and coefficient in <span class="math notranslate nohighlight">\(w\)</span> depends only on known
+outcomes. <span class="math notranslate nohighlight">\(w\)</span> avoids blocks whose shape still depends on an unknown
+outcome. Its overlap with any feedback whose condition is still unknown is
+even.</p></li>
+<li><p><strong>Activation.</strong> <span class="math notranslate nohighlight">\(w\)</span> is active on every reachable choice.</p></li>
+</ol>
+<p>Some readouts must wait for earlier values. A selective cap can be read only
+after the value that chooses its basis is known. Bloq therefore plans in
+<strong>causal waves</strong>:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code>known ← outcomes that this graph does not name
+V ← correlation space with live outputs eliminated and selective caps filled
+while some named measurement is unknown:
+    impose availability for the current known set
+    reduce V on the coordinates of unknown names
+    accept every name m whose reduced row is n_m alone,
+        always active, and computable from known values
+    if nothing is accepted: fail with UnavailableControlParity
+    known ← known ∪ accepted names
+</code></pre></div>
+</div>
+<p>Availability constraints only relax as values become known. Bloq keeps their
+pivots between waves and releases each constraint when its condition becomes
+available, so later waves do not restart elimination. An accepted readout is
+removed from the live relation, and later readouts refer to it by name.</p>
+<h3 id="corrected-values">Corrected values<a class="headerlink" href="#corrected-values" title="Link to this heading">¶</a></h3>
+<p>An accepted surface becomes a recipe for the <strong>corrected</strong> named value:</p>
+<div class="math notranslate nohighlight">
+\[
+\operatorname{corrected}(m_i)
+= \operatorname{parity}(w_i)
+\oplus \bigoplus_{j&lt;i} L_{ij}\operatorname{corrected}(m_j)
+\oplus \text{feedback}
+\oplus \sigma_i
+\oplus \widehat\delta_i .
+\]</div>
+<p>The <span class="math notranslate nohighlight">\(L_{ij}\)</span> terms, called folds, are the named coordinates of earlier
+measurements in <span class="math notranslate nohighlight">\(w_i\)</span>. <span class="math notranslate nohighlight">\(\sigma_i\)</span> is the <a class="reference internal" href="#signs">constant sign</a> expressed in
+this readout’s outcome convention, and <span class="math notranslate nohighlight">\(\widehat\delta_i\)</span> is the decoder’s flip
+estimate for this readout.</p>
+<p>Folds use corrected values, not raw records. Suppose a first parity <span class="math notranslate nohighlight">\(r_1\)</span>
+reads <span class="math notranslate nohighlight">\(m_1\)</span>, while a later parity <span class="math notranslate nohighlight">\(r_{2,b}\)</span> reads <span class="math notranslate nohighlight">\(m_2\oplus m_1\)</span> under a
+choice <span class="math notranslate nohighlight">\(b=m_1\)</span>. With decoder estimates <span class="math notranslate nohighlight">\(\widehat\delta_1\)</span> and
+<span class="math notranslate nohighlight">\(\widehat\delta_2\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}
+\begin{aligned}
+m_1&amp;=r_1\oplus\widehat\delta_1,&amp; b&amp;=m_1,\\
+m_2&amp;=r_{2,b}\oplus m_1\oplus\widehat\delta_2.
+\end{aligned}
+\end{split}\]</div>
+<p>If a record error turns an ideal <span class="math notranslate nohighlight">\(m_1=1\)</span> into <span class="math notranslate nohighlight">\(r_1=0\)</span>, the decoder estimate
+<span class="math notranslate nohighlight">\(\widehat\delta_1=1\)</span> still selects <span class="math notranslate nohighlight">\(b=1\)</span>. Selecting from the raw record would
+run a different continuation.</p>
+<h3 id="why-readouts-must-close-before-live-outputs">Why readouts must close before live outputs<a class="headerlink" href="#why-readouts-must-close-before-live-outputs" title="Link to this heading">¶</a></h3>
+<p>A relation that touches a live output can flip because of a record error or an
+error on that output. A decoder estimate for that relation then does not
+estimate the record’s error alone, and execution does not measure the output
+to tell the two apart. Every named readout therefore needs identity support on
+ordinary live outputs in every reachable choice. The spatial <code class="docutils literal notranslate"><span class="pre">Multiplex</span></code>
+interface admits <span class="math notranslate nohighlight">\(I\)</span> or <span class="math notranslate nohighlight">\(Z\)</span> support, because its physical split routes X and Y
+requests to the separate output.</p>
+<p>Closure applies to the chosen readout surface, not to every basis row. Another
+combination from the complete relation can supply an output-safe
+representative when one basis row reaches an output.</p>
+<h3 id="readouts-at-a-spider">Readouts at a spider<a class="headerlink" href="#readouts-at-a-spider" title="Link to this heading">¶</a></h3>
+<p>A named measurement on a cube’s cross axis, such as a merge parity read at the
+cube, crosses the spider through two of its legs. That value is not linear in
+the center column. Bloq selects readable representatives from the composed
+relation and plans with their dual coordinates. A conditional presentation of
+such a readout is rejected with a typed error rather than replaced by one
+branch.</p>
+<h2 id="step-4-terminal-frames">Step 4: Terminal frames<a class="headerlink" href="#step-4-terminal-frames" title="Link to this heading">¶</a></h2>
+<p>After every named value is known, the remaining surfaces determine the Pauli
+frame of each surviving output:</p>
+<ol class="arabic simple">
+<li><p><strong>Remove named coordinates.</strong> Eliminate each <span class="math notranslate nohighlight">\(n_m\)</span>. The rows left have
+zero named projection, so a frame equation cannot reuse a named record
+implicitly.</p></li>
+<li><p><strong>Fill selective caps.</strong> Impose every cap’s commutation constraint.</p></li>
+<li><p><strong>Pivot on outputs.</strong> For each output and each of its two bits, eliminate
+that column. The pivot row is the frame equation for that axis. X support
+on an output constrains its Z correction, and Z support constrains its X
+correction. A <code class="docutils literal notranslate"><span class="pre">Multiplex</span></code> output pivots on its X bit only.</p></li>
+<li><p><strong>Normalize inputs.</strong> Reduce each frame equation’s input operators against
+surfaces with no output support. That reduction preserves prepared T
+resource operators and the <code class="docutils literal notranslate"><span class="pre">Multiplex</span></code> Z direction.</p></li>
+<li><p><strong>Keep the rest.</strong> Rows still left touch no output. They become logical
+readouts, such as memory and stability observables.</p></li>
+</ol>
+<p>Frame equations stay in echelon form. An equation can contain bits of a later
+output. Those bits become guarded references to the later frame value, and
+the emitted classical program performs the back-substitution. Expanding every
+earlier equation through every later pivot instead can make the Boolean
+coefficients grow exponentially.</p>
+<p>Each frame equation has its own decoder flip: the XOR of its corrected and raw
+observables. The raw terms are exactly the surface’s physical parity, so the
+frame reads the corrected observable directly.</p>
+<h3 id="feedback">Feedback<a class="headerlink" href="#feedback" title="Link to this heading">¶</a></h3>
+<p>A Pauli feedback action contributes to every surface that anticommutes with
+it. For a feedback <span class="math notranslate nohighlight">\(F\)</span> on a wire, the coefficient on surface <span class="math notranslate nohighlight">\(w\)</span> is the
+symplectic product of <span class="math notranslate nohighlight">\(F\)</span> with <span class="math notranslate nohighlight">\(w\)</span>’s Pauli on that wire. Bloq XORs this over
+every target, including duplicates, and ANDs the result with the action’s
+condition. Known feedback enters a recipe as a fold; feedback whose condition
+is still unknown imposes an availability constraint.</p>
+<h3 id="what-the-plan-produces">What the plan produces<a class="headerlink" href="#what-the-plan-produces" title="Link to this heading">¶</a></h3>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Planned surface</p></th>
+<th class="head"><p>Physical result</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Named readout</p></td>
+<td><p>Raw parity, decoder query, and corrected value</p></td>
+</tr>
+<tr class="row-odd"><td><p>Terminal frame equation</p></td>
+<td><p>Pauli-frame bit for the surviving output</p></td>
+</tr>
+<tr class="row-even"><td><p>Closed logical surface</p></td>
+<td><p>Logical observable for decoding</p></td>
+</tr>
+</tbody>
+</table>
+<p>The plan does not contain detectors. Detectors come from the physical
+templates’ stabilizer flows, which <a class="reference internal" href="compilation.html"><span class="std std-doc">compilation</span></a> composes
+across blocks. Logical support alone does not determine every physical check.</p>
+<h2 id="module-composition">Module composition<a class="headerlink" href="#module-composition" title="Link to this heading">¶</a></h2>
+<p>For <a class="reference internal" href="../modules/index.html"><span class="std std-doc">modular graphs</span></a>, Bloq computes correlations from the
+innermost instances outward. Each child first closes its internal seams. Its
+relation retains both correlations reaching its exposed Ports and closed
+surfaces within the child, together with their signs and internal support.</p>
+<p>The parent combines these child relations with its own local tensors and
+applies the same seam constraints at connected Ports. Pauli support must match
+across each connection, with X and Z exchanged on a Hadamard seam. Compatible
+combinations form the parent’s correlation space. Repeating this through the
+hierarchy produces surfaces that can span several module instances.</p>
+<p>Named readouts and terminal frames are then selected from the composed relation
+using the guarded and causal rules above. Classical bindings and feedback can
+create dependencies across modules. Named readouts are checked both within
+their definitions and after composition to ensure they still close before
+live outputs.</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+
+
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  
+  
+  <div class="md-footer-meta md-typeset">
+    
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-footer-copyright__highlight">
+        &#169; Copyright Bloq contributors.
+        
+    </div>
+  
+    Created using
+    <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
+    8.1.3.
+     and
+    <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
+  
+</div>
+      
+    </div>
+    
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.highlight", "content.tabs.link", "content.code.copy"], "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+      
+        <script src="../_static/sphinx_immaterial_theme.32136f45f91ae6956.min.js?v=a7a9472a"></script>
+        <script>window.MathJax = {"options": {"processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+        <script id="MathJax-script" src="../_static/mathjax/tex-mml-chtml.js?v=cadf963e"></script>
+        <script src="../_static/versions.js?v=2f43aabb"></script>
+        <script src="../_static/graph-viewer.js?v=b2321b27"></script>
+    
+  </body>
+</html>

@@ -1,0 +1,3043 @@
+
+
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="t-cultivation.html">
+      
+      
+        <link rel="next" href="ccz-factory.html">
+      
+      
+      <link rel="icon" href="../_static/bloq-mark-light.png">
+    
+    
+      
+        <title>Logical T Gate - bloq</title>
+      
+    
+    
+      
+        
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+        <link rel="stylesheet" type="text/css" href="../_static/sphinx_immaterial_theme.6efbe22605a23fcd6.min.css?v=b2ceb110" />
+        <link rel="stylesheet" type="text/css" href="../_static/site.css?v=8e1ee51e" />
+    <script>__md_scope=new URL("/",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+
+<meta name="bloq-doc-root" content="../index.html">
+<meta name="bloq-page" content="tutorials/t-gate.html">
+<meta name="bloq-doc-version" content="Development (0.1.1)">
+<meta name="bloq-package-version" content="0.1.1">
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#load-and-inspect-the-source" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../index.html" title="bloq" class="md-header__button md-logo" aria-label="bloq" data-md-component="logo">
+      <img src="../_static/bloq-mark-light.png" alt="logo">
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            bloq
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Logical T Gate
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/inmzhang/bloq" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inmzhang/bloq
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../index.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Home</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../getting-started/installation.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Getting Started</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="../user-guide.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>User Guide</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../gallery/index.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Examples</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../reference/cli.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Reference</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../development/contributing.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Development</span>
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../index.html" title="bloq" class="md-nav__button md-logo" aria-label="bloq" data-md-component="logo">
+      <img src="../_static/bloq-mark-light.png" alt="logo">
+    </a>
+    bloq
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/inmzhang/bloq" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inmzhang/bloq
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Home</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Home</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Home</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Getting Started</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Getting Started</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/installation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Installation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/quickstart.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Quick Start</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>User Guide</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            <span>User Guide</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Overview</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theory/prerequisites.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Preliminaries</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theory/existing-works.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Existing Works</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphs/concepts.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Blocks and Pipes</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphs/actions.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Actions</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../modules/index.html" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Modules</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6" id="__nav_3_6_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Modules</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../modules/index.html#examples" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Examples</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6_1" id="__nav_3_6_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Examples</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6_1_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../modules/index.html#controlled-adder" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Controlled-<wbr>adder</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6_1_1" id="__nav_3_6_1_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_3_6_1_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6_1_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Controlled-<wbr>adder</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../modules/adder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Controlled Addition</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../modules/phase-gradient.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Phase-<wbr>Gradient Rotations</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphs/blog.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>BLOG Format</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theory/correlation-surfaces.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Correlation Surfaces</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patch-alignment.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Patch Alignment</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../circuit-constructions.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Circuit Constructions</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theory/compilation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Compilation Pipeline</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/ir.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Bloq IR</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/emission.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Backend Emission</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/synchronization.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Synchronization</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_15" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3_15" id="__nav_3_15_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Tutorials</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_15_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_15">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Tutorials</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="cnot.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Logical CNOT</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="t-cultivation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T State Cultivation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    <span>Logical T Gate</span>
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="#" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Logical T Gate</span>
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+  
+
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#load-and-inspect-the-source" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Load and inspect the source</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compile-the-dynamic-ir" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Compile the dynamic IR</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#t-source-proxy" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>T-<wbr>source Proxy</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#offline-decoding-and-path-based-postselection" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Offline decoding and path-<wbr>based postselection</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#simulation" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Simulation</span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="ccz-factory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>8T-<wbr>1CCZ Distillation Factory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/thth.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Emulate Hardware Synchronization</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../gallery/index.html" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Examples</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Examples</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/cnot.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CNOT</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/cz_spatial_h.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CZ with a spatial Hadamard</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/cz_temporal_h.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CZ with a temporal Hadamard</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/s_gate.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>S gate</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/t_gate.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T gate</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/t_with_prepared_y.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T gate with a prepared Y state</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/t_comparison.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T-<wbr>state comparison</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/phase_gradient.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Phase-<wbr>gradient sequence</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/and_4t.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Four-<wbr>T AND</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_injected_and.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ-<wbr>injected AND</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_injected_maj.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ-<wbr>injected MAJ</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/uma.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>UMA</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/three_bit_adder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Three-<wbr>bit controlled adder</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ten_bit_adder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Ten-<wbr>bit controlled adder</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/toffoli_from_and_delayed_cz.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Toffoli from AND</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_4x3x7_tels.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ factory with TELS</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_4x3x6.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ factory without TELS</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_gate_teleport.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ gate teleportation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/bell_state.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Bell state</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ghz.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>GHZ state</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ghz_slide_then_glide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>GHZ with slides and glides</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ghz_patch_rotations.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>GHZ with patch rotations</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/1d-yoked.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>1D yoked layout</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/thth.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T–H–T–H sequence</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/three_cnots.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Compressed three CNOTs</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/steane_encoding.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Steane encoding</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/x_memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>X-<wbr>basis memory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/y_memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Y-<wbr>basis memory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/move_rotation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Rotation through movement</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/stability.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Stability experiment</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Reference</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Reference</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/cli.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CLI Reference</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/python.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Python API</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/rust.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Rust API Reference</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Rust Feature Flags</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Development</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Development</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/contributing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Contributing</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/benchmarks.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Benchmarking</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/generic-module-scalability.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Generic module compilation:<wbr> evidence and claim boundary</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/classical-storage.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Classical data and evaluation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../releasing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Releases</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../site-maintenance.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Website Maintenance</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+  
+
+<nav class="md-nav md-nav--secondary">
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#load-and-inspect-the-source" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Load and inspect the source</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compile-the-dynamic-ir" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Compile the dynamic IR</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#t-source-proxy" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>T-<wbr>source Proxy</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#offline-decoding-and-path-based-postselection" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Offline decoding and path-<wbr>based postselection</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#simulation" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Simulation</span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset" role="main">
+                
+                
+
+
+                  
+
+
+<h1 id="logical-t-gate">Logical T Gate<a class="headerlink" href="#logical-t-gate" title="Link to this heading">¶</a></h1>
+<p>This tutorial shows how to compile and simulate a logical T gate with Bloq.
+The gate uses a cultivated T state and measurement-dependent basis selection.</p>
+<h2 id="load-and-inspect-the-source">Load and inspect the source<a class="headerlink" href="#load-and-inspect-the-source" title="Link to this heading">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span class="n">graph</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">GalleryItem</span><span class="o">.</span><span class="n">T_GATE</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>
+<span class="n">graph</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
+<span class="n">graph</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;t-gate.blog&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">graph</span><span class="o">.</span><span class="n">to_text</span><span class="p">())</span>
+</code></pre></div>
+</div>
+<iframe class="bloq-block-view" src="../_static/block-graphs/t_gate.html" title="Interactive t gate block graph" loading="lazy" allowfullscreen></iframe><p>The data input and output are open Ports. The corrected joint measurement
+<code class="docutils literal notranslate"><span class="pre">mzz</span></code> selects the resource’s final X or Y measurement.</p>
+<div class="mermaid-diagram docutils">
+<pre class="mermaid">
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span><code>flowchart LR
+  source[&quot;T resource: cultivate until accepted&quot;] --&gt; merge[&quot;Joint logical measurement&quot;]
+  data[&quot;Data input&quot;] --&gt; merge
+  merge --&gt; bit[&quot;Corrected mzz&quot;] --&gt; cap[&quot;Select X/Y measurement&quot;]
+  merge --&gt; output[&quot;Data output + Pauli frame&quot;]
+  cap --&gt; output
+</code></pre></div>
+</div>
+</pre></div>
+<p>See <a class="reference internal" href="../graphs/actions.html"><span class="std std-doc">Actions</span></a> for the selection rule and
+<a class="reference internal" href="t-cultivation.html"><span class="std std-doc">T State Cultivation</span></a> for resource preparation.</p>
+<h2 id="compile-the-dynamic-ir">Compile the dynamic IR<a class="headerlink" href="#compile-the-dynamic-ir" title="Link to this heading">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span class="n">ir</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">distance</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<span class="n">ir</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
+<span class="n">ir</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;t-gate.bloqir&quot;</span><span class="p">)</span>
+<span class="n">Path</span><span class="p">(</span><span class="s2">&quot;t-gate.svg&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">ir</span><span class="o">.</span><span class="n">to_svg</span><span class="p">(</span><span class="n">include_classical</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+</code></pre></div>
+</div>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Part of the IR</p></th>
+<th class="head"><p>Behavior</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">RepeatUntilSuccess</span></code></p></td>
+<td><p>Retry cultivation on physical postselection failure or either observable’s decoder <code class="docutils literal notranslate"><span class="pre">Flip</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Selected measurement</p></td>
+<td><p>Execute the chosen X/Y arm and publish only its records</p></td>
+</tr>
+<tr class="row-even"><td><p>Corrected observables and output frame</p></td>
+<td><p>Carry measurement results and Pauli corrections to the data output</p></td>
+</tr>
+</tbody>
+</table>
+<p>Only an accepted resource attempt exports results. Whole-program Stim emission
+cannot represent this adaptive protocol. A Clifford proxy replaces the T
+resource, so it does not simulate the T channel.</p>
+<h2 id="t-source-proxy">T-source Proxy<a class="headerlink" href="#t-source-proxy" title="Link to this heading">¶</a></h2>
+<p>To speed up noisy simulation, replace the physical cultivation circuit with an
+ideal logical <span class="math notranslate nohighlight">\(|T\rangle\)</span> state, then apply a logical Z error with probability
+<span class="math notranslate nohighlight">\(q\)</span>. Calibrate <span class="math notranslate nohighlight">\(q\)</span> from the infidelity of an accepted cultivated state, using
+the chosen distance, physical noise strength, and GAP thresholds from
+<a class="reference internal" href="t-cultivation.html#cultivated-state-calibration"><span class="std std-ref">T State Cultivation</span></a>.</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Part</p></th>
+<th class="head"><p>Model</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Accepted T source</p></td>
+<td><p>Ideal <span class="math notranslate nohighlight">\(\lvert T\rangle\)</span> with a logical Z error of probability <span class="math notranslate nohighlight">\(q\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p>Remaining gate circuit</p></td>
+<td><p>Physical circuit noise of strength <span class="math notranslate nohighlight">\(p\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p>Source acceptance</p></td>
+<td><p>Account separately for the calibrated cultivation acceptance probability</p></td>
+</tr>
+</tbody>
+</table>
+<p>This proxy retains the non-Clifford T state. Compare it with physical-source
+simulations for the output metric of interest, as shown below. Matching
+accepted-state infidelity alone does not establish equality of the full noise
+channels.</p>
+<h2 id="offline-decoding-and-path-based-postselection">Offline decoding and path-based postselection<a class="headerlink" href="#offline-decoding-and-path-based-postselection" title="Link to this heading">¶</a></h2>
+<p>For these noisy experiments, we do not yet have a fast dynamic simulator or a
+real-time decoder. Instead, simulate each measurement path as a fixed circuit,
+then decode its records offline. Keep a shot when the corrected measurement
+results select the path that was simulated. This reproduces adaptive basis
+selection through postselection.</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Step</p></th>
+<th class="head"><p>Action</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Sample paths</p></td>
+<td><p>Run both X/Y measurement choices with the same number of attempts</p></td>
+</tr>
+<tr class="row-odd"><td><p>Decode records</p></td>
+<td><p>Use PyMatching to correct the branch selector and output Pauli frame</p></td>
+</tr>
+<tr class="row-even"><td><p>Select shots</p></td>
+<td><p>Keep matching paths whose cultivation checks and source GAP thresholds pass</p></td>
+</tr>
+<tr class="row-odd"><td><p>Score outputs</p></td>
+<td><p>Apply the frame to the logical expectations and compute infidelity</p></td>
+</tr>
+<tr class="row-even"><td><p>Combine paths</p></td>
+<td><p>Normalize each path’s accepted count and error sum by its attempted shots</p></td>
+</tr>
+</tbody>
+</table>
+<p>A path mismatch is a sampling filter, not a physical failure. For two equally
+sampled paths, effective attempts are half the total path shots. Average the six
+input-state infidelities equally, and report the Choi check separately.</p>
+<h2 id="simulation">Simulation<a class="headerlink" href="#simulation" title="Link to this heading">¶</a></h2>
+<p>The noisy simulation tests six inputs (<code class="docutils literal notranslate"><span class="pre">0</span></code>, <code class="docutils literal notranslate"><span class="pre">1</span></code>, <code class="docutils literal notranslate"><span class="pre">+</span></code>, <code class="docutils literal notranslate"><span class="pre">-</span></code>, <code class="docutils literal notranslate"><span class="pre">+i</span></code>, <code class="docutils literal notranslate"><span class="pre">-i</span></code>) and an
+independent Choi check. It uses offline decoding and postselection, with ten
+memory rounds before basis selection and ten before output.</p>
+<p>Download <a class="reference download internal" download="" href="../_downloads/9187989f42b34d52cc37bcdd6d6215dd/tutorial_t_gate_simulation.py"><code class="xref download docutils literal notranslate"><span class="pre">the</span> <span class="pre">script</span></code></a> and
+<a class="reference download internal" download="" href="../_downloads/19a6f751d06fd7e304c1ba1c82ad33e0/t-gate-characterization-d9.zip"><code class="xref download docutils literal notranslate"><span class="pre">the</span> <span class="pre">circuit</span> <span class="pre">bundle</span></code></a>
+into the same directory.</p>
+<p>Use Python 3.12 or newer with the GAP-enabled PyMatching build:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">&quot;clifft&gt;=0.6,&lt;1&quot;</span><span class="w"> </span><span class="s2">&quot;pymatching @ git+https://github.com/inmzhang/PyMatching.git@de4bb3e0796c1c9873d3ed5d1704364db10592cb&quot;</span>
+uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>tutorial_t_gate_simulation.py
+</code></pre></div>
+</div>
+<p>The default uses 1,000 attempts per path to check the workflow. Increase
+<code class="docutils literal notranslate"><span class="pre">--shots</span></code> to resolve the quoted rare-error rates. The script uses Clifft to
+simulate the retained circuits.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span class="sd">&quot;&quot;&quot;Offline logical T characterization from the retained distance-9 circuits.&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">zipfile</span><span class="w"> </span><span class="kn">import</span> <span class="n">ZipFile</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">clifft</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pymatching</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">stim</span>
+
+
+<span class="n">STATES</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;zero&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;one&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span>
+    <span class="s2">&quot;plus&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="mi">0</span><span class="p">),</span>
+    <span class="s2">&quot;minus&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="o">-</span><span class="mi">1</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="mi">0</span><span class="p">),</span>
+    <span class="s2">&quot;plus_i&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="mi">0</span><span class="p">),</span>
+    <span class="s2">&quot;minus_i&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="o">-</span><span class="mi">1</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="mi">0</span><span class="p">),</span>
+<span class="p">}</span>
+<span class="n">SOURCE_THRESHOLD</span> <span class="o">=</span> <span class="mi">11</span>
+<span class="n">BUNDLE_SHA256</span> <span class="o">=</span> <span class="s2">&quot;0a78b01d4aba4dc62eb25a37a0c14fad7540cd1941b5df1e80a62e57a561a623&quot;</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">parity</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">columns</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">bitwise_xor</span><span class="o">.</span><span class="n">reduce</span><span class="p">(</span><span class="n">rows</span><span class="p">[:,</span> <span class="n">columns</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">conditioned</span><span class="p">(</span><span class="n">dem</span><span class="p">,</span> <span class="n">postselection</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">whole_errors</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Exclude error mechanisms incompatible with passed physical checks.&quot;&quot;&quot;</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">stim</span><span class="o">.</span><span class="n">DetectorErrorModel</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">instruction</span> <span class="ow">in</span> <span class="n">dem</span><span class="o">.</span><span class="n">flattened</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">instruction</span><span class="o">.</span><span class="n">type</span> <span class="o">!=</span> <span class="s2">&quot;error&quot;</span><span class="p">:</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">instruction</span><span class="p">)</span>
+            <span class="k">continue</span>
+        <span class="n">groups</span> <span class="o">=</span> <span class="n">instruction</span><span class="o">.</span><span class="n">target_groups</span><span class="p">()</span>
+        <span class="n">rejected</span> <span class="o">=</span> <span class="p">[</span><span class="nb">any</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">is_relative_detector_id</span><span class="p">()</span> <span class="ow">and</span> <span class="n">t</span><span class="o">.</span><span class="n">val</span> <span class="ow">in</span> <span class="n">postselection</span>
+                        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">group</span><span class="p">)</span> <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">groups</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">whole_errors</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">rejected</span><span class="p">):</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">instruction</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">group</span><span class="p">,</span> <span class="n">reject</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">groups</span><span class="p">,</span> <span class="n">rejected</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">reject</span><span class="p">:</span>
+                    <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;error&quot;</span><span class="p">,</span> <span class="n">instruction</span><span class="o">.</span><span class="n">args_copy</span><span class="p">(),</span> <span class="n">group</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">num_detectors</span> <span class="o">&lt;</span> <span class="n">dem</span><span class="o">.</span><span class="n">num_detectors</span><span class="p">:</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;detector&quot;</span><span class="p">,</span> <span class="p">[],</span> <span class="p">[</span><span class="n">stim</span><span class="o">.</span><span class="n">target_relative_detector_id</span><span class="p">(</span><span class="n">dem</span><span class="o">.</span><span class="n">num_detectors</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)])</span>
+    <span class="k">return</span> <span class="n">result</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">close_source</span><span class="p">(</span><span class="n">companion</span><span class="p">,</span> <span class="n">sheets</span><span class="p">,</span> <span class="n">observables</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Use ideal boundary measurements to close the offline decoder model.&quot;&quot;&quot;</span>
+    <span class="n">records</span><span class="p">,</span> <span class="n">paulis</span> <span class="o">=</span> <span class="p">{},</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">instruction</span> <span class="ow">in</span> <span class="n">sheets</span><span class="p">:</span>
+        <span class="n">observable</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">instruction</span><span class="o">.</span><span class="n">gate_args_copy</span><span class="p">()[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">targets</span> <span class="o">=</span> <span class="n">instruction</span><span class="o">.</span><span class="n">targets_copy</span><span class="p">()</span>
+        <span class="n">table</span> <span class="o">=</span> <span class="n">records</span> <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">is_measurement_record_target</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">targets</span><span class="p">)</span> <span class="k">else</span> <span class="n">paulis</span>
+        <span class="n">table</span><span class="p">[</span><span class="n">observable</span><span class="p">]</span> <span class="o">=</span> <span class="n">targets</span>
+    <span class="k">if</span> <span class="nb">set</span><span class="p">(</span><span class="n">records</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">set</span><span class="p">(</span><span class="n">observables</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">set</span><span class="p">(</span><span class="n">paulis</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">set</span><span class="p">(</span><span class="n">observables</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;source boundary sheets are incomplete&quot;</span><span class="p">)</span>
+    <span class="n">targets</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">observable</span> <span class="ow">in</span> <span class="n">observables</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">target</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">paulis</span><span class="p">[</span><span class="n">observable</span><span class="p">]):</span>
+            <span class="k">if</span> <span class="n">index</span><span class="p">:</span>
+                <span class="n">targets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stim</span><span class="o">.</span><span class="n">target_combiner</span><span class="p">())</span>
+            <span class="n">targets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+    <span class="n">closed</span> <span class="o">=</span> <span class="n">companion</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">closed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;MPP&quot;</span><span class="p">,</span> <span class="n">targets</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">observable</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">observables</span><span class="p">):</span>
+        <span class="n">closed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;DETECTOR&quot;</span><span class="p">,</span> <span class="p">[</span>
+            <span class="o">*</span><span class="p">(</span><span class="n">stim</span><span class="o">.</span><span class="n">target_rec</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">value</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">observables</span><span class="p">))</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">records</span><span class="p">[</span><span class="n">observable</span><span class="p">]),</span>
+            <span class="n">stim</span><span class="o">.</span><span class="n">target_rec</span><span class="p">(</span><span class="n">index</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">observables</span><span class="p">)),</span>
+        <span class="p">])</span>
+    <span class="k">return</span> <span class="n">closed</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">score</span><span class="p">(</span><span class="n">probes</span><span class="p">,</span> <span class="n">spec</span><span class="p">,</span> <span class="n">corrections</span><span class="p">,</span> <span class="n">measurements</span><span class="p">,</span> <span class="n">manifest</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+    <span class="n">frame_x</span> <span class="o">=</span> <span class="p">(</span><span class="n">parity</span><span class="p">(</span><span class="n">measurements</span><span class="p">,</span> <span class="n">spec</span><span class="p">[</span><span class="s2">&quot;frame_x_measurements&quot;</span><span class="p">])</span>
+               <span class="o">^</span> <span class="nb">int</span><span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s2">&quot;frame_signs&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+               <span class="o">^</span> <span class="n">corrections</span><span class="p">[:,</span> <span class="n">manifest</span><span class="p">[</span><span class="s2">&quot;terminal_observables&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">]])</span>
+    <span class="n">frame_z</span> <span class="o">=</span> <span class="p">(</span><span class="n">parity</span><span class="p">(</span><span class="n">measurements</span><span class="p">,</span> <span class="n">spec</span><span class="p">[</span><span class="s2">&quot;frame_z_measurements&quot;</span><span class="p">])</span>
+               <span class="o">^</span> <span class="nb">int</span><span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s2">&quot;frame_signs&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+               <span class="o">^</span> <span class="n">corrections</span><span class="p">[:,</span> <span class="n">manifest</span><span class="p">[</span><span class="s2">&quot;terminal_observables&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]])</span>
+    <span class="n">frames</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">([</span><span class="n">frame_x</span><span class="p">,</span> <span class="n">frame_z</span><span class="p">,</span> <span class="n">frame_x</span> <span class="o">^</span> <span class="n">frame_z</span><span class="p">,</span>
+                              <span class="n">frame_z</span><span class="p">,</span> <span class="n">frame_x</span> <span class="o">^</span> <span class="n">frame_z</span><span class="p">])</span> <span class="k">if</span> <span class="n">state</span> <span class="o">==</span> <span class="s2">&quot;choi&quot;</span>
+              <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">([</span><span class="n">frame_z</span><span class="p">,</span> <span class="n">frame_x</span> <span class="o">^</span> <span class="n">frame_z</span><span class="p">,</span> <span class="n">frame_x</span><span class="p">]))</span>
+    <span class="n">corrected</span> <span class="o">=</span> <span class="n">probes</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s2">&quot;exp_val_signs&quot;</span><span class="p">])</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">frames</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">state</span> <span class="o">==</span> <span class="s2">&quot;choi&quot;</span><span class="p">:</span>
+        <span class="n">zz</span><span class="p">,</span> <span class="n">xx</span><span class="p">,</span> <span class="n">xy</span><span class="p">,</span> <span class="n">yx</span><span class="p">,</span> <span class="n">yy</span> <span class="o">=</span> <span class="n">corrected</span><span class="o">.</span><span class="n">T</span>
+        <span class="n">fidelity</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">zz</span> <span class="o">+</span> <span class="p">(</span><span class="n">xx</span> <span class="o">+</span> <span class="n">xy</span> <span class="o">+</span> <span class="n">yx</span> <span class="o">-</span> <span class="n">yy</span><span class="p">)</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span> <span class="o">/</span> <span class="mi">4</span>
+        <span class="n">errors</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">/</span> <span class="mi">3</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">fidelity</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">errors</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">corrected</span> <span class="o">@</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">STATES</span><span class="p">[</span><span class="n">state</span><span class="p">]))</span> <span class="o">/</span> <span class="mi">2</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">errors</span><span class="p">))</span> <span class="ow">or</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">((</span><span class="n">errors</span> <span class="o">&lt;</span> <span class="o">-</span><span class="mf">1e-6</span><span class="p">)</span> <span class="o">|</span> <span class="p">(</span><span class="n">errors</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="o">+</span> <span class="mf">1e-6</span><span class="p">)):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;logical probes yielded invalid infidelity&quot;</span><span class="p">)</span>
+    <span class="c1"># These circuits have an exact rational error alphabet; remove roundoff only.</span>
+    <span class="n">scale</span> <span class="o">=</span> <span class="mi">6</span> <span class="k">if</span> <span class="n">state</span> <span class="o">==</span> <span class="s2">&quot;choi&quot;</span> <span class="k">else</span> <span class="mi">4</span>
+    <span class="n">exact</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">rint</span><span class="p">(</span><span class="n">errors</span> <span class="o">*</span> <span class="n">scale</span><span class="p">)</span> <span class="o">/</span> <span class="n">scale</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">errors</span><span class="p">,</span> <span class="n">exact</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;logical probes left the exact error alphabet&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">exact</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">simulate</span><span class="p">(</span><span class="n">archive</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">shots</span><span class="p">,</span> <span class="n">seed</span><span class="p">):</span>
+    <span class="n">directory</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">model</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">state</span><span class="si">}</span><span class="s2">/&quot;</span>
+    <span class="n">manifest</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">archive</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;manifest.json&quot;</span><span class="p">))</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">read</span><span class="p">(</span><span class="n">name</span><span class="p">):</span>
+        <span class="n">payload</span> <span class="o">=</span> <span class="n">archive</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">directory</span> <span class="o">+</span> <span class="n">name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span> <span class="o">!=</span> <span class="n">manifest</span><span class="p">[</span><span class="s2">&quot;files&quot;</span><span class="p">][</span><span class="n">name</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;circuit hash mismatch: </span><span class="si">{</span><span class="n">directory</span><span class="si">}{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">payload</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">&quot;ascii&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Verify the complete artifact, including boundary sheets and companions.</span>
+    <span class="n">texts</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">read</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">manifest</span><span class="p">[</span><span class="s2">&quot;files&quot;</span><span class="p">]}</span>
+    <span class="n">source</span> <span class="o">=</span> <span class="n">manifest</span><span class="p">[</span><span class="s2">&quot;source&quot;</span><span class="p">]</span>
+    <span class="n">physical</span> <span class="o">=</span> <span class="n">model</span> <span class="o">==</span> <span class="s2">&quot;physical&quot;</span>
+    <span class="n">postselection</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;postselection_detectors&quot;</span><span class="p">,</span> <span class="p">[]))</span>
+    <span class="n">gap_decoder</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">physical</span><span class="p">:</span>
+        <span class="n">closed</span> <span class="o">=</span> <span class="n">close_source</span><span class="p">(</span><span class="n">stim</span><span class="o">.</span><span class="n">Circuit</span><span class="p">(</span><span class="n">texts</span><span class="p">[</span><span class="s2">&quot;source_decoder.stim&quot;</span><span class="p">]),</span>
+                              <span class="n">stim</span><span class="o">.</span><span class="n">Circuit</span><span class="p">(</span><span class="n">texts</span><span class="p">[</span><span class="s2">&quot;source_decoder_sheets.stim&quot;</span><span class="p">]),</span>
+                              <span class="n">source</span><span class="p">[</span><span class="s2">&quot;frontier_observables&quot;</span><span class="p">])</span>
+        <span class="n">dem</span> <span class="o">=</span> <span class="n">conditioned</span><span class="p">(</span><span class="n">closed</span><span class="o">.</span><span class="n">detector_error_model</span><span class="p">(</span><span class="n">decompose_errors</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">postselection</span><span class="p">)</span>
+        <span class="n">gap_decoder</span> <span class="o">=</span> <span class="n">pymatching</span><span class="o">.</span><span class="n">GapDecoder</span><span class="p">(</span><span class="n">dem</span><span class="p">,</span> <span class="n">observables</span><span class="o">=</span><span class="n">source</span><span class="p">[</span><span class="s2">&quot;observables&quot;</span><span class="p">],</span>
+                                           <span class="n">enable_correlations</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="n">accepted</span><span class="p">,</span> <span class="n">total</span><span class="p">,</span> <span class="n">square</span><span class="p">,</span> <span class="n">attempted</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mi">0</span>
+    <span class="n">paths</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">spec</span> <span class="ow">in</span> <span class="n">manifest</span><span class="p">[</span><span class="s2">&quot;paths&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">companion</span> <span class="o">=</span> <span class="n">stim</span><span class="o">.</span><span class="n">Circuit</span><span class="p">(</span><span class="n">texts</span><span class="p">[</span><span class="n">spec</span><span class="p">[</span><span class="s2">&quot;decoder_file&quot;</span><span class="p">]])</span>
+        <span class="k">if</span> <span class="n">companion</span><span class="o">.</span><span class="n">num_measurements</span> <span class="o">!=</span> <span class="n">spec</span><span class="p">[</span><span class="s2">&quot;virtual_measurements&quot;</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;decoder measurement count changed&quot;</span><span class="p">)</span>
+        <span class="n">dem</span> <span class="o">=</span> <span class="n">companion</span><span class="o">.</span><span class="n">detector_error_model</span><span class="p">(</span><span class="n">decompose_errors</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">dem</span> <span class="o">=</span> <span class="n">conditioned</span><span class="p">(</span><span class="n">dem</span><span class="p">,</span> <span class="n">postselection</span><span class="p">,</span> <span class="n">whole_errors</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">matching</span> <span class="o">=</span> <span class="n">pymatching</span><span class="o">.</span><span class="n">Matching</span><span class="o">.</span><span class="n">from_detector_error_model</span><span class="p">(</span><span class="n">dem</span><span class="p">)</span>
+        <span class="n">converter</span> <span class="o">=</span> <span class="n">companion</span><span class="o">.</span><span class="n">compile_m2d_converter</span><span class="p">()</span>
+        <span class="n">options</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="n">physical</span><span class="p">:</span>
+            <span class="n">options</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">postselection_mask</span><span class="o">=</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">i</span> <span class="ow">in</span> <span class="n">postselection</span><span class="p">)</span>
+                           <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s2">&quot;physical_num_detectors&quot;</span><span class="p">])],</span>
+                           <span class="n">expected_detectors</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">source</span><span class="p">[</span><span class="s2">&quot;detector_signs&quot;</span><span class="p">])))</span>
+        <span class="n">program</span> <span class="o">=</span> <span class="n">clifft</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">texts</span><span class="p">[</span><span class="n">spec</span><span class="p">[</span><span class="s2">&quot;physical_file&quot;</span><span class="p">]],</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
+        <span class="n">path_accepted</span><span class="p">,</span> <span class="n">path_total</span><span class="p">,</span> <span class="n">path_square</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span>
+        <span class="k">for</span> <span class="n">start</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">shots</span><span class="p">,</span> <span class="mi">1024</span><span class="p">):</span>
+            <span class="n">batch</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="mi">1024</span><span class="p">,</span> <span class="n">shots</span> <span class="o">-</span> <span class="n">start</span><span class="p">)</span>
+            <span class="c1"># Independent streams for each input, source model, path, and batch.</span>
+            <span class="n">identity</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">seed</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">directory</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">start</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">&quot;ascii&quot;</span><span class="p">)</span>
+            <span class="n">batch_seed</span> <span class="o">=</span> <span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">identity</span><span class="p">)</span><span class="o">.</span><span class="n">digest</span><span class="p">()[:</span><span class="mi">8</span><span class="p">],</span> <span class="s2">&quot;little&quot;</span><span class="p">)</span>
+            <span class="n">sample</span> <span class="o">=</span> <span class="n">clifft</span><span class="o">.</span><span class="n">sample_survivors</span><span class="p">(</span><span class="n">program</span><span class="p">,</span> <span class="n">shots</span><span class="o">=</span><span class="n">batch</span><span class="p">,</span>
+                      <span class="n">seed</span><span class="o">=</span><span class="n">batch_seed</span><span class="p">,</span> <span class="n">keep_records</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">assert</span> <span class="n">sample</span><span class="o">.</span><span class="n">total_shots</span> <span class="o">==</span> <span class="n">batch</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">sample</span><span class="o">.</span><span class="n">measurements</span><span class="p">)</span> <span class="o">+</span> <span class="n">sample</span><span class="o">.</span><span class="n">discards</span> <span class="o">==</span> <span class="n">batch</span>
+            <span class="n">attempted</span> <span class="o">+=</span> <span class="n">batch</span>
+            <span class="n">measurements</span> <span class="o">=</span> <span class="n">sample</span><span class="o">.</span><span class="n">measurements</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">len</span><span class="p">(</span><span class="n">measurements</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">physical</span><span class="p">:</span>
+                <span class="n">boundary_values</span> <span class="o">=</span> <span class="n">sample</span><span class="o">.</span><span class="n">exp_vals</span><span class="p">[:,</span> <span class="p">:</span><span class="n">spec</span><span class="p">[</span><span class="s2">&quot;source_frontier&quot;</span><span class="p">]]</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">boundary_values</span><span class="p">),</span> <span class="mi">1</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">):</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;source boundary is not stabilizer-valued&quot;</span><span class="p">)</span>
+                <span class="n">boundary</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">rint</span><span class="p">((</span><span class="mi">1</span> <span class="o">-</span> <span class="n">boundary_values</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+                <span class="n">end</span> <span class="o">=</span> <span class="n">spec</span><span class="p">[</span><span class="s2">&quot;source_measurements&quot;</span><span class="p">]</span>
+                <span class="n">virtual</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">([</span><span class="n">measurements</span><span class="p">[:,</span> <span class="p">:</span><span class="n">end</span><span class="p">],</span> <span class="n">boundary</span><span class="p">,</span> <span class="n">measurements</span><span class="p">[:,</span> <span class="n">end</span><span class="p">:]])</span>
+                <span class="n">frontier</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">([</span>
+                    <span class="n">parity</span><span class="p">(</span><span class="n">measurements</span><span class="p">,</span> <span class="n">sheet</span><span class="p">[</span><span class="s2">&quot;records&quot;</span><span class="p">])</span>
+                    <span class="o">^</span> <span class="n">boundary</span><span class="p">[:,</span> <span class="n">spec</span><span class="p">[</span><span class="s2">&quot;source_eval_columns&quot;</span><span class="p">][</span><span class="n">i</span><span class="p">]]</span> <span class="o">^</span> <span class="nb">int</span><span class="p">(</span><span class="n">source</span><span class="p">[</span><span class="s2">&quot;frontier_signs&quot;</span><span class="p">][</span><span class="n">i</span><span class="p">])</span>
+                    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">sheet</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">source</span><span class="p">[</span><span class="s2">&quot;frontier_sheets&quot;</span><span class="p">])</span>
+                <span class="p">])</span>
+                <span class="n">syndromes</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">([</span><span class="n">sample</span><span class="o">.</span><span class="n">detectors</span><span class="p">,</span> <span class="n">frontier</span><span class="p">])</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+                <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">gaps</span> <span class="o">=</span> <span class="n">gap_decoder</span><span class="o">.</span><span class="n">decode_batch_with_weights</span><span class="p">(</span><span class="n">syndromes</span><span class="p">)</span>
+                <span class="n">keep</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">gaps</span> <span class="o">&gt;=</span> <span class="n">SOURCE_THRESHOLD</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">boundary_start</span> <span class="o">=</span> <span class="n">spec</span><span class="p">[</span><span class="s2">&quot;source_boundary_start&quot;</span><span class="p">]</span>
+                <span class="n">projection_end</span> <span class="o">=</span> <span class="n">spec</span><span class="p">[</span><span class="s2">&quot;source_projection_start&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">spec</span><span class="p">[</span><span class="s2">&quot;source_projection_measurements&quot;</span><span class="p">]</span>
+                <span class="n">virtual</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">([</span>
+                    <span class="n">measurements</span><span class="p">[:,</span> <span class="p">:</span><span class="n">projection_end</span><span class="p">],</span>
+                    <span class="n">measurements</span><span class="p">[:,</span> <span class="n">boundary_start</span><span class="p">:</span><span class="n">boundary_start</span> <span class="o">+</span> <span class="n">spec</span><span class="p">[</span><span class="s2">&quot;source_frontier&quot;</span><span class="p">]],</span>
+                    <span class="n">measurements</span><span class="p">[:,</span> <span class="n">spec</span><span class="p">[</span><span class="s2">&quot;physical_prefix_measurements&quot;</span><span class="p">]:],</span>
+                <span class="p">])</span>
+                <span class="n">keep</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">measurements</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
+            <span class="k">assert</span> <span class="n">virtual</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">measurements</span><span class="p">),</span> <span class="n">spec</span><span class="p">[</span><span class="s2">&quot;virtual_measurements&quot;</span><span class="p">])</span>
+            <span class="k">assert</span> <span class="n">sample</span><span class="o">.</span><span class="n">exp_vals</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">spec</span><span class="p">[</span><span class="s2">&quot;probe_count&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s2">&quot;source_frontier&quot;</span><span class="p">]</span> <span class="k">if</span> <span class="n">physical</span> <span class="k">else</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">events</span> <span class="o">=</span> <span class="n">converter</span><span class="o">.</span><span class="n">convert</span><span class="p">(</span><span class="n">measurements</span><span class="o">=</span><span class="n">virtual</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">bool</span><span class="p">),</span> <span class="n">separate_observables</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="n">corrections</span> <span class="o">=</span> <span class="n">matching</span><span class="o">.</span><span class="n">decode_batch</span><span class="p">(</span><span class="n">events</span><span class="p">)</span>
+            <span class="n">selector</span> <span class="o">=</span> <span class="p">(</span><span class="n">parity</span><span class="p">(</span><span class="n">measurements</span><span class="p">,</span> <span class="n">spec</span><span class="p">[</span><span class="s2">&quot;selector_measurements&quot;</span><span class="p">])</span>
+                        <span class="o">^</span> <span class="nb">int</span><span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s2">&quot;selector_sign&quot;</span><span class="p">])</span> <span class="o">^</span> <span class="n">corrections</span><span class="p">[:,</span> <span class="n">manifest</span><span class="p">[</span><span class="s2">&quot;branch_observable&quot;</span><span class="p">]])</span>
+            <span class="n">keep</span> <span class="o">&amp;=</span> <span class="n">selector</span> <span class="o">==</span> <span class="nb">int</span><span class="p">(</span><span class="n">spec</span><span class="p">[</span><span class="s2">&quot;selector_value&quot;</span><span class="p">])</span>
+            <span class="n">errors</span> <span class="o">=</span> <span class="n">score</span><span class="p">(</span><span class="n">sample</span><span class="o">.</span><span class="n">exp_vals</span><span class="p">[:,</span> <span class="o">-</span><span class="n">spec</span><span class="p">[</span><span class="s2">&quot;probe_count&quot;</span><span class="p">]:],</span> <span class="n">spec</span><span class="p">,</span>
+                           <span class="n">corrections</span><span class="p">,</span> <span class="n">measurements</span><span class="p">,</span> <span class="n">manifest</span><span class="p">,</span> <span class="n">state</span><span class="p">)[</span><span class="n">keep</span><span class="p">]</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">errors</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">count_nonzero</span><span class="p">(</span><span class="n">keep</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">measurements</span><span class="p">)</span>
+            <span class="n">path_accepted</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">errors</span><span class="p">)</span>
+            <span class="n">path_total</span> <span class="o">+=</span> <span class="n">errors</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+            <span class="n">path_square</span> <span class="o">+=</span> <span class="n">np</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">errors</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="n">paths</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">path_accepted</span><span class="p">,</span> <span class="n">path_total</span><span class="p">,</span> <span class="n">path_square</span><span class="p">)</span>
+        <span class="n">accepted</span> <span class="o">+=</span> <span class="n">path_accepted</span>
+        <span class="n">total</span> <span class="o">+=</span> <span class="n">path_total</span>
+        <span class="n">square</span> <span class="o">+=</span> <span class="n">path_square</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">paths</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">attempted</span> <span class="o">==</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">shots</span>
+    <span class="k">assert</span> <span class="n">accepted</span> <span class="o">==</span> <span class="nb">sum</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">paths</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+    <span class="n">mean</span> <span class="o">=</span> <span class="n">total</span> <span class="o">/</span> <span class="n">accepted</span> <span class="k">if</span> <span class="n">accepted</span> <span class="k">else</span> <span class="n">math</span><span class="o">.</span><span class="n">nan</span>
+    <span class="n">variance</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">square</span> <span class="o">-</span> <span class="n">total</span> <span class="o">*</span> <span class="n">mean</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">accepted</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="k">if</span> <span class="n">accepted</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">math</span><span class="o">.</span><span class="n">nan</span>
+    <span class="n">standard_error</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">variance</span> <span class="o">/</span> <span class="n">accepted</span><span class="p">)</span> <span class="k">if</span> <span class="n">accepted</span> <span class="k">else</span> <span class="n">math</span><span class="o">.</span><span class="n">nan</span>
+    <span class="c1"># Each path accepts its own selector value; two exposures represent one attempt.</span>
+    <span class="n">acceptance</span> <span class="o">=</span> <span class="n">accepted</span> <span class="o">/</span> <span class="p">(</span><span class="n">attempted</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">physical</span><span class="p">:</span>
+        <span class="n">acceptance</span> <span class="o">*=</span> <span class="n">source</span><span class="p">[</span><span class="s2">&quot;acceptance_probability&quot;</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">mean</span><span class="p">,</span> <span class="n">standard_error</span><span class="p">,</span> <span class="n">acceptance</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="vm">__doc__</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--circuits&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">&quot;t-gate-characterization-d9.zip&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--shots&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;attempts per path and input&quot;</span><span class="p">)</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">shots</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;--shots must be positive&quot;</span><span class="p">)</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">circuits</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">file_digest</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="s2">&quot;sha256&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span> <span class="o">!=</span> <span class="n">BUNDLE_SHA256</span><span class="p">:</span>
+            <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;--circuits must be the retained distance-9 circuit bundle&quot;</span><span class="p">)</span>
+    <span class="n">clifft</span><span class="o">.</span><span class="n">set_num_threads</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;model,input,source-and-gate acceptance,infidelity,nominal 95</span><span class="si">% ha</span><span class="s2">lf-width&quot;</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">ZipFile</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">circuits</span><span class="p">)</span> <span class="k">as</span> <span class="n">archive</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">model</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;physical&quot;</span><span class="p">,</span> <span class="s2">&quot;t_proxy&quot;</span><span class="p">]:</span>
+            <span class="n">means</span><span class="p">,</span> <span class="n">variances</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">state</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">([</span><span class="o">*</span><span class="n">STATES</span><span class="p">,</span> <span class="s2">&quot;choi&quot;</span><span class="p">]):</span>
+                <span class="n">mean</span><span class="p">,</span> <span class="n">error</span><span class="p">,</span> <span class="n">acceptance</span> <span class="o">=</span> <span class="n">simulate</span><span class="p">(</span><span class="n">archive</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">shots</span><span class="p">,</span>
+                                                  <span class="n">seed</span><span class="o">=</span><span class="mi">7</span> <span class="o">+</span> <span class="mi">100000</span> <span class="o">*</span> <span class="n">index</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">model</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">state</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">acceptance</span><span class="si">:</span><span class="s2">.6g</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">mean</span><span class="si">:</span><span class="s2">.6g</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="mf">1.96</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">error</span><span class="si">:</span><span class="s2">.6g</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">state</span> <span class="o">!=</span> <span class="s2">&quot;choi&quot;</span><span class="p">:</span>
+                    <span class="n">means</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">mean</span><span class="p">)</span>
+                    <span class="n">variances</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">error</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">model</span><span class="si">}</span><span class="s2">,six-state mean,,</span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">means</span><span class="p">)</span><span class="si">:</span><span class="s2">.6g</span><span class="si">}</span><span class="s2">,&quot;</span>
+                  <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="mf">1.96</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">variances</span><span class="p">))</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">6</span><span class="si">:</span><span class="s2">.6g</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">main</span><span class="p">()</span>
+</code></pre></div>
+</div>
+<figure class="align-default">
+<img alt="Accepted output infidelity for six logical inputs, their mean, and an independent Choi check, comparing the physical cultivated source with its calibrated proxy at distance 9 and physical noise strength 0.001. Error bars are nominal 95% half-widths." src="../_images/t-gate-characterization.svg" />
+</figure>
+<p>Continue with <a class="reference internal" href="ccz-factory.html"><span class="std std-doc">8T-1CCZ Distillation Factory</span></a> for a larger adaptive
+resource protocol, or <a class="reference internal" href="../backends/thth.html"><span class="std std-doc">Emulate Hardware Synchronization</span></a> for a THTH example with explicit timing and protected waits.</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+
+
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  
+  
+  <div class="md-footer-meta md-typeset">
+    
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-footer-copyright__highlight">
+        &#169; Copyright Bloq contributors.
+        
+    </div>
+  
+    Created using
+    <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
+    8.1.3.
+     and
+    <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
+  
+</div>
+      
+    </div>
+    
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.highlight", "content.tabs.link", "content.code.copy"], "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+      
+        <script src="../_static/sphinx_immaterial_theme.32136f45f91ae6956.min.js?v=a7a9472a"></script>
+        <script>window.MathJax = {"options": {"processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+        <script id="MathJax-script" src="../_static/mathjax/tex-mml-chtml.js?v=cadf963e"></script>
+        <script src="../_static/versions.js?v=2f43aabb"></script>
+        <script src="../_static/graph-viewer.js?v=b2321b27"></script>
+    
+  </body>
+</html>

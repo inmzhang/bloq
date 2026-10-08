@@ -1,0 +1,3757 @@
+
+
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../theory/compilation.html">
+      
+      
+        <link rel="next" href="emission.html">
+      
+      
+      <link rel="icon" href="../_static/bloq-mark-light.png">
+    
+    
+      
+        <title>Bloq IR - bloq</title>
+      
+    
+    
+      
+        
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+        <link rel="stylesheet" type="text/css" href="../_static/sphinx_immaterial_theme.6efbe22605a23fcd6.min.css?v=b2ceb110" />
+        <link rel="stylesheet" type="text/css" href="../_static/site.css?v=8e1ee51e" />
+    <script>__md_scope=new URL("/",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+
+<meta name="bloq-doc-root" content="../index.html">
+<meta name="bloq-page" content="backends/ir.html">
+<meta name="bloq-doc-version" content="v0.1.1">
+<meta name="bloq-package-version" content="0.1.1">
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#design-in-one-picture" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../index.html" title="bloq" class="md-header__button md-logo" aria-label="bloq" data-md-component="logo">
+      <img src="../_static/bloq-mark-light.png" alt="logo">
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            bloq
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Bloq IR
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/inmzhang/bloq" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inmzhang/bloq
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../index.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Home</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../getting-started/installation.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Getting Started</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="../user-guide.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>User Guide</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../gallery/index.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Examples</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../reference/cli.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Reference</span>
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../development/contributing.html" class="md-tabs__link">
+        
+  
+    
+  
+  <span>Development</span>
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../index.html" title="bloq" class="md-nav__button md-logo" aria-label="bloq" data-md-component="logo">
+      <img src="../_static/bloq-mark-light.png" alt="logo">
+    </a>
+    bloq
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/inmzhang/bloq" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inmzhang/bloq
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Home</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Home</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Home</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Getting Started</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Getting Started</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/installation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Installation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/quickstart.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Quick Start</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>User Guide</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            <span>User Guide</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Overview</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theory/prerequisites.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Preliminaries</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theory/existing-works.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Existing Works</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphs/concepts.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Blocks and Pipes</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphs/actions.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Actions</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../modules/index.html" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Modules</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6" id="__nav_3_6_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Modules</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../modules/index.html#examples" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Examples</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6_1" id="__nav_3_6_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Examples</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6_1_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../modules/index.html#controlled-adder" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Controlled-<wbr>adder</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6_1_1" id="__nav_3_6_1_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_3_6_1_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6_1_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Controlled-<wbr>adder</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../modules/adder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Controlled Addition</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../modules/phase-gradient.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Phase-<wbr>Gradient Rotations</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../graphs/blog.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>BLOG Format</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theory/correlation-surfaces.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Correlation Surfaces</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patch-alignment.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Patch Alignment</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../circuit-constructions.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Circuit Constructions</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theory/compilation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Compilation Pipeline</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    <span>Bloq IR</span>
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="#" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Bloq IR</span>
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+  
+
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#design-in-one-picture" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Design in one picture</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-structure" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Data structure</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Data structure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#program" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Program</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#templates-and-instances" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Templates and instances</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nodes" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Nodes</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#guards-and-activation" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Guards and activation</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#edges" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Edges</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#detectors-observables-and-frames" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Detectors, observables, and frames</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bloq-ir-format" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Bloq IR Format</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Bloq IR Format">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#text-bloq-ir" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Text Bloq IR</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#binary-bloq-ir" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Binary Bloq IR</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#save-load-and-convert" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Save, load, and convert</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#apis" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>APIs</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="APIs">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#read-and-traverse" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Read and traverse</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#query-structure" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Query structure</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resolve-classical-values" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Resolve classical values</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#edit-and-specialize" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Edit and specialize</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#check-and-visualize" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Check and visualize</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#visualize-the-graph" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Visualize the graph</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-a-consumer-must-preserve" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>What a consumer must preserve</span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="emission.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Backend Emission</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="synchronization.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Synchronization</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_15" id="__nav_3_15_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Tutorials</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_15_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_15">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Tutorials</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/cnot.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Logical CNOT</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/t-cultivation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T State Cultivation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/t-gate.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Logical T Gate</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/ccz-factory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>8T-<wbr>1CCZ Distillation Factory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="thth.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Emulate Hardware Synchronization</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../gallery/index.html" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    <span>Examples</span>
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Examples</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/cnot.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CNOT</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/cz_spatial_h.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CZ with a spatial Hadamard</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/cz_temporal_h.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CZ with a temporal Hadamard</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/s_gate.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>S gate</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/t_gate.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T gate</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/t_with_prepared_y.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T gate with a prepared Y state</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/t_comparison.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T-<wbr>state comparison</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/phase_gradient.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Phase-<wbr>gradient sequence</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/and_4t.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Four-<wbr>T AND</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_injected_and.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ-<wbr>injected AND</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_injected_maj.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ-<wbr>injected MAJ</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/uma.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>UMA</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/three_bit_adder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Three-<wbr>bit controlled adder</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ten_bit_adder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Ten-<wbr>bit controlled adder</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/toffoli_from_and_delayed_cz.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Toffoli from AND</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_4x3x7_tels.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ factory with TELS</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_4x3x6.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ factory without TELS</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_gate_teleport.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ gate teleportation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/bell_state.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Bell state</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ghz.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>GHZ state</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ghz_slide_then_glide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>GHZ with slides and glides</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ghz_patch_rotations.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>GHZ with patch rotations</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/1d-yoked.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>1D yoked layout</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/thth.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T–H–T–H sequence</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/three_cnots.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Compressed three CNOTs</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/steane_encoding.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Steane encoding</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/x_memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>X-<wbr>basis memory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/y_memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Y-<wbr>basis memory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/move_rotation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Rotation through movement</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/stability.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Stability experiment</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Reference</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Reference</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/cli.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CLI Reference</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/python.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Python API</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/rust.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Rust API Reference</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Rust Feature Flags</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Development</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Development</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/contributing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Contributing</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/benchmarks.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Benchmarking</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/generic-module-scalability.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Generic module compilation:<wbr> evidence and claim boundary</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/classical-storage.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Classical data and evaluation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../releasing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Releases</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../site-maintenance.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Website Maintenance</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+  
+
+<nav class="md-nav md-nav--secondary">
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#design-in-one-picture" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Design in one picture</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-structure" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Data structure</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Data structure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#program" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Program</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#templates-and-instances" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Templates and instances</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nodes" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Nodes</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#guards-and-activation" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Guards and activation</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#edges" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Edges</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#detectors-observables-and-frames" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Detectors, observables, and frames</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bloq-ir-format" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Bloq IR Format</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Bloq IR Format">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#text-bloq-ir" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Text Bloq IR</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#binary-bloq-ir" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Binary Bloq IR</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#save-load-and-convert" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Save, load, and convert</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#apis" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>APIs</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="APIs">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#read-and-traverse" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Read and traverse</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#query-structure" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Query structure</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resolve-classical-values" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Resolve classical values</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#edit-and-specialize" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Edit and specialize</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#check-and-visualize" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Check and visualize</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#visualize-the-graph" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Visualize the graph</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-a-consumer-must-preserve" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>What a consumer must preserve</span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset" role="main">
+                
+                
+
+
+                  
+
+
+<h1 id="bloq-ir">Bloq IR<a class="headerlink" href="#bloq-ir" title="Link to this heading">¶</a></h1>
+<p>Bloq IR stores the compiled fault-tolerant physical circuits, their
+placements, detector checks, readouts, and classical control. Backends consume
+it without the source block graph. Templates, loops, and retries remain
+structured.</p>
+<p>This chapter introduces the data structure, its text and binary formats, and
+the APIs for reading, querying, editing, and checking a program.</p>
+<h2 id="design-in-one-picture">Design in one picture<a class="headerlink" href="#design-in-one-picture" title="Link to this heading">¶</a></h2>
+<p>Bloq IR is a dependency graph over two shared pools:</p>
+<div class="mermaid-diagram docutils">
+<pre class="mermaid">
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span><code>flowchart LR
+  pool[&quot;Template pool&lt;br/&gt;circuits + flows&quot;] --&gt; q[&quot;Quantum nodes&lt;br/&gt;placed instances&quot;]
+  bundles[&quot;Detector bundle pool&lt;br/&gt;shared checks&quot;] --&gt; q
+  q --&gt;|Order| c[&quot;Classical nodes&lt;br/&gt;readouts + logic&quot;]
+  c --&gt;|Value| c2[&quot;Classical nodes&quot;]
+  c2 --&gt;|Value guard| q2[&quot;Quantum nodes&quot;]
+  q --&gt;|Quantum| q2
+</code></pre></div>
+</div>
+</pre></div>
+<p>Edges record dependencies. Node ids and coordinates do not specify execution
+times.</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Repeated work</p></th>
+<th class="head"><p>IR representation</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Fixed circuit repetitions</p></td>
+<td><p>Named <code class="docutils literal notranslate"><span class="pre">REPEAT</span></code> body, repetition count, and loop-carried detector state</p></td>
+</tr>
+<tr class="row-odd"><td><p>Dynamic retries</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">RepeatUntilSuccess</span></code> region with a body and restart predicate</p></td>
+</tr>
+</tbody>
+</table>
+<p>Circuits therefore cost storage once per distinct template, not once per use.
+A 128-bit controlled adder at distance 3 stores 11,372 quantum nodes over
+90 templates. Classical definitions also share storage, while each invocation
+retains its own bindings and activation.</p>
+<p>Storing each body once eliminates duplicated code. Downstream compilers can
+optimize the body once and consume the loop structure directly.</p>
+<h2 id="data-structure">Data structure<a class="headerlink" href="#data-structure" title="Link to this heading">¶</a></h2>
+<h3 id="program">Program<a class="headerlink" href="#program" title="Link to this heading">¶</a></h3>
+<p>A <code class="docutils literal notranslate"><span class="pre">Bloq</span></code> program contains:</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Part</p></th>
+<th class="head"><p>Contents</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Metadata</p></td>
+<td><p>Key–value pairs, such as <code class="docutils literal notranslate"><span class="pre">bloq_compile.code_distance</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Template pool</p></td>
+<td><p>Circuit templates, indexed by <code class="docutils literal notranslate"><span class="pre">TemplateId</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Detector bundle pool</p></td>
+<td><p>Shared detector recipes, indexed by <code class="docutils literal notranslate"><span class="pre">DetectorBundleId</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Logical inputs and outputs</p></td>
+<td><p>Boundary operators at their owning instances</p></td>
+</tr>
+<tr class="row-even"><td><p>Top-level graph</p></td>
+<td><p>Nodes, edges, and nested retry bodies</p></td>
+</tr>
+</tbody>
+</table>
+<h3 id="templates-and-instances">Templates and instances<a class="headerlink" href="#templates-and-instances" title="Link to this heading">¶</a></h3>
+<p>A template holds a physical circuit on relative qubit coordinates and
+everything derived from it once:</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">circuit</span></code></p></td>
+<td><p>Gates, measurements, <code class="docutils literal notranslate"><span class="pre">TICK</span></code>s, and named <code class="docutils literal notranslate"><span class="pre">REPEAT</span></code> bodies</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">detectors</span></code></p></td>
+<td><p>Checks closed inside the template</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">repeat_states</span></code></p></td>
+<td><p>Loop-carried detector state for <code class="docutils literal notranslate"><span class="pre">REPEAT</span></code> bodies</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">restarts</span></code></p></td>
+<td><p>Post-selection parities for T-state retries</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">boundary_flows</span></code></p></td>
+<td><p>Stabilizer flows the template leaves open for its neighbors</p></td>
+</tr>
+</tbody>
+</table>
+<p>An <strong>instance</strong> places a template at a qubit offset and records its source
+block. Instances share circuit data and own separate measurement records.</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Record address</p></th>
+<th class="head"><p>Example</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Template-local measurement</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">m2</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Measurement at a specific instance</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">i3:m2</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<h3 id="nodes">Nodes<a class="headerlink" href="#nodes" title="Link to this heading">¶</a></h3>
+<p>Every node has a kind and a <strong>provenance</strong> that links it back to the source.</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Kind</p></th>
+<th class="head"><p>Variants</p></th>
+<th class="head"><p>Purpose</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Quantum</p></td>
+<td><p>—</p></td>
+<td><p>Placed instances, cross-instance detectors, bundle uses, restarts, and guards</p></td>
+</tr>
+<tr class="row-odd"><td><p>Classical</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Observable</span></code></p></td>
+<td><p>Readout recipe built from measurements and boundary operators</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Compute</span></code></p></td>
+<td><p>Boolean expression over input slots</p></td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Discard</span></code></p></td>
+<td><p>Rejects the shot when its condition holds</p></td>
+</tr>
+<tr class="row-even"><td><p>Region</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">RepeatUntilSuccess</span></code></p></td>
+<td><p>Retries its body until a restart predicate accepts</p></td>
+</tr>
+</tbody>
+</table>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Provenance</p></th>
+<th class="head"><p>Node it marks</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">BlockComponent</span></code></p></td>
+<td><p>Quantum node for connected source blocks</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">TemporalPipe</span></code></p></td>
+<td><p>Realignment layer of a temporal Hadamard pipe</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">SpatialPortSubstitution</span></code></p></td>
+<td><p>Compiler-inserted replacement of a spatial Port</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">MemoryPadding</span></code></p></td>
+<td><p>Memory rounds inserted after compilation, with their count</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Generator</span></code></p></td>
+<td><p>Readout for a correlation surface</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Action</span></code></p></td>
+<td><p>Lowered source action, such as a named measurement</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">BranchSelector</span></code></p></td>
+<td><p>Resolved selector of a branch or selective cap</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">OutputFrame</span></code></p></td>
+<td><p>X or Z frame bit for an output Port</p></td>
+</tr>
+</tbody>
+</table>
+<h3 id="guards-and-activation">Guards and activation<a class="headerlink" href="#guards-and-activation" title="Link to this heading">¶</a></h3>
+<p>A <strong>guard</strong> is a Boolean condition that decides which work participates in an
+execution. A measurement or <code class="docutils literal notranslate"><span class="pre">Compute</span></code> node supplies the bit through a <code class="docutils literal notranslate"><span class="pre">Value</span></code>
+edge. Compound conditions, such as <code class="docutils literal notranslate"><span class="pre">NOT</span> <span class="pre">s</span></code> or <code class="docutils literal notranslate"><span class="pre">a</span> <span class="pre">AND</span> <span class="pre">b</span></code>, are computed before
+they reach the guarded node.</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Control</p></th>
+<th class="head"><p>When true</p></th>
+<th class="head"><p>When false</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Quantum membership (<code class="docutils literal notranslate"><span class="pre">QuantumNode.guards</span></code>)</p></td>
+<td><p>Includes the listed instances, detectors, bundle uses, and restart checks</p></td>
+<td><p>Omits them. Skipped instances produce no gates or measurement records</p></td>
+</tr>
+<tr class="row-odd"><td><p>Classical activation (<code class="docutils literal notranslate"><span class="pre">BloqNode.activation</span></code>)</p></td>
+<td><p>Evaluates the node normally</p></td>
+<td><p>Exports zero and no boundary bindings, without reading records, querying a decoder, or discarding the shot</p></td>
+</tr>
+<tr class="row-even"><td><p>Retry-region activation</p></td>
+<td><p>Executes the retry body</p></td>
+<td><p>Skips the body and exports zero with no boundary bindings</p></td>
+</tr>
+<tr class="row-odd"><td><p>Quantum-edge guard</p></td>
+<td><p>Enables the patch connection</p></td>
+<td><p>Omits that connection</p></td>
+</tr>
+</tbody>
+</table>
+<p>Quantum members absent from every guard are common to all choices. Classical
+nodes without activation always evaluate. Guard bits must be available before
+the controlled work starts. An activation bit enables evaluation; it is not
+XORed into the readout parity.</p>
+<p>For example, a selective cap can choose between X and Z readout using <code class="docutils literal notranslate"><span class="pre">s</span></code>:</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p><code class="docutils literal notranslate"><span class="pre">s</span></code></p></th>
+<th class="head"><p>Quantum membership</p></th>
+<th class="head"><p>Classical activation</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>False</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">NOT</span> <span class="pre">s</span></code> enables the X-measurement instance</p></td>
+<td><p>The X-readout fragment evaluates; the Z fragment contributes zero</p></td>
+</tr>
+<tr class="row-odd"><td><p>True</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">s</span></code> enables the Z-measurement instance</p></td>
+<td><p>The Z-readout fragment evaluates; the X fragment contributes zero</p></td>
+</tr>
+</tbody>
+</table>
+<p>Each readout fragment uses the same condition as its measurement instance, so
+it never reads records from an unselected alternative. An inactive fragment’s
+zero means no contribution, not a measured logical zero.</p>
+<p>In text IR, <code class="docutils literal notranslate"><span class="pre">guard</span> <span class="pre">0</span> <span class="pre">i5</span></code> refers to <strong>input slot 0</strong>, whose Boolean value controls
+instance <code class="docutils literal notranslate"><span class="pre">i5</span></code>. A classical node’s <code class="docutils literal notranslate"><span class="pre">when</span> <span class="pre">v0</span></code> uses slot 0 for activation.</p>
+<h3 id="edges">Edges<a class="headerlink" href="#edges" title="Link to this heading">¶</a></h3>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Edge</p></th>
+<th class="head"><p>Payload</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Quantum</span></code></p></td>
+<td><p>Temporal pipes, padding templates, optional guard</p></td>
+<td><p>A patch passes from one node to the next</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Value</span></code></p></td>
+<td><p>Input slot, output port, and role</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Corrected</span></code> or <code class="docutils literal notranslate"><span class="pre">Flip</span></code> feeds a Boolean input</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Compose</span></code></p></td>
+<td><p>Input slot and role</p></td>
+<td><p>Includes raw parity and boundary bindings from an observable fragment</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Order</span></code></p></td>
+<td><p>—</p></td>
+<td><p>The target waits for the source to finish</p></td>
+</tr>
+</tbody>
+</table>
+<p>Quantum edges retain one-round and looped memory templates for their seams.
+<a class="reference internal" href="synchronization.html"><span class="std std-doc">Synchronization</span></a> uses them to insert memory
+rounds without the source graph.</p>
+<h3 id="detectors-observables-and-frames">Detectors, observables, and frames<a class="headerlink" href="#detectors-observables-and-frames" title="Link to this heading">¶</a></h3>
+<p><strong>Detectors</strong> check measurement parities at three levels:</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Stored in</p></th>
+<th class="head"><p>Checks</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Template</p></td>
+<td><p>Records within one circuit</p></td>
+</tr>
+<tr class="row-odd"><td><p>Quantum node</p></td>
+<td><p>Records across template instances</p></td>
+</tr>
+<tr class="row-even"><td><p>Detector bundle</p></td>
+<td><p>A shared recipe whose owner slots bind to concrete instances at each use</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Observables</strong> combine measurement parities with boundary operators:</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Form</p></th>
+<th class="head"><p>Purpose</p></th>
+<th class="head"><p>Decoder query</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Indexed <code class="docutils literal notranslate"><span class="pre">Observable</span></code></p></td>
+<td><p>Complete readout</p></td>
+<td><p>One query shared by both output ports</p></td>
+</tr>
+<tr class="row-odd"><td><p>Unindexed <code class="docutils literal notranslate"><span class="pre">Observable</span></code></p></td>
+<td><p>Reusable readout fragment</p></td>
+<td><p>None</p></td>
+</tr>
+</tbody>
+</table>
+<p>A <code class="docutils literal notranslate"><span class="pre">Compose</span></code> edge adds a fragment’s raw parity and boundary bindings to its
+parent. It adds no separate decoder correction. Shared fragments keep their
+own activation and instance owners. The optimizer merges compatible leaves
+or inlines them into their parents.</p>
+<div class="mermaid-diagram docutils">
+<pre class="mermaid">
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span><code>flowchart LR
+  fragments[&quot;Readout fragments&quot;] --&gt;|Compose| observable[&quot;Indexed Observable&lt;br/&gt;one decoder query&quot;]
+  observable --&gt; corrected[&quot;Corrected&lt;br/&gt;raw parity XOR Flip&quot;]
+  observable --&gt; flip[&quot;Flip&lt;br/&gt;decoder estimate&quot;]
+</code></pre></div>
+</div>
+</pre></div>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Reference</p></th>
+<th class="head"><p>Carries</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ValueRef(node,</span> <span class="pre">Corrected)</span></code></p></td>
+<td><p>Indexed observable’s corrected bit, or an ordinary producer’s Boolean result</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ValueRef(node,</span> <span class="pre">Flip)</span></code></p></td>
+<td><p>Indexed observable’s decoder estimate</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Compose</span></code> edge</p></td>
+<td><p>Raw parity and boundary bindings. Boolean <code class="docutils literal notranslate"><span class="pre">Value</span></code> edges carry no boundary bindings</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Output frames</strong> describe corrections for live logical outputs:</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Property</p></th>
+<th class="head"><p>Representation</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Frame bit</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Compute</span></code> node with <code class="docutils literal notranslate"><span class="pre">OutputFrame</span></code> provenance</p></td>
+</tr>
+<tr class="row-odd"><td><p>X/Z pair per output Port</p></td>
+<td><p>Returned by <code class="docutils literal notranslate"><span class="pre">output_frames()</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Exported result</p></td>
+<td><p>Retained even when its node has no outgoing edges</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>T-state retries</strong> use a body-local <code class="docutils literal notranslate"><span class="pre">Compute</span></code> node to form
+<code class="docutils literal notranslate"><span class="pre">restart</span> <span class="pre">=</span> <span class="pre">Flip₀</span> <span class="pre">OR</span> <span class="pre">Flip₁</span></code>. Either predicted flip triggers a retry.
+Physical post-selection failures also trigger retries.</p>
+<h2 id="bloq-ir-format">Bloq IR Format<a class="headerlink" href="#bloq-ir-format" title="Link to this heading">¶</a></h2>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Format</p></th>
+<th class="head"><p>Extension</p></th>
+<th class="head"><p>Use</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Text IR</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">.bloqir</span></code></p></td>
+<td><p>Inspection, review, and diffs</p></td>
+</tr>
+<tr class="row-odd"><td><p>Binary IR</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">.bloq</span></code></p></td>
+<td><p>Compact program exchange</p></td>
+</tr>
+</tbody>
+</table>
+<h3 id="text-bloq-ir">Text Bloq IR<a class="headerlink" href="#text-bloq-ir" title="Link to this heading">¶</a></h3>
+<p>Text IR starts with <code class="docutils literal notranslate"><span class="pre">BLOQIR</span> <span class="pre">1</span></code> and lists the program’s parts in order. Lines
+starting with <code class="docutils literal notranslate"><span class="pre">#</span></code> and blank lines are ignored. Parse errors report one-based
+line numbers. The excerpts below come from a compiled logical T gate.</p>
+<p><strong>Header and boundaries.</strong> Metadata, then logical inputs and outputs with
+their owning instance and X/Z operators:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code>BLOQIR 1
+metadata bloq_compile.code_distance u64 3
+metadata bloq_compile.convention string fixed-bulk
+logical-input (0,0,0) instance i2 x X(1,3)*X(3,3)*X(5,3) z Z(3,1)*Z(3,3)*Z(3,5)
+</code></pre></div>
+</div>
+<p><strong>Templates.</strong> A circuit on relative coordinates, then its detectors, loop
+states, and boundary flows. <code class="docutils literal notranslate"><span class="pre">REPEAT</span> <span class="pre">2</span> <span class="pre">b1</span></code> runs the named body <code class="docutils literal notranslate"><span class="pre">b1</span></code> twice:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code>template t9 {
+  circuit {
+    R (2,0) (4,2) (2,4) (4,6)
+    ...
+    REPEAT 2 b1
+  }
+  body b1 { ... }
+  detector body(b1) m8*s0 @ (2,0)
+  loop(b1,s0) init m0 next m8
+  flow Z(1,1)*Z(3,1) -&gt; _ meas m0 center (2,0)
+}
+</code></pre></div>
+</div>
+<p><strong>Detector bundles.</strong> Owner slots <code class="docutils literal notranslate"><span class="pre">o0</span></code>, <code class="docutils literal notranslate"><span class="pre">o1</span></code> are bound at each use:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code>bundle b0 owners t2 t3 {
+  detector o0:m0*o1:m0 @ (2,0)
+}
+</code></pre></div>
+</div>
+<p><strong>Graph.</strong> Quantum nodes list instances, bundle uses, and guards. The
+selective cap’s node enables instance <code class="docutils literal notranslate"><span class="pre">i5</span></code> on guard slot 0 and <code class="docutils literal notranslate"><span class="pre">i6</span></code> on slot 1:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code>graph {
+  n2 quantum {
+    instance i5 t5 @ (8,0)
+    instance i6 t6 @ (8,0)
+    use b3 i4 i5 @ (8,0)
+    use b4 i4 i6 @ (8,0)
+    guard 0 i5 b0
+    guard 1 i6 b1
+    from blocks (1,0,2)
+  }
+</code></pre></div>
+</div>
+<p>The T-state factory stores its body in a retry region. Its restart expression
+ORs the two observable <code class="docutils literal notranslate"><span class="pre">Flip</span></code> outputs:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code>  n4 rus in0 source n4 {
+    body {
+      n1 quantum { ... restart i1:m11*i1:m13 ... }
+      n2 observable 0 measurements i1:m15*... operators i1 input ..., i1 output ...
+      n3 observable 1 measurements i1:m16*... operators i1 input ..., i1 output ...
+      n4 compute in0 | in1
+      n2 -&gt; n4 value 0 flip
+      n3 -&gt; n4 value 1 flip
+    }
+  }
+</code></pre></div>
+</div>
+<p>Classical nodes name their records, operators, expressions, activation
+(<code class="docutils literal notranslate"><span class="pre">when</span> <span class="pre">v0</span></code>), and provenance:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code>  n13 observable 2 measurements i1:m15*...*i4:m4 operators i1 input ... from action 0
+  n7 compute in0 from selector selective%20%5B1%2C0%2C2%5D
+  n15 observable fragment measurements i1:m15*...*i6:m7 operators i1 input ... when v0
+  n24 compute in0 from frame z (0,0,2)
+</code></pre></div>
+</div>
+<p>Edges come last. A quantum edge names its pipe and its padding templates:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code>  n1 -&gt; n2 quantum (1,0,1)&gt;(1,0,2) padding offset (8,0) one t8 loop t9
+  n12 -&gt; n13 compose 2
+  n13 -&gt; n24 value 0
+  n13 -&gt; n25 value 0 flip
+  n1 -&gt; n3 order
+}
+</code></pre></div>
+</div>
+<h3 id="binary-bloq-ir">Binary Bloq IR<a class="headerlink" href="#binary-bloq-ir" title="Link to this heading">¶</a></h3>
+<p>Binary IR stores the same program compactly. Text and binary convert into each
+other exactly. The CLI converts binary IR to text with:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>bloq<span class="w"> </span>emit<span class="w"> </span>program.bloq<span class="w"> </span>--backend<span class="w"> </span>ir-text<span class="w"> </span>-o<span class="w"> </span>program.bloqir
+</code></pre></div>
+</div>
+<h3 id="save-load-and-convert">Save, load, and convert<a class="headerlink" href="#save-load-and-convert" title="Link to this heading">¶</a></h3>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:2">
+<input checked type="radio" id="__tabbed_1_1" name="__tabbed_1"><input type="radio" id="__tabbed_1_2" name="__tabbed_1"><div class="tabbed-labels docutils">
+<label class="tabbed-label" for="__tabbed_1_1">
+Python</label><label class="tabbed-label" for="__tabbed_1_2">
+Rust</label></div>
+<div class="tabbed-content docutils">
+<div class="tabbed-block docutils">
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">bloq</span>
+
+<span class="n">program</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">GalleryItem</span><span class="o">.</span><span class="n">X_MEMORY</span><span class="o">.</span><span class="n">load</span><span class="p">(),</span> <span class="n">distance</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<span class="n">program</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;memory.bloq&quot;</span><span class="p">)</span>
+<span class="n">loaded</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">Bloq</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;memory.bloq&quot;</span><span class="p">)</span>
+<span class="n">loaded</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;memory.bloqir&quot;</span><span class="p">)</span>
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><code><span class="k">use</span><span class="w"> </span><span class="n">bloq</span><span class="p">::{</span><span class="n">graph</span><span class="p">::</span><span class="n">GalleryItem</span><span class="p">,</span><span class="w"> </span><span class="n">ir</span><span class="p">::</span><span class="n">Bloq</span><span class="p">};</span>
+
+<span class="kd">let</span><span class="w"> </span><span class="n">program</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bloq</span><span class="p">::</span><span class="n">compile</span><span class="p">::</span><span class="n">compile</span><span class="p">(</span><span class="o">&amp;</span><span class="n">GalleryItem</span><span class="p">::</span><span class="n">XMemory</span><span class="p">.</span><span class="n">build</span><span class="p">(),</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
+<span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;memory.bloq&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">program</span><span class="p">.</span><span class="n">to_binary</span><span class="p">())</span><span class="o">?</span><span class="p">;</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">loaded</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Bloq</span><span class="p">::</span><span class="n">from_binary</span><span class="p">(</span><span class="o">&amp;</span><span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">read</span><span class="p">(</span><span class="s">&quot;memory.bloq&quot;</span><span class="p">)</span><span class="o">?</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
+<span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;memory.bloqir&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">loaded</span><span class="p">.</span><span class="n">to_text</span><span class="p">())</span><span class="o">?</span><span class="p">;</span>
+</code></pre></div>
+</div>
+</div>
+</div>
+</div><p><code class="docutils literal notranslate"><span class="pre">save</span></code> and <code class="docutils literal notranslate"><span class="pre">load</span></code> choose the codec from the file extension. Decoders reject
+malformed structure, such as dangling endpoints or duplicate ids, but do not
+check every semantic rule. Call <code class="docutils literal notranslate"><span class="pre">validate()</span></code> for that.</p>
+<h2 id="apis">APIs<a class="headerlink" href="#apis" title="Link to this heading">¶</a></h2>
+<p>The tables list the Python names. Rust provides the same operations on
+<code class="docutils literal notranslate"><span class="pre">bloq::ir::Bloq</span></code>. The <a class="reference internal" href="../api/rust.html"><span class="std std-doc">Rust API</span></a> gives their exact
+signatures.</p>
+<h3 id="read-and-traverse">Read and traverse<a class="headerlink" href="#read-and-traverse" title="Link to this heading">¶</a></h3>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Operation</p></th>
+<th class="head"><p>API</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Program counts</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">node_count</span></code>, <code class="docutils literal notranslate"><span class="pre">edge_count</span></code>, <code class="docutils literal notranslate"><span class="pre">quantum_node_count</span></code>, <code class="docutils literal notranslate"><span class="pre">qubit_count</span></code>, <code class="docutils literal notranslate"><span class="pre">measurement_count</span></code>, <code class="docutils literal notranslate"><span class="pre">stats()</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Top-level nodes and edges</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nodes()</span></code>, <code class="docutils literal notranslate"><span class="pre">node(id)</span></code>, <code class="docutils literal notranslate"><span class="pre">quantum_nodes()</span></code>, <code class="docutils literal notranslate"><span class="pre">edges()</span></code>, <code class="docutils literal notranslate"><span class="pre">incoming(id)</span></code>, <code class="docutils literal notranslate"><span class="pre">outgoing(id)</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Every level, including region bodies</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">walk()</span></code>, <code class="docutils literal notranslate"><span class="pre">levels()</span></code>, <code class="docutils literal notranslate"><span class="pre">level_at(path)</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Classical dataflow</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">value_inputs(id)</span></code>, <code class="docutils literal notranslate"><span class="pre">data_inputs(id)</span></code>, <code class="docutils literal notranslate"><span class="pre">value_consumers(id)</span></code>, <code class="docutils literal notranslate"><span class="pre">has_path(a,</span> <span class="pre">b)</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Templates and bundles</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">template(id)</span></code>, <code class="docutils literal notranslate"><span class="pre">detector_bundle(id)</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Physical layout</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">node_qubits(id)</span></code>, <code class="docutils literal notranslate"><span class="pre">sorted_layout_coords()</span></code>, <code class="docutils literal notranslate"><span class="pre">node_measurement_count(id)</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>A schedule that respects every edge</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">deterministic_emit_order()</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p>Node ids are local to one graph level. <code class="docutils literal notranslate"><span class="pre">walk()</span></code> reports each node with its
+<code class="docutils literal notranslate"><span class="pre">path</span></code>, the chain of <code class="docutils literal notranslate"><span class="pre">(region</span> <span class="pre">node,</span> <span class="pre">body)</span></code> hops from the top level:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">program</span><span class="o">.</span><span class="n">walk</span><span class="p">():</span>
+    <span class="n">kind</span> <span class="o">=</span> <span class="n">entry</span><span class="o">.</span><span class="n">node</span><span class="o">.</span><span class="n">kind</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">kind</span><span class="p">,</span> <span class="n">bloq</span><span class="o">.</span><span class="n">ir</span><span class="o">.</span><span class="n">BloqNodeKind</span><span class="o">.</span><span class="n">Classical</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="n">entry</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">kind</span><span class="o">.</span><span class="n">node</span><span class="p">)</span>
+</code></pre></div>
+</div>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code>[(4, &#39;body&#39;)] 2 ClassicalNode.Observable(index=0, measurements=5, operators=2)
+[(4, &#39;body&#39;)] 3 ClassicalNode.Observable(index=1, measurements=4, operators=2)
+[(4, &#39;body&#39;)] 4 ClassicalNode.Compute(expr=or(in(0), in(1)))
+[] 5 ClassicalNode.Compute(expr=in(0))
+[] 6 ClassicalNode.Compute(expr=parity(true, in(0)))
+[] 7 ClassicalNode.Compute(expr=in(0))
+[] 13 ClassicalNode.Observable(index=2, measurements=13, operators=2)
+[] 15 ClassicalNode.Observable(index=None, measurements=10, operators=1)
+[] 17 ClassicalNode.Observable(index=None, measurements=3, operators=1)
+[] 23 ClassicalNode.Observable(index=3, measurements=5, operators=2)
+[] 24 ClassicalNode.Compute(expr=in(0))
+[] 26 ClassicalNode.Observable(index=4, measurements=0, operators=2)
+[] 27 ClassicalNode.Compute(expr=in(0))
+</code></pre></div>
+</div>
+<p>Templates are reached through instances:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span class="n">node_id</span><span class="p">,</span> <span class="n">quantum</span> <span class="o">=</span> <span class="n">program</span><span class="o">.</span><span class="n">quantum_nodes</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">instance</span> <span class="o">=</span> <span class="n">quantum</span><span class="o">.</span><span class="n">instances</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">template</span> <span class="o">=</span> <span class="n">program</span><span class="o">.</span><span class="n">template</span><span class="p">(</span><span class="n">instance</span><span class="o">.</span><span class="n">template_id</span><span class="p">)</span>
+</code></pre></div>
+</div>
+<h3 id="query-structure">Query structure<a class="headerlink" href="#query-structure" title="Link to this heading">¶</a></h3>
+<p>These queries name the landmarks a backend usually needs. Each fails with a
+structural error if the program does not have the expected shape, rather than
+returning a plausible but wrong node.</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Question</p></th>
+<th class="head"><p>API</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Output frame bits per output Port</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">output_frames()</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Logical outputs and their owning instances</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">logical_outputs()</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Seams feeding guarded quantum alternatives</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">selection_seams()</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Region nodes of a kind</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">regions_of(RegionKind.RepeatUntilSuccess)</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Unique quantum node with no outgoing quantum edge</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">quantum_tail()</span></code> on the program or a body</p></td>
+</tr>
+<tr class="row-odd"><td><p>Node realizing a source block</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">node_by_block(pos)</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Node identity that survives recompilation</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">stable_key_map()</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<h3 id="resolve-classical-values">Resolve classical values<a class="headerlink" href="#resolve-classical-values" title="Link to this heading">¶</a></h3>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>API</p></th>
+<th class="head"><p>Result</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">resolve_classical(node)</span></code></p></td>
+<td><p>Measurement parity, constant sign, and decoder observables</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">classical_value(node,</span> <span class="pre">...)</span></code></p></td>
+<td><p>Boolean value under a fixed assignment</p></td>
+</tr>
+</tbody>
+</table>
+<p>For nonlinear choices, supply one assignment method:</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Argument</p></th>
+<th class="head"><p>Assignment</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pins=True</span></code> or <code class="docutils literal notranslate"><span class="pre">pins=False</span></code></p></td>
+<td><p>Gives every predicate leaf the same Boolean value</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">forced_observables={index:</span> <span class="pre">bit}</span></code></p></td>
+<td><p>Fixes individual corrected observable values</p></td>
+</tr>
+</tbody>
+</table>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span class="n">resolution</span> <span class="o">=</span> <span class="n">program</span><span class="o">.</span><span class="n">resolve_classical</span><span class="p">(</span><span class="mi">13</span><span class="p">)</span>
+<span class="c1"># &lt;ClassicalResolution measurements=13 sign=False observables=[2]&gt;</span>
+</code></pre></div>
+</div>
+<h3 id="edit-and-specialize">Edit and specialize<a class="headerlink" href="#edit-and-specialize" title="Link to this heading">¶</a></h3>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Operation</p></th>
+<th class="head"><p>API</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Fix structural choices, keeping the original</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pin_membership({selector:</span> <span class="pre">value})</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Check for unresolved guarded alternatives</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">has_conditional_membership()</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Insert memory rounds</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">insert_memory_rounds</span></code>, <code class="docutils literal notranslate"><span class="pre">insert_memory_rounds_after</span></code>, <code class="docutils literal notranslate"><span class="pre">insert_memory_rounds_batch</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Change a template’s round count</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">set_template_repetitions(template,</span> <span class="pre">n)</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Unroll every <code class="docutils literal notranslate"><span class="pre">REPEAT</span></code> body</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">flatten()</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p>Edits are transactional: a failed edit leaves the program unchanged.
+<a class="reference internal" href="synchronization.html"><span class="std std-doc">Synchronization</span></a> explains the memory-round
+edits with examples.</p>
+<h3 id="check-and-visualize">Check and visualize<a class="headerlink" href="#check-and-visualize" title="Link to this heading">¶</a></h3>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Operation</p></th>
+<th class="head"><p>API</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Full semantic audit</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">validate()</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Per-node circuit that a backend would emit</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">emission_plan(node)</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Dependency graph as SVG</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">to_svg(include_classical=True)</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p>Compilation, emission, and VM lowering perform their own local checks.
+<code class="docutils literal notranslate"><span class="pre">validate()</span></code> is the separate whole-program audit. Use it for IR from another
+producer or IR edited by hand.</p>
+<h2 id="visualize-the-graph">Visualize the graph<a class="headerlink" href="#visualize-the-graph" title="Link to this heading">¶</a></h2>
+<p>Export the nested dependency view used by Bloq Editor as a self-contained SVG:</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="2:3">
+<input checked type="radio" id="__tabbed_2_1" name="__tabbed_2"><input type="radio" id="__tabbed_2_2" name="__tabbed_2"><input type="radio" id="__tabbed_2_3" name="__tabbed_2"><div class="tabbed-labels docutils">
+<label class="tabbed-label" for="__tabbed_2_1">
+Python</label><label class="tabbed-label" for="__tabbed_2_2">
+Rust</label><label class="tabbed-label" for="__tabbed_2_3">
+CLI</label></div>
+<div class="tabbed-content docutils">
+<div class="tabbed-block docutils">
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="n">Path</span><span class="p">(</span><span class="s2">&quot;t-gate-ir.svg&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">program</span><span class="o">.</span><span class="n">to_svg</span><span class="p">(</span><span class="n">include_classical</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><code><span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;t-gate-ir.svg&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">program</span><span class="p">.</span><span class="n">to_svg</span><span class="p">(</span><span class="kc">true</span><span class="p">))</span><span class="o">?</span><span class="p">;</span>
+</code></pre></div>
+</div>
+</div>
+<div class="tabbed-block docutils">
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>bloq<span class="w"> </span>view<span class="w"> </span>t-gate.bloqir<span class="w"> </span>--svg<span class="w"> </span>--include-classical<span class="w"> </span>-o<span class="w"> </span>t-gate-ir.svg
+</code></pre></div>
+</div>
+</div>
+</div>
+</div><table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Shown</p></th>
+<th class="head"><p>Not shown</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Nested graphs, dependencies, and activation conditions</p></td>
+<td><p>Runtime retry attempts and execution times</p></td>
+</tr>
+</tbody>
+</table>
+<h2 id="what-a-consumer-must-preserve">What a consumer must preserve<a class="headerlink" href="#what-a-consumer-must-preserve" title="Link to this heading">¶</a></h2>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Information</p></th>
+<th class="head"><p>Required interpretation</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Loop structure</p></td>
+<td><p>Preserve repetition counts, loop-carried detector state, and retry conditions when transforming loop bodies</p></td>
+</tr>
+<tr class="row-odd"><td><p>Detector sign</p></td>
+<td><p>Evaluate the stored constant together with the records</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Corrected</span></code> and <code class="docutils literal notranslate"><span class="pre">Flip</span></code></p></td>
+<td><p>Corrected logical parity versus the decoder correction alone</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Compose</span></code></p></td>
+<td><p>Includes recipe parity and bindings without adding the child’s decoder flip</p></td>
+</tr>
+<tr class="row-even"><td><p>Fragment activation</p></td>
+<td><p>Inactive contributions produce no record reads or boundary bindings</p></td>
+</tr>
+<tr class="row-odd"><td><p>Expression operands</p></td>
+<td><p>Every declared operand must be available, including unselected <code class="docutils literal notranslate"><span class="pre">Select</span></code> arms</p></td>
+</tr>
+<tr class="row-even"><td><p>Retry records</p></td>
+<td><p>Records and accepted exports belong to their attempt</p></td>
+</tr>
+<tr class="row-odd"><td><p>Logical output</p></td>
+<td><p>Keep its owning instance, X/Z operators, and frame pair</p></td>
+</tr>
+</tbody>
+</table>
+<p>Equal physical support at two times does not identify the same logical output.
+A consumer must keep the boundary’s owning instance and dependencies.</p>
+<p>Continue with <a class="reference internal" href="emission.html"><span class="std std-doc">Backend Emission</span></a> to turn a program into a Stim
+circuit or verify dynamic control in simulation. The <a class="reference internal" href="../api/python.html"><span class="std std-doc">Python API</span></a>
+and <a class="reference internal" href="../api/rust.html"><span class="std std-doc">Rust API</span></a> document every method.</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+
+
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  
+  
+  <div class="md-footer-meta md-typeset">
+    
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-footer-copyright__highlight">
+        &#169; Copyright Bloq contributors.
+        
+    </div>
+  
+    Created using
+    <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
+    8.1.3.
+     and
+    <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
+  
+</div>
+      
+    </div>
+    
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.highlight", "content.tabs.link", "content.code.copy"], "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+      
+        <script src="../_static/sphinx_immaterial_theme.32136f45f91ae6956.min.js?v=a7a9472a"></script>
+        <script src="../_static/versions.js?v=2f43aabb"></script>
+        <script src="../_static/graph-viewer.js?v=b2321b27"></script>
+    
+  </body>
+</html>
