@@ -1,7 +1,9 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logos/bloq-logo-dark.png">
-  <img src="docs/assets/logos/bloq-logo-light.png" alt="Bloq logo: interlocking coral b and blue q above the Bloq wordmark" width="180">
-</picture>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logos/bloq-logo-dark.png">
+    <img src="docs/assets/logos/bloq-logo-light.png" alt="Bloq logo: interlocking coral b and blue q above the Bloq wordmark" width="180">
+  </picture>
+</p>
 
 # Bloq
 
