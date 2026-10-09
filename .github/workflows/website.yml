@@ -18,62 +18,17 @@ on:
   push:
     tags: ['v*']
 
-# Serialize restore/build/publish together to preserve retained snapshots.
-concurrency:
-  group: ${{ inputs.publish && 'bloq-website-publish' || format('bloq-website-{0}', github.ref) }}
-  cancel-in-progress: ${{ !inputs.publish }}
-
 permissions:
   contents: read
 
 jobs:
   build:
-    uses: ./.github/workflows/site-build.yml
-    with:
-      release_tag: ${{ github.ref_type == 'tag' && github.ref_name || inputs.release_tag || '' }}
-      make_stable: ${{ inputs.make_stable || false }}
-
-  publish:
-    if: github.event_name == 'workflow_dispatch' && inputs.publish
-    needs: build
-    runs-on: ubuntu-latest
     permissions:
       contents: write
       pages: write
       id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/download-artifact@v8
-        with:
-          name: bloq-site-preview
-          path: site
-
-      - name: Retain published snapshots on gh-pages
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          git -C site init
-          git -C site remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          retained_ref=$(git -C site ls-remote --heads origin gh-pages)
-          if [ -n "$retained_ref" ]; then
-            git -C site fetch --depth=1 origin gh-pages
-            git -C site reset --soft FETCH_HEAD
-          fi
-          git -C site config user.name 'github-actions[bot]'
-          git -C site config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git -C site add --all
-          if ! git -C site diff --cached --quiet; then
-            git -C site commit -m "docs: publish website for ${GITHUB_SHA}"
-            git -C site push origin HEAD:gh-pages
-          fi
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: site
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
+    uses: ./.github/workflows/site-build.yml
+    with:
+      publish: ${{ github.event_name == 'workflow_dispatch' && inputs.publish || false }}
+      release_tag: ${{ github.ref_type == 'tag' && github.ref_name || inputs.release_tag || '' }}
+      make_stable: ${{ inputs.make_stable || false }}
