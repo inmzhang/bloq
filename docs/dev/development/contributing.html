@@ -2563,17 +2563,17 @@ just<span class="w"> </span>py-develop
 require coordinated changes to callers, examples, documentation, and release
 notes. Preserve each release’s documentation and API reference.</p>
 <h2 id="issues-and-pull-requests">Issues and pull requests<a class="headerlink" href="#issues-and-pull-requests" title="Link to this heading">¶</a></h2>
-<p>Use the <a class="reference external" href="https://github.com/inmzhang/bloq/blob/80cdaa91edbd673a3a0c599e52c159718720df3e/.github/ISSUE_TEMPLATE/bug_report.md">bug report</a>,
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/80cdaa91edbd673a3a0c599e52c159718720df3e/.github/ISSUE_TEMPLATE/feature_request.md">feature request</a>, or
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/80cdaa91edbd673a3a0c599e52c159718720df3e/.github/ISSUE_TEMPLATE/question.md">question</a> template when opening an issue.
-Pull requests use the <a class="reference external" href="https://github.com/inmzhang/bloq/blob/80cdaa91edbd673a3a0c599e52c159718720df3e/.github/pull_request_template.md">PR template</a>; describe
+<p>Use the <a class="reference external" href="https://github.com/inmzhang/bloq/blob/e80f8e30086d3494d202c09cd15c094062f04dbb/.github/ISSUE_TEMPLATE/bug_report.md">bug report</a>,
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/e80f8e30086d3494d202c09cd15c094062f04dbb/.github/ISSUE_TEMPLATE/feature_request.md">feature request</a>, or
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/e80f8e30086d3494d202c09cd15c094062f04dbb/.github/ISSUE_TEMPLATE/question.md">question</a> template when opening an issue.
+Pull requests use the <a class="reference external" href="https://github.com/inmzhang/bloq/blob/e80f8e30086d3494d202c09cd15c094062f04dbb/.github/pull_request_template.md">PR template</a>; describe
 the change and record the checks you ran. These templates are adapted from
 <a class="reference external" href="https://github.com/tqec/tqec/tree/main/.github/ISSUE_TEMPLATE">TQEC’s issue templates</a>
 and <a class="reference external" href="https://github.com/tqec/tqec/blob/main/.github/pull_request_template.md">PR template</a>.</p>
 <h2 id="contributor-agreement">Contributor agreement<a class="headerlink" href="#contributor-agreement" title="Link to this heading">¶</a></h2>
 <p>By submitting an issue or pull request, you confirm that you created the
 contribution or have the right to submit it, and license it under this project’s
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/80cdaa91edbd673a3a0c599e52c159718720df3e/LICENSE">Apache-2.0 license</a>. Check the contributor agreement in the template.</p>
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/e80f8e30086d3494d202c09cd15c094062f04dbb/LICENSE">Apache-2.0 license</a>. Check the contributor agreement in the template.</p>
 <h2 id="ai-assisted-contributions">AI-assisted contributions<a class="headerlink" href="#ai-assisted-contributions" title="Link to this heading">¶</a></h2>
 <p>AI-assisted contributions are welcome. Review all generated code, documentation,
 issue text, and pull request text before submitting. You remain responsible for
@@ -2610,7 +2610,7 @@ just<span class="w"> </span>ci<span class="w">           </span><span class="c1"
 Debug assertions and integer overflow checks remain enabled.</p>
 <p>PRs run quick checks automatically. Maintainers approve the full checks selected
 for the changed files; the required <code class="docutils literal notranslate"><span class="pre">CI</span></code> status passes when those checks succeed.
-Manual CI runs check every suite. Website publication is separate; see
+Manual CI runs check every suite. For website publication, see
 <a class="reference internal" href="../site-maintenance.html#publish-a-reviewed-build"><span class="std std-ref">Website maintenance</span></a>.</p>
 <p>Use <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">test-full</span></code> for ignored or slow tests in release mode, and <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">fidelity</span></code>
 for both physical Choi suites. Graph-level logical checks use QuiZX;

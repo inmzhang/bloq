@@ -2675,9 +2675,12 @@ when assembling a new version. The hosted editor shows its own current version;
 historical documentation does not select a historical editor build.</p>
 <h2 id="publish-a-reviewed-build">Publish a reviewed build<a class="headerlink" href="#publish-a-reviewed-build" title="Link to this heading">¶</a></h2>
 <p>CI produces a validated <code class="docutils literal notranslate"><span class="pre">bloq-site-preview</span></code> artifact for website changes.
-Review that artifact before publication. Run the website workflow with <code class="docutils literal notranslate"><span class="pre">publish</span></code>
-enabled to publish; optional <code class="docutils literal notranslate"><span class="pre">release_tag</span></code> adds a release snapshot and
-<code class="docutils literal notranslate"><span class="pre">make_stable</span></code> selects it. Package releases are separate; see <a class="reference internal" href="releasing.html"><span class="std std-doc">Releases</span></a>.</p>
+Every push to <code class="docutils literal notranslate"><span class="pre">main</span></code> builds and publishes the development documentation and
+browser editor. PR builds produce previews only. Publishing reuses the built
+artifact and preserves retained release snapshots and the stable alias.</p>
+<p>For a manual publication, run the website workflow with <code class="docutils literal notranslate"><span class="pre">publish</span></code> enabled;
+optional <code class="docutils literal notranslate"><span class="pre">release_tag</span></code> adds a release snapshot and <code class="docutils literal notranslate"><span class="pre">make_stable</span></code> selects it.
+Package releases are separate; see <a class="reference internal" href="releasing.html"><span class="std std-doc">Releases</span></a>.</p>
 <div class="important tip admonition">
 <p class="admonition-title">Important</p>
 <p>Review the assembled site before changing the deployed version. Keep previous
