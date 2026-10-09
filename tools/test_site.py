@@ -40,12 +40,14 @@ class SiteAssemblyTest(unittest.TestCase):
             site.stable_alias(output, "v0.1.0")
             manifest = site.version_manifest(output)
             self.assertEqual(manifest["stable"], "v0.1.0")
-            self.assertEqual(manifest["default"], "stable")
+            self.assertEqual(manifest["default"], "dev")
             self.assertEqual(release.read_bytes(), before)
             self.assertEqual((output / "docs" / "stable" / "guide.html").read_bytes(), before)
             site.site_entrypoints(output, manifest)
-            self.assertEqual(site.HtmlReferences((output / "index.html").read_text()).redirect, "docs/stable/")
-            self.assertEqual(site.HtmlReferences((output / "docs" / "index.html").read_text()).redirect, "stable/")
+            self.assertEqual(site.HtmlReferences((output / "index.html").read_text()).redirect, "docs/dev/")
+            self.assertEqual(site.HtmlReferences((output / "docs" / "index.html").read_text()).redirect, "dev/")
+            for page in ("index.html", "api.html"):
+                self.assertEqual(site.HtmlReferences((output / "pydoc" / page).read_text()).redirect, "../docs/dev/api/python.html")
             self.assertIn("<title>bloq</title>", (output / "index.html").read_text())
             rustdoc = Path(temporary) / "rustdoc"
             caller = rustdoc / "bloq_compile" / "index.html"

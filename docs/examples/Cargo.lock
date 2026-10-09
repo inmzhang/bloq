@@ -92,7 +92,7 @@ checksum = "3ded4057c258ba199e2d26386d3af3780957ecaee6c4ef4041c6b4b8b97c0b06"
 
 [[package]]
 name = "bloq"
-version = "0.1.1"
+version = "0.1.2-dev"
 dependencies = [
  "bloq_circuit",
  "bloq_compile",
@@ -117,7 +117,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_circuit"
-version = "0.1.1"
+version = "0.1.2-dev"
 dependencies = [
  "bloq_utils",
  "glam",
@@ -131,7 +131,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_compile"
-version = "0.1.1"
+version = "0.1.2-dev"
 dependencies = [
  "bloq_circuit",
  "bloq_graph",
@@ -149,7 +149,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_graph"
-version = "0.1.1"
+version = "0.1.2-dev"
 dependencies = [
  "ariadne",
  "bloq_utils",
@@ -165,7 +165,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_ir"
-version = "0.1.1"
+version = "0.1.2-dev"
 dependencies = [
  "bloq_circuit",
  "bloq_utils",
@@ -180,7 +180,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_stim"
-version = "0.1.1"
+version = "0.1.2-dev"
 dependencies = [
  "bloq_circuit",
  "bloq_ir",
@@ -194,7 +194,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_utils"
-version = "0.1.1"
+version = "0.1.2-dev"
 dependencies = [
  "binar",
  "glam",
@@ -209,7 +209,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_vm"
-version = "0.1.1"
+version = "0.1.2-dev"
 dependencies = [
  "bloq_circuit",
  "bloq_ir",

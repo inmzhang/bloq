@@ -52,9 +52,15 @@ Keep the human contributor as the commit author; credit AI tools with
 acknowledgement in the template. This policy is adapted from
 [Clifft's contribution guidelines](https://github.com/unitaryfoundation/clifft/blob/main/docs/development/contributing.md).
 
+## Documentation scope
+
+Document supported behavior, APIs, usage, and reproducible benchmarks.
+Keep investigation notes and experiment reports out of the public documentation.
+
 ## Verification
 
 ```sh
+just ci-fast       # formatting, Python lint, and script tests; no project build
 just fmt-check
 just test <crate>  # clippy, nextest, and doctests; all features, locked
 just py-test      # Python bindings
@@ -67,10 +73,10 @@ just ci           # all native CI suites, including MSRV and Python docs
 `ticit` is optimized in dev/test builds to keep physical execution checks fast.
 Debug assertions and integer overflow checks remain enabled.
 
-Keep the final `CI` check required. It gates the selected parallel suites and
-native and browser checks; manual dispatch runs all suites. Website
-publication is a separate manual workflow. See
-[Website maintenance](docs/site-maintenance.md#build-and-preview) for filtering and artifact reuse.
+PRs run quick checks automatically. Maintainers approve the full checks selected
+for the changed files; the required `CI` status passes when those checks succeed.
+Manual CI runs check every suite. Website publication is separate; see
+[Website maintenance](docs/site-maintenance.md#publish-a-reviewed-build).
 
 Use `just test-full` for ignored or slow tests in release mode, and `just fidelity`
 for both physical Choi suites. Graph-level logical checks use QuiZX;
@@ -80,7 +86,8 @@ doctests. Keep regression tests that protect behavior rather than private layout
 
 Python stubs are generated from Rust annotations with `just py-stub`; do not
 edit them by hand. Build the Python reference with `just py-docs`.
-Ruff and mypy use the locked `bloq_py` development environment managed by uv.
+Ruff and mypy use locked dependencies managed by uv. Ruff runs without building
+the Python extension.
 
 ## Extending Bloq
 

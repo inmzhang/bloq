@@ -28,7 +28,9 @@ permissions:
 jobs:
   upload:
     name: ${{ matrix.target }}
-    if: github.repository == 'inmzhang/bloq' && vars.RELEASE_PUBLISH_ENABLED == 'true'
+    if: >-
+      github.repository == 'inmzhang/bloq' && vars.RELEASE_PUBLISH_ENABLED == 'true' &&
+      !contains(github.event.release.tag_name || inputs.tag, '-')
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     env:

@@ -1,0 +1,95 @@
+name: Site build
+
+on:
+  workflow_call:
+    inputs:
+      test-python:
+        type: boolean
+        default: false
+      release_tag:
+        type: string
+        default: ''
+      make_stable:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust and WebAssembly target
+        run: rustup toolchain install --target wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: bloq-site-${{ runner.os }}-v1
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          cache-on-failure: true
+
+      - uses: cargo-bins/cargo-binstall@main
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: just
+
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: '3.12'
+          enable-cache: true
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
+          cache-dependency-glob: bloq_py/uv.lock
+
+      - name: Install bevy_cli
+        run: cargo binstall --git https://github.com/TheBevyFlock/bevy_cli --version 0.1.0-alpha.2 --locked bevy_cli
+
+      # gh-pages is durable snapshot storage. Preview artifacts have finite
+      # retention and must never be the only copy of release documentation.
+      - name: Restore retained documentation snapshots
+        run: |
+          mkdir -p target/site
+          retained_ref=$(git ls-remote --heads origin gh-pages)
+          if [ -n "$retained_ref" ]; then
+            git fetch --depth=1 origin gh-pages
+            git archive FETCH_HEAD | tar -x -C target/site
+          fi
+
+      - name: Check Python bindings
+        if: inputs.test-python
+        run: just py-typecheck py-test
+
+      - name: Assemble website
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          MAKE_STABLE: ${{ inputs.make_stable }}
+        run: |
+          args=()
+          if [ -n "$RELEASE_TAG" ]; then
+            args+=(--tag "$RELEASE_TAG")
+            if [ "$MAKE_STABLE" = true ]; then
+              args+=(--stable "$RELEASE_TAG")
+            fi
+          elif [ "$MAKE_STABLE" = true ]; then
+            echo 'make_stable requires an existing release_tag' >&2
+            exit 1
+          fi
+          python3 tools/site.py build "${args[@]}"
+
+      - name: Upload reviewable site artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: bloq-site-preview
+          path: target/site
+          include-hidden-files: true
+          retention-days: 30

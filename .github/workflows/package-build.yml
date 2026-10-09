@@ -1,0 +1,104 @@
+name: Build Python packages
+
+# Shared by approved PR checks and the tag/manual PyPI workflow.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  wheels:
+    name: Wheel (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: '3.10'
+      - name: Remap native build paths
+        if: runner.os != 'Linux'
+        run: uv run --no-project python tools/release_build.py --github-env
+      # maturin-action reads and installs the root rust-toolchain.toml pin.
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          target: ${{ matrix.target }}
+          manylinux: auto
+          before-script-linux: |
+            release_flags=$(/opt/python/cp310-cp310/bin/python tools/release_build.py --shell)
+            eval "$release_flags"
+          args: --release --locked --manifest-path bloq_py/Cargo.toml --out dist
+      - name: Smoke test installed wheel on minimum Python
+        shell: bash
+        run: |
+          BLOQ_EXPECTED_VERSION="$(cargo metadata --no-deps --locked --format-version 1 |
+            python -c 'import json, sys; print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"] == "bloq_py"))')"
+          export BLOQ_EXPECTED_VERSION
+          uv venv --python 3.10
+          uv pip install --only-binary=:all: dist/*.whl packaging
+          # Run the installed interpreter outside the checkout, in isolated mode.
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            package_python="$PWD/.venv/Scripts/python.exe"
+          else
+            package_python="$PWD/.venv/bin/python"
+          fi
+          smoke_test="$PWD/tools/check_installed_package.py"
+          cd "$RUNNER_TEMP"
+          "$package_python" -I "$smoke_test"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wheels-${{ matrix.target }}
+          path: dist/*.whl
+          if-no-files-found: error
+
+  sdist:
+    name: Source distribution
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: '3.12'
+      - name: Check release tag matches package version
+        if: github.ref_type == 'tag'
+        run: |
+          python - <<'PYTHON'
+          import os
+          import tomllib
+          from pathlib import Path
+          version = tomllib.loads(Path("Cargo.toml").read_text())["workspace"]["package"]["version"]
+          assert os.environ["GITHUB_REF_NAME"] == f"v{version}", "Tag must match workspace version"
+          PYTHON
+      - name: Build source distribution
+        run: uv build bloq_py --sdist --out-dir dist
+      - name: Build and smoke test from source distribution
+        # Source installation also resolves the trimmed workspace lockfile.
+        run: |
+          BLOQ_EXPECTED_VERSION="$(cargo metadata --no-deps --locked --format-version 1 |
+            python -c 'import json, sys; print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"] == "bloq_py"))')"
+          export BLOQ_EXPECTED_VERSION
+          uv venv /tmp/bloq-sdist
+          uv pip install --python /tmp/bloq-sdist/bin/python dist/*.tar.gz packaging
+          smoke_test="$PWD/tools/check_installed_package.py"
+          cd "$RUNNER_TEMP"
+          /tmp/bloq-sdist/bin/python -I "$smoke_test"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error

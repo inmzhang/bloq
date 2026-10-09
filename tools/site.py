@@ -136,12 +136,11 @@ def stable_alias(output, tag):
 
 def version_manifest(output, editor=None):
     entries = [json.loads(path.read_text()) for path in sorted((output / "docs").glob("*/build.json"))]
-    names = {entry["name"] for entry in entries}
     entries.sort(key=lambda entry: (entry["name"] != "stable", entry["name"] != "dev", entry["name"]))
     previous = output / "versions.json"
     previous_editor = json.loads(previous.read_text()).get("editor") if previous.exists() else None
     manifest = {
-        "default": "stable" if "stable" in names else "dev",
+        "default": "dev",
         "stable": next((entry["tag"] for entry in entries if entry["name"] == "stable"), None),
         "versions": entries,
         "editor": editor or previous_editor,
@@ -377,7 +376,7 @@ def main():
             remap = f"--remap-path-prefix={Path.home()}=. --remap-path-prefix={ROOT}=."
             env["RUSTFLAGS"] = f"{env.get('RUSTFLAGS', '')} {remap}".strip()
             run([
-                "bevy", "build", "--release", "--yes", "-p", "bloq_editor", "--bin", "bloq_editor",
+                "bevy", "build", "--locked", "--release", "--yes", "-p", "bloq_editor", "--bin", "bloq_editor",
                 "web", "--bundle", "--wasm-opt=--strip-debug", "--wasm-opt=-Os",
                 "--wasm-opt=--enable-bulk-memory", "--wasm-opt=--enable-nontrapping-float-to-int",
             ], env=env)

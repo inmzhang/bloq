@@ -1969,7 +1969,7 @@ dependencies = [
 
 [[package]]
 name = "bloq"
-version = "0.1.1"
+version = "0.1.2-dev"
 dependencies = [
  "bloq_circuit",
  "bloq_compile",
@@ -1987,7 +1987,7 @@ dependencies = [
 
 [[package]]
 name = "bloq-cli"
-version = "0.1.1"
+version = "0.1.2-dev"
 dependencies = [
  "anstream",
  "anstyle",
@@ -2007,7 +2007,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_circuit"
-version = "0.1.1"
+version = "0.1.2-dev"
 dependencies = [
  "bloq_utils",
  "glam",
@@ -2022,7 +2022,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_compile"
-version = "0.1.1"
+version = "0.1.2-dev"
 dependencies = [
  "bloq_circuit",
  "bloq_graph",
@@ -2048,7 +2048,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_editor"
-version = "0.1.1"
+version = "0.1.2-dev"
 dependencies = [
  "bevy",
  "bevy_egui",
@@ -2087,7 +2087,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_graph"
-version = "0.1.1"
+version = "0.1.2-dev"
 dependencies = [
  "ariadne",
  "base64",
@@ -2107,7 +2107,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_ir"
-version = "0.1.1"
+version = "0.1.2-dev"
 dependencies = [
  "bloq_circuit",
  "bloq_utils",
@@ -2124,7 +2124,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_py"
-version = "0.1.1"
+version = "0.1.2-dev"
 dependencies = [
  "bloq-cli",
  "bloq_circuit",
@@ -2144,7 +2144,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_stim"
-version = "0.1.1"
+version = "0.1.2-dev"
 dependencies = [
  "bloq_circuit",
  "bloq_compile",
@@ -2165,7 +2165,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_test"
-version = "0.1.1"
+version = "0.1.2-dev"
 dependencies = [
  "bloq_graph",
  "glam",
@@ -2174,7 +2174,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_utils"
-version = "0.1.1"
+version = "0.1.2-dev"
 dependencies = [
  "binar",
  "glam",
@@ -2189,7 +2189,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_vm"
-version = "0.1.1"
+version = "0.1.2-dev"
 dependencies = [
  "bloq_circuit",
  "bloq_compile",
@@ -8464,7 +8464,7 @@ checksum = "b9cc00251562a284751c9973bace760d86c0276c471b4be569fe6b068ee97a56"
 
 [[package]]
 name = "xtask"
-version = "0.1.1"
+version = "0.1.2-dev"
 dependencies = [
  "bloq_test",
  "color-eyre",
