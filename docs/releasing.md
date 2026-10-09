@@ -22,13 +22,10 @@ jobs require `RELEASE_PUBLISH_ENABLED=true`. Keep it unset or false while prepar
 a release or publishing manually. This variable does not gate local CLI uploads.
 :::
 
-See [website maintenance](site-maintenance.md) for documentation checks and
-reviewable site artifacts. The [PyPI workflow](../.github/workflows/pypi.yml) builds all
-three platform wheels and the source archive on tags, manual dispatches, and
-PRs affecting core Rust code or packaging inputs. Editor-only, test-only, and
-other documentation changes avoid release packaging. Superseded PR builds are
-cancelled; publishing remains serialized and uncancelled. Installed archive
-smoke tests verify packaging that checkout-based tests cannot cover.
+CI checks platform wheels and source installations for relevant PRs. The
+[PyPI workflow](../.github/workflows/pypi.yml) uses the same checks for tag and
+manual builds. See [website maintenance](site-maintenance.md) for site previews
+and publication.
 Binary release builds use the checked-in Cargo lockfile. Security audits cover
 dependency PRs, dependency changes on `main`, and new advisories each week.
 
@@ -40,6 +37,9 @@ dependency PRs, dependency changes on `main`, and new advisories each week.
 | Rust CLI package / executable | `bloq-cli` / `bloq` |
 | Desktop editor package / executable | `bloq_editor` |
 | Python distribution / import | `bloq-py` / `bloq` |
+
+Install `bloq-py` for Python. PyPI's `bloq` is an unrelated package; installing
+both in one environment can conflict because they share the import name.
 
 All packages inherit `workspace.package.version`; internal Rust dependencies
 use exact versions. Maturin reads that same version for Python. Release-plz
@@ -58,7 +58,7 @@ set a separate Python version or replace inherited Cargo versions.
 The first stable release is `0.1.0`, tagged `v0.1.0`. Prepare subsequent stable
 versions in reviewed release PRs.
 
-| Surface | Current release |
+| Surface | Published release |
 | --- | --- |
 | Cargo manifests and exact internal dependencies | `0.1.1` |
 | Git tag and GitHub release | `v0.1.1` |
@@ -78,147 +78,67 @@ remains the Rust build backend; its CI action supplies the manylinux wheel build
 binary links use `/releases/download/v0.1.1/`; links to the current stable
 binaries can use `/releases/latest/download/`.
 
-## Configure the registries before the first upload
+## Development versions after a release
 
-### crates.io account and credentials
+Between releases, `main` uses a version such as `0.1.2-dev`. Cargo and
+`bloq.__version__` retain that spelling; Python package metadata normalizes it to
+`0.1.2.dev0`. The suffix stays unchanged throughout the development cycle.
 
-Sign in to [crates.io](https://crates.io/) using the `inmzhang` GitHub account and
-verify the account email. Confirm ownership of every existing `bloq_*` placeholder
-and `bloq`. Check `bloq-cli` availability again immediately before publication;
-its registry name is distinct from Rust's `bloq_cli` library identifier.
+After Rust, Python, and binary publication succeeds, the
+[post-release workflow](../.github/workflows/post-release.yml) opens a PR for the
+next development version. Review its checks and merge it. The PR updates the
+shared version, exact internal requirements, and both Cargo lockfiles.
+Release-plz prepares the next stable version in a separate release PR.
 
-Create an expiring API token with `publish-new` and `publish-update` permissions
-for the workspace crates, including creating `bloq-cli`. A crate-specific token limited to existing crates
-cannot create a new crate. Follow the [Cargo publishing guide](https://doc.rust-lang.org/cargo/reference/publishing.html)
-and [crates.io token documentation](https://crates.io/docs/api-tokens).
-The first publication of a new crate needs an API token; crates.io trusted
-publishing is an option after the crate exists.
+For manual publication, run `just start-dev` on a `chore/` branch after verifying
+all uploads, then open a PR. To adjust a release candidate, use
+`just set-version VERSION` and update its pending changelog heading.
 
-For Actions publication, create an environment named `crates-io` in the release
-repository.
-Store the registry token there as `CARGO_REGISTRY_TOKEN` using the hidden prompt:
+## Release credentials
 
-```sh
-gh secret set CARGO_REGISTRY_TOKEN --repo inmzhang/bloq --env crates-io
-```
+Rust publication uses `CARGO_REGISTRY_TOKEN` in the `crates-io` environment and
+repository secret `RELEASE_PLZ_TOKEN`. The GitHub token needs repository Contents
+and Pull requests write access. It also triggers downstream workflows when
+release-plz creates tags, releases, and development PRs.
 
-For release-plz, create a fine-grained GitHub PAT restricted to the release
-repository with Contents read/write and Pull requests read/write. Allow
-workflow-file write access if a release PR needs to modify a workflow. Store it as repository secret
-`RELEASE_PLZ_TOKEN`, so both the release and release-PR jobs can access it:
+Python publication uses a [PyPI trusted publisher](https://docs.pypi.org/trusted-publishers/)
+for `bloq-py`, repository `inmzhang/bloq`, workflow `pypi.yml`, and environment
+`pypi`. Manual uploads use a project-scoped PyPI token.
 
-```sh
-gh secret set RELEASE_PLZ_TOKEN --repo inmzhang/bloq
-```
-
-A PAT-created tag/release triggers downstream workflows. Events created with
-Actions' default `GITHUB_TOKEN` do not trigger the Python/binary workflows.
-Set required reviewers on release environments if supported by the repository's
-GitHub plan; publishing still requires the explicit variable opt-in.
-
-### PyPI project and trusted publisher
-
-The PyPI distribution is **`bloq-py`**, while the Python import and CLI remain
-`bloq`. PyPI's `bloq` project belongs to an unrelated quantum SDK; do not install
-both distributions in the same environment because their module/CLI names can
-conflict. Confirm `bloq-py` availability again before upload; a missing public
-project entry is not a reservation or guarantee that registration is allowed.
-
-Create a [PyPI account](https://pypi.org/account/register/), verify its email, and
-enable two-factor authentication. For local uploads, use the token setup in
-[Manual PyPI publication](#manual-pypi-publication); GitHub environments and
-trusted publishers are not needed. For Actions publication, create an environment
-named `pypi`. Configure a [Pending Trusted Publisher](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/)
-in PyPI's account Publishing settings:
-
-| Field | Value |
-| --- | --- |
-| PyPI project name | `bloq-py` |
-| GitHub owner | `inmzhang` |
-| GitHub repository | `bloq` |
-| Workflow filename | `pypi.yml` |
-| Environment | `pypi` |
-
-Use the workflow filename, not the display name or full path. The first OIDC
-upload creates the project. No PyPI API token is needed, and a pending publisher
-does not reserve a project name. The workflow already grants `id-token: write`
-only to the publisher job. After the first upload, check the project owners and
-maintain its publisher under project settings.
-
-TestPyPI is optional and has separate accounts, project names, and publishers.
-The current PyPI workflow targets production; manual dispatch builds/tests only.
-Do not use a production tag push as a test upload while publishing is enabled.
+`RELEASE_PUBLISH_ENABLED=true` enables Actions publication. Manual CI and PyPI
+workflow dispatches build and test without uploading packages.
 
 ## Prepare and publish a release
 
 The examples below target `0.1.1`; replace that version when preparing a later
-release. The first-publication bootstrap applies only before a crate has been
-published. Subsequent releases use a reviewed release PR.
+release.
 
 Choose release-plz or [manual Cargo](#manual-cargo-publication) and
 [uv uploads](#manual-pypi-publication). For the fully manual route, keep
 `RELEASE_PUBLISH_ENABLED` false throughout; the build-only workflow still works.
 
-Finish the checks below against the reviewed release commit. Dispatch the PyPI workflow
-on `main` to build all supported wheels and rebuild the source archive without
-uploading anything:
+Finish the checks below against the reviewed release commit. Dispatch CI on
+`main` to run every suite, build all supported wheels, rebuild the source archive,
+and assemble the website without publishing:
 
 ```sh
-gh workflow run pypi.yml --repo inmzhang/bloq --ref main
-gh run list --repo inmzhang/bloq --workflow pypi.yml
+gh workflow run ci.yml --repo inmzhang/bloq --ref main
+gh run list --repo inmzhang/bloq --workflow ci.yml
 ```
 
-Review all three wheel jobs, the source-archive job, and downloaded artifacts.
-Keep artifacts from the chosen commit separate from old local builds. Run the
-full CI workflow and the website workflow with `publish=false` as well. Confirm
+Review the wheel, source-archive, and site artifacts from that commit. Confirm
 license copies, package contents, typing files, dependency resolution, and the
-exact `0.1.1` version in artifact metadata.
+release version in artifact metadata.
 
 ### Release-plz publication
 
-Routine release-plz publication has `release_always=false`, which requires a
-merged PR from a branch starting `release-plz-`. For a first publication
-without a merged release PR, use a temporary local config to opt in explicitly
-without permanently relaxing the release gate:
+Review the release PR's stable version, changelog, and checks. With publication
+enabled, merging the PR publishes Rust crates and creates the version tag and
+GitHub release. The tag triggers Python publication; the GitHub release triggers
+binary uploads. Verify all uploads before announcing the release.
 
-```sh
-mkdir -p target
-python3 - <<'PYTHON'
-from pathlib import Path
-config = Path("release-plz.toml").read_text()
-assert config.count("release_always = false") == 1
-Path("target/first-release.toml").write_text(
-    config.replace("release_always = false", "release_always = true", 1)
-)
-PYTHON
-release-plz release --config target/first-release.toml --repo-url https://github.com/inmzhang/bloq --dry-run
-```
-
-Run this from the release checkout. Supply `GIT_TOKEN` (the GitHub PAT) and
-`CARGO_REGISTRY_TOKEN` privately in the process environment; the direct CLI uses
-`GIT_TOKEN`, whereas the release-plz Action uses `GITHUB_TOKEN`. Never put tokens
-in command arguments, checked-in files, or release notes.
-
-A dry run cannot always verify unpublished sibling versions against crates.io.
-Do not work around unresolved siblings by removing exact requirements or skipping
-package verification. Confirm local locked checks and archive contents, then
-publish in dependency order using release-plz or the manual order below.
-
-**Publication is a separate maintainer action.** Review the release commit,
-artifacts, and registry configuration before enabling downstream publication
-and running the bootstrap command without `--dry-run`:
-
-```sh
-gh variable set RELEASE_PUBLISH_ENABLED --body true --repo inmzhang/bloq
-release-plz release --config target/first-release.toml --repo-url https://github.com/inmzhang/bloq
-```
-
-The local release command publishes Rust packages and creates the tag/release;
-it is a publication command even if the GitHub variable is false. The variable
-gates Actions jobs, not commands run locally. The tag triggers the PyPI workflow;
-the GitHub release triggers binary uploads. Confirm the release is marked
-**Latest**, the tag points at the reviewed release commit, and all downstream uploads
-finish before announcing it. If uploads fail, recover at the same commit/version.
+If publication is interrupted, retry the failed jobs at the same commit and
+version. Do not move the tag or bump the version to retry an upload.
 
 ### Manual Cargo publication
 
@@ -262,7 +182,8 @@ once published.
 
 ### Manual PyPI publication
 
-Use the build-only PyPI run prepared above. Confirm its `headSha` equals the
+Use the package artifacts from the CI or build-only PyPI run prepared above.
+Confirm its `headSha` equals the
 reviewed release commit, then download all four named artifacts from that one
 run into a new directory. Replace `RUN_ID` in both the command and directory name:
 
@@ -363,18 +284,6 @@ generated copies. It collects license files from the locked Cargo sources,
 including vendored native libraries and fonts. Crates that omit those files use
 version-specific upstream notices and declared license texts recorded in
 `tools/third_party_licenses.json`; review that file when updating those crates.
-
-## Publish subsequent stable releases
-
-Configure the registry credentials and trusted publishers specified by the
-workflows. Rust publication uses `CARGO_REGISTRY_TOKEN` and
-`RELEASE_PLZ_TOKEN`; Python uses the configured PyPI trusted publisher. Check
-registry ownership before enabling publication.
-
-After reviewing checks and artifacts, enable `RELEASE_PUBLISH_ENABLED` and merge
-the release PR. Do not create a tag as a substitute for publishing its Rust
-package dependencies. The Python workflow verifies that the tag matches the
-shared Cargo version.
 
 ## Verify uploads and install the release
 

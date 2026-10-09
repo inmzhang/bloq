@@ -54,10 +54,8 @@ acknowledgement in the template. This policy is adapted from
 
 ## Documentation scope
 
-Keep experiment reports, implementation diaries, and evidence/claim-boundary
-writeups local; do not commit them to `main` or publish them on the website.
-Committed documentation should explain supported behavior, APIs, usage, and
-reproducible benchmarking procedures.
+Document supported behavior, APIs, usage, and reproducible benchmarks.
+Keep investigation notes and experiment reports out of the public documentation.
 
 ## Verification
 

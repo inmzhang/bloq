@@ -110,7 +110,6 @@ snapshot and `make_stable` selects it. Package releases are a separate action,
 covered in [Releases](releasing.md).
 
 ```{important}
-Building locally or reviewing an artifact does not authorize publication.
 Review the assembled site before changing the deployed version. Keep previous
 release snapshots when publishing.
 ```

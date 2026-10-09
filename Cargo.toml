@@ -17,7 +17,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.1"
+version = "0.1.2-dev"
 edition = "2024"
 # Floor derived from the highest `rust-version` in the dependency tree.
 rust-version = "1.95.0"
@@ -38,17 +38,17 @@ binar = "0.1.5"
 # Internal crates carry an exact (`=`) version requirement: the workspace
 # releases in lockstep, so a published crate must resolve to siblings from
 # the same release, never a stray newer patch (Bevy does the same).
-bloq_cli = { package = "bloq-cli", path = "bloq_cli", version = "=0.1.1" }
-bloq_circuit = { path = "bloq_circuit", version = "=0.1.1" }
-bloq_compile = { path = "bloq_compile", version = "=0.1.1" }
-bloq_graph = { path = "bloq_graph", version = "=0.1.1" }
-bloq_ir = { path = "bloq_ir", version = "=0.1.1" }
-bloq_stim = { path = "bloq_stim", version = "=0.1.1" }
-bloq_vm = { path = "bloq_vm", version = "=0.1.1" }
+bloq_cli = { package = "bloq-cli", path = "bloq_cli", version = "=0.1.2-dev" }
+bloq_circuit = { path = "bloq_circuit", version = "=0.1.2-dev" }
+bloq_compile = { path = "bloq_compile", version = "=0.1.2-dev" }
+bloq_graph = { path = "bloq_graph", version = "=0.1.2-dev" }
+bloq_ir = { path = "bloq_ir", version = "=0.1.2-dev" }
+bloq_stim = { path = "bloq_stim", version = "=0.1.2-dev" }
+bloq_vm = { path = "bloq_vm", version = "=0.1.2-dev" }
 # Deliberately version-less: bloq_test is dev-only and unpublished; cargo
 # strips path-only dev-deps from published manifests, keeping it private.
 bloq_test = { path = "bloq_test" }
-bloq_utils = { path = "bloq_utils", version = "=0.1.1" }
+bloq_utils = { path = "bloq_utils", version = "=0.1.2-dev" }
 chumsky = { version = "0.13", default-features = false, features = ["std", "pratt"] }
 clap = { version = "4.6.7", features = ["derive"] }
 clap_complete = "4.6.11"

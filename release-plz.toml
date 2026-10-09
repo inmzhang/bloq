@@ -1,6 +1,8 @@
 # GitHub Actions publication requires RELEASE_PUBLISH_ENABLED=true.
 # Local release-plz, cargo publish, and uv publish bypass that Actions gate.
-# Setup and first-release steps: docs/releasing.md.
+# Release procedure: docs/releasing.md.
+# main uses -dev between releases; Actions compares against the last stable
+# tag before preparing a stable release PR. Keep the normal dirty-tree gate.
 
 [workspace]
 release_always = false

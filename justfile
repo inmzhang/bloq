@@ -289,6 +289,17 @@ editor-package-check:
 [group('development')]
 release-build-check:
     uv run --no-project python tools/test_release_build.py
+    python3 tools/post_release.py --check
+
+# Run on a reviewed chore/ branch after all uploads for the stable tag succeed.
+[group('production')]
+start-dev:
+    python3 tools/workspace_version.py dev
+
+# Adjust a release candidate without rewriting previously released changelogs.
+[group('production')]
+set-version version:
+    python3 tools/workspace_version.py set {{ quote(version) }}
 
 [group('development')]
 licenses-check:

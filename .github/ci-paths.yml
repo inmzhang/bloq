@@ -19,6 +19,7 @@ rust:
   - 'bloq_editor/desktop/**'
   - 'THIRD-PARTY-NOTICES.txt'
   - 'tools/{release_build,test_release_build}.py'
+  - 'tools/{workspace_version,post_release}.py'
   - 'tools/third_party_licenses.{py,json}'
   - 'xtask/**'
   - 'docs/fixtures/**'

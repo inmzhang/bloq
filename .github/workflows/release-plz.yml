@@ -25,7 +25,17 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Check for a stable workspace version
+        id: version
+        run: |
+          version=$(python3 tools/workspace_version.py current)
+          if [[ "$version" == *-* ]]; then
+            echo 'stable=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'stable=true' >> "$GITHUB_OUTPUT"
+          fi
       - name: Install system dependencies
+        if: steps.version.outputs.stable == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends \
@@ -33,9 +43,12 @@ jobs:
             libxcb-shape0-dev libxcb-xfixes0-dev libwayland-dev \
             libxkbcommon-dev
       - name: Install pinned Rust toolchain
+        if: steps.version.outputs.stable == 'true'
         run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
+        if: steps.version.outputs.stable == 'true'
       - uses: release-plz/action@v0.5
+        if: steps.version.outputs.stable == 'true'
         with:
           command: release
         env:
@@ -62,8 +75,39 @@ jobs:
           persist-credentials: false
       - name: Install pinned Rust toolchain
         run: rustup toolchain install
+      - name: Compare development changes against the last stable release
+        run: |
+          python3 tools/workspace_version.py release-baseline
+          python3 - <<'PYTHON'
+          import os
+          from pathlib import Path
+          config = Path('release-plz.toml').read_text()
+          config = config.replace('[workspace]\n', '[workspace]\nallow_dirty = true\n', 1)
+          Path(os.environ['RUNNER_TEMP'], 'release-plz.toml').write_text(config)
+          PYTHON
       - uses: release-plz/action@v0.5
+        id: release-pr
         with:
           command: release-pr
+          config: ${{ runner.temp }}/release-plz.toml
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN || secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v7
+        if: steps.release-pr.outputs.prs_created == 'true'
+        with:
+          ref: ${{ fromJSON(steps.release-pr.outputs.pr).head_branch }}
+          token: ${{ secrets.RELEASE_PLZ_TOKEN || secrets.GITHUB_TOKEN }}
+          persist-credentials: false
+      - name: Synchronize the documentation example lockfile in the release PR
+        if: steps.release-pr.outputs.prs_created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          python3 tools/workspace_version.py lockfiles
+          if ! git diff --quiet -- docs/examples/Cargo.lock; then
+            git add docs/examples/Cargo.lock
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -m 'chore: synchronize release example lockfile'
+            gh auth setup-git
+            git push origin HEAD
+          fi
