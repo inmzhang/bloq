@@ -75,7 +75,7 @@ Debug assertions and integer overflow checks remain enabled.
 
 PRs run quick checks automatically. Maintainers approve the full checks selected
 for the changed files; the required `CI` status passes when those checks succeed.
-Manual CI runs check every suite. Website publication is separate; see
+Manual CI runs check every suite. For website publication, see
 [Website maintenance](docs/site-maintenance.md#publish-a-reviewed-build).
 
 Use `just test-full` for ignored or slow tests in release mode, and `just fidelity`

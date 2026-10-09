@@ -43,6 +43,6 @@ architecture cannot support it:
   [AI contribution policy](CONTRIBUTING.md#ai-assisted-contributions), including
   tool/model disclosure and an `Assisted-by: <tool> (<model>)` commit trailer.
   Keep the human contributor as author; do not use AI `Co-authored-by:` credit.
-- Keep the aggregate `CI` check required. Release and website publication are
-  separate maintainer actions; follow [Releasing](docs/releasing.md) and
+- Keep the aggregate `CI` check required. Release publication and stable website
+  promotion are separate maintainer actions; follow [Releasing](docs/releasing.md) and
   [Website maintenance](docs/site-maintenance.md).
