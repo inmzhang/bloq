@@ -196,6 +196,8 @@ If you use Bloq in your work, please cite the software repository:
 }
 ```
 
+Our paper describing Bloq will be available soon.
+
 ## AI Acknowledgement
 
 Generative AI tools assist Bloq's software development and documentation,
