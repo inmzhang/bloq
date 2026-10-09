@@ -244,12 +244,18 @@
         showLoadError("Editor failed to start.", normalizeStartupError(error));
       }
 
-      function suppressCanvasContextMenu(canvas) {
+      function suppressCanvasMouseDefaults(canvas) {
         // Preserve browser keyboard shortcuts like copy/paste while reserving
         // right-click drag for editor camera panning on the canvas.
         canvas.addEventListener("contextmenu", (event) => {
           event.preventDefault();
         });
+        // Middle-button orbit must not trigger selection paste (Linux) or autoscroll.
+        for (const type of ["mousedown", "mouseup", "auxclick"]) {
+          canvas.addEventListener(type, (event) => {
+            if (event.button === 1) event.preventDefault();
+          });
+        }
       }
 
       async function supportsWebGpu() {
@@ -283,7 +289,7 @@
               }
 
               addedNode.setAttribute("aria-label", "Bloq graph editor");
-              suppressCanvasContextMenu(addedNode);
+              suppressCanvasMouseDefaults(addedNode);
               startupComplete = true;
               loadingScreen.style.display = "none";
               observer.disconnect();
