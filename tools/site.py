@@ -376,7 +376,7 @@ def main():
             remap = f"--remap-path-prefix={Path.home()}=. --remap-path-prefix={ROOT}=."
             env["RUSTFLAGS"] = f"{env.get('RUSTFLAGS', '')} {remap}".strip()
             run([
-                "bevy", "build", "--release", "--yes", "-p", "bloq_editor", "--bin", "bloq_editor",
+                "bevy", "build", "--locked", "--release", "--yes", "-p", "bloq_editor", "--bin", "bloq_editor",
                 "web", "--bundle", "--wasm-opt=--strip-debug", "--wasm-opt=-Os",
                 "--wasm-opt=--enable-bulk-memory", "--wasm-opt=--enable-nontrapping-float-to-int",
             ], env=env)

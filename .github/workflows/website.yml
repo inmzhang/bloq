@@ -16,132 +16,22 @@ on:
         type: boolean
         default: false
   push:
-    branches: [main]
     tags: ['v*']
-    paths:
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
-      - 'justfile'
-      - 'docs/**'
-      - 'tools/site.py'
-      - 'tools/test_site.py'
-      - 'bloq*/**'
-      - '.github/workflows/website.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
-      - 'justfile'
-      - 'docs/**'
-      - 'tools/site.py'
-      - 'tools/test_site.py'
-      - 'bloq*/**'
-      - '.github/workflows/website.yml'
 
-# Serialize snapshot updates so two publications cannot lose older versions.
+# Serialize restore/build/publish together to preserve retained snapshots.
 concurrency:
-  group: bloq-website
-  cancel-in-progress: false
+  group: ${{ inputs.publish && 'bloq-website-publish' || format('bloq-website-{0}', github.ref) }}
+  cancel-in-progress: ${{ !inputs.publish }}
 
 permissions:
   contents: read
 
-env:
-  CARGO_TERM_COLOR: always
-  CARGO_PROFILE_DEV_DEBUG: line-tables-only
-
 jobs:
   build:
-    name: Build Website, APIs, and Editor
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Install Rust and WebAssembly target
-        run: |
-          rustup toolchain install
-          rustup target add wasm32-unknown-unknown
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: bloq-rust-${{ runner.os }}-v1
-          workspaces: |
-            . -> target
-
-      - uses: cargo-bins/cargo-binstall@main
-
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: just
-
-      - uses: astral-sh/setup-uv@v10.2.0
-        with:
-          python-version: '3.12'
-
-      - name: Install Linux dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends \
-            libasound2-dev libudev-dev libxcb-render0-dev \
-            libxcb-shape0-dev libxcb-xfixes0-dev libwayland-dev \
-            libxkbcommon-dev
-
-      - name: Install bevy_cli
-        run: cargo binstall --git https://github.com/TheBevyFlock/bevy_cli --version 0.1.0-alpha.2 --locked bevy_cli
-
-      # gh-pages is durable snapshot storage. Preview artifacts have finite
-      # retention and must never be the only copy of release documentation.
-      - name: Restore retained documentation snapshots
-        run: |
-          mkdir -p target/site
-          retained_ref=$(git ls-remote --heads origin gh-pages)
-          if [ -n "$retained_ref" ]; then
-            git fetch --depth=1 origin gh-pages
-            git archive FETCH_HEAD | tar -x -C target/site
-          fi
-
-      - name: Check version maintenance
-        run: python3 tools/test_site.py
-
-      - name: Assemble website
-        env:
-          RELEASE_TAG: ${{ inputs.release_tag }}
-          MAKE_STABLE: ${{ inputs.make_stable }}
-        run: |
-          args=()
-          if [ "$GITHUB_REF_TYPE" = tag ]; then
-            args+=(--tag "$GITHUB_REF_NAME")
-          fi
-          if [ -n "$RELEASE_TAG" ]; then
-            args+=(--tag "$RELEASE_TAG")
-            if [ "$MAKE_STABLE" = true ]; then
-              args+=(--stable "$RELEASE_TAG")
-            fi
-          elif [ "$MAKE_STABLE" = true ]; then
-            echo 'make_stable requires an existing release_tag' >&2
-            exit 1
-          fi
-          python3 tools/site.py build "${args[@]}"
-
-      - name: Upload reviewable site artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: bloq-site-preview
-          path: target/site
-          include-hidden-files: true
-          retention-days: 30
-
-      - name: Upload Pages artifact for explicitly requested publication
-        if: github.event_name == 'workflow_dispatch' && inputs.publish
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: target/site
+    uses: ./.github/workflows/site-build.yml
+    with:
+      release_tag: ${{ github.ref_type == 'tag' && github.ref_name || inputs.release_tag || '' }}
+      make_stable: ${{ inputs.make_stable || false }}
 
   publish:
     if: github.event_name == 'workflow_dispatch' && inputs.publish
@@ -178,6 +68,11 @@ jobs:
             git -C site commit -m "docs: publish website for ${GITHUB_SHA}"
             git -C site push origin HEAD:gh-pages
           fi
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
 
       - name: Deploy to GitHub Pages
         id: deployment

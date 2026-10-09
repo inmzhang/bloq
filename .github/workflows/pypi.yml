@@ -1,178 +1,23 @@
 name: PyPI
 run-name: PyPI ${{ github.ref_name }}
 
-# Dispatch and pull requests only build/test. Tag pushes can publish after opt-in.
+# Dispatch only builds/tests. Tag pushes can publish after opt-in.
 # Configure the pypi environment and Trusted Publisher per docs/releasing.md.
 on:
   push:
     tags: ["v*"]
-  pull_request:
-    branches: [main]
-    paths:
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
-      - '.cargo/**'
-      - 'LICENSE'
-      - 'THIRD-PARTY-NOTICES.txt'
-      - 'tools/release_build.py'
-      - 'README.md'
-      # Keep cross-platform builds for wheel code and source-archive inputs.
-      - 'bloq*/src/**'
-      - 'bloq*/Cargo.toml'
-      - 'bloq*/build.rs'
-      - 'bloq*/LICENSE'
-      - 'bloq*/README.md'
-      # These crates are outside the Python package's dependency graph.
-      - '!bloq_editor/**'
-      - '!bloq_test/**'
-      - 'bloq_graph/assets/**'
-      - 'bloq_py/python/**'
-      - 'bloq_py/pyproject.toml'
-      - 'bloq_py/THIRD-PARTY-NOTICES.txt'
-      - 'bloq_py/uv.lock'
-      - '.github/workflows/pypi.yml'
   workflow_dispatch:
 
 concurrency:
-  group: pypi-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: pypi-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
-  wheels:
-    name: Wheel (${{ matrix.target }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-          - os: macos-latest
-            target: aarch64-apple-darwin
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-    steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.2.0
-        with:
-          python-version: '3.10'
-      - name: Remap native build paths
-        if: runner.os != 'Linux'
-        run: uv run --no-project python tools/release_build.py --github-env
-      # maturin-action reads and installs the root rust-toolchain.toml pin.
-      - uses: PyO3/maturin-action@v1
-        with:
-          command: build
-          target: ${{ matrix.target }}
-          manylinux: auto
-          before-script-linux: |
-            release_flags=$(/opt/python/cp310-cp310/bin/python tools/release_build.py --shell)
-            eval "$release_flags"
-          args: --release --locked --manifest-path bloq_py/Cargo.toml --out dist
-      - name: Smoke test installed wheel on minimum Python
-        shell: bash
-        run: |
-          BLOQ_EXPECTED_VERSION="$(cargo metadata --no-deps --locked --format-version 1 |
-            python -c 'import json, sys; print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"] == "bloq_py"))')"
-          export BLOQ_EXPECTED_VERSION
-          uv venv --python 3.10
-          uv pip install --only-binary=:all: dist/*.whl packaging
-          # Use the installed environment after leaving the checkout.
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            export PATH="$PWD/.venv/Scripts:$PATH"
-          else
-            export PATH="$PWD/.venv/bin:$PATH"
-          fi
-          cd "${{ runner.temp }}"
-          bloq --help
-          bloq --version
-          bloq compile --gallery cnot -d 3 --quiet -o cli-cnot.stim
-          python - <<'PYTHON'
-          import os
-          from importlib.metadata import version
-          import subprocess
-          from packaging.version import Version
-          import bloq
-          import stim
-          expected = os.environ["BLOQ_EXPECTED_VERSION"]
-          assert bloq.__version__ == expected
-          assert Version(version("bloq-py")) == Version(expected)
-          assert subprocess.check_output(["bloq", "--version"], text=True).strip() == f"bloq {expected}"
-          graph = bloq.GalleryItem.CNOT.load()
-          program = bloq.compile(graph, distance=3)
-          assert bloq.emit_stim(program) == bloq.compile_to_stim(graph, 3)
-          assert stim.Circuit.from_file("cli-cnot.stim") == bloq.emit_stim(program)
-          PYTHON
-      - uses: actions/upload-artifact@v7
-        with:
-          name: wheels-${{ matrix.target }}
-          path: dist/*.whl
-          if-no-files-found: error
-
-  sdist:
-    name: Source distribution
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v7
-      - name: Install pinned Rust toolchain
-        run: rustup toolchain install
-      - uses: astral-sh/setup-uv@v10.2.0
-        with:
-          python-version: '3.12'
-      - name: Check release tag matches package version
-        if: github.ref_type == 'tag'
-        run: |
-          python - <<'PYTHON'
-          import os
-          import tomllib
-          from pathlib import Path
-          version = tomllib.loads(Path("Cargo.toml").read_text())["workspace"]["package"]["version"]
-          assert os.environ["GITHUB_REF_NAME"] == f"v{version}", "Tag must match workspace version"
-          PYTHON
-      - name: Build source distribution
-        run: uv build bloq_py --sdist --out-dir dist
-      - name: Build and smoke test from source distribution
-        # Source installation also resolves the trimmed workspace lockfile.
-        run: |
-          BLOQ_EXPECTED_VERSION="$(cargo metadata --no-deps --locked --format-version 1 |
-            python -c 'import json, sys; print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"] == "bloq_py"))')"
-          export BLOQ_EXPECTED_VERSION
-          uv venv /tmp/bloq-sdist
-          uv pip install --python /tmp/bloq-sdist/bin/python dist/*.tar.gz packaging
-          cd /tmp
-          /tmp/bloq-sdist/bin/bloq --help
-          /tmp/bloq-sdist/bin/bloq --version
-          /tmp/bloq-sdist/bin/bloq compile --gallery cnot -d 3 --quiet -o sdist-cnot.stim
-          /tmp/bloq-sdist/bin/python - <<'PYTHON'
-          import os
-          from importlib.metadata import version
-          import subprocess
-          import sys
-          from pathlib import Path
-          from packaging.version import Version
-          import bloq
-          import stim
-          expected = os.environ["BLOQ_EXPECTED_VERSION"]
-          assert bloq.__version__ == expected
-          assert Version(version("bloq-py")) == Version(expected)
-          cli = Path(sys.executable).with_name("bloq")
-          assert subprocess.check_output([cli, "--version"], text=True).strip() == f"bloq {expected}"
-          graph = bloq.GalleryItem.CNOT.load()
-          program = bloq.compile(graph, distance=3)
-          assert bloq.emit_stim(program) == bloq.compile_to_stim(graph, 3)
-          assert stim.Circuit.from_file("sdist-cnot.stim") == bloq.emit_stim(program)
-          PYTHON
-      - uses: actions/upload-artifact@v7
-        with:
-          name: sdist
-          path: dist/*.tar.gz
-          if-no-files-found: error
+  build:
+    uses: ./.github/workflows/package-build.yml
 
   publish:
     name: Publish to PyPI
@@ -181,7 +26,7 @@ jobs:
       vars.RELEASE_PUBLISH_ENABLED == 'true' &&
       !contains(github.ref_name, '-') &&
       github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [wheels, sdist]
+    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: pypi

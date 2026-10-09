@@ -165,10 +165,15 @@ test crate="": (lint crate)
 
 # Run every native CI suite locally; Actions gives each its own job and budget.
 [group('development')]
-ci: ci-rust msrv ci-python
+ci: ci-fast ci-rust msrv ci-python
+
+# No project compilation; safe to run before approving the full CI suites.
+[group('development')]
+ci-fast: fmt-check py-lint editor-package-check release-build-check
+    python3 tools/test_site.py
 
 [group('development')]
-ci-rust: fmt-check licenses-check editor-package-check release-build-check check check-no-default doc-check test
+ci-rust: licenses-check check check-no-default doc-check test
 
 # Tests and docs share one editable extension build and Python environment.
 [group('python')]
@@ -209,8 +214,8 @@ py-develop:
     uv sync --project bloq_py --group dev --locked
 
 [group('python')]
-py-lint: py-develop
-    uv run --project bloq_py --no-sync ruff check --config bloq_py/pyproject.toml bloq_py/python bloq_py/tests bloq_py/examples tools bloq_editor/desktop
+py-lint:
+    UV_PROJECT_ENVIRONMENT="{{ justfile_directory() }}/target/py-lint" uv run --project bloq_py --locked --only-group dev ruff check --config bloq_py/pyproject.toml bloq_py/python bloq_py/tests bloq_py/examples tools bloq_editor/desktop
 
 [group('python')]
 py-typecheck: py-develop

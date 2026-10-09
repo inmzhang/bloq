@@ -8,7 +8,7 @@ separately and assembled with those outputs.
 
 Use the [development tools](getting-started/installation.md#checkout-and-development-tools)
 and WebAssembly setup from the installation page. The Bevy CLI version and
-build environment are pinned in `.github/workflows/website.yml`.
+build environment are pinned in `.github/workflows/site-build.yml`.
 
 ```sh
 just site-docs       # fast documentation preview
@@ -102,12 +102,10 @@ historical documentation does not select a historical editor build.
 
 ## Publish a reviewed build
 
-CI runs Rust, MSRV, Python/documentation, and web checks in separate jobs. It
-uploads the Python documentation and editor artifacts from those checks. The
-website workflow assembles the complete versioned site into an artifact for review. Publication uses manual
-workflow dispatch with `publish` enabled. Optional `release_tag` adds a tagged
-snapshot and `make_stable` selects it. Package releases are a separate action,
-covered in [Releases](releasing.md).
+CI produces a validated `bloq-site-preview` artifact for website changes.
+Review that artifact before publication. Run the website workflow with `publish`
+enabled to publish; optional `release_tag` adds a release snapshot and
+`make_stable` selects it. Package releases are separate; see [Releases](releasing.md).
 
 ```{important}
 Review the assembled site before changing the deployed version. Keep previous

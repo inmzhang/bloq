@@ -22,16 +22,19 @@ env:
   CARGO_PROFILE_DEV_DEBUG: line-tables-only
 
 jobs:
-  changes:
-    name: Select checks
+  quick:
+    name: Quick checks
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     permissions:
       contents: read
       pull-requests: read
     outputs:
       checks: ${{ steps.suites.outputs.checks }}
-      web: ${{ steps.suites.outputs.web }}
+      site: ${{ steps.suites.outputs.site }}
+      python: ${{ steps.filter.outputs.python }}
+      packages: ${{ steps.suites.outputs.packages }}
+      heavy: ${{ steps.suites.outputs.heavy }}
     steps:
       - uses: actions/checkout@v7
       - name: Check workflow syntax
@@ -39,6 +42,16 @@ jobs:
           curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash -o "$RUNNER_TEMP/download-actionlint.bash"
           bash "$RUNNER_TEMP/download-actionlint.bash" 1.7.12 "$RUNNER_TEMP"
           "$RUNNER_TEMP/actionlint" -color
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: '3.12'
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: just
+      - name: Run quick checks
+        run: just ci-fast
       - uses: dorny/paths-filter@v4
         id: filter
         if: github.event_name != 'workflow_dispatch'
@@ -49,23 +62,44 @@ jobs:
         id: suites
         env:
           RUST_CHANGED: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.rust == 'true' }}
-          PYTHON_CHANGED: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.python == 'true' }}
-          WEB_CHANGED: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.web == 'true' }}
+          SITE_CHANGED: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.site == 'true' || steps.filter.outputs.python == 'true' }}
+          PACKAGES_CHANGED: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.packages == 'true' }}
         run: |
-          suites=$(jq -cn --arg rust "$RUST_CHANGED" --arg python "$PYTHON_CHANGED" '[if $rust == "true" then "ci-rust", "msrv" else empty end, if $python == "true" then "ci-python" else empty end]')
-          echo "checks=$suites" >> "$GITHUB_OUTPUT"
-          echo "web=$WEB_CHANGED" >> "$GITHUB_OUTPUT"
+          suites=$(jq -cn --arg rust "$RUST_CHANGED" 'if $rust == "true" then ["ci-rust", "msrv"] else [] end')
+          {
+            echo "checks=$suites"
+            echo "site=$SITE_CHANGED"
+            echo "packages=$PACKAGES_CHANGED"
+            if [ "$RUST_CHANGED" = true ] || [ "$SITE_CHANGED" = true ] || [ "$PACKAGES_CHANGED" = true ]; then
+              echo "heavy=true"
+            else
+              echo "heavy=false"
+            fi
+          } >> "$GITHUB_OUTPUT"
+
+  approve:
+    name: Approve heavy PR checks
+    needs: quick
+    if: github.event_name == 'pull_request' && needs.quick.outputs.heavy == 'true'
+    environment: heavy-pr-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: echo 'Heavy checks approved for this PR run.'
 
   checks:
     name: ${{ matrix.recipe }}
-    needs: changes
-    if: needs.changes.outputs.checks != '[]'
+    needs: [quick, approve]
+    if: >-
+      !cancelled() && needs.quick.result == 'success' &&
+      (needs.approve.result == 'success' || (github.event_name != 'pull_request' && needs.approve.result == 'skipped')) &&
+      needs.quick.outputs.checks != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        recipe: ${{ fromJSON(needs.changes.outputs.checks) }}
+        recipe: ${{ fromJSON(needs.quick.outputs.checks) }}
     steps:
       - uses: actions/checkout@v7
 
@@ -75,7 +109,6 @@ jobs:
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
 
       - name: Install native editor dependencies
-        if: matrix.recipe != 'ci-python'
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends \
@@ -86,9 +119,6 @@ jobs:
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           python-version: '3.12'
-          enable-cache: ${{ matrix.recipe == 'ci-python' }}
-          save-cache: ${{ github.ref == 'refs/heads/main' }}
-          cache-dependency-glob: bloq_py/uv.lock
 
       - name: Install Rust toolchain
         env:
@@ -117,19 +147,13 @@ jobs:
       - name: Run checks
         run: just ${{ matrix.recipe }}
 
-      - name: Upload Python reference
-        if: matrix.recipe == 'ci-python'
-        uses: actions/upload-artifact@v7
-        with:
-          name: python-docs
-          path: target/site/docs/dev
-          if-no-files-found: error
-          retention-days: 1
-
   windows:
     name: Windows binaries
-    needs: changes
-    if: contains(needs.changes.outputs.checks, 'ci-rust')
+    needs: [quick, approve]
+    if: >-
+      !cancelled() && needs.quick.result == 'success' &&
+      (needs.approve.result == 'success' || (github.event_name != 'pull_request' && needs.approve.result == 'skipped')) &&
+      contains(needs.quick.outputs.checks, 'ci-rust')
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
@@ -152,43 +176,36 @@ jobs:
           target/release/bloq.exe --version
           target/release/bloq.exe compile --gallery cnot -d 3 --quiet -o target/cnot.stim
 
-  web:
-    name: Build Web Editor
-    needs: changes
-    if: needs.changes.outputs.web == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v7
-      - name: Install pinned Rust toolchain
-        run: rustup toolchain install --target wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: bloq-web-${{ runner.os }}-v2
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-          cache-on-failure: true
-      - uses: cargo-bins/cargo-binstall@main
-      - name: Install bevy_cli
-        run: cargo binstall --git https://github.com/TheBevyFlock/bevy_cli --version 0.1.0-alpha.2 --locked bevy_cli
-      - name: Build web editor
-        run: bevy build --locked --release --yes -p bloq_editor --bin bloq_editor web --bundle
-      - name: Upload web editor
-        uses: actions/upload-artifact@v7
-        with:
-          name: web-editor
-          path: target/bevy_web/web-release/bloq_editor
-          if-no-files-found: error
-          retention-days: 1
+  site:
+    name: Website and Python
+    needs: [quick, approve]
+    if: >-
+      !cancelled() && needs.quick.result == 'success' &&
+      (needs.approve.result == 'success' || (github.event_name != 'pull_request' && needs.approve.result == 'skipped')) &&
+      needs.quick.outputs.site == 'true'
+    uses: ./.github/workflows/site-build.yml
+    with:
+      test-python: ${{ github.event_name == 'workflow_dispatch' || needs.quick.outputs.python == 'true' }}
+
+  packages:
+    name: Python packages
+    needs: [quick, approve]
+    if: >-
+      !cancelled() && needs.quick.result == 'success' &&
+      (needs.approve.result == 'success' || (github.event_name != 'pull_request' && needs.approve.result == 'skipped')) &&
+      needs.quick.outputs.packages == 'true'
+    uses: ./.github/workflows/package-build.yml
 
   ci:
     name: CI
-    needs: [changes, checks, windows, web]
+    needs: [quick, approve, checks, windows, site, packages]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - uses: actions/checkout@v7
       - name: Require all selected checks to pass
         env:
-          RESULTS: ${{ toJSON(needs) }}
-        run: |
-          echo "$RESULTS" | jq -e 'all(.[]; .result == "success" or .result == "skipped")'
+          CI_EVENT: ${{ github.event_name }}
+          CI_RESULTS: ${{ toJSON(needs) }}
+        run: python3 tools/check_ci.py
