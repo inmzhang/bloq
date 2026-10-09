@@ -1,9 +1,9 @@
 {
   "name": "dev",
-  "label": "Development (0.1.1)",
+  "label": "Development (0.1.2-dev)",
   "path": "docs/dev/",
-  "source": "d646f216caa7431e41598da0d68460b4cc35f5d4",
-  "package_version": "0.1.1",
+  "source": "80cdaa91edbd673a3a0c599e52c159718720df3e",
+  "package_version": "0.1.2-dev",
   "pages": [
     "_static/block-graphs/1d-yoked.html",
     "_static/block-graphs/action_ccz_teleport-m0x.html",
@@ -1474,9 +1474,7 @@
     "backends/vm.html",
     "circuit-constructions.html",
     "development/benchmarks.html",
-    "development/classical-storage.html",
     "development/contributing.html",
-    "development/generic-module-scalability.html",
     "gallery/1d-yoked.html",
     "gallery/and_4t.html",
     "gallery/bell_state.html",

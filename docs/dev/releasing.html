@@ -11,7 +11,7 @@
       
       
       
-        <link rel="prev" href="development/classical-storage.html">
+        <link rel="prev" href="development/benchmarks.html">
       
       
         <link rel="next" href="site-maintenance.html">
@@ -54,8 +54,8 @@
 
 <meta name="bloq-doc-root" content="index.html">
 <meta name="bloq-page" content="releasing.html">
-<meta name="bloq-doc-version" content="Development (0.1.1)">
-<meta name="bloq-package-version" content="0.1.1">
+<meta name="bloq-doc-version" content="Development (0.1.2-dev)">
+<meta name="bloq-package-version" content="0.1.2-dev">
 
   </head>
   
@@ -2296,54 +2296,6 @@
                 
   
   
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="development/generic-module-scalability.html" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    <span>Generic module compilation:<wbr> evidence and claim boundary</span>
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="development/classical-storage.html" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    <span>Classical data and evaluation</span>
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
     
   
     
@@ -2427,38 +2379,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#configure-the-registries-before-the-first-upload" class="md-nav__link">
+  <a href="#development-versions-after-a-release" class="md-nav__link">
     
     <span class="md-ellipsis">
-      <span>Configure the registries before the first upload</span>
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Configure the registries before the first upload">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#crates-io-account-and-credentials" class="md-nav__link">
-    
-    <span class="md-ellipsis">
-      <span>crates.<wbr>io account and credentials</span>
+      <span>Development versions after a release</span>
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
-  <a href="#pypi-project-and-trusted-publisher" class="md-nav__link">
+      
+        <li class="md-nav__item">
+  <a href="#release-credentials" class="md-nav__link">
     
     <span class="md-ellipsis">
-      <span>Py<wbr>PI project and trusted publisher</span>
+      <span>Release credentials</span>
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -2513,16 +2449,6 @@
     
     <span class="md-ellipsis">
       <span>Check the release candidate</span>
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#publish-subsequent-stable-releases" class="md-nav__link">
-    
-    <span class="md-ellipsis">
-      <span>Publish subsequent stable releases</span>
     </span>
   </a>
   
@@ -2645,38 +2571,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#configure-the-registries-before-the-first-upload" class="md-nav__link">
+  <a href="#development-versions-after-a-release" class="md-nav__link">
     
     <span class="md-ellipsis">
-      <span>Configure the registries before the first upload</span>
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Configure the registries before the first upload">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#crates-io-account-and-credentials" class="md-nav__link">
-    
-    <span class="md-ellipsis">
-      <span>crates.<wbr>io account and credentials</span>
+      <span>Development versions after a release</span>
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
-  <a href="#pypi-project-and-trusted-publisher" class="md-nav__link">
+      
+        <li class="md-nav__item">
+  <a href="#release-credentials" class="md-nav__link">
     
     <span class="md-ellipsis">
-      <span>Py<wbr>PI project and trusted publisher</span>
+      <span>Release credentials</span>
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -2731,16 +2641,6 @@
     
     <span class="md-ellipsis">
       <span>Check the release candidate</span>
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#publish-subsequent-stable-releases" class="md-nav__link">
-    
-    <span class="md-ellipsis">
-      <span>Publish subsequent stable releases</span>
     </span>
   </a>
   
@@ -2807,13 +2707,10 @@ version + changelog&quot;]
 jobs require <code class="docutils literal notranslate"><span class="pre">RELEASE_PUBLISH_ENABLED=true</span></code>. Keep it unset or false while preparing
 a release or publishing manually. This variable does not gate local CLI uploads.</p>
 </div>
-<p>See <a class="reference internal" href="site-maintenance.html"><span class="std std-doc">website maintenance</span></a> for documentation checks and
-reviewable site artifacts. The <a class="reference external" href="https://github.com/inmzhang/bloq/blob/d646f216caa7431e41598da0d68460b4cc35f5d4/.github/workflows/pypi.yml">PyPI workflow</a> builds all
-three platform wheels and the source archive on tags, manual dispatches, and
-PRs affecting core Rust code or packaging inputs. Editor-only, test-only, and
-other documentation changes avoid release packaging. Superseded PR builds are
-cancelled; publishing remains serialized and uncancelled. Installed archive
-smoke tests verify packaging that checkout-based tests cannot cover.
+<p>CI checks platform wheels and source installations for relevant PRs. The
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/80cdaa91edbd673a3a0c599e52c159718720df3e/.github/workflows/pypi.yml">PyPI workflow</a> uses the same checks for tag and
+manual builds. See <a class="reference internal" href="site-maintenance.html"><span class="std std-doc">website maintenance</span></a> for site previews
+and publication.
 Binary release builds use the checked-in Cargo lockfile. Security audits cover
 dependency PRs, dependency changes on <code class="docutils literal notranslate"><span class="pre">main</span></code>, and new advisories each week.</p>
 <h2 id="names-and-versions">Names and versions<a class="headerlink" href="#names-and-versions" title="Link to this heading">¶</a></h2>
@@ -2838,6 +2735,8 @@ dependency PRs, dependency changes on <code class="docutils literal notranslate"
 </tr>
 </tbody>
 </table>
+<p>Install <code class="docutils literal notranslate"><span class="pre">bloq-py</span></code> for Python. PyPI’s <code class="docutils literal notranslate"><span class="pre">bloq</span></code> is an unrelated package; installing
+both in one environment can conflict because they share the import name.</p>
 <p>All packages inherit <code class="docutils literal notranslate"><span class="pre">workspace.package.version</span></code>; internal Rust dependencies
 use exact versions. Maturin reads that same version for Python. Release-plz
 updates the version and internal requirements together. Routine publication
@@ -2854,7 +2753,7 @@ versions in reviewed release PRs.</p>
 <table class="docutils data align-default">
 <thead>
 <tr class="row-odd"><th class="head"><p>Surface</p></th>
-<th class="head"><p>Current release</p></th>
+<th class="head"><p>Published release</p></th>
 </tr>
 </thead>
 <tbody>
@@ -2882,136 +2781,51 @@ remains the Rust build backend; its CI action supplies the manylinux wheel build
 <code class="docutils literal notranslate"><span class="pre">git_release_latest</span> <span class="pre">=</span> <span class="pre">true</span></code> makes it GitHub’s Latest release. Version-specific
 binary links use <code class="docutils literal notranslate"><span class="pre">/releases/download/v0.1.1/</span></code>; links to the current stable
 binaries can use <code class="docutils literal notranslate"><span class="pre">/releases/latest/download/</span></code>.</p>
-<h2 id="configure-the-registries-before-the-first-upload">Configure the registries before the first upload<a class="headerlink" href="#configure-the-registries-before-the-first-upload" title="Link to this heading">¶</a></h2>
-<h3 id="crates-io-account-and-credentials">crates.io account and credentials<a class="headerlink" href="#crates-io-account-and-credentials" title="Link to this heading">¶</a></h3>
-<p>Sign in to <a class="reference external" href="https://crates.io/">crates.io</a> using the <code class="docutils literal notranslate"><span class="pre">inmzhang</span></code> GitHub account and
-verify the account email. Confirm ownership of every existing <code class="docutils literal notranslate"><span class="pre">bloq_*</span></code> placeholder
-and <code class="docutils literal notranslate"><span class="pre">bloq</span></code>. Check <code class="docutils literal notranslate"><span class="pre">bloq-cli</span></code> availability again immediately before publication;
-its registry name is distinct from Rust’s <code class="docutils literal notranslate"><span class="pre">bloq_cli</span></code> library identifier.</p>
-<p>Create an expiring API token with <code class="docutils literal notranslate"><span class="pre">publish-new</span></code> and <code class="docutils literal notranslate"><span class="pre">publish-update</span></code> permissions
-for the workspace crates, including creating <code class="docutils literal notranslate"><span class="pre">bloq-cli</span></code>. A crate-specific token limited to existing crates
-cannot create a new crate. Follow the <a class="reference external" href="https://doc.rust-lang.org/cargo/reference/publishing.html">Cargo publishing guide</a>
-and <a class="reference external" href="https://crates.io/docs/api-tokens">crates.io token documentation</a>.
-The first publication of a new crate needs an API token; crates.io trusted
-publishing is an option after the crate exists.</p>
-<p>For Actions publication, create an environment named <code class="docutils literal notranslate"><span class="pre">crates-io</span></code> in the release
-repository.
-Store the registry token there as <code class="docutils literal notranslate"><span class="pre">CARGO_REGISTRY_TOKEN</span></code> using the hidden prompt:</p>
-<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>gh<span class="w"> </span>secret<span class="w"> </span><span class="nb">set</span><span class="w"> </span>CARGO_REGISTRY_TOKEN<span class="w"> </span>--repo<span class="w"> </span>inmzhang/bloq<span class="w"> </span>--env<span class="w"> </span>crates-io
-</code></pre></div>
-</div>
-<p>For release-plz, create a fine-grained GitHub PAT restricted to the release
-repository with Contents read/write and Pull requests read/write. Allow
-workflow-file write access if a release PR needs to modify a workflow. Store it as repository secret
-<code class="docutils literal notranslate"><span class="pre">RELEASE_PLZ_TOKEN</span></code>, so both the release and release-PR jobs can access it:</p>
-<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>gh<span class="w"> </span>secret<span class="w"> </span><span class="nb">set</span><span class="w"> </span>RELEASE_PLZ_TOKEN<span class="w"> </span>--repo<span class="w"> </span>inmzhang/bloq
-</code></pre></div>
-</div>
-<p>A PAT-created tag/release triggers downstream workflows. Events created with
-Actions’ default <code class="docutils literal notranslate"><span class="pre">GITHUB_TOKEN</span></code> do not trigger the Python/binary workflows.
-Set required reviewers on release environments if supported by the repository’s
-GitHub plan; publishing still requires the explicit variable opt-in.</p>
-<h3 id="pypi-project-and-trusted-publisher">PyPI project and trusted publisher<a class="headerlink" href="#pypi-project-and-trusted-publisher" title="Link to this heading">¶</a></h3>
-<p>The PyPI distribution is <strong><code class="docutils literal notranslate"><span class="pre">bloq-py</span></code></strong>, while the Python import and CLI remain
-<code class="docutils literal notranslate"><span class="pre">bloq</span></code>. PyPI’s <code class="docutils literal notranslate"><span class="pre">bloq</span></code> project belongs to an unrelated quantum SDK; do not install
-both distributions in the same environment because their module/CLI names can
-conflict. Confirm <code class="docutils literal notranslate"><span class="pre">bloq-py</span></code> availability again before upload; a missing public
-project entry is not a reservation or guarantee that registration is allowed.</p>
-<p>Create a <a class="reference external" href="https://pypi.org/account/register/">PyPI account</a>, verify its email, and
-enable two-factor authentication. For local uploads, use the token setup in
-<a class="reference internal" href="#manual-pypi-publication">Manual PyPI publication</a>; GitHub environments and
-trusted publishers are not needed. For Actions publication, create an environment
-named <code class="docutils literal notranslate"><span class="pre">pypi</span></code>. Configure a <a class="reference external" href="https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/">Pending Trusted Publisher</a>
-in PyPI’s account Publishing settings:</p>
-<table class="docutils data align-default">
-<thead>
-<tr class="row-odd"><th class="head"><p>Field</p></th>
-<th class="head"><p>Value</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p>PyPI project name</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">bloq-py</span></code></p></td>
-</tr>
-<tr class="row-odd"><td><p>GitHub owner</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">inmzhang</span></code></p></td>
-</tr>
-<tr class="row-even"><td><p>GitHub repository</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">bloq</span></code></p></td>
-</tr>
-<tr class="row-odd"><td><p>Workflow filename</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">pypi.yml</span></code></p></td>
-</tr>
-<tr class="row-even"><td><p>Environment</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">pypi</span></code></p></td>
-</tr>
-</tbody>
-</table>
-<p>Use the workflow filename, not the display name or full path. The first OIDC
-upload creates the project. No PyPI API token is needed, and a pending publisher
-does not reserve a project name. The workflow already grants <code class="docutils literal notranslate"><span class="pre">id-token:</span> <span class="pre">write</span></code>
-only to the publisher job. After the first upload, check the project owners and
-maintain its publisher under project settings.</p>
-<p>TestPyPI is optional and has separate accounts, project names, and publishers.
-The current PyPI workflow targets production; manual dispatch builds/tests only.
-Do not use a production tag push as a test upload while publishing is enabled.</p>
+<h2 id="development-versions-after-a-release">Development versions after a release<a class="headerlink" href="#development-versions-after-a-release" title="Link to this heading">¶</a></h2>
+<p>Between releases, <code class="docutils literal notranslate"><span class="pre">main</span></code> uses a version such as <code class="docutils literal notranslate"><span class="pre">0.1.2-dev</span></code>. Cargo and
+<code class="docutils literal notranslate"><span class="pre">bloq.__version__</span></code> retain that spelling; Python package metadata normalizes it to
+<code class="docutils literal notranslate"><span class="pre">0.1.2.dev0</span></code>. The suffix stays unchanged throughout the development cycle.</p>
+<p>After Rust, Python, and binary publication succeeds, the
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/80cdaa91edbd673a3a0c599e52c159718720df3e/.github/workflows/post-release.yml">post-release workflow</a> opens a PR for the
+next development version. Review its checks and merge it. The PR updates the
+shared version, exact internal requirements, and both Cargo lockfiles.
+Release-plz prepares the next stable version in a separate release PR.</p>
+<p>For manual publication, run <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">start-dev</span></code> on a <code class="docutils literal notranslate"><span class="pre">chore/</span></code> branch after verifying
+all uploads, then open a PR. To adjust a release candidate, use
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">set-version</span> <span class="pre">VERSION</span></code> and update its pending changelog heading.</p>
+<h2 id="release-credentials">Release credentials<a class="headerlink" href="#release-credentials" title="Link to this heading">¶</a></h2>
+<p>Rust publication uses <code class="docutils literal notranslate"><span class="pre">CARGO_REGISTRY_TOKEN</span></code> in the <code class="docutils literal notranslate"><span class="pre">crates-io</span></code> environment and
+repository secret <code class="docutils literal notranslate"><span class="pre">RELEASE_PLZ_TOKEN</span></code>. The GitHub token needs repository Contents
+and Pull requests write access. It also triggers downstream workflows when
+release-plz creates tags, releases, and development PRs.</p>
+<p>Python publication uses a <a class="reference external" href="https://docs.pypi.org/trusted-publishers/">PyPI trusted publisher</a>
+for <code class="docutils literal notranslate"><span class="pre">bloq-py</span></code>, repository <code class="docutils literal notranslate"><span class="pre">inmzhang/bloq</span></code>, workflow <code class="docutils literal notranslate"><span class="pre">pypi.yml</span></code>, and environment
+<code class="docutils literal notranslate"><span class="pre">pypi</span></code>. Manual uploads use a project-scoped PyPI token.</p>
+<p><code class="docutils literal notranslate"><span class="pre">RELEASE_PUBLISH_ENABLED=true</span></code> enables Actions publication. Manual CI and PyPI
+workflow dispatches build and test without uploading packages.</p>
 <h2 id="prepare-and-publish-a-release">Prepare and publish a release<a class="headerlink" href="#prepare-and-publish-a-release" title="Link to this heading">¶</a></h2>
 <p>The examples below target <code class="docutils literal notranslate"><span class="pre">0.1.1</span></code>; replace that version when preparing a later
-release. The first-publication bootstrap applies only before a crate has been
-published. Subsequent releases use a reviewed release PR.</p>
+release.</p>
 <p>Choose release-plz or <a class="reference internal" href="#manual-cargo-publication">manual Cargo</a> and
 <a class="reference internal" href="#manual-pypi-publication">uv uploads</a>. For the fully manual route, keep
 <code class="docutils literal notranslate"><span class="pre">RELEASE_PUBLISH_ENABLED</span></code> false throughout; the build-only workflow still works.</p>
-<p>Finish the checks below against the reviewed release commit. Dispatch the PyPI workflow
-on <code class="docutils literal notranslate"><span class="pre">main</span></code> to build all supported wheels and rebuild the source archive without
-uploading anything:</p>
-<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>gh<span class="w"> </span>workflow<span class="w"> </span>run<span class="w"> </span>pypi.yml<span class="w"> </span>--repo<span class="w"> </span>inmzhang/bloq<span class="w"> </span>--ref<span class="w"> </span>main
-gh<span class="w"> </span>run<span class="w"> </span>list<span class="w"> </span>--repo<span class="w"> </span>inmzhang/bloq<span class="w"> </span>--workflow<span class="w"> </span>pypi.yml
+<p>Finish the checks below against the reviewed release commit. Dispatch CI on
+<code class="docutils literal notranslate"><span class="pre">main</span></code> to run every suite, build all supported wheels, rebuild the source archive,
+and assemble the website without publishing:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>gh<span class="w"> </span>workflow<span class="w"> </span>run<span class="w"> </span>ci.yml<span class="w"> </span>--repo<span class="w"> </span>inmzhang/bloq<span class="w"> </span>--ref<span class="w"> </span>main
+gh<span class="w"> </span>run<span class="w"> </span>list<span class="w"> </span>--repo<span class="w"> </span>inmzhang/bloq<span class="w"> </span>--workflow<span class="w"> </span>ci.yml
 </code></pre></div>
 </div>
-<p>Review all three wheel jobs, the source-archive job, and downloaded artifacts.
-Keep artifacts from the chosen commit separate from old local builds. Run the
-full CI workflow and the website workflow with <code class="docutils literal notranslate"><span class="pre">publish=false</span></code> as well. Confirm
+<p>Review the wheel, source-archive, and site artifacts from that commit. Confirm
 license copies, package contents, typing files, dependency resolution, and the
-exact <code class="docutils literal notranslate"><span class="pre">0.1.1</span></code> version in artifact metadata.</p>
+release version in artifact metadata.</p>
 <h3 id="release-plz-publication">Release-plz publication<a class="headerlink" href="#release-plz-publication" title="Link to this heading">¶</a></h3>
-<p>Routine release-plz publication has <code class="docutils literal notranslate"><span class="pre">release_always=false</span></code>, which requires a
-merged PR from a branch starting <code class="docutils literal notranslate"><span class="pre">release-plz-</span></code>. For a first publication
-without a merged release PR, use a temporary local config to opt in explicitly
-without permanently relaxing the release gate:</p>
-<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>mkdir<span class="w"> </span>-p<span class="w"> </span>target
-python3<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;&#39;PYTHON&#39;</span>
-<span class="s">from pathlib import Path</span>
-<span class="s">config = Path(&quot;release-plz.toml&quot;).read_text()</span>
-<span class="s">assert config.count(&quot;release_always = false&quot;) == 1</span>
-<span class="s">Path(&quot;target/first-release.toml&quot;).write_text(</span>
-<span class="s">    config.replace(&quot;release_always = false&quot;, &quot;release_always = true&quot;, 1)</span>
-<span class="s">)</span>
-<span class="s">PYTHON</span>
-release-plz<span class="w"> </span>release<span class="w"> </span>--config<span class="w"> </span>target/first-release.toml<span class="w"> </span>--repo-url<span class="w"> </span>https://github.com/inmzhang/bloq<span class="w"> </span>--dry-run
-</code></pre></div>
-</div>
-<p>Run this from the release checkout. Supply <code class="docutils literal notranslate"><span class="pre">GIT_TOKEN</span></code> (the GitHub PAT) and
-<code class="docutils literal notranslate"><span class="pre">CARGO_REGISTRY_TOKEN</span></code> privately in the process environment; the direct CLI uses
-<code class="docutils literal notranslate"><span class="pre">GIT_TOKEN</span></code>, whereas the release-plz Action uses <code class="docutils literal notranslate"><span class="pre">GITHUB_TOKEN</span></code>. Never put tokens
-in command arguments, checked-in files, or release notes.</p>
-<p>A dry run cannot always verify unpublished sibling versions against crates.io.
-Do not work around unresolved siblings by removing exact requirements or skipping
-package verification. Confirm local locked checks and archive contents, then
-publish in dependency order using release-plz or the manual order below.</p>
-<p><strong>Publication is a separate maintainer action.</strong> Review the release commit,
-artifacts, and registry configuration before enabling downstream publication
-and running the bootstrap command without <code class="docutils literal notranslate"><span class="pre">--dry-run</span></code>:</p>
-<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>gh<span class="w"> </span>variable<span class="w"> </span><span class="nb">set</span><span class="w"> </span>RELEASE_PUBLISH_ENABLED<span class="w"> </span>--body<span class="w"> </span><span class="nb">true</span><span class="w"> </span>--repo<span class="w"> </span>inmzhang/bloq
-release-plz<span class="w"> </span>release<span class="w"> </span>--config<span class="w"> </span>target/first-release.toml<span class="w"> </span>--repo-url<span class="w"> </span>https://github.com/inmzhang/bloq
-</code></pre></div>
-</div>
-<p>The local release command publishes Rust packages and creates the tag/release;
-it is a publication command even if the GitHub variable is false. The variable
-gates Actions jobs, not commands run locally. The tag triggers the PyPI workflow;
-the GitHub release triggers binary uploads. Confirm the release is marked
-<strong>Latest</strong>, the tag points at the reviewed release commit, and all downstream uploads
-finish before announcing it. If uploads fail, recover at the same commit/version.</p>
+<p>Review the release PR’s stable version, changelog, and checks. With publication
+enabled, merging the PR publishes Rust crates and creates the version tag and
+GitHub release. The tag triggers Python publication; the GitHub release triggers
+binary uploads. Verify all uploads before announcing the release.</p>
+<p>If publication is interrupted, retry the failed jobs at the same commit and
+version. Do not move the tag or bump the version to retry an upload.</p>
 <h3 id="manual-cargo-publication">Manual Cargo publication<a class="headerlink" href="#manual-cargo-publication" title="Link to this heading">¶</a></h3>
 <p>Authenticate locally with <code class="docutils literal notranslate"><span class="pre">cargo</span> <span class="pre">login</span></code> or privately supply
 <code class="docutils literal notranslate"><span class="pre">CARGO_REGISTRY_TOKEN</span></code>; GitHub secrets are not needed for this route.</p>
@@ -3046,7 +2860,8 @@ gh<span class="w"> </span>release<span class="w"> </span>create<span class="w"> 
 <p>Choose release-plz or the combined manual Cargo/PyPI route. Keep the tag fixed
 once published.</p>
 <h3 id="manual-pypi-publication">Manual PyPI publication<a class="headerlink" href="#manual-pypi-publication" title="Link to this heading">¶</a></h3>
-<p>Use the build-only PyPI run prepared above. Confirm its <code class="docutils literal notranslate"><span class="pre">headSha</span></code> equals the
+<p>Use the package artifacts from the CI or build-only PyPI run prepared above.
+Confirm its <code class="docutils literal notranslate"><span class="pre">headSha</span></code> equals the
 reviewed release commit, then download all four named artifacts from that one
 run into a new directory. Replace <code class="docutils literal notranslate"><span class="pre">RUN_ID</span></code> in both the command and directory name:</p>
 <div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>gh<span class="w"> </span>run<span class="w"> </span>view<span class="w"> </span>RUN_ID<span class="w"> </span>--repo<span class="w"> </span>inmzhang/bloq<span class="w"> </span>--json<span class="w"> </span>headSha,status,conclusion
@@ -3147,15 +2962,6 @@ generated copies. It collects license files from the locked Cargo sources,
 including vendored native libraries and fonts. Crates that omit those files use
 version-specific upstream notices and declared license texts recorded in
 <code class="docutils literal notranslate"><span class="pre">tools/third_party_licenses.json</span></code>; review that file when updating those crates.</p>
-<h2 id="publish-subsequent-stable-releases">Publish subsequent stable releases<a class="headerlink" href="#publish-subsequent-stable-releases" title="Link to this heading">¶</a></h2>
-<p>Configure the registry credentials and trusted publishers specified by the
-workflows. Rust publication uses <code class="docutils literal notranslate"><span class="pre">CARGO_REGISTRY_TOKEN</span></code> and
-<code class="docutils literal notranslate"><span class="pre">RELEASE_PLZ_TOKEN</span></code>; Python uses the configured PyPI trusted publisher. Check
-registry ownership before enabling publication.</p>
-<p>After reviewing checks and artifacts, enable <code class="docutils literal notranslate"><span class="pre">RELEASE_PUBLISH_ENABLED</span></code> and merge
-the release PR. Do not create a tag as a substitute for publishing its Rust
-package dependencies. The Python workflow verifies that the tag matches the
-shared Cargo version.</p>
 <h2 id="verify-uploads-and-install-the-release">Verify uploads and install the release<a class="headerlink" href="#verify-uploads-and-install-the-release" title="Link to this heading">¶</a></h2>
 <p>Confirm all ten Rust packages list <code class="docutils literal notranslate"><span class="pre">0.1.1</span></code> under the expected owners,
 PyPI lists <code class="docutils literal notranslate"><span class="pre">bloq-py==0.1.1</span></code> with all supported wheels and the source archive,

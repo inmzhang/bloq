@@ -52,8 +52,8 @@
 
 <meta name="bloq-doc-root" content="index.html">
 <meta name="bloq-page" content="site-maintenance.html">
-<meta name="bloq-doc-version" content="Development (0.1.1)">
-<meta name="bloq-package-version" content="0.1.1">
+<meta name="bloq-doc-version" content="Development (0.1.2-dev)">
+<meta name="bloq-package-version" content="0.1.2-dev">
 
   </head>
   
@@ -2298,54 +2298,6 @@
   
   
     <li class="md-nav__item">
-      <a href="development/generic-module-scalability.html" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    <span>Generic module compilation:<wbr> evidence and claim boundary</span>
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="development/classical-storage.html" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    <span>Classical data and evaluation</span>
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="releasing.html" class="md-nav__link">
         
   
@@ -2605,7 +2557,7 @@ separately and assembled with those outputs.</p>
 <h2 id="build-and-preview">Build and preview<a class="headerlink" href="#build-and-preview" title="Link to this heading">¶</a></h2>
 <p>Use the <a class="reference internal" href="getting-started/installation.html#checkout-and-development-tools"><span class="std std-ref">development tools</span></a>
 and WebAssembly setup from the installation page. The Bevy CLI version and
-build environment are pinned in <code class="docutils literal notranslate"><span class="pre">.github/workflows/website.yml</span></code>.</p>
+build environment are pinned in <code class="docutils literal notranslate"><span class="pre">.github/workflows/site-build.yml</span></code>.</p>
 <div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>just<span class="w"> </span>site-docs<span class="w">       </span><span class="c1"># fast documentation preview</span>
 just<span class="w"> </span>site-preview<span class="w">   </span><span class="c1"># serve target/site on port 8000</span>
 </code></pre></div>
@@ -2618,7 +2570,7 @@ just<span class="w"> </span>site-preview<span class="w">   </span><span class="c
 </thead>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/</span></code></p></td>
-<td><p>Homepage in the default documentation version</p></td>
+<td><p>Homepage in the development documentation version</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/docs/dev/</span></code></p></td>
 <td><p>Development documentation</p></td>
@@ -2722,16 +2674,13 @@ and pages; the selector retains the current page when it exists in the target.</
 when assembling a new version. The hosted editor shows its own current version;
 historical documentation does not select a historical editor build.</p>
 <h2 id="publish-a-reviewed-build">Publish a reviewed build<a class="headerlink" href="#publish-a-reviewed-build" title="Link to this heading">¶</a></h2>
-<p>CI runs Rust, MSRV, Python/documentation, and web checks in separate jobs. It
-uploads the Python documentation and editor artifacts from those checks. The
-website workflow assembles the complete versioned site into an artifact for review. Publication uses manual
-workflow dispatch with <code class="docutils literal notranslate"><span class="pre">publish</span></code> enabled. Optional <code class="docutils literal notranslate"><span class="pre">release_tag</span></code> adds a tagged
-snapshot and <code class="docutils literal notranslate"><span class="pre">make_stable</span></code> selects it. Package releases are a separate action,
-covered in <a class="reference internal" href="releasing.html"><span class="std std-doc">Releases</span></a>.</p>
+<p>CI produces a validated <code class="docutils literal notranslate"><span class="pre">bloq-site-preview</span></code> artifact for website changes.
+Review that artifact before publication. Run the website workflow with <code class="docutils literal notranslate"><span class="pre">publish</span></code>
+enabled to publish; optional <code class="docutils literal notranslate"><span class="pre">release_tag</span></code> adds a release snapshot and
+<code class="docutils literal notranslate"><span class="pre">make_stable</span></code> selects it. Package releases are separate; see <a class="reference internal" href="releasing.html"><span class="std std-doc">Releases</span></a>.</p>
 <div class="important tip admonition">
 <p class="admonition-title">Important</p>
-<p>Building locally or reviewing an artifact does not authorize publication.
-Review the assembled site before changing the deployed version. Keep previous
+<p>Review the assembled site before changing the deployed version. Keep previous
 release snapshots when publishing.</p>
 </div>
 <p>The workflow restores retained snapshots, builds the new tree, and deploys that
