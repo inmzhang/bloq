@@ -17,7 +17,7 @@ just site-preview   # serve target/site on port 8000
 
 | Local path | Content |
 | --- | --- |
-| `/` | Homepage in the default documentation version |
+| `/` | Homepage in the development documentation version |
 | `/docs/dev/` | Development documentation |
 | `/editor/` | Current browser editor |
 
