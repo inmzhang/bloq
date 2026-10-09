@@ -11,7 +11,7 @@ on:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
@@ -62,7 +62,7 @@ jobs:
         id: suites
         env:
           RUST_CHANGED: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.rust == 'true' }}
-          SITE_CHANGED: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.site == 'true' || steps.filter.outputs.python == 'true' }}
+          SITE_CHANGED: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || steps.filter.outputs.site == 'true' || steps.filter.outputs.python == 'true' }}
           PACKAGES_CHANGED: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.packages == 'true' }}
         run: |
           suites=$(jq -cn --arg rust "$RUST_CHANGED" 'if $rust == "true" then ["ci-rust", "msrv"] else [] end')
@@ -183,8 +183,13 @@ jobs:
       !cancelled() && needs.quick.result == 'success' &&
       (needs.approve.result == 'success' || (github.event_name != 'pull_request' && needs.approve.result == 'skipped')) &&
       needs.quick.outputs.site == 'true'
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
     uses: ./.github/workflows/site-build.yml
     with:
+      publish: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
       test-python: ${{ github.event_name == 'workflow_dispatch' || needs.quick.outputs.python == 'true' }}
 
   packages:

@@ -3,6 +3,9 @@ name: Site build
 on:
   workflow_call:
     inputs:
+      publish:
+        type: boolean
+        default: false
       test-python:
         type: boolean
         default: false
@@ -12,6 +15,11 @@ on:
       make_stable:
         type: boolean
         default: false
+
+# Hold the publication lock from snapshot restoration through deployment.
+concurrency:
+  group: ${{ inputs.publish && 'bloq-website-publish' || format('bloq-site-preview-{0}', github.run_id) }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -93,3 +101,51 @@ jobs:
           path: target/site
           include-hidden-files: true
           retention-days: 30
+
+  publish:
+    if: >-
+      inputs.publish &&
+      ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch')
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: bloq-site-preview
+          path: site
+
+      - name: Retain published snapshots on gh-pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git -C site init
+          git -C site remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          retained_ref=$(git -C site ls-remote --heads origin gh-pages)
+          if [ -n "$retained_ref" ]; then
+            git -C site fetch --depth=1 origin gh-pages
+            git -C site reset --soft FETCH_HEAD
+          fi
+          git -C site config user.name 'github-actions[bot]'
+          git -C site config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C site add --all
+          if ! git -C site diff --cached --quiet; then
+            git -C site commit -m "docs: publish website for ${GITHUB_SHA}"
+            git -C site push origin HEAD:gh-pages
+          fi
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
