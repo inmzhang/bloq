@@ -50,8 +50,17 @@ to crates.io.
 
 Python-only changes ship with the next workspace release. For an earlier
 Python release, prepare a reviewed `release-plz-` branch that updates the shared
-version, exact internal requirements, lockfile, and changelog together. Do not
-set a separate Python version or replace inherited Cargo versions.
+version, exact internal requirements, and lockfile together, and generates its
+changelog with release-plz. Do not set a separate Python version or replace
+inherited Cargo versions.
+
+## Changelog
+
+Do not edit `CHANGELOG.md` manually, including unreleased entries and version
+headings. Release-plz generates it in release PRs from Conventional Commit
+messages. Record compatibility and migration details in `BREAKING CHANGE:`
+footers and the relevant user documentation, then review the generated notes
+in the release PR. `just changelog` previews notes without writing the file.
 
 ## Stable release versions
 
@@ -92,7 +101,7 @@ Release-plz prepares the next stable version in a separate release PR.
 
 For manual publication, run `just start-dev` on a `chore/` branch after verifying
 all uploads, then open a PR. To adjust a release candidate, use
-`just set-version VERSION` and update its pending changelog heading.
+`just set-version VERSION` and regenerate its pending changelog with release-plz.
 
 ## Release credentials
 

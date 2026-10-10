@@ -39,6 +39,9 @@ architecture cannot support it:
   or `fix/readout-order`.
 - Coordinate breaking API changes across callers, examples, documentation,
   and release notes. Preserve released documentation and API references.
+- Do not edit `CHANGELOG.md` manually. Release-plz generates it in release PRs.
+  Record release-note details in Conventional Commit messages and compatibility
+  changes in `BREAKING CHANGE:` footers.
 - Use Conventional Commits. Follow the repository's
   [AI contribution policy](CONTRIBUTING.md#ai-assisted-contributions), including
   tool/model disclosure and an `Assisted-by: <tool> (<model>)` commit trailer.
