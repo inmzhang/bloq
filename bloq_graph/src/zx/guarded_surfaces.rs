@@ -22,6 +22,9 @@ use crate::{
     MeasurementObservable, ModuleCertificationLimits, Pauli, PauliBasis, StabilizerError,
 };
 
+mod relations;
+use relations::{RelationCache, close_seams};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum SurfaceColumn {
     /// Independent support of a site with no incident pipe in an active variant.
@@ -49,6 +52,8 @@ pub struct GuardedSurfaceSpace {
     surfaces: Vec<GuardedSurface>,
     limits: ModuleCertificationLimits,
     module_sites: BTreeMap<[i32; 3], usize>,
+    #[cfg(test)]
+    relation_reuse: (usize, usize),
 }
 
 #[doc(hidden)]
@@ -350,6 +355,14 @@ impl GuardedSurfaceSpace {
     ///
     /// Panics if validated topology metadata references a missing local column.
     pub fn new(
+        topology: GuardedTopology,
+        sites: &HashMap<IVec3, MaterializedModuleSite>,
+        limits: ModuleCertificationLimits,
+    ) -> Result<Self, BlockGraphError> {
+        Self::new_with_reuse::<true>(topology, sites, limits)
+    }
+
+    fn new_with_reuse<const REUSE: bool>(
         mut topology: GuardedTopology,
         sites: &HashMap<IVec3, MaterializedModuleSite>,
         limits: ModuleCertificationLimits,
@@ -574,13 +587,11 @@ impl GuardedSurfaceSpace {
         let mut scopes = groups.keys().cloned().collect::<Vec<_>>();
         scopes.sort_by(|left, right| right.len().cmp(&left.len()).then(left.cmp(right)));
         let mut root = Vec::new();
+        let mut relations = RelationCache::default();
         for mut owner in scopes {
-            let mut rows = BooleanRowSpace::new(
-                groups
-                    .remove(&owner)
-                    .expect("scope order contains each existing owner once"),
-                &mut topology.diagram,
-            )?;
+            let rows = groups
+                .remove(&owner)
+                .expect("scope order contains each existing owner once");
             let mut edges = seams
                 .remove(&owner)
                 .unwrap_or_default()
@@ -588,32 +599,31 @@ impl GuardedSurfaceSpace {
                 .collect::<Vec<_>>();
             // Close lower layers first, as in the ordinary module projector.
             edges.sort_by_key(|((a, b), _)| (a[2].max(b[2]), *a, *b));
-            for ((left, right), hadamard) in edges {
-                let lhs = columns[&SurfaceColumn::Edge(left, right)];
-                let rhs = columns[&SurfaceColumn::Edge(right, left)];
-                for axis in 0..2 {
-                    // Preserve the source equation's reference sector. A
-                    // shorter pivot can add a logical readout to its frames.
-                    rows.eliminate_linear(
-                        &[
-                            (2 * lhs + axis, ONE),
-                            (2 * rhs + axis, ONE),
-                            (2 * rhs, hadamard),
-                            (2 * rhs + 1, hadamard),
-                        ],
-                        &mut topology.diagram,
-                    )?;
-                }
-                if topology.diagram.nodes().len() > limits.max_witness_nodes {
-                    return Err(StabilizerError::ResourceLimited {
-                        phase: "guarded correlation coefficients",
-                        observed: topology.diagram.nodes().len(),
-                        limit: limits.max_witness_nodes,
-                    }
-                    .into());
-                }
-            }
-            let rows = rows.into_rows(&mut topology.diagram)?;
+            let edges = edges
+                .into_iter()
+                .map(|((left, right), hadamard)| {
+                    (
+                        columns[&SurfaceColumn::Edge(left, right)],
+                        columns[&SurfaceColumn::Edge(right, left)],
+                        hadamard,
+                    )
+                })
+                .collect::<Vec<_>>();
+            let rows = if REUSE && !owner.is_empty() && !edges.is_empty() {
+                relations.close(
+                    rows,
+                    &edges,
+                    &mut topology.diagram,
+                    limits.max_witness_nodes,
+                )?
+            } else {
+                close_seams(
+                    rows,
+                    &edges,
+                    &mut topology.diagram,
+                    limits.max_witness_nodes,
+                )?
+            };
             if owner.pop().is_some() {
                 groups
                     .get_mut(&owner)
@@ -631,6 +641,8 @@ impl GuardedSurfaceSpace {
             surfaces: Vec::new(),
             limits,
             module_sites,
+            #[cfg(test)]
+            relation_reuse: (relations.hits, relations.misses),
         })
     }
 
@@ -3088,6 +3100,271 @@ mod tests {
     }
 
     #[test]
+    fn reused_branch_relations_preserve_independent_and_shared_bindings() {
+        let source = r#"BLOG 1.0
+module Choice {
+  in q: data = 0
+  out r: data = 3
+  in choose
+  0: Port [0,0,0] role=input
+  3: Port [0,0,3] role=output
+  branch body {
+    false {
+      1: XZX [0,0,1]
+      2: XZX [0,0,2]
+      0 -> +Z
+      1 -> +Z
+      2 -> +Z
+    }
+    true {
+      4: ZXZ [0,0,1]
+      5: ZXZ [0,0,2]
+      0 -H> +Z
+      4 -> +Z
+      5 -H> +Z
+    }
+  }
+  resolve body if choose
+}
+module main {
+  in a
+  in b
+  in q0: data = 0
+  out r0: data = 1
+  in q1: data = 2
+  out r1: data = 3
+  first: Choice @ [0,0,0]
+  second: Choice @ [4,0,0] rotate Z 180
+  0: Port [0,0,0] role=input
+  1: Port [0,0,3] role=output
+  2: Port [4,0,0] role=input
+  3: Port [4,0,3] role=output
+  0 -> first.q
+  first.r -> 1
+  2 -> second.q
+  second.r -H> 3
+  a => first.choose
+  b => second.choose
+}
+"#;
+        for shared in [false, true] {
+            let source = if shared {
+                source.replace("b => second.choose", "a => second.choose")
+            } else {
+                source.to_string()
+            };
+            let program = crate::BlockGraph::from_text(&source).unwrap();
+            let linked = crate::flatten_module_definition(&program, program.root(), "").unwrap();
+            let graph = linked.graph.fix_shadowed_faces();
+            let limits = ModuleCertificationLimits::DEFAULT;
+            let mut space = GuardedSurfaceSpace::new(
+                GuardedTopology::new(&graph, limits).unwrap(),
+                &linked.sites,
+                limits,
+            )
+            .unwrap();
+            assert_eq!(space.relation_reuse, (1, 1));
+            for mask in 0..4 {
+                let variables = HashMap::from([
+                    ("a".to_string(), mask & 1 != 0),
+                    ("b".to_string(), mask & 2 != 0),
+                ]);
+                let assignment = space
+                    .topology
+                    .branches
+                    .iter()
+                    .map(|(_, target, root)| {
+                        (
+                            *target,
+                            space
+                                .topology
+                                .evaluate_source(*root, |name| variables[name]),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                let graph = graph.project_branches_deferred(assignment).unwrap();
+                let zx = ZXGraph::from_block_graph_for_analysis(&graph).unwrap();
+                assert_eq!(
+                    super::super::modular::canonical_external_basis(
+                        space.evaluate(&zx, &variables),
+                        zx.total_ids(),
+                    ),
+                    zx.to_external_generator_table_with_signed().1,
+                    "shared {shared}, mask {mask}",
+                );
+            }
+            space.plan_causal_readouts::<true, false>().unwrap();
+            assert!(
+                space
+                    .surfaces
+                    .iter()
+                    .all(|surface| matches!(surface.kind, GuardedSurfaceKind::OutputFrame { .. }))
+            );
+        }
+    }
+
+    fn repeated_closed_memory() -> crate::BlockGraph {
+        use std::fmt::Write;
+
+        let mut source = String::from("BLOG 1.0\nmodule Memory {\n0: Y [0,0,0]\n");
+        const LENGTH: usize = 64;
+        for z in 1..=LENGTH {
+            writeln!(source, "{z}: XZX [0,0,{z}]").unwrap();
+        }
+        writeln!(source, "{}: Y [0,0,{}]", LENGTH + 1, LENGTH + 1).unwrap();
+        for z in 0..=LENGTH {
+            writeln!(source, "{z} -> +Z").unwrap();
+        }
+        source.push_str(
+            "}\nmodule Batch {\nfirst: Memory @ [0,0,0]\n\
+             second: Memory @ [4,0,0] rotate Z 180\n}\n\
+             module main {\nlower: Batch @ [0,0,0]\n\
+             upper: Batch @ [12,0,0] rotate X 180\n}\n",
+        );
+        crate::BlockGraph::from_text(&source).unwrap()
+    }
+
+    #[test]
+    fn nested_rotated_closed_relations_reuse_internal_elimination() {
+        let program = repeated_closed_memory();
+        let linked = crate::flatten_module_definition(&program, program.root(), "").unwrap();
+        let graph = linked.graph.fix_shadowed_faces();
+        let limits = ModuleCertificationLimits::DEFAULT;
+        let actual = GuardedSurfaceSpace::new(
+            GuardedTopology::new(&graph, limits).unwrap(),
+            &linked.sites,
+            limits,
+        )
+        .unwrap();
+        let expected = GuardedSurfaceSpace::new_with_reuse::<false>(
+            GuardedTopology::new(&graph, limits).unwrap(),
+            &linked.sites,
+            limits,
+        )
+        .unwrap();
+        assert!(actual.relation_reuse.0 >= 2);
+        assert_eq!(actual.columns, expected.columns);
+        let rows = |space: &GuardedSurfaceSpace| {
+            space
+                .rows
+                .iter()
+                .map(|row| (row.active, row.terms().to_vec()))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(rows(&actual), rows(&expected));
+        assert!(
+            actual.topology.diagram.steps() < expected.topology.diagram.steps(),
+            "reuse work {} must be below independent elimination {}",
+            actual.topology.diagram.steps(),
+            expected.topology.diagram.steps(),
+        );
+        let zx = ZXGraph::from_block_graph_for_analysis(&graph).unwrap();
+        assert_eq!(
+            super::super::modular::canonical_external_basis(
+                actual.evaluate(&zx, &HashMap::new()),
+                zx.total_ids(),
+            ),
+            zx.to_external_generator_table_with_signed().1,
+        );
+        let plan = actual.plan_readouts().unwrap();
+        assert_eq!(plan.surfaces.len(), 4);
+        assert!(
+            plan.surfaces
+                .iter()
+                .all(|surface| matches!(surface.kind, GuardedSurfaceKind::LogicalReadout))
+        );
+    }
+
+    fn profile_module_relations<const REUSE: bool>() {
+        use std::hint::black_box;
+        use std::time::Instant;
+
+        let cases = [
+            (
+                "adder3",
+                bloq_test::benchmark::controlled_adder(3).to_blog_text(),
+            ),
+            (
+                "adder10",
+                bloq_test::benchmark::controlled_adder(10).to_blog_text(),
+            ),
+            (
+                "adder32",
+                bloq_test::benchmark::controlled_adder(32).to_blog_text(),
+            ),
+            (
+                "phase_gradient",
+                crate::GalleryItem::PhaseGradientK4.build().to_blog_text(),
+            ),
+            ("closed_memory64", repeated_closed_memory().to_blog_text()),
+            (
+                "flat_yoke32",
+                bloq_test::benchmark::yoked_memory(32).to_blog_text(),
+            ),
+        ];
+        for (name, source) in cases {
+            let source = crate::BlockGraph::from_text(&source).unwrap();
+            let linked = crate::flatten_module_definition(&source, source.root(), "").unwrap();
+            let graph = linked.graph.fix_shadowed_faces();
+            let limits = ModuleCertificationLimits::DEFAULT;
+            let mut samples = [Vec::new(), Vec::new(), Vec::new(), Vec::new()];
+            let mut counts = (0, 0);
+            for iteration in 0..11 {
+                let started = Instant::now();
+                let topology = GuardedTopology::new(&graph, limits).unwrap();
+                let topology_ms = started.elapsed().as_secs_f64() * 1000.0;
+                let composed = Instant::now();
+                let relation =
+                    GuardedSurfaceSpace::new_with_reuse::<REUSE>(topology, &linked.sites, limits)
+                        .unwrap();
+                let composition_ms = composed.elapsed().as_secs_f64() * 1000.0;
+                counts = relation.relation_reuse;
+                let planned = Instant::now();
+                let plan = relation.plan_readouts().unwrap();
+                let readouts_ms = planned.elapsed().as_secs_f64() * 1000.0;
+                let total_ms = started.elapsed().as_secs_f64() * 1000.0;
+                black_box(plan);
+                if iteration >= 2 {
+                    for (samples, value) in
+                        samples
+                            .iter_mut()
+                            .zip([topology_ms, composition_ms, readouts_ms, total_ms])
+                    {
+                        samples.push(value);
+                    }
+                }
+            }
+            let medians = samples.each_mut().map(|samples| {
+                samples.sort_by(f64::total_cmp);
+                samples[samples.len() / 2]
+            });
+            println!(
+                "{{\"case\":\"{name}\",\"reuse\":{REUSE},\"samples\":9,\"topology_ms\":{},\"composition_ms\":{},\"readouts_ms\":{},\"total_ms\":{},\"hits\":{},\"misses\":{},\"composition_samples_ms\":{:?},\"total_samples_ms\":{:?}}}",
+                medians[0],
+                medians[1],
+                medians[2],
+                medians[3],
+                counts.0,
+                counts.1,
+                samples[1],
+                samples[3],
+            );
+        }
+    }
+
+    #[test]
+    #[ignore = "optimized planner timing diagnostic"]
+    fn profile_module_relations_original() {
+        profile_module_relations::<false>();
+    }
+
+    #[test]
+    #[ignore = "optimized planner timing diagnostic"]
+    fn profile_module_relations_reused() {
+        profile_module_relations::<true>();
+    }
+
+    #[test]
     fn reclaimed_readouts_match_full_planner_on_every_reachable_selection() {
         use bloq_utils::boolean::BooleanDecisionDiagram;
 
@@ -3138,9 +3415,17 @@ mod tests {
                 .unwrap()
             };
             let mut actual = new_space();
+            if program.root().instances.len() > 10 {
+                assert!(actual.relation_reuse.0 > 0, "repeated relations are reused");
+            }
             actual.plan_causal_readouts::<true, true>().unwrap();
             expand_output_folds(&mut actual.surfaces, &mut actual.topology.diagram);
-            let mut expected = new_space();
+            let mut expected = GuardedSurfaceSpace::new_with_reuse::<false>(
+                GuardedTopology::new(&graph, limits).unwrap(),
+                &linked.sites,
+                limits,
+            )
+            .unwrap();
             expected.plan_causal_readouts::<false, false>().unwrap();
             assert_eq!(actual.columns, expected.columns);
             assert_eq!(actual.surfaces.len(), expected.surfaces.len());
