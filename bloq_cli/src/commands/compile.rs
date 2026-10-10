@@ -430,7 +430,6 @@ struct CompiledTarget {
     warnings: Vec<&'static str>,
 }
 
-#[hotpath::measure]
 fn compile_requested_variants(
     ctx: &CompileRunContext<'_>,
     variants: &[CompileVariant],
@@ -532,7 +531,6 @@ fn compile_batch(
     })
 }
 
-#[hotpath::measure]
 fn compile_target(
     ctx: &CompileRunContext<'_>,
     cache: &SharedCompileCache,
@@ -585,12 +583,10 @@ fn compile_target(
         ));
     }
 
-    let emitted = hotpath::measure_block!("backend emission", {
-        ctx.backend.emit(
-            &artifacts.bloq,
-            &bloq_stim::BloqStimOptions::new().with_align_moments(ctx.align_moments),
-        )?
-    });
+    let emitted = ctx.backend.emit(
+        &artifacts.bloq,
+        &bloq_stim::BloqStimOptions::new().with_align_moments(ctx.align_moments),
+    )?;
     Ok(CompiledTarget {
         emitted,
         notes,

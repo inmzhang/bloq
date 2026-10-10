@@ -15,7 +15,6 @@ bloq_circuit.workspace = true
 bloq_ir.workspace = true
 bloq_utils.workspace = true
 glam.workspace = true
-hotpath.workspace = true
 thiserror.workspace = true
 itertools.workspace = true
 petgraph.workspace = true
@@ -49,7 +48,3 @@ harness = false
 
 [lints]
 workspace = true
-
-[features]
-hotpath = ["hotpath/hotpath"]
-hotpath-alloc = ["hotpath/hotpath-alloc"]

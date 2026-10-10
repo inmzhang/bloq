@@ -187,7 +187,6 @@ impl DetectorLowerState<'_> {
 // the node above it. This pass composes nothing but `TopLevel` `NodeDetector`s
 // and allocates no loop state — a loop's recurrence is backend-owned, and its
 // sole cross-node round is resolved by the backend's post-`REPEAT` lookback.
-#[hotpath::measure]
 pub(super) fn attach_temporal_component_detectors(
     plan: &LowerPlan,
     context: &mut BloqLowerContext<'_>,
@@ -206,7 +205,6 @@ pub(super) fn attach_temporal_component_detectors(
 /// T columns are DAG sources with no path between them, U17e), letting a lower
 /// column's creators clobber another column's still-open chains at the same XY
 /// offset. Layer-major ordering walks the component in time.
-#[hotpath::measure]
 fn layer_major_order(
     nodes: &mut [NodeIndex],
     context: &BloqLowerContext<'_>,
@@ -233,7 +231,6 @@ fn layer_major_order(
 /// A same-layer moving patch may produce a boundary still waiting to be
 /// consumed by its neighbor. Replay those consumers first; unrelated nodes
 /// retain emission order.
-#[hotpath::measure]
 fn order_same_layer_flows(
     nodes: &mut [NodeIndex],
     context: &BloqLowerContext<'_>,
@@ -305,7 +302,6 @@ fn order_same_layer_flows(
 }
 
 /// Compose the already pinned proxy's boundary flows with their allocated ids.
-#[hotpath::measure]
 fn attach_component_detectors(
     nodes: &[NodeIndex],
     context: &mut BloqLowerContext<'_>,

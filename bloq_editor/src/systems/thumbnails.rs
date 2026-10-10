@@ -195,7 +195,6 @@ fn setup_thumbnail_light(mut commands: Commands) {
 
 /// Build one image after the previous camera finishes. Yielding between frames
 /// keeps WASM preloading cooperative without a task's microtask loop blocking paint.
-#[cfg_attr(not(target_arch = "wasm32"), hotpath::measure)]
 fn render_requested_thumbnail(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,

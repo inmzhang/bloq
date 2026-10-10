@@ -12,9 +12,6 @@ use bloq_compile::{CompileConfig, CompileContext};
 use bloq_ir::Bloq;
 use bloq_test::benchmark::controlled_adder;
 
-#[global_allocator]
-static GLOBAL: hotpath::CountingAllocator = hotpath::CountingAllocator::new();
-
 #[derive(Default)]
 struct ProgramStats {
     ir_nodes: usize,
@@ -83,7 +80,6 @@ fn main() {
         ("controlled_adder", controlled_adder(bits))
     };
     let source_ms = source_start.elapsed().as_secs_f64() * 1_000.0;
-    let _hotpath = hotpath::HotpathGuardBuilder::new("profile_adder_scaling").build();
     let compile_start = Instant::now();
     let warm = Arc::new(AtomicBool::new(false));
     let observer_warm = Arc::clone(&warm);

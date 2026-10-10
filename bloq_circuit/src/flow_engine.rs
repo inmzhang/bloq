@@ -387,7 +387,6 @@ impl<'c, M> FlowEngine<'c, M> {
         self.append_group_with_mode(parts, meas_mapper, UnmatchedInputMode::KeepAsResidual, None)
     }
 
-    #[hotpath::measure]
     fn append_group_with_mode(
         &mut self,
         parts: &[OffsetFlows<'c>],
@@ -627,7 +626,6 @@ impl<'c, M> FlowEngine<'c, M> {
         Ok(())
     }
 
-    #[hotpath::measure]
     fn append_stabilizer_transition(
         &mut self,
         parts: &[OffsetFlows<'c>],

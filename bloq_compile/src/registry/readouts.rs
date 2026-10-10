@@ -176,7 +176,6 @@ thread_local! {
     static BINDING_CACHE_HITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
-#[hotpath::measure]
 pub(super) fn lower(
     plan: &mut GuardedReadoutPlan,
     profiles: &mut [Profile],
@@ -346,10 +345,7 @@ pub(super) fn lower(
                         selectives: &profile.projection.selectives,
                         layout: BlockLayout::new(distance),
                     };
-                    for case in hotpath::measure_block!(
-                        "readouts.local_cases",
-                        plan.local_cases(representative, profile.position, profile.guard)
-                    )? {
+                    for case in plan.local_cases(representative, profile.position, profile.guard)? {
                         let alternatives =
                             if context.needs_dynamic_anchor(profile.position, &case.surface) {
                                 anchors
@@ -765,7 +761,6 @@ pub(super) fn lower(
     clippy::too_many_arguments,
     reason = "all remapped owners must move through one garbage-collection boundary"
 )]
-#[hotpath::measure]
 fn collect_boolean_garbage<'a>(
     plan: &mut GuardedReadoutPlan,
     profiles: &mut [Profile],
@@ -876,7 +871,6 @@ fn normalize_packets(
 }
 
 // Share each instance's exact, fully cancelled physical parity across readouts.
-#[hotpath::measure]
 fn emit_accumulates(
     packets: PendingPackets,
     accumulates: &mut MeasurementCache,

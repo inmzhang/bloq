@@ -100,7 +100,6 @@ impl CoordCircuit {
 
     /// The set of every qubit coordinate touched by any body or measurement
     /// record.
-    #[hotpath::measure]
     pub fn qubits(&self) -> FxHashSet<IVec2> {
         let mut occurrences = 0usize;
         let mut min = IVec2::MAX;

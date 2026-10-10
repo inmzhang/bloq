@@ -677,7 +677,6 @@ impl Tracker {
 
     /// The current frame as a sorted slice table entry: per detector, its region
     /// terms. `Y` = present in both `X` and `Z` columns.
-    #[hotpath::measure]
     fn snapshot(&self) -> Vec<DetectorRegion> {
         let mut per_detector: FxHashMap<u32, Vec<RegionTerm>> = FxHashMap::default();
         for (&qubit, xset) in &self.xs {

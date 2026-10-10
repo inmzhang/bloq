@@ -56,7 +56,6 @@ color-eyre = "0.6.5"
 criterion = "0.8.2"
 egui_extras = { version = "0.36.2", default-features = false, features = ["syntect"] }
 getrandom = "0.4.2"
-hotpath = "0.27"
 indicatif = "0.18"
 # Pinned to match the glam re-exported by bevy 0.20 (0.33); a newer minor
 # would create a second glam copy whose Vec3/IVec3 don't unify with bevy's.

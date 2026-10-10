@@ -38,7 +38,6 @@
 //! `verify` forward to
 //! `bloq_graph/gltf` and `bloq_stim/verify` respectively. `graph-verify` exposes
 //! graph-level logical verification without requiring the native Stim backend.
-//! `hotpath` and `hotpath-alloc` add opt-in compiler-pipeline profiling.
 
 pub use bloq_circuit as circuit;
 pub use bloq_compile as compile;

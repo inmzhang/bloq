@@ -119,7 +119,6 @@ fn neighbor_in_users(
 /// source node hovers a layer gap above the previous era's terminating block
 /// on the same footprint, and a bare toposort emitted the later era's port
 /// MPP before the earlier era's readout of the same qubits.
-#[hotpath::measure]
 pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate::CompileError> {
     use bloq_ir::{BloqEdgeRef, BloqNodeId};
 

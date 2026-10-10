@@ -24,16 +24,6 @@ use bloq_ir::{
 use bloq_stim::emit_bloq_stim;
 use color_eyre::eyre::{self, ContextCompat, WrapErr};
 use glam::{IVec2, IVec3};
-#[cfg(not(target_arch = "wasm32"))]
-use hotpath::measure_block;
-
-// Profiling uses native thread metrics; web builds execute the same blocks.
-#[cfg(target_arch = "wasm32")]
-macro_rules! measure_block {
-    ($label:literal, $body:block) => {
-        $body
-    };
-}
 
 #[derive(Debug)]
 pub(super) struct CompiledDownload {
@@ -52,7 +42,6 @@ impl CompiledDownload {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-#[hotpath::measure]
 fn compile_artifacts(
     source: &BlockGraph,
     request: &CompileRequest,
@@ -130,7 +119,6 @@ pub(super) fn export_download(
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
-#[hotpath::measure]
 pub(crate) fn compile_graph_for_viewer(
     graph: &BlockGraph,
     request: &CompileRequest,
@@ -376,7 +364,6 @@ fn collect_selected_quantum_node_keys(
 /// A flatten or view failure disables the overlay (reason stored) while leaving
 /// the default view intact; a Layer-2 failure keeps the flattened timelines but
 /// disables the region overlay.
-#[cfg_attr(not(target_arch = "wasm32"), hotpath::measure)]
 pub(crate) fn build_detslice(
     program: &Bloq,
     source_viewer_graph: &BlockGraph,
@@ -390,17 +377,15 @@ pub(crate) fn build_detslice(
             ..Default::default()
         };
     }
-    let flat_view = measure_block!("detslice.flat_view", {
-        match build_detslice_circuit_view(&flat, source_viewer_graph, source_offset) {
-            Ok(view) => view,
-            Err(err) => {
-                return DetsliceData {
-                    unavailable_reason: Some(format!("{err:#}")),
-                    ..Default::default()
-                };
-            }
+    let flat_view = match build_detslice_circuit_view(&flat, source_viewer_graph, source_offset) {
+        Ok(view) => view,
+        Err(err) => {
+            return DetsliceData {
+                unavailable_reason: Some(format!("{err:#}")),
+                ..Default::default()
+            };
         }
-    });
+    };
 
     // Every node's flat moment count (for the alignment check) before filtering
     // out the moment-less nodes the overlay never steps through.
@@ -428,49 +413,45 @@ pub(crate) fn build_detslice(
     let has_dynamic_blocks = source_viewer_graph
         .blocks()
         .any(|block| block.kind().is_dynamic());
-    let slice_program = measure_block!("detslice.slice_program", {
-        if has_dynamic_blocks {
-            match build_proxy_slice_program(
-                program,
-                &flat,
-                source_viewer_graph,
-                compile_config,
-                &viewer_node_refs,
-            ) {
-                Ok(input) => input,
-                Err(err) => {
-                    return DetsliceData {
-                        flat_moments,
-                        unavailable_reason: Some(format!("selected Clifford proxy: {err:#}")),
-                        ..Default::default()
-                    };
-                }
-            }
-        } else {
-            SliceProgram {
-                program: program.clone(),
-                node_refs: viewer_node_refs,
+    let slice_program = if has_dynamic_blocks {
+        match build_proxy_slice_program(
+            program,
+            &flat,
+            source_viewer_graph,
+            compile_config,
+            &viewer_node_refs,
+        ) {
+            Ok(input) => input,
+            Err(err) => {
+                return DetsliceData {
+                    flat_moments,
+                    unavailable_reason: Some(format!("selected Clifford proxy: {err:#}")),
+                    ..Default::default()
+                };
             }
         }
-    });
+    } else {
+        SliceProgram {
+            program: program.clone(),
+            node_refs: viewer_node_refs,
+        }
+    };
 
     // The tape flattens internally. Fixed programs share the real view's
     // `NodeRef` space; a dynamic program uses the provenance map built above to
     // translate its pinned proxy nodes back onto that real view.
     let mut options = ProgramSliceOptions::default();
     options.set_physical_observables(true);
-    let slices = measure_block!("detslice.tape", {
-        match program_detector_slices_with_options(&slice_program.program, &options) {
-            Ok(slices) => slices,
-            Err(err) => {
-                return DetsliceData {
-                    flat_moments,
-                    unavailable_reason: Some(err.to_string()),
-                    ..Default::default()
-                };
-            }
+    let slices = match program_detector_slices_with_options(&slice_program.program, &options) {
+        Ok(slices) => slices,
+        Err(err) => {
+            return DetsliceData {
+                flat_moments,
+                unavailable_reason: Some(err.to_string()),
+                ..Default::default()
+            };
         }
-    });
+    };
 
     let mut detector_slices = HashMap::new();
     let skipped_cross_tape = slices.skipped_cross_tape;

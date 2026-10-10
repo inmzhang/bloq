@@ -453,7 +453,6 @@ pub(super) fn resolve_spatial_port_observable_insertions(
 /// before, then relabels each surviving insertion into instance-global refs,
 /// tagging it with its producing plan node. Returns owned data so the caller can
 /// drop the lowering context before materializing nodes.
-#[hotpath::measure]
 pub(super) fn resolve_observables(
     stabilizers: &StabilizerGenerators,
     context: &BloqLowerContext<'_>,
@@ -557,7 +556,6 @@ pub(super) fn statically_resolved_row_indices(
 /// Materialize the pinned public basis, including empty rows. Static insertions
 /// share one complete recipe per row; guarded/shared fragments use composition
 /// in ordinary lowering.
-#[hotpath::measure]
 pub(super) fn materialize_observable_nodes(
     resolved: Vec<ResolvedObservable>,
     all_row_indices: &[u32],
@@ -649,14 +647,12 @@ fn cancel_seam_operators(
 
 /// Shared seam checker for static and branch-conditioned observable lowering.
 /// `offset_for` places each block/pipe-local operator in the global qubit frame.
-#[hotpath::measure]
 pub(super) fn cancel_seam_operators_in_plan(
     insertions: &mut [ObservableChunkInsertion],
     plan: &super::LowerPlan,
     graph: &BlockGraph,
     mut offset_for: impl FnMut(ChunkSiteSource) -> Result<glam::IVec2, CompileError>,
 ) -> Result<(), CompileError> {
-    use petgraph::graph::NodeIndex;
     use petgraph::visit::EdgeRef;
 
     // One operator-carrying insertion per (site, observable). Measurement-only

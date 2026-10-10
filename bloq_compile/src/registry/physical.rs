@@ -248,7 +248,6 @@ pub(super) struct PhysicalProjection {
 }
 
 impl PhysicalProjection {
-    #[hotpath::measure]
     pub(super) fn new(
         context: &CompileContext,
         scheduled: &ScheduledGeometry,

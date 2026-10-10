@@ -59,9 +59,9 @@ checksum = "3a8241f3ebb85c056b509d4327ad0358fbbba6ffb340bf388f26350aeda225b1"
 
 [[package]]
 name = "binar"
-version = "0.1.5"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f53a3c8e2a69881a6ab99bf8ff8afe8af7ba25b3944b8c6cb5a67145803059b"
+checksum = "ee9ec6d99027850b62134bbd82ab59b5732bdde93e085dcc9098180b8ef2134d"
 dependencies = [
  "derive_more",
  "rand",
@@ -102,7 +102,6 @@ dependencies = [
  "bloq_utils",
  "bloq_vm",
  "glam",
- "hotpath",
  "serde_json",
  "strum",
  "thiserror 2.0.21",
@@ -121,7 +120,6 @@ version = "0.1.2-dev"
 dependencies = [
  "bloq_utils",
  "glam",
- "hotpath",
  "rustc-hash",
  "serde",
  "smallvec",
@@ -138,7 +136,6 @@ dependencies = [
  "bloq_ir",
  "bloq_utils",
  "glam",
- "hotpath",
  "itertools 0.15.0",
  "petgraph 0.8.3",
  "rustc-hash",
@@ -170,7 +167,6 @@ dependencies = [
  "bloq_circuit",
  "bloq_utils",
  "glam",
- "hotpath",
  "petgraph 0.8.3",
  "postcard",
  "rustc-hash",
@@ -465,9 +461,9 @@ dependencies = [
 
 [[package]]
 name = "glam"
-version = "0.32.1"
+version = "0.33.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f70749695b063ecbf6b62949ccccde2e733ec3ecbbd71d467dca4e5c6c97cca0"
+checksum = "37bfe73dc8ec21f54d181e5a60554327ec3f1c600c455a75ccbfc65d2106a6c4"
 dependencies = [
  "serde_core",
 ]
@@ -523,21 +519,6 @@ name = "hermit-abi"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e17592d60ebacc7d5e169f4663c5f84f9161cc90328abcfe8456f41e4dfcb284"
-
-[[package]]
-name = "hotpath"
-version = "0.26.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "036ff36fa1c4ae8dfb686606537eaa15b5d5da0c51bf94abeaf9dfc6ee54cac7"
-dependencies = [
- "hotpath-macros",
-]
-
-[[package]]
-name = "hotpath-macros"
-version = "0.26.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ff68b15fdbcddfbad685f445597580d6fcbf28b49f01ff975e934351079e13b"
 
 [[package]]
 name = "indexmap"
