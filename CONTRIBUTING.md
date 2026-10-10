@@ -12,6 +12,12 @@ Describe the behavior changed and the checks used to verify it. Breaking APIs
 require coordinated changes to callers, examples, documentation, and release
 notes. Preserve each release's documentation and API reference.
 
+Do not edit `CHANGELOG.md` manually, including unreleased entries and version
+headings. Release-plz generates it in release PRs. Record release-note details
+in Conventional Commit messages and compatibility changes in `BREAKING CHANGE:`
+footers; keep migration guidance in the relevant user documentation.
+`just changelog` previews generated notes without writing the file.
+
 ## Issues and pull requests
 
 Use the [bug report](.github/ISSUE_TEMPLATE/bug_report.md),
