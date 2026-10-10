@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.0] - 2026-10-10
+
+### Changed
+
+- **BREAKING:** Migrate editor to Bevy 0.20 ([#11](https://github.com/inmzhang/bloq/pull/11))
+- Streamline checks and automate development bumps ([#5](https://github.com/inmzhang/bloq/pull/5))
+- **BREAKING:** Remove Hotpath profiling ([#12](https://github.com/inmzhang/bloq/pull/12))
+
+
+### Fixed
+
+- Prevent middle-click paste ([#8](https://github.com/inmzhang/bloq/pull/8))
+
+
 ## [0.1.1]
 
 - Remove the `bloq_lassynth` crate, the optional `bloq::synth` API, and the
