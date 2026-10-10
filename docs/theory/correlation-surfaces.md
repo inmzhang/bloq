@@ -469,6 +469,16 @@ across each connection, with X and Z exchanged on a Hadamard seam. Compatible
 combinations form the parent's correlation space. Repeating this through the
 hierarchy produces surfaces that can span several module instances.
 
+Within a planning run, compatible instances reuse an already eliminated open
+relation. The reuse key retains the complete ordered tensor rows, internal
+seam equations, and Boolean functions after renaming column pairs and Boolean
+variables. Each use maps the full interior support and guards back to that
+instance. This preserves independent outcomes, shared classical dependencies,
+closed surfaces, and the original readout/frame representatives. Different
+port neighborhoods or rotation-dependent row/seam orders can require separate
+templates; matching boundary relations alone is insufficient. Cache capacity
+only limits reuse: other instances follow the same seam elimination directly.
+
 Named readouts and terminal frames are then selected from the composed relation
 using the guarded and causal rules above. Classical bindings and feedback can
 create dependencies across modules. Named readouts are checked both within

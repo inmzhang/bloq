@@ -380,7 +380,7 @@ pub struct BitBinding {
 pub struct MaterializedModuleSite {
     /// Owning module definition name.
     pub definition: String,
-    /// Dot-qualified path from the root instance.
+    /// Path from the root instance, with names separated by `__`.
     pub instance_path: String,
     /// Block position inside its owning definition.
     pub local_position: IVec3,
