@@ -2563,22 +2563,22 @@ just<span class="w"> </span>py-develop
 require coordinated changes to callers, examples, documentation, and release
 notes. Preserve each release’s documentation and API reference.</p>
 <h2 id="issues-and-pull-requests">Issues and pull requests<a class="headerlink" href="#issues-and-pull-requests" title="Link to this heading">¶</a></h2>
-<p>Use the <a class="reference external" href="https://github.com/inmzhang/bloq/blob/aefd73018d298906c1e4c2ec5b7887f91461e573/.github/ISSUE_TEMPLATE/bug_report.md">bug report</a>,
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/aefd73018d298906c1e4c2ec5b7887f91461e573/.github/ISSUE_TEMPLATE/feature_request.md">feature request</a>, or
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/aefd73018d298906c1e4c2ec5b7887f91461e573/.github/ISSUE_TEMPLATE/question.md">question</a> template when opening an issue.
-Pull requests use the <a class="reference external" href="https://github.com/inmzhang/bloq/blob/aefd73018d298906c1e4c2ec5b7887f91461e573/.github/pull_request_template.md">PR template</a>; describe
+<p>Use the <a class="reference external" href="https://github.com/inmzhang/bloq/blob/c612adb1fc9166ca3419190a0af08138f35bdb53/.github/ISSUE_TEMPLATE/bug_report.md">bug report</a>,
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/c612adb1fc9166ca3419190a0af08138f35bdb53/.github/ISSUE_TEMPLATE/feature_request.md">feature request</a>, or
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/c612adb1fc9166ca3419190a0af08138f35bdb53/.github/ISSUE_TEMPLATE/question.md">question</a> template when opening an issue.
+Pull requests use the <a class="reference external" href="https://github.com/inmzhang/bloq/blob/c612adb1fc9166ca3419190a0af08138f35bdb53/.github/pull_request_template.md">PR template</a>; describe
 the change and record the checks you ran. These templates are adapted from
 <a class="reference external" href="https://github.com/tqec/tqec/tree/main/.github/ISSUE_TEMPLATE">TQEC’s issue templates</a>
 and <a class="reference external" href="https://github.com/tqec/tqec/blob/main/.github/pull_request_template.md">PR template</a>.</p>
 <h2 id="contributor-agreement">Contributor agreement<a class="headerlink" href="#contributor-agreement" title="Link to this heading">¶</a></h2>
 <p>By submitting an issue or pull request, you confirm that you created the
 contribution or have the right to submit it, and license it under this project’s
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/aefd73018d298906c1e4c2ec5b7887f91461e573/LICENSE">Apache-2.0 license</a>. Check the contributor agreement in the template.</p>
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/c612adb1fc9166ca3419190a0af08138f35bdb53/LICENSE">Apache-2.0 license</a>. Check the contributor agreement in the template.</p>
 <h2 id="ai-assisted-contributions">AI-assisted contributions<a class="headerlink" href="#ai-assisted-contributions" title="Link to this heading">¶</a></h2>
 <p>AI-assisted contributions are welcome. Review all generated code, documentation,
 issue text, and pull request text before submitting. You remain responsible for
 the contribution’s correctness, security, and quality. Disclose the tool and
-model used, and how they assisted, in the issue or pull request.</p>
+exact model identifier used, and how they assisted, in the issue or pull request.</p>
 <p>Select exactly one AI acknowledgement option in the template. If you did not use
 AI tools, select <code class="docutils literal notranslate"><span class="pre">No</span></code>; no AI disclosure details or <code class="docutils literal notranslate"><span class="pre">Assisted-by:</span></code> trailers are
 required. If you used AI tools, complete the disclosure and review the generated
@@ -2588,6 +2588,12 @@ the tool and model:</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code>Assisted-by: &lt;tool&gt; (&lt;model&gt;)
 </code></pre></div>
 </div>
+<p>Use the exact model identifier reported by the tool in both trailers and
+disclosures. A family label such as <code class="docutils literal notranslate"><span class="pre">GPT-6</span></code> is not sufficient. For example:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code>Assisted-by: Codex (gpt-6.1-sol)
+</code></pre></div>
+</div>
+<p>If the identifier is unavailable, state that explicitly instead of guessing.</p>
 <p>Keep the human contributor as the commit author; credit AI tools with
 <code class="docutils literal notranslate"><span class="pre">Assisted-by:</span></code>, rather than <code class="docutils literal notranslate"><span class="pre">Co-authored-by:</span></code>. Complete the AI contribution
 acknowledgement in the template. This policy is adapted from
