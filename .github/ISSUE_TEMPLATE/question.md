@@ -21,4 +21,5 @@ Select exactly one option. AI-assisted submissions must follow the
 - [ ] No — I did not use AI tools to prepare this contribution.
 - [ ] Yes — I used AI tools, reviewed all generated content before submitting, and completed the disclosure below.
 
-AI assistance details (only if you selected Yes: tool, model, and how it was used):
+AI assistance details (only if you selected Yes: tool, exact model identifier,
+and how it was used):
