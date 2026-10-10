@@ -2369,6 +2369,16 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#changelog" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Changelog</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#stable-release-versions" class="md-nav__link">
     
     <span class="md-ellipsis">
@@ -2561,6 +2571,16 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#changelog" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Changelog</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#stable-release-versions" class="md-nav__link">
     
     <span class="md-ellipsis">
@@ -2708,7 +2728,7 @@ jobs require <code class="docutils literal notranslate"><span class="pre">RELEAS
 a release or publishing manually. This variable does not gate local CLI uploads.</p>
 </div>
 <p>CI checks platform wheels and source installations for relevant PRs. The
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/c612adb1fc9166ca3419190a0af08138f35bdb53/.github/workflows/pypi.yml">PyPI workflow</a> uses the same checks for tag and
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/092615d50bf1147451b1b4d64b198fa93ad426a5/.github/workflows/pypi.yml">PyPI workflow</a> uses the same checks for tag and
 manual builds. See <a class="reference internal" href="site-maintenance.html"><span class="std std-doc">website maintenance</span></a> for site previews
 and publication.
 Binary release builds use the checked-in Cargo lockfile. Security audits cover
@@ -2745,8 +2765,15 @@ procedure below. <code class="docutils literal notranslate"><span class="pre">bl
 to crates.io.</p>
 <p>Python-only changes ship with the next workspace release. For an earlier
 Python release, prepare a reviewed <code class="docutils literal notranslate"><span class="pre">release-plz-</span></code> branch that updates the shared
-version, exact internal requirements, lockfile, and changelog together. Do not
-set a separate Python version or replace inherited Cargo versions.</p>
+version, exact internal requirements, and lockfile together, and generates its
+changelog with release-plz. Do not set a separate Python version or replace
+inherited Cargo versions.</p>
+<h2 id="changelog">Changelog<a class="headerlink" href="#changelog" title="Link to this heading">¶</a></h2>
+<p>Do not edit <code class="docutils literal notranslate"><span class="pre">CHANGELOG.md</span></code> manually, including unreleased entries and version
+headings. Release-plz generates it in release PRs from Conventional Commit
+messages. Record compatibility and migration details in <code class="docutils literal notranslate"><span class="pre">BREAKING</span> <span class="pre">CHANGE:</span></code>
+footers and the relevant user documentation, then review the generated notes
+in the release PR. <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">changelog</span></code> previews notes without writing the file.</p>
 <h2 id="stable-release-versions">Stable release versions<a class="headerlink" href="#stable-release-versions" title="Link to this heading">¶</a></h2>
 <p>The first stable release is <code class="docutils literal notranslate"><span class="pre">0.1.0</span></code>, tagged <code class="docutils literal notranslate"><span class="pre">v0.1.0</span></code>. Prepare subsequent stable
 versions in reviewed release PRs.</p>
@@ -2786,13 +2813,13 @@ binaries can use <code class="docutils literal notranslate"><span class="pre">/r
 <code class="docutils literal notranslate"><span class="pre">bloq.__version__</span></code> retain that spelling; Python package metadata normalizes it to
 <code class="docutils literal notranslate"><span class="pre">0.1.2.dev0</span></code>. The suffix stays unchanged throughout the development cycle.</p>
 <p>After Rust, Python, and binary publication succeeds, the
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/c612adb1fc9166ca3419190a0af08138f35bdb53/.github/workflows/post-release.yml">post-release workflow</a> opens a PR for the
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/092615d50bf1147451b1b4d64b198fa93ad426a5/.github/workflows/post-release.yml">post-release workflow</a> opens a PR for the
 next development version. Review its checks and merge it. The PR updates the
 shared version, exact internal requirements, and both Cargo lockfiles.
 Release-plz prepares the next stable version in a separate release PR.</p>
 <p>For manual publication, run <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">start-dev</span></code> on a <code class="docutils literal notranslate"><span class="pre">chore/</span></code> branch after verifying
 all uploads, then open a PR. To adjust a release candidate, use
-<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">set-version</span> <span class="pre">VERSION</span></code> and update its pending changelog heading.</p>
+<code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">set-version</span> <span class="pre">VERSION</span></code> and regenerate its pending changelog with release-plz.</p>
 <h2 id="release-credentials">Release credentials<a class="headerlink" href="#release-credentials" title="Link to this heading">¶</a></h2>
 <p>Rust publication uses <code class="docutils literal notranslate"><span class="pre">CARGO_REGISTRY_TOKEN</span></code> in the <code class="docutils literal notranslate"><span class="pre">crates-io</span></code> environment and
 repository secret <code class="docutils literal notranslate"><span class="pre">RELEASE_PLZ_TOKEN</span></code>. The GitHub token needs repository Contents
