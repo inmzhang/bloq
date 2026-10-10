@@ -45,6 +45,6 @@ jobs:
         with:
           name: sdist
           path: dist
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@v10.3.0
       - name: Publish distributions
         run: uv publish --trusted-publishing always dist/*

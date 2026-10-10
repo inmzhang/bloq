@@ -138,6 +138,7 @@ Expand-Archive -Path bloq-editor.zip -DestinationPath bloq-editor
 
 Depending on your platform, source builds may require a C/C++ toolchain and
 system libraries, including display/audio libraries for the desktop editor.
+The development workspace requires Rust 1.98.0 or newer.
 
 ### Checkout and development tools
 
@@ -147,7 +148,7 @@ Required development tools:
 | --- | --- |
 | Git | Repository checkout |
 | [rustup](https://rustup.rs/) | Pinned Rust toolchain, Cargo, rustfmt, and Clippy |
-| Python 3.10+ | Python bindings and tests |
+| Python 3.10+ | Python bindings and tests; 3.11+ for documentation tooling |
 | [uv](https://docs.astral.sh/uv/getting-started/installation/) | Python environments and dependencies |
 | [just](https://just.systems/man/en/) | Workspace command recipes |
 | [cargo-nextest](https://github.com/nextest-rs/nextest) | Rust test runner |
@@ -186,6 +187,9 @@ just py-sdist
 Build outputs are written to `target/wheels/`.
 
 ### Rust library and CLI
+
+This checkout's Rust APIs use glam 0.33 geometry types. Use a matching glam
+version when constructing vectors for those APIs.
 
 ```sh
 cargo build -p bloq --locked

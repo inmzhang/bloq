@@ -1194,7 +1194,7 @@ pub(crate) fn certify_leaf_body(
             source => graph_error(source.into()),
         })?;
     body.with_analyzed_action_graph(&stabilizers)
-        .map_err(&graph_error)?;
+        .map_err(graph_error)?;
     stabilizers
         .validate_measurements_close_before_outputs_with_limits(limits)
         .map_err(|source| match source {

@@ -579,20 +579,20 @@ mod tests {
             .spawn((Window::default(), PrimaryWindow))
             .id();
         let cube = app.world_mut().spawn(GraphElement::Block(IVec3::Z)).id();
-        let click = Pointer::new_without_propagate(
-            PointerId::Mouse,
-            Location {
-                target: RenderTarget::default().normalize(Some(window)).unwrap(),
-                position: Vec2::ZERO,
-            },
-            Click {
-                button: PointerButton::Primary,
-                hit: HitData::new(camera, 1.0, None, None),
-                duration: std::time::Duration::ZERO,
-                count: 1,
-            },
-            cube,
-        );
+        let click = PointerClick {
+            entity: cube,
+            pointer: Pointer::new(
+                PointerId::Mouse,
+                Location {
+                    target: RenderTarget::default().normalize(Some(window)).unwrap(),
+                    position: Vec2::ZERO,
+                },
+            ),
+            button: PointerButton::Primary,
+            hit: HitData::new(camera, 1.0, None, None),
+            duration: std::time::Duration::ZERO,
+            count: 1,
+        };
         // Releasing the previous drag must not also select its hit element.
         app.world_mut().trigger(click.clone());
         assert_eq!(app.world().resource::<EditorState>().selection_count(), 1);

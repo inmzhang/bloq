@@ -18,7 +18,9 @@ use crate::utils::{
     GraphAdjacencySnapshot, change_plane_height, cube_pipe_face_is_degenerate, intersect_plane,
     is_pipe_visible, pipe_placement_hadamard,
 };
-use bevy::picking::events::{Click, DragEnd, DragStart, Out, Over, Pointer};
+use bevy::picking::events::{
+    PointerClick, PointerDragEnd, PointerDragStart, PointerOut, PointerOver,
+};
 use bevy::picking::pointer::PointerButton;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;

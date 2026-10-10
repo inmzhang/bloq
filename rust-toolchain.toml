@@ -1,5 +1,5 @@
 [toolchain]
 # Renovate updates this pin so compiler and Clippy changes land in their own PR.
-channel = "1.98.1"
+channel = "1.99.0"
 components = ["clippy", "rustfmt"]
 profile = "minimal"

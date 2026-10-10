@@ -19,8 +19,8 @@ members = [
 [workspace.package]
 version = "0.1.2-dev"
 edition = "2024"
-# Floor derived from the highest `rust-version` in the dependency tree.
-rust-version = "1.95.0"
+# bevy_rich_text3d uses str::substr_range, stabilized in Rust 1.98.
+rust-version = "1.98.0"
 authors = ["Yiming Zhang <quantuminm@gmail.com>"]
 license = "Apache-2.0"
 repository = "https://github.com/inmzhang/bloq"
@@ -31,10 +31,10 @@ anstream = "1.0.0"
 anstyle = "1.0.13"
 ariadne = "0.6"
 base64 = "0.23.0"
-bevy = { version = "0.19.0", default-features = false }
-bevy_egui = { version = "0.42.0", default-features = false }
-bevy_rich_text3d = { version = "0.7.0", default-features = false }
-binar = "0.1.5"
+bevy = { version = "0.20.0", default-features = false }
+bevy_egui = { version = "0.43.0", default-features = false }
+bevy_rich_text3d = { version = "0.8.0", default-features = false }
+binar = "0.1.8"
 # Internal crates carry an exact (`=`) version requirement: the workspace
 # releases in lockstep, so a published crate must resolve to siblings from
 # the same release, never a stray newer patch (Bevy does the same).
@@ -56,19 +56,19 @@ color-eyre = "0.6.5"
 criterion = "0.8.2"
 egui_extras = { version = "0.36.2", default-features = false, features = ["syntect"] }
 getrandom = "0.4.2"
-hotpath = "0.26"
+hotpath = "0.27"
 indicatif = "0.18"
-# Pinned to match the glam re-exported by bevy 0.19 (0.32); a newer minor
+# Pinned to match the glam re-exported by bevy 0.20 (0.33); a newer minor
 # would create a second glam copy whose Vec3/IVec3 don't unify with bevy's.
-glam = "0.32"
+glam = "0.33.2"
 gltf-json = { version = "1.4.1", features = ["KHR_materials_unlit", "names"] }
-insta = "1.48.0"
+insta = "1.49.0"
 itertools = "0.15.0"
 itoa = "1.0"
 js-sys = "0.3"
 num-traits = "0.2"
 openqasm = "0.1.2"
-objc2 = "0.6.4"
+objc2 = "0.6.5"
 objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSApplication", "NSImage"] }
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSData"] }
 # The quantum engine used by `bloq_vm`.

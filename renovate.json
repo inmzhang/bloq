@@ -10,10 +10,22 @@
   "labels": ["dependencies"],
   "packageRules": [
     {
-      "description": "Keep glam aligned with Bevy 0.19; update this bound when upgrading Bevy.",
+      "description": "Keep glam aligned with Bevy 0.20; update this bound when upgrading Bevy.",
       "matchManagers": ["cargo"],
       "matchPackageNames": ["glam"],
-      "allowedVersions": "^0.32.0"
+      "allowedVersions": "^0.33.2"
+    },
+    {
+      "description": "Keep the getrandom_02 wasm backend aligned with QuiZX's rand 0.8 dependency; remove when QuiZX upgrades.",
+      "matchManagers": ["cargo"],
+      "matchDepNames": ["getrandom_02"],
+      "allowedVersions": "^0.2"
+    },
+    {
+      "description": "Keep Hotpath on 0.27 until its literal-label macro supports the workspace unsafe_code deny lint.",
+      "matchManagers": ["cargo"],
+      "matchPackageNames": ["hotpath"],
+      "allowedVersions": "^0.27"
     }
   ],
   "lockFileMaintenance": {

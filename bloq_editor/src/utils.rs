@@ -10,7 +10,7 @@ use crate::resources::{
     EditorMode, EditorState, GraphState, RenderSignatureBlockIdentity,
     RenderSignatureConnectableOffsets, RenderSignaturePipeIdentity,
 };
-use bevy::math::Ray3d;
+use bevy::shape::Ray3d;
 use bloq_graph::{Block, BlockGraph, BlockGraphError, BlockKind};
 use color_eyre::eyre;
 use glam::{IVec3, Vec3};
@@ -428,7 +428,8 @@ mod tests {
         pipe_placement_hadamard, set_plane_height, world_to_graph_space,
     };
     use crate::resources::{EditorMode, EditorState, GraphState};
-    use bevy::math::{Dir3, Ray3d};
+    use bevy::math::Dir3;
+    use bevy::shape::Ray3d;
     use bloq_graph::{Block, BlockGraph, BlockKind, CubeKind, Direction, Pipe};
     use glam::{IVec3, Vec3};
 

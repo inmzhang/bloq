@@ -195,7 +195,7 @@ pub(crate) fn can_place_pipe(
     };
 
     let err = match endpoint_promotions(&scratch, &promotion_positions, &pipe)
-        .map(&plan_with)
+        .map(plan_with)
         .and_then(|plan| probe_plan(graph, &plan).map(|()| plan))
     {
         Ok(plan) => return Ok(plan),
@@ -208,7 +208,7 @@ pub(crate) fn can_place_pipe(
     // axis its stale label happened to reserve — a `ZZX` run along x accepting a
     // temporal pipe as `XZX` — instead of making the user relabel it by hand.
     if let Some(plan) = shadow_relabels(graph, &scratch, &pipe, &promotion_positions)
-        .map(&plan_with)
+        .map(plan_with)
         .filter(|plan| probe_plan(graph, plan).is_ok())
     {
         return Ok(plan);

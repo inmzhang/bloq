@@ -8,7 +8,7 @@ pub(crate) struct MiddleButtonDrag(bool);
 /// Pointer observer: records the hovered graph element, ignoring elements the
 /// current-layer filter hides.
 pub(crate) fn on_element_over(
-    trigger: On<Pointer<Over>>,
+    trigger: On<PointerOver>,
     mut editor_state: ResMut<EditorState>,
     graph_state: Res<GraphState>,
     query_element: Query<&GraphElement>,
@@ -26,7 +26,7 @@ pub(crate) fn on_element_over(
 
 /// Pointer observer: clears the hovered element when the pointer leaves it.
 pub(crate) fn on_element_out(
-    trigger: On<Pointer<Out>>,
+    trigger: On<PointerOut>,
     mut editor_state: ResMut<EditorState>,
     query_element: Query<&GraphElement>,
     child_of_query: Query<&ChildOf>,
@@ -40,7 +40,7 @@ pub(crate) fn on_element_out(
 }
 
 pub(crate) fn on_element_drag_start(
-    trigger: On<Pointer<DragStart>>,
+    trigger: On<PointerDragStart>,
     mut middle_drag: ResMut<MiddleButtonDrag>,
 ) {
     if trigger.button == PointerButton::Middle {
@@ -49,7 +49,7 @@ pub(crate) fn on_element_drag_start(
 }
 
 pub(crate) fn on_element_drag_end(
-    trigger: On<Pointer<DragEnd>>,
+    trigger: On<PointerDragEnd>,
     mut middle_drag: ResMut<MiddleButtonDrag>,
 ) {
     if trigger.button == PointerButton::Middle {
@@ -60,7 +60,7 @@ pub(crate) fn on_element_drag_end(
 /// Pointer observer: handles clicks on a graph element (selection in View mode,
 /// deletion with the middle button, or attribute editing in Edit mode).
 pub(crate) fn on_element_click(
-    trigger: On<Pointer<Click>>,
+    trigger: On<PointerClick>,
     mut intents: ResMut<UiIntentBuffer>,
     time: Res<Time>,
     mut editor_state: ResMut<EditorState>,
@@ -212,7 +212,7 @@ pub(super) fn picked_graph_element(
 /// Pointer observer: places a pipe or walking block to the clicked preview
 /// endpoint's target while the pipe tool is active.
 pub(crate) fn on_preview_endpoint_click(
-    trigger: On<Pointer<Click>>,
+    trigger: On<PointerClick>,
     translation_drag: Res<TranslationDrag>,
     time: Res<Time>,
     mut editor_state: ResMut<EditorState>,
@@ -311,7 +311,7 @@ pub(super) fn open_pipe_start_editor_if_double_clicked(
 /// Pointer observer: marks a preview endpoint as hovered so it can be
 /// highlighted.
 pub(crate) fn on_preview_endpoint_over(
-    trigger: On<Pointer<Over>>,
+    trigger: On<PointerOver>,
     mut editor_state: ResMut<EditorState>,
     query_endpoint: Query<&PreviewEndpointMesh>,
 ) {
@@ -326,7 +326,7 @@ pub(crate) fn on_preview_endpoint_over(
 
 /// Pointer observer: clears the hovered preview endpoint on pointer-out.
 pub(crate) fn on_preview_endpoint_out(
-    trigger: On<Pointer<Out>>,
+    trigger: On<PointerOut>,
     mut editor_state: ResMut<EditorState>,
     query_endpoint: Query<&PreviewEndpointMesh>,
 ) {

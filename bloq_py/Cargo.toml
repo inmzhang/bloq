@@ -34,9 +34,9 @@ bloq_utils.workspace = true
 bloq_vm.workspace = true
 glam.workspace = true
 # Maturin enables extension-module; standalone stub_gen must link libpython.
-pyo3 = { version = "0.29.2", features = ["abi3-py310"] }
+pyo3 = { version = "0.29.3", features = ["abi3-py310"] }
 # Bound types need none of the optional NumPy/either/ordered-float features.
-pyo3-stub-gen = { version = "0.23.0", default-features = false, features = ["infer_signature"] }
+pyo3-stub-gen = { version = "0.23.1", default-features = false, features = ["infer_signature"] }
 rand.workspace = true
 rustc-hash.workspace = true
 stim.workspace = true
