@@ -60,9 +60,9 @@ jobs:
             libxkbcommon-dev
 
       - name: Install Python for release packaging
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
-          python-version: '3.11'
+          python-version: '3.14'
 
       - name: Install pinned Rust toolchain
         run: rustup toolchain install --target ${{ matrix.target }}

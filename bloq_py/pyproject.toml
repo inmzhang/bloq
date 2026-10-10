@@ -38,7 +38,7 @@ dev = [
     "pytest",
     "ruff>=0.16.10",
 ]
-docs = ["sphinx>=8,<9", "sphinx-immaterial", "myst-parser"]
+docs = ["sphinx>=9,<10", "sphinx-immaterial", "myst-parser"]
 
 [tool.ruff]
 target-version = "py310"
@@ -74,6 +74,9 @@ cache-keys = [
   { file = "../bloq_*/src/**/*" },
   { file = "../bloq_graph/assets/**/*" },
 ]
+
+[tool.uv.dependency-groups]
+docs = { requires-python = ">=3.11" }
 
 [[tool.uv.index]]
 url = "https://pypi.org/simple"

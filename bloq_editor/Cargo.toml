@@ -28,7 +28,7 @@ bevy_egui = { workspace = true, features = [
     "picking",
     "render",
 ] }
-bevy_rich_text3d = { workspace = true, features = ["3d"] }
+bevy_rich_text3d.workspace = true
 egui_extras.workspace = true
 bloq_circuit.workspace = true
 bloq_compile.workspace = true
@@ -69,13 +69,8 @@ bevy = { workspace = true, features = [
 bevy = { workspace = true, features = ["webgpu"] }
 # Enables bloq_graph's rand-based helpers when compiling the web editor to wasm.
 getrandom = { workspace = true, features = ["wasm_js"] }
-# The dependency tree ends up with three getrandom majors on wasm, each needing
-# its web backend turned on explicitly or the build can't pick one:
-#   0.2 (quizx → rand 0.8) via the `js` feature,
-#   0.3 (egui 0.36 → ahash) via the `wasm_js` feature (plus the
-#       `getrandom_backend="wasm_js"` cfg the bevy CLI sets for web builds).
+# QuiZX's rand 0.8 still needs the getrandom 0.2 web backend enabled separately.
 getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
-getrandom_03 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
 js-sys.workspace = true
 wasm-bindgen.workspace = true
 web-sys = { workspace = true, features = [
@@ -100,7 +95,7 @@ web-sys = { workspace = true, features = [
 
 [package.metadata.cargo-machete]
 # winresource is used by build.rs for the Windows executable icon.
-ignored = ["getrandom", "getrandom_02", "getrandom_03", "winresource"]
+ignored = ["getrandom", "getrandom_02", "winresource"]
 
 [build-dependencies]
 winresource.workspace = true

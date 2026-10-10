@@ -34,10 +34,10 @@ impl Plugin for SetupPlugin {
             );
     }
 }
-use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::light::NotShadowCaster;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Face, PrimitiveTopology};
+use bevy::render::view::Tonemapping;
 use bevy::window::{PrimaryWindow, WindowBackendScaleFactorChanged};
 use bevy_egui::{EguiContext, EguiOutput, EguiPostUpdateSet, PrimaryEguiContext, egui};
 use bloq_graph::{EDITOR_AMBIENT_BRIGHTNESS, EDITOR_DIRECTIONAL_ILLUMINANCE};
@@ -60,7 +60,7 @@ const GRID_ANCHOR_SEGMENT: f32 = 0.24;
 // reads as its basis color and the lit side only gains enough shading to give
 // the solid depth. Both values are calibrated against Bevy's default
 // `Exposure::BLENDER` (ev100 9.7, exposure = 2^-9.7/1.2 = 1.0019e-3) with
-// `Tonemapping::None`: ambient contributes `0.4524 * brightness * exposure`
+// `Tonemapping::Linear`: ambient contributes `0.4524 * brightness * exposure`
 // (0.4524 is `EnvBRDFApprox` at `perceptual_roughness` 1.0, which is why the
 // ambient number has to be more than twice what plain `brightness * exposure`
 // would suggest) and the directional contributes
@@ -205,8 +205,8 @@ pub(crate) fn setup(
         // here changes them: `AcesFitted` (the Stephen Hill fit) needs roughly
         // 1.5x the light to land in the same place, and the LUT-based curves
         // would drag the `tonemapping_luts` feature and its KTX2 blobs into the
-        // WASM binary. Retune the constants if this ever stops being `None`.
-        Tonemapping::None,
+        // WASM binary. Retune the constants if this ever stops being `Linear`.
+        Tonemapping::Linear,
         Projection::Perspective(PerspectiveProjection {
             far: CAMERA_FAR_PLANE,
             ..default()
