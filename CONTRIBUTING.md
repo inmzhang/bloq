@@ -33,7 +33,7 @@ contribution or have the right to submit it, and license it under this project's
 AI-assisted contributions are welcome. Review all generated code, documentation,
 issue text, and pull request text before submitting. You remain responsible for
 the contribution's correctness, security, and quality. Disclose the tool and
-model used, and how they assisted, in the issue or pull request.
+exact model identifier used, and how they assisted, in the issue or pull request.
 
 Select exactly one AI acknowledgement option in the template. If you did not use
 AI tools, select `No`; no AI disclosure details or `Assisted-by:` trailers are
@@ -46,6 +46,15 @@ the tool and model:
 ```text
 Assisted-by: <tool> (<model>)
 ```
+
+Use the exact model identifier reported by the tool in both trailers and
+disclosures. A family label such as `GPT-6` is not sufficient. For example:
+
+```text
+Assisted-by: Codex (gpt-6.1-sol)
+```
+
+If the identifier is unavailable, state that explicitly instead of guessing.
 
 Keep the human contributor as the commit author; credit AI tools with
 `Assisted-by:`, rather than `Co-authored-by:`. Complete the AI contribution

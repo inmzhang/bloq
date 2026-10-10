@@ -38,6 +38,7 @@ Select exactly one option. AI-assisted submissions must follow the
 - [ ] No — I did not use AI tools to prepare this contribution.
 - [ ] Yes — I used AI tools, reviewed all generated content before submitting,
   completed the disclosure below, and added `Assisted-by:` trailers identifying
-  the tool and model to each AI-assisted commit.
+  the tool and exact model identifier to each AI-assisted commit.
 
-AI assistance details (only if you selected Yes: tool, model, and how it was used):
+AI assistance details (only if you selected Yes: tool, exact model identifier,
+and how it was used):

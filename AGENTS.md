@@ -42,6 +42,9 @@ architecture cannot support it:
 - Use Conventional Commits. Follow the repository's
   [AI contribution policy](CONTRIBUTING.md#ai-assisted-contributions), including
   tool/model disclosure and an `Assisted-by: <tool> (<model>)` commit trailer.
+  Use the exact model identifier reported by the tool, such as `gpt-6.1-sol`,
+  rather than a family label such as `GPT-6`. If the identifier is unavailable,
+  state that explicitly instead of guessing.
   Keep the human contributor as author; do not use AI `Co-authored-by:` credit.
 - Keep the aggregate `CI` check required. Release publication and stable website
   promotion are separate maintainer actions; follow [Releasing](docs/releasing.md) and
