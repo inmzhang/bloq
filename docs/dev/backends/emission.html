@@ -2526,9 +2526,9 @@ mock decoder queries, retries, and waiting.</p></li>
 <div class="mermaid-diagram docutils">
 <pre class="mermaid">
 <div class="highlight-none notranslate"><div class="highlight"><pre><span></span><code>flowchart LR
-  ir[&quot;Bloq IR&quot;] --&gt; stim[&quot;Stim emitter&quot;] --&gt; circuit[&quot;Stim circuit&lt;br/&gt;sampling, DEM&quot;]
-  ir --&gt; vm[&quot;VM lowering&quot;] --&gt; run[&quot;Verification simulator&lt;br/&gt;mock decoder + timing model&quot;]
-  ir --&gt; custom[&quot;Custom dynamic backend&quot;] --&gt; hw[&quot;Device controller + decoder&quot;]
+  ir["Bloq IR"] --&gt; stim["Stim emitter"] --&gt; circuit["Stim circuit&lt;br/&gt;sampling, DEM"]
+  ir --&gt; vm["VM lowering"] --&gt; run["Verification simulator&lt;br/&gt;mock decoder + timing model"]
+  ir --&gt; custom["Custom dynamic backend"] --&gt; hw["Device controller + decoder"]
 </code></pre></div>
 </div>
 </pre></div>
@@ -2552,7 +2552,7 @@ CLI</label></div>
 
 <span class="n">program</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">GalleryItem</span><span class="o">.</span><span class="n">CNOT</span><span class="o">.</span><span class="n">load</span><span class="p">(),</span> <span class="n">distance</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
 <span class="n">circuit</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">emit_stim</span><span class="p">(</span><span class="n">program</span><span class="p">)</span>
-<span class="n">circuit</span><span class="o">.</span><span class="n">to_file</span><span class="p">(</span><span class="s2">&quot;cnot.stim&quot;</span><span class="p">)</span>
+<span class="n">circuit</span><span class="o">.</span><span class="n">to_file</span><span class="p">(</span><span class="s2">"cnot.stim"</span><span class="p">)</span>
 <span class="n">noisy</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">emit_stim</span><span class="p">(</span><span class="n">program</span><span class="p">,</span> <span class="n">noise</span><span class="o">=</span><span class="mf">0.001</span><span class="p">)</span>
 </code></pre></div>
 </div>
@@ -2563,7 +2563,7 @@ CLI</label></div>
 
 <span class="k">fn</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="p">(),</span><span class="w"> </span><span class="nb">Box</span><span class="o">&lt;</span><span class="k">dyn</span><span class="w"> </span><span class="n">std</span><span class="p">::</span><span class="n">error</span><span class="p">::</span><span class="n">Error</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">program</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">compile</span><span class="p">(</span><span class="o">&amp;</span><span class="n">GalleryItem</span><span class="p">::</span><span class="n">CNOT</span><span class="p">.</span><span class="n">build</span><span class="p">(),</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
-<span class="w">    </span><span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;cnot.stim&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">emit_bloq_stim</span><span class="p">(</span><span class="o">&amp;</span><span class="n">program</span><span class="p">)</span><span class="o">?</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
+<span class="w">    </span><span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">"cnot.stim"</span><span class="p">,</span><span class="w"> </span><span class="n">emit_bloq_stim</span><span class="p">(</span><span class="o">&amp;</span><span class="n">program</span><span class="p">)</span><span class="o">?</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
 <span class="w">    </span><span class="nb">Ok</span><span class="p">(())</span>
 <span class="p">}</span>
 </code></pre></div>
@@ -2626,7 +2626,7 @@ Rust</label></div>
 
 <span class="n">ir</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">GalleryItem</span><span class="o">.</span><span class="n">T_GATE</span><span class="o">.</span><span class="n">load</span><span class="p">(),</span> <span class="n">distance</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
 <span class="n">program</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">lower_vm</span><span class="p">(</span><span class="n">ir</span><span class="p">,</span> <span class="n">decoder_latency_rounds</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-<span class="n">result</span> <span class="o">=</span> <span class="n">program</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">input_state</span><span class="o">=</span><span class="s2">&quot;plus&quot;</span><span class="p">)</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">program</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">input_state</span><span class="o">=</span><span class="s2">"plus"</span><span class="p">)</span>
 <span class="k">if</span> <span class="ow">not</span> <span class="n">result</span><span class="o">.</span><span class="n">discarded</span><span class="p">:</span>
     <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">finished_at</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">logical_bloch</span><span class="p">())</span>
 </code></pre></div>
@@ -2641,7 +2641,7 @@ Rust</label></div>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">options</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">LoweringConfig</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">decoder_latency_rounds</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="o">..</span><span class="nb">Default</span><span class="p">::</span><span class="n">default</span><span class="p">()</span><span class="w"> </span><span class="p">};</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">program</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">lower</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ir</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">options</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">program</span><span class="p">.</span><span class="n">run</span><span class="p">(</span><span class="n">options</span><span class="p">.</span><span class="n">runtime_config</span><span class="p">(</span><span class="mi">17</span><span class="p">))</span><span class="o">?</span><span class="p">;</span>
-<span class="w">    </span><span class="fm">println!</span><span class="p">(</span><span class="s">&quot;discarded: {}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">.</span><span class="n">artifact</span><span class="p">.</span><span class="n">discarded</span><span class="p">);</span>
+<span class="w">    </span><span class="fm">println!</span><span class="p">(</span><span class="s">"discarded: {}"</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">.</span><span class="n">artifact</span><span class="p">.</span><span class="n">discarded</span><span class="p">);</span>
 <span class="w">    </span><span class="nb">Ok</span><span class="p">(())</span>
 <span class="p">}</span>
 </code></pre></div>
@@ -2780,7 +2780,7 @@ They are not hardware-controller instructions.</p>
   
     Created using
     <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
-    8.1.3.
+    9.1.0.
      and
     <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
   

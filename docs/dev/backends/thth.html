@@ -2557,11 +2557,11 @@ measurement also needs a decoded parity:</p>
 <div class="mermaid-diagram docutils">
 <pre class="mermaid">
 <div class="highlight-none notranslate"><div class="highlight"><pre><span></span><code>flowchart LR
-    factory[&quot;T factory&lt;br/&gt;retry until accepted&quot;] --&gt; join[&quot;T injection&lt;br/&gt;wait for both patches&quot;]
-    input[&quot;Data patch arrives&quot;] --&gt; join
-    join --&gt; parity[&quot;Measure joint parity&quot;]
-    parity --&gt; decoder[&quot;Wait for decoder result&quot;]
-    decoder --&gt; cap[&quot;Select measurement basis&quot;]
+    factory["T factory&lt;br/&gt;retry until accepted"] --&gt; join["T injection&lt;br/&gt;wait for both patches"]
+    input["Data patch arrives"] --&gt; join
+    join --&gt; parity["Measure joint parity"]
+    parity --&gt; decoder["Wait for decoder result"]
+    decoder --&gt; cap["Select measurement basis"]
 </code></pre></div>
 </div>
 </pre></div>
@@ -2599,11 +2599,11 @@ records and frame corrections.</p>
 <iframe class="bloq-block-view" src="../_static/block-graphs/thth-mzz2.html" title="Interactive thth correlation surface mzz2" loading="lazy" allowfullscreen></iframe><div class="mermaid-diagram docutils">
 <pre class="mermaid">
 <div class="highlight-none notranslate"><div class="highlight"><pre><span></span><code>flowchart LR
-    m1[&quot;Corrected mzz1&quot;] --&gt; cap1[&quot;First selected measurement&lt;br/&gt;finish and produce records&quot;]
-    cap1 --&gt; m2[&quot;Assemble and decode mzz2&quot;]
-    joint2[&quot;Second joint measurement records&quot;] --&gt; m2
+    m1["Corrected mzz1"] --&gt; cap1["First selected measurement&lt;br/&gt;finish and produce records"]
+    cap1 --&gt; m2["Assemble and decode mzz2"]
+    joint2["Second joint measurement records"] --&gt; m2
     m1 --&gt;|Frame correction| m2
-    m2 --&gt; cap2[&quot;Second selected measurement&quot;]
+    m2 --&gt; cap2["Second selected measurement"]
 </code></pre></div>
 </div>
 </pre></div>
@@ -2703,7 +2703,7 @@ Rust</label></div>
 <span class="p">)</span>
 <span class="n">result</span> <span class="o">=</span> <span class="n">program</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
     <span class="n">seed</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span>
-    <span class="n">input_state</span><span class="o">=</span><span class="s2">&quot;plus&quot;</span><span class="p">,</span>
+    <span class="n">input_state</span><span class="o">=</span><span class="s2">"plus"</span><span class="p">,</span>
     <span class="n">decoder_acceptance</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
     <span class="n">accepted_accuracy</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
     <span class="n">rejected_accuracy</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
@@ -2712,13 +2712,13 @@ Rust</label></div>
 <span class="n">expected</span> <span class="o">=</span> <span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">0.5</span><span class="p">),</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">)</span>
 <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">abs_tol</span><span class="o">=</span><span class="mf">1e-9</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">logical_bloch</span><span class="p">(),</span> <span class="n">expected</span><span class="p">))</span>
 <span class="n">trace</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">trace</span>
-<span class="k">assert</span> <span class="n">trace</span><span class="p">[</span><span class="s2">&quot;metadata&quot;</span><span class="p">][</span><span class="s2">&quot;decoder_latency_rounds&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">10</span>
-<span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="n">span</span><span class="p">[</span><span class="s2">&quot;end&quot;</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">result</span><span class="o">.</span><span class="n">finished_at</span> <span class="o">+</span> <span class="mf">1e-9</span> <span class="k">for</span> <span class="n">span</span> <span class="ow">in</span> <span class="n">trace</span><span class="p">[</span><span class="s2">&quot;timing&quot;</span><span class="p">])</span>
-<span class="n">Path</span><span class="p">(</span><span class="s2">&quot;thth.instructions.json&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">program</span><span class="o">.</span><span class="n">to_json</span><span class="p">(</span><span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
-<span class="n">Path</span><span class="p">(</span><span class="s2">&quot;thth.trace.json&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">to_json</span><span class="p">(</span><span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;logical Bloch vector:&quot;</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">logical_bloch</span><span class="p">())</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;finished at:&quot;</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">finished_at</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;source roles:&quot;</span><span class="p">,</span> <span class="nb">dict</span><span class="p">(</span><span class="n">Counter</span><span class="p">(</span><span class="n">source</span><span class="p">[</span><span class="s2">&quot;role&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">source</span> <span class="ow">in</span> <span class="n">program</span><span class="o">.</span><span class="n">sources</span><span class="p">)))</span>
+<span class="k">assert</span> <span class="n">trace</span><span class="p">[</span><span class="s2">"metadata"</span><span class="p">][</span><span class="s2">"decoder_latency_rounds"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">10</span>
+<span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="n">span</span><span class="p">[</span><span class="s2">"end"</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">result</span><span class="o">.</span><span class="n">finished_at</span> <span class="o">+</span> <span class="mf">1e-9</span> <span class="k">for</span> <span class="n">span</span> <span class="ow">in</span> <span class="n">trace</span><span class="p">[</span><span class="s2">"timing"</span><span class="p">])</span>
+<span class="n">Path</span><span class="p">(</span><span class="s2">"thth.instructions.json"</span><span class="p">)</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">program</span><span class="o">.</span><span class="n">to_json</span><span class="p">(</span><span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">"utf-8"</span><span class="p">)</span>
+<span class="n">Path</span><span class="p">(</span><span class="s2">"thth.trace.json"</span><span class="p">)</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">to_json</span><span class="p">(</span><span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">"utf-8"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"logical Bloch vector:"</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">logical_bloch</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"finished at:"</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">finished_at</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"source roles:"</span><span class="p">,</span> <span class="nb">dict</span><span class="p">(</span><span class="n">Counter</span><span class="p">(</span><span class="n">source</span><span class="p">[</span><span class="s2">"role"</span><span class="p">]</span> <span class="k">for</span> <span class="n">source</span> <span class="ow">in</span> <span class="n">program</span><span class="o">.</span><span class="n">sources</span><span class="p">)))</span>
 </code></pre></div>
 </div>
 <p>Run the <a class="reference download internal" download="" href="../_downloads/4c29d0dd338e4503f1adef90347f01fa/thth.py"><span class="xref download myst">complete Python example</span></a> with <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">thth.py</span></code> in
@@ -2755,10 +2755,10 @@ an empty output directory. It also exports <code class="docutils literal notrans
 <span class="w">    </span><span class="fm">assert!</span><span class="p">((</span><span class="n">actual</span><span class="p">.</span><span class="mi">0</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">expected</span><span class="p">.</span><span class="mi">0</span><span class="p">).</span><span class="n">abs</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">1e-9</span><span class="p">);</span>
 <span class="w">    </span><span class="fm">assert!</span><span class="p">((</span><span class="n">actual</span><span class="p">.</span><span class="mi">1</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">expected</span><span class="p">.</span><span class="mi">1</span><span class="p">).</span><span class="n">abs</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">1e-9</span><span class="p">);</span>
 <span class="w">    </span><span class="fm">assert!</span><span class="p">((</span><span class="n">actual</span><span class="p">.</span><span class="mi">2</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">expected</span><span class="p">.</span><span class="mi">2</span><span class="p">).</span><span class="n">abs</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">1e-9</span><span class="p">);</span>
-<span class="w">    </span><span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;thth.instructions.json&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">program</span><span class="p">.</span><span class="n">to_json_pretty</span><span class="p">()</span><span class="o">?</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
-<span class="w">    </span><span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;thth.trace.json&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">.</span><span class="n">artifact</span><span class="p">.</span><span class="n">to_json_pretty</span><span class="p">()</span><span class="o">?</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
-<span class="w">    </span><span class="fm">println!</span><span class="p">(</span><span class="s">&quot;logical Bloch vector: {actual:?}&quot;</span><span class="p">);</span>
-<span class="w">    </span><span class="fm">println!</span><span class="p">(</span><span class="s">&quot;finished at: {}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">.</span><span class="n">artifact</span><span class="p">.</span><span class="n">finished_at</span><span class="p">);</span>
+<span class="w">    </span><span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">"thth.instructions.json"</span><span class="p">,</span><span class="w"> </span><span class="n">program</span><span class="p">.</span><span class="n">to_json_pretty</span><span class="p">()</span><span class="o">?</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
+<span class="w">    </span><span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">"thth.trace.json"</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">.</span><span class="n">artifact</span><span class="p">.</span><span class="n">to_json_pretty</span><span class="p">()</span><span class="o">?</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
+<span class="w">    </span><span class="fm">println!</span><span class="p">(</span><span class="s">"logical Bloch vector: {actual:?}"</span><span class="p">);</span>
+<span class="w">    </span><span class="fm">println!</span><span class="p">(</span><span class="s">"finished at: {}"</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">.</span><span class="n">artifact</span><span class="p">.</span><span class="n">finished_at</span><span class="p">);</span>
 <span class="w">    </span><span class="c1">// [example-end]</span>
 <span class="w">    </span><span class="nb">Ok</span><span class="p">(())</span>
 <span class="p">}</span>
@@ -2862,7 +2862,7 @@ width does not represent physical-qubit area.</p>
   
     Created using
     <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
-    8.1.3.
+    9.1.0.
      and
     <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
   
@@ -2884,7 +2884,7 @@ width does not represent physical-qubit area.</p>
       
         <script src="../_static/sphinx_immaterial_theme.32136f45f91ae6956.min.js?v=a7a9472a"></script>
         <script>window.MathJax = {"options": {"processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
-        <script id="MathJax-script" src="../_static/mathjax/tex-mml-chtml.js?v=cadf963e"></script>
+        <script id="MathJax-script" src="../_static/mathjax/tex-mml-chtml.js"></script>
         <script src="../_static/versions.js?v=2f43aabb"></script>
         <script src="../_static/graph-viewer.js?v=b2321b27"></script>
     

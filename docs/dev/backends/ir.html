@@ -2886,11 +2886,11 @@ the APIs for reading, querying, editing, and checking a program.</p>
 <div class="mermaid-diagram docutils">
 <pre class="mermaid">
 <div class="highlight-none notranslate"><div class="highlight"><pre><span></span><code>flowchart LR
-  pool[&quot;Template pool&lt;br/&gt;circuits + flows&quot;] --&gt; q[&quot;Quantum nodes&lt;br/&gt;placed instances&quot;]
-  bundles[&quot;Detector bundle pool&lt;br/&gt;shared checks&quot;] --&gt; q
-  q --&gt;|Order| c[&quot;Classical nodes&lt;br/&gt;readouts + logic&quot;]
-  c --&gt;|Value| c2[&quot;Classical nodes&quot;]
-  c2 --&gt;|Value guard| q2[&quot;Quantum nodes&quot;]
+  pool["Template pool&lt;br/&gt;circuits + flows"] --&gt; q["Quantum nodes&lt;br/&gt;placed instances"]
+  bundles["Detector bundle pool&lt;br/&gt;shared checks"] --&gt; q
+  q --&gt;|Order| c["Classical nodes&lt;br/&gt;readouts + logic"]
+  c --&gt;|Value| c2["Classical nodes"]
+  c2 --&gt;|Value guard| q2["Quantum nodes"]
   q --&gt;|Quantum| q2
 </code></pre></div>
 </div>
@@ -3189,9 +3189,9 @@ or inlines them into their parents.</p>
 <div class="mermaid-diagram docutils">
 <pre class="mermaid">
 <div class="highlight-none notranslate"><div class="highlight"><pre><span></span><code>flowchart LR
-  fragments[&quot;Readout fragments&quot;] --&gt;|Compose| observable[&quot;Indexed Observable&lt;br/&gt;one decoder query&quot;]
-  observable --&gt; corrected[&quot;Corrected&lt;br/&gt;raw parity XOR Flip&quot;]
-  observable --&gt; flip[&quot;Flip&lt;br/&gt;decoder estimate&quot;]
+  fragments["Readout fragments"] --&gt;|Compose| observable["Indexed Observable&lt;br/&gt;one decoder query"]
+  observable --&gt; corrected["Corrected&lt;br/&gt;raw parity XOR Flip"]
+  observable --&gt; flip["Flip&lt;br/&gt;decoder estimate"]
 </code></pre></div>
 </div>
 </pre></div>
@@ -3349,9 +3349,9 @@ Rust</label></div>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">bloq</span>
 
 <span class="n">program</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">GalleryItem</span><span class="o">.</span><span class="n">X_MEMORY</span><span class="o">.</span><span class="n">load</span><span class="p">(),</span> <span class="n">distance</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-<span class="n">program</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;memory.bloq&quot;</span><span class="p">)</span>
-<span class="n">loaded</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">Bloq</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;memory.bloq&quot;</span><span class="p">)</span>
-<span class="n">loaded</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;memory.bloqir&quot;</span><span class="p">)</span>
+<span class="n">program</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">"memory.bloq"</span><span class="p">)</span>
+<span class="n">loaded</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">Bloq</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">"memory.bloq"</span><span class="p">)</span>
+<span class="n">loaded</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">"memory.bloqir"</span><span class="p">)</span>
 </code></pre></div>
 </div>
 </div>
@@ -3359,9 +3359,9 @@ Rust</label></div>
 <div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><code><span class="k">use</span><span class="w"> </span><span class="n">bloq</span><span class="p">::{</span><span class="n">graph</span><span class="p">::</span><span class="n">GalleryItem</span><span class="p">,</span><span class="w"> </span><span class="n">ir</span><span class="p">::</span><span class="n">Bloq</span><span class="p">};</span>
 
 <span class="kd">let</span><span class="w"> </span><span class="n">program</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bloq</span><span class="p">::</span><span class="n">compile</span><span class="p">::</span><span class="n">compile</span><span class="p">(</span><span class="o">&amp;</span><span class="n">GalleryItem</span><span class="p">::</span><span class="n">XMemory</span><span class="p">.</span><span class="n">build</span><span class="p">(),</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
-<span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;memory.bloq&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">program</span><span class="p">.</span><span class="n">to_binary</span><span class="p">())</span><span class="o">?</span><span class="p">;</span>
-<span class="kd">let</span><span class="w"> </span><span class="n">loaded</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Bloq</span><span class="p">::</span><span class="n">from_binary</span><span class="p">(</span><span class="o">&amp;</span><span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">read</span><span class="p">(</span><span class="s">&quot;memory.bloq&quot;</span><span class="p">)</span><span class="o">?</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
-<span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;memory.bloqir&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">loaded</span><span class="p">.</span><span class="n">to_text</span><span class="p">())</span><span class="o">?</span><span class="p">;</span>
+<span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">"memory.bloq"</span><span class="p">,</span><span class="w"> </span><span class="n">program</span><span class="p">.</span><span class="n">to_binary</span><span class="p">())</span><span class="o">?</span><span class="p">;</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">loaded</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Bloq</span><span class="p">::</span><span class="n">from_binary</span><span class="p">(</span><span class="o">&amp;</span><span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">read</span><span class="p">(</span><span class="s">"memory.bloq"</span><span class="p">)</span><span class="o">?</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
+<span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">"memory.bloqir"</span><span class="p">,</span><span class="w"> </span><span class="n">loaded</span><span class="p">.</span><span class="n">to_text</span><span class="p">())</span><span class="o">?</span><span class="p">;</span>
 </code></pre></div>
 </div>
 </div>
@@ -3412,9 +3412,9 @@ signatures.</p>
         <span class="nb">print</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="n">entry</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">kind</span><span class="o">.</span><span class="n">node</span><span class="p">)</span>
 </code></pre></div>
 </div>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code>[(4, &#39;body&#39;)] 2 ClassicalNode.Observable(index=0, measurements=5, operators=2)
-[(4, &#39;body&#39;)] 3 ClassicalNode.Observable(index=1, measurements=4, operators=2)
-[(4, &#39;body&#39;)] 4 ClassicalNode.Compute(expr=or(in(0), in(1)))
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code>[(4, 'body')] 2 ClassicalNode.Observable(index=0, measurements=5, operators=2)
+[(4, 'body')] 3 ClassicalNode.Observable(index=1, measurements=4, operators=2)
+[(4, 'body')] 4 ClassicalNode.Compute(expr=or(in(0), in(1)))
 [] 5 ClassicalNode.Compute(expr=in(0))
 [] 6 ClassicalNode.Compute(expr=parity(true, in(0)))
 [] 7 ClassicalNode.Compute(expr=in(0))
@@ -3565,12 +3565,12 @@ CLI</label></div>
 <div class="tabbed-block docutils">
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 
-<span class="n">Path</span><span class="p">(</span><span class="s2">&quot;t-gate-ir.svg&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">program</span><span class="o">.</span><span class="n">to_svg</span><span class="p">(</span><span class="n">include_classical</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+<span class="n">Path</span><span class="p">(</span><span class="s2">"t-gate-ir.svg"</span><span class="p">)</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">program</span><span class="o">.</span><span class="n">to_svg</span><span class="p">(</span><span class="n">include_classical</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">"utf-8"</span><span class="p">)</span>
 </code></pre></div>
 </div>
 </div>
 <div class="tabbed-block docutils">
-<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><code><span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;t-gate-ir.svg&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">program</span><span class="p">.</span><span class="n">to_svg</span><span class="p">(</span><span class="kc">true</span><span class="p">))</span><span class="o">?</span><span class="p">;</span>
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><code><span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">"t-gate-ir.svg"</span><span class="p">,</span><span class="w"> </span><span class="n">program</span><span class="p">.</span><span class="n">to_svg</span><span class="p">(</span><span class="kc">true</span><span class="p">))</span><span class="o">?</span><span class="p">;</span>
 </code></pre></div>
 </div>
 </div>
@@ -3681,7 +3681,7 @@ and <a class="reference internal" href="../api/rust.html"><span class="std std-d
   
     Created using
     <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
-    8.1.3.
+    9.1.0.
      and
     <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
   

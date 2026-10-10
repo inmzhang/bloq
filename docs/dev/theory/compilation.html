@@ -2642,7 +2642,7 @@ CLI</label></div>
 
 <span class="n">graph</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">GalleryItem</span><span class="o">.</span><span class="n">CNOT</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>
 <span class="n">program</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">distance</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-<span class="n">program</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;cnot.bloqir&quot;</span><span class="p">)</span>
+<span class="n">program</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">"cnot.bloqir"</span><span class="p">)</span>
 </code></pre></div>
 </div>
 </div>
@@ -2652,7 +2652,7 @@ CLI</label></div>
 <span class="k">fn</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="p">(),</span><span class="w"> </span><span class="nb">Box</span><span class="o">&lt;</span><span class="k">dyn</span><span class="w"> </span><span class="n">std</span><span class="p">::</span><span class="n">error</span><span class="p">::</span><span class="n">Error</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">graph</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">GalleryItem</span><span class="p">::</span><span class="n">CNOT</span><span class="p">.</span><span class="n">build</span><span class="p">();</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">program</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">compile</span><span class="p">(</span><span class="o">&amp;</span><span class="n">graph</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
-<span class="w">    </span><span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;cnot.bloqir&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">program</span><span class="p">.</span><span class="n">to_text</span><span class="p">())</span><span class="o">?</span><span class="p">;</span>
+<span class="w">    </span><span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">"cnot.bloqir"</span><span class="p">,</span><span class="w"> </span><span class="n">program</span><span class="p">.</span><span class="n">to_text</span><span class="p">())</span><span class="o">?</span><span class="p">;</span>
 <span class="w">    </span><span class="nb">Ok</span><span class="p">(())</span>
 <span class="p">}</span>
 </code></pre></div>
@@ -2668,14 +2668,14 @@ CLI</label></div>
 <div class="mermaid-diagram docutils">
 <pre class="mermaid">
 <div class="highlight-none notranslate"><div class="highlight"><pre><span></span><code>flowchart LR
-  src[&quot;Block graph&quot;] --&gt; val[&quot;1 Validation&quot;]
-  val --&gt; cert[&quot;2 Certification&quot;]
-  cert --&gt; corr[&quot;3 Correlations&quot;]
-  corr --&gt; place[&quot;4 Placement&quot;]
-  place --&gt; tmpl[&quot;5 Templates&quot;]
-  tmpl --&gt; read[&quot;6 Readouts&quot;]
-  read --&gt; fin[&quot;7 Finalization&quot;]
-  fin --&gt; ir[&quot;Bloq IR&quot;]
+  src["Block graph"] --&gt; val["1 Validation"]
+  val --&gt; cert["2 Certification"]
+  cert --&gt; corr["3 Correlations"]
+  corr --&gt; place["4 Placement"]
+  place --&gt; tmpl["5 Templates"]
+  tmpl --&gt; read["6 Readouts"]
+  read --&gt; fin["7 Finalization"]
+  fin --&gt; ir["Bloq IR"]
 </code></pre></div>
 </div>
 </pre></div>
@@ -2942,7 +2942,7 @@ same physical qubit at the same time.</p></li>
   
     Created using
     <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
-    8.1.3.
+    9.1.0.
      and
     <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
   
@@ -2964,7 +2964,7 @@ same physical qubit at the same time.</p></li>
       
         <script src="../_static/sphinx_immaterial_theme.32136f45f91ae6956.min.js?v=a7a9472a"></script>
         <script>window.MathJax = {"options": {"processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
-        <script id="MathJax-script" src="../_static/mathjax/tex-mml-chtml.js?v=cadf963e"></script>
+        <script id="MathJax-script" src="../_static/mathjax/tex-mml-chtml.js"></script>
         <script src="../_static/versions.js?v=2f43aabb"></script>
         <script src="../_static/graph-viewer.js?v=b2321b27"></script>
     

@@ -2517,9 +2517,9 @@ CLI</label></div>
 <div class="tabbed-block docutils">
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">bloq</span>
 
-<span class="n">graph</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">BlockGraph</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;t-gate.blog&quot;</span><span class="p">)</span>
+<span class="n">graph</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">BlockGraph</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">"t-gate.blog"</span><span class="p">)</span>
 <span class="n">program</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">distance</span><span class="o">=</span><span class="mi">11</span><span class="p">)</span>
-<span class="n">program</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;t-gate.bloqir&quot;</span><span class="p">)</span>
+<span class="n">program</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">"t-gate.bloqir"</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">program</span><span class="o">.</span><span class="n">stats</span><span class="p">())</span>
 </code></pre></div>
 </div>
@@ -2528,10 +2528,10 @@ CLI</label></div>
 <div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><code><span class="k">use</span><span class="w"> </span><span class="n">bloq</span><span class="p">::</span><span class="n">prelude</span><span class="p">::</span><span class="o">*</span><span class="p">;</span>
 
 <span class="k">fn</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">graph</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">BlockGraph</span><span class="p">::</span><span class="n">load</span><span class="p">(</span><span class="s">&quot;t-gate.blog&quot;</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">graph</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">BlockGraph</span><span class="p">::</span><span class="n">load</span><span class="p">(</span><span class="s">"t-gate.blog"</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">program</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">compile</span><span class="p">(</span><span class="o">&amp;</span><span class="n">graph</span><span class="p">,</span><span class="w"> </span><span class="mi">11</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
-<span class="w">    </span><span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;t-gate.bloqir&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">program</span><span class="p">.</span><span class="n">to_text</span><span class="p">())</span><span class="o">?</span><span class="p">;</span>
-<span class="w">    </span><span class="fm">println!</span><span class="p">(</span><span class="s">&quot;{}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">program</span><span class="p">.</span><span class="n">stats</span><span class="p">()</span><span class="o">?</span><span class="p">);</span>
+<span class="w">    </span><span class="n">std</span><span class="p">::</span><span class="n">fs</span><span class="p">::</span><span class="n">write</span><span class="p">(</span><span class="s">"t-gate.bloqir"</span><span class="p">,</span><span class="w"> </span><span class="n">program</span><span class="p">.</span><span class="n">to_text</span><span class="p">())</span><span class="o">?</span><span class="p">;</span>
+<span class="w">    </span><span class="fm">println!</span><span class="p">(</span><span class="s">"{}"</span><span class="p">,</span><span class="w"> </span><span class="n">program</span><span class="p">.</span><span class="n">stats</span><span class="p">()</span><span class="o">?</span><span class="p">);</span>
 <span class="w">    </span><span class="nb">Ok</span><span class="p">(())</span>
 <span class="p">}</span>
 </code></pre></div>
@@ -2625,7 +2625,7 @@ bloq<span class="w"> </span>stats<span class="w"> </span>t-gate.bloqir
   
     Created using
     <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
-    8.1.3.
+    9.1.0.
      and
     <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
   
@@ -2646,8 +2646,6 @@ bloq<span class="w"> </span>stats<span class="w"> </span>t-gate.bloqir
     
       
         <script src="_static/sphinx_immaterial_theme.32136f45f91ae6956.min.js?v=a7a9472a"></script>
-        <script>window.MathJax = {"options": {"processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
-        <script id="MathJax-script" src="_static/mathjax/tex-mml-chtml.js?v=cadf963e"></script>
         <script src="_static/versions.js?v=2f43aabb"></script>
         <script src="_static/graph-viewer.js?v=b2321b27"></script>
     

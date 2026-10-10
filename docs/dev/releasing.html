@@ -2712,12 +2712,12 @@ from one shared version. Website publication is separate; see
 <div class="mermaid-diagram docutils">
 <pre class="mermaid">
 <div class="highlight-none notranslate"><div class="highlight"><pre><span></span><code>flowchart LR
-  changes[&quot;Reviewed changes&quot;] --&gt; pr[&quot;release-plz PR
-version + changelog&quot;]
-  pr --&gt; crates[&quot;Publish Rust crates&quot;]
-  crates --&gt; tag[&quot;Version tag + release&quot;]
-  tag --&gt; python[&quot;Python wheels + source archive&quot;]
-  tag --&gt; binaries[&quot;CLI + editor archives&quot;]
+  changes["Reviewed changes"] --&gt; pr["release-plz PR
+version + changelog"]
+  pr --&gt; crates["Publish Rust crates"]
+  crates --&gt; tag["Version tag + release"]
+  tag --&gt; python["Python wheels + source archive"]
+  tag --&gt; binaries["CLI + editor archives"]
 </code></pre></div>
 </div>
 </pre></div>
@@ -2728,7 +2728,7 @@ jobs require <code class="docutils literal notranslate"><span class="pre">RELEAS
 a release or publishing manually. This variable does not gate local CLI uploads.</p>
 </div>
 <p>CI checks platform wheels and source installations for relevant PRs. The
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/092615d50bf1147451b1b4d64b198fa93ad426a5/.github/workflows/pypi.yml">PyPI workflow</a> uses the same checks for tag and
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/919b15b014209232ff55605117ad978c5131b204/.github/workflows/pypi.yml">PyPI workflow</a> uses the same checks for tag and
 manual builds. See <a class="reference internal" href="site-maintenance.html"><span class="std std-doc">website maintenance</span></a> for site previews
 and publication.
 Binary release builds use the checked-in Cargo lockfile. Security audits cover
@@ -2813,7 +2813,7 @@ binaries can use <code class="docutils literal notranslate"><span class="pre">/r
 <code class="docutils literal notranslate"><span class="pre">bloq.__version__</span></code> retain that spelling; Python package metadata normalizes it to
 <code class="docutils literal notranslate"><span class="pre">0.1.2.dev0</span></code>. The suffix stays unchanged throughout the development cycle.</p>
 <p>After Rust, Python, and binary publication succeeds, the
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/092615d50bf1147451b1b4d64b198fa93ad426a5/.github/workflows/post-release.yml">post-release workflow</a> opens a PR for the
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/919b15b014209232ff55605117ad978c5131b204/.github/workflows/post-release.yml">post-release workflow</a> opens a PR for the
 next development version. Review its checks and merge it. The PR updates the
 shared version, exact internal requirements, and both Cargo lockfiles.
 Release-plz prepares the next stable version in a separate release PR.</p>
@@ -2879,9 +2879,9 @@ verified, create and push only the <code class="docutils literal notranslate"><s
 release. Prepare reviewed notes in a local file and pass them with <code class="docutils literal notranslate"><span class="pre">--notes-file</span></code>:</p>
 <div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>mkdir<span class="w"> </span>-p<span class="w"> </span>target
 cp<span class="w"> </span>CHANGELOG.md<span class="w"> </span>target/release-notes.md
-git<span class="w"> </span>tag<span class="w"> </span>-a<span class="w"> </span>v0.1.1<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Bloq 0.1.1&quot;</span>
+git<span class="w"> </span>tag<span class="w"> </span>-a<span class="w"> </span>v0.1.1<span class="w"> </span>-m<span class="w"> </span><span class="s2">"Bloq 0.1.1"</span>
 git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>refs/tags/v0.1.1
-gh<span class="w"> </span>release<span class="w"> </span>create<span class="w"> </span>v0.1.1<span class="w"> </span>--repo<span class="w"> </span>inmzhang/bloq<span class="w"> </span>--verify-tag<span class="w"> </span>--latest<span class="w"> </span>--title<span class="w"> </span><span class="s2">&quot;v0.1.1&quot;</span><span class="w"> </span>--notes-file<span class="w"> </span>target/release-notes.md
+gh<span class="w"> </span>release<span class="w"> </span>create<span class="w"> </span>v0.1.1<span class="w"> </span>--repo<span class="w"> </span>inmzhang/bloq<span class="w"> </span>--verify-tag<span class="w"> </span>--latest<span class="w"> </span>--title<span class="w"> </span><span class="s2">"v0.1.1"</span><span class="w"> </span>--notes-file<span class="w"> </span>target/release-notes.md
 </code></pre></div>
 </div>
 <p>Choose release-plz or the combined manual Cargo/PyPI route. Keep the tag fixed
@@ -2906,19 +2906,19 @@ licenses, and contents; retain their SHA-256 hashes. Do not upload a mixed local
 upload creates <code class="docutils literal notranslate"><span class="pre">bloq-py</span></code>, replace it with a project-scoped token. A pending
 Trusted Publisher authenticates Actions, not a local terminal. Supply the token
 through a password manager or a hidden Bash prompt; do not pass it in arguments:</p>
-<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code><span class="nb">read</span><span class="w"> </span>-r<span class="w"> </span>-s<span class="w"> </span>-p<span class="w"> </span><span class="s1">&#39;PyPI API token: &#39;</span><span class="w"> </span>UV_PUBLISH_TOKEN
-<span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;\n&#39;</span>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code><span class="nb">read</span><span class="w"> </span>-r<span class="w"> </span>-s<span class="w"> </span>-p<span class="w"> </span><span class="s1">'PyPI API token: '</span><span class="w"> </span>UV_PUBLISH_TOKEN
+<span class="nb">printf</span><span class="w"> </span><span class="s1">'\n'</span>
 <span class="nb">export</span><span class="w"> </span>UV_PUBLISH_TOKEN
 uv<span class="w"> </span>publish<span class="w"> </span>--trusted-publishing<span class="w"> </span>never<span class="w"> </span>--publish-url<span class="w"> </span>https://upload.pypi.org/legacy/<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--check-url<span class="w"> </span>https://pypi.org/simple<span class="w"> </span>--dry-run<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span><span class="s1">&#39;target/pypi-0.1.1-RUN_ID/*.whl&#39;</span><span class="w"> </span><span class="s1">&#39;target/pypi-0.1.1-RUN_ID/*.tar.gz&#39;</span>
+<span class="w">  </span><span class="s1">'target/pypi-0.1.1-RUN_ID/*.whl'</span><span class="w"> </span><span class="s1">'target/pypi-0.1.1-RUN_ID/*.tar.gz'</span>
 </code></pre></div>
 </div>
 <p>The dry run does not upload files or prove registry authorization. After reviewing
 it, upload those exact artifacts and clear the token from the shell:</p>
 <div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>uv<span class="w"> </span>publish<span class="w"> </span>--trusted-publishing<span class="w"> </span>never<span class="w"> </span>--publish-url<span class="w"> </span>https://upload.pypi.org/legacy/<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--check-url<span class="w"> </span>https://pypi.org/simple<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span><span class="s1">&#39;target/pypi-0.1.1-RUN_ID/*.whl&#39;</span><span class="w"> </span><span class="s1">&#39;target/pypi-0.1.1-RUN_ID/*.tar.gz&#39;</span>
+<span class="w">  </span><span class="s1">'target/pypi-0.1.1-RUN_ID/*.whl'</span><span class="w"> </span><span class="s1">'target/pypi-0.1.1-RUN_ID/*.tar.gz'</span>
 <span class="nb">unset</span><span class="w"> </span>UV_PUBLISH_TOKEN
 </code></pre></div>
 </div>
@@ -2995,8 +2995,8 @@ PyPI lists <code class="docutils literal notranslate"><span class="pre">bloq-py=
 and the GitHub release contains CLI/editor archives and checksums. Verify
 installation in a fresh environment, outside the source checkout:</p>
 <div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>uv<span class="w"> </span>venv<span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.10<span class="w"> </span>target/release-install
-uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--python<span class="w"> </span>target/release-install/bin/python<span class="w"> </span>--only-binary<span class="o">=</span>:all:<span class="w"> </span><span class="s2">&quot;bloq-py==0.1.1&quot;</span>
-target/release-install/bin/python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import bloq; assert bloq.__version__ == &#39;0.1.1&#39;&quot;</span>
+uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--python<span class="w"> </span>target/release-install/bin/python<span class="w"> </span>--only-binary<span class="o">=</span>:all:<span class="w"> </span><span class="s2">"bloq-py==0.1.1"</span>
+target/release-install/bin/python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import bloq; assert bloq.__version__ == '0.1.1'"</span>
 target/release-install/bin/bloq<span class="w"> </span>--version
 target/release-install/bin/bloq<span class="w"> </span>compile<span class="w"> </span>--gallery<span class="w"> </span>cnot<span class="w"> </span>-d<span class="w"> </span><span class="m">3</span><span class="w"> </span>--quiet<span class="w"> </span>-o<span class="w"> </span>target/release-install/cnot.stim
 cargo<span class="w"> </span>install<span class="w"> </span>bloq-cli<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.1.1<span class="w"> </span>--locked<span class="w"> </span>--root<span class="w"> </span>target/release-cargo-install
@@ -3090,7 +3090,7 @@ to retry an incomplete run. Keep the website’s retained release snapshots inta
   
     Created using
     <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
-    8.1.3.
+    9.1.0.
      and
     <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
   

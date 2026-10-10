@@ -2720,18 +2720,18 @@ Rust</label></div>
 <span class="k">def</span><span class="w"> </span><span class="nf">build_graph</span><span class="p">():</span>
     <span class="n">graph</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">BlockGraph</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">position</span><span class="p">,</span> <span class="n">kind</span> <span class="ow">in</span> <span class="p">[</span>
-        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="s2">&quot;Port&quot;</span><span class="p">),</span>
-        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;XZX&quot;</span><span class="p">),</span>
-        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;Port&quot;</span><span class="p">),</span>
-        <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;XZX&quot;</span><span class="p">),</span>
-        <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">&quot;Y&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="s2">"Port"</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">"XZX"</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">"Port"</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">"XZX"</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="s2">"Y"</span><span class="p">),</span>
     <span class="p">]:</span>
         <span class="n">graph</span><span class="o">.</span><span class="n">add_block</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="n">kind</span><span class="p">))</span>
     <span class="k">for</span> <span class="n">position</span><span class="p">,</span> <span class="n">direction</span> <span class="ow">in</span> <span class="p">[</span>
-        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="s2">&quot;+Z&quot;</span><span class="p">),</span>
-        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;+Z&quot;</span><span class="p">),</span>
-        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;+X&quot;</span><span class="p">),</span>
-        <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;+Z&quot;</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="s2">"+Z"</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">"+Z"</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">"+X"</span><span class="p">),</span>
+        <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">"+Z"</span><span class="p">),</span>
     <span class="p">]:</span>
         <span class="n">graph</span><span class="o">.</span><span class="n">add_pipe</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">Pipe</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="n">direction</span><span class="p">))</span>
     <span class="n">graph</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
@@ -2832,7 +2832,7 @@ control to extend a block graph beyond its geometry.</p>
   
     Created using
     <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
-    8.1.3.
+    9.1.0.
      and
     <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
   
@@ -2854,7 +2854,7 @@ control to extend a block graph beyond its geometry.</p>
       
         <script src="../_static/sphinx_immaterial_theme.32136f45f91ae6956.min.js?v=a7a9472a"></script>
         <script>window.MathJax = {"options": {"processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
-        <script id="MathJax-script" src="../_static/mathjax/tex-mml-chtml.js?v=cadf963e"></script>
+        <script id="MathJax-script" src="../_static/mathjax/tex-mml-chtml.js"></script>
         <script src="../_static/versions.js?v=2f43aabb"></script>
         <script src="../_static/graph-viewer.js?v=b2321b27"></script>
     

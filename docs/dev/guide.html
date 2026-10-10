@@ -2248,10 +2248,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#cli-editor-and-profiling" class="md-nav__link">
+  <a href="#cli-and-editor" class="md-nav__link">
     
     <span class="md-ellipsis">
-      <span>CLI, editor, and profiling</span>
+      <span>CLI and editor</span>
     </span>
   </a>
   
@@ -2465,10 +2465,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#cli-editor-and-profiling" class="md-nav__link">
+  <a href="#cli-and-editor" class="md-nav__link">
     
     <span class="md-ellipsis">
-      <span>CLI, editor, and profiling</span>
+      <span>CLI and editor</span>
     </span>
   </a>
   
@@ -2517,12 +2517,6 @@ API; enabling one does not make compilation run extra verification automatically
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vm</span></code></p></td>
 <td><p>Lower and execute physical IR through <code class="docutils literal notranslate"><span class="pre">bloq::vm</span></code>, including adaptive control and non-Clifford verification</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">hotpath</span></code></p></td>
-<td><p>Enable compiler timing instrumentation</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">hotpath-alloc</span></code></p></td>
-<td><p>Enable allocation attribution for profiling</p></td>
-</tr>
 </tbody>
 </table>
 <p>For example, add the physical verification simulator to a Cargo project:</p>
@@ -2547,21 +2541,14 @@ these features. It checks the compiled representation rather than an expected
 logical map or sampled execution. See
 <a class="reference internal" href="theory/correlation-surfaces.html"><span class="std std-doc">logical correlations</span></a> and
 <a class="reference internal" href="backends/vm.html"><span class="std std-doc">VM verification</span></a> for the verification models and assumptions.</p>
-<h2 id="cli-editor-and-profiling">CLI, editor, and profiling<a class="headerlink" href="#cli-editor-and-profiling" title="Link to this heading">¶</a></h2>
+<h2 id="cli-and-editor">CLI and editor<a class="headerlink" href="#cli-and-editor" title="Link to this heading">¶</a></h2>
 <p>These feature names belong to the Rust facade. The separate <code class="docutils literal notranslate"><span class="pre">bloq-cli</span></code> package
 includes its compilation and viewing commands without additional
 feature flags. The editor’s normal build provides graph viewing, compilation,
 and Stim text export. Its browser build uses WebGPU and does not include the
 native Stim verification bindings or VM engine.</p>
-<p>The CLI and native editor expose the profiling features separately. For example:</p>
-<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>cargo<span class="w"> </span>run<span class="w"> </span>-p<span class="w"> </span>bloq-cli<span class="w"> </span>--features<span class="w"> </span>hotpath,hotpath-alloc<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>compile<span class="w"> </span>--gallery<span class="w"> </span>cnot<span class="w"> </span>-d<span class="w"> </span><span class="m">5</span><span class="w"> </span>--backend<span class="w"> </span>ir-text<span class="w"> </span>-o<span class="w"> </span>cnot.bloqir
-</code></pre></div>
-</div>
-<p>Instrumentation is inactive without the corresponding feature. Profiling changes
-what a run measures, not the requested output backend. Use the
-<a class="reference internal" href="development/benchmarks.html"><span class="std std-doc">benchmarking guide</span></a> for reproducible measurements and
-profiler output configuration.</p>
+<p>Use the <a class="reference internal" href="development/benchmarks.html"><span class="std std-doc">benchmarking guide</span></a> for reproducible
+measurements and profiling with perf or samply.</p>
 
 
 
@@ -2612,7 +2599,7 @@ profiler output configuration.</p>
   
     Created using
     <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
-    8.1.3.
+    9.1.0.
      and
     <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
   

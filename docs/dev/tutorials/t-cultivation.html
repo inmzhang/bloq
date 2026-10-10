@@ -2510,16 +2510,16 @@ patch forward in time:</p>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">build_program</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">bloq</span><span class="o">.</span><span class="n">Bloq</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build and save the T-to-Port source and its distance-11 compiled IR.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Build and save the T-to-Port source and its distance-11 compiled IR."""</span>
     <span class="n">source</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">BlockGraph</span><span class="p">()</span>
-    <span class="n">source</span><span class="o">.</span><span class="n">add_block</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">Block</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="s2">&quot;T&quot;</span><span class="p">))</span>
-    <span class="n">source</span><span class="o">.</span><span class="n">add_block</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">Block</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;Port&quot;</span><span class="p">))</span>
-    <span class="n">source</span><span class="o">.</span><span class="n">add_pipe</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">Pipe</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="s2">&quot;+Z&quot;</span><span class="p">))</span>
+    <span class="n">source</span><span class="o">.</span><span class="n">add_block</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">Block</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="s2">"T"</span><span class="p">))</span>
+    <span class="n">source</span><span class="o">.</span><span class="n">add_block</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">Block</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">"Port"</span><span class="p">))</span>
+    <span class="n">source</span><span class="o">.</span><span class="n">add_pipe</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">Pipe</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="s2">"+Z"</span><span class="p">))</span>
     <span class="n">source</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
-    <span class="n">source</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;t-source.blog&quot;</span><span class="p">)</span>
+    <span class="n">source</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">"t-source.blog"</span><span class="p">)</span>
 
     <span class="n">program</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">distance</span><span class="o">=</span><span class="mi">11</span><span class="p">)</span>
-    <span class="n">program</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;t-source.bloqir&quot;</span><span class="p">)</span>
+    <span class="n">program</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">"t-source.bloqir"</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">program</span>
 </code></pre></div>
 </div>
@@ -2537,12 +2537,12 @@ q = \frac12\left(1-
 \frac{\langle\overline X\rangle+\langle\overline Y\rangle}{\sqrt2}\right).
 \]</div>
 <p>Use Python 3.12 or newer and install Clifft and the GAP-enabled PyMatching build:</p>
-<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">&quot;bloq-py==0.1.1&quot;</span><span class="w"> </span>clifft<span class="w"> </span><span class="s2">&quot;pymatching @ git+https://github.com/inmzhang/PyMatching.git@de4bb3e0796c1c9873d3ed5d1704364db10592cb&quot;</span>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">"bloq-py==0.1.1"</span><span class="w"> </span>clifft<span class="w"> </span><span class="s2">"pymatching @ git+https://github.com/inmzhang/PyMatching.git@de4bb3e0796c1c9873d3ed5d1704364db10592cb"</span>
 </code></pre></div>
 </div>
 <p>The full script samples in batches and reports acceptance and infidelity for
 each GAP threshold:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span class="sd">&quot;&quot;&quot;Calibrate an isolated T state with Clifft and PyMatching complementary gaps.&quot;&quot;&quot;</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span class="sd">"""Calibrate an isolated T state with Clifft and PyMatching complementary gaps."""</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
@@ -2560,31 +2560,31 @@ each GAP threshold:</p>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">build_program</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">bloq</span><span class="o">.</span><span class="n">Bloq</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build and save the T-to-Port source and its distance-11 compiled IR.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Build and save the T-to-Port source and its distance-11 compiled IR."""</span>
     <span class="n">source</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">BlockGraph</span><span class="p">()</span>
-    <span class="n">source</span><span class="o">.</span><span class="n">add_block</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">Block</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="s2">&quot;T&quot;</span><span class="p">))</span>
-    <span class="n">source</span><span class="o">.</span><span class="n">add_block</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">Block</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">&quot;Port&quot;</span><span class="p">))</span>
-    <span class="n">source</span><span class="o">.</span><span class="n">add_pipe</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">Pipe</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="s2">&quot;+Z&quot;</span><span class="p">))</span>
+    <span class="n">source</span><span class="o">.</span><span class="n">add_block</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">Block</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="s2">"T"</span><span class="p">))</span>
+    <span class="n">source</span><span class="o">.</span><span class="n">add_block</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">Block</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">"Port"</span><span class="p">))</span>
+    <span class="n">source</span><span class="o">.</span><span class="n">add_pipe</span><span class="p">(</span><span class="n">bloq</span><span class="o">.</span><span class="n">Pipe</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="s2">"+Z"</span><span class="p">))</span>
     <span class="n">source</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
-    <span class="n">source</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;t-source.blog&quot;</span><span class="p">)</span>
+    <span class="n">source</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">"t-source.blog"</span><span class="p">)</span>
 
     <span class="n">program</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">distance</span><span class="o">=</span><span class="mi">11</span><span class="p">)</span>
-    <span class="n">program</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;t-source.bloqir&quot;</span><span class="p">)</span>
+    <span class="n">program</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">"t-source.bloqir"</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">program</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">parity</span><span class="p">(</span><span class="n">measurements</span><span class="p">:</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">],</span> <span class="n">columns</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;XOR the selected measurement columns, returning one bit per shot.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""XOR the selected measurement columns, returning one bit per shot."""</span>
     <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">bitwise_xor</span><span class="o">.</span><span class="n">reduce</span><span class="p">(</span><span class="n">measurements</span><span class="p">[:,</span> <span class="n">columns</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">close_output</span><span class="p">(</span>
     <span class="n">artifacts</span><span class="p">:</span> <span class="n">bloq</span><span class="o">.</span><span class="n">IsolatedTAttemptArtifacts</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">stim</span><span class="o">.</span><span class="n">Circuit</span><span class="p">,</span> <span class="n">stim</span><span class="o">.</span><span class="n">Circuit</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]]]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Restore the output-Port closure omitted from the factory-only export.</span>
+<span class="w">    </span><span class="sd">"""Restore the output-Port closure omitted from the factory-only export.</span>
 
 <span class="sd">    Return the closed decoder circuit, terminal MPP, and prior record columns.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">companion</span> <span class="o">=</span> <span class="n">stim</span><span class="o">.</span><span class="n">Circuit</span><span class="p">(</span><span class="n">artifacts</span><span class="o">.</span><span class="n">companion</span><span class="p">)</span>
     <span class="n">records</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">stim</span><span class="o">.</span><span class="n">GateTarget</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="n">paulis</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">stim</span><span class="o">.</span><span class="n">GateTarget</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
@@ -2595,7 +2595,7 @@ each GAP threshold:</p>
         <span class="n">table</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">observable</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">targets</span><span class="p">)</span>
     <span class="n">ids</span> <span class="o">=</span> <span class="n">artifacts</span><span class="o">.</span><span class="n">manifest</span><span class="o">.</span><span class="n">frontier_observables</span>
     <span class="k">if</span> <span class="nb">set</span><span class="p">(</span><span class="n">records</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">set</span><span class="p">(</span><span class="n">ids</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">set</span><span class="p">(</span><span class="n">paulis</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">set</span><span class="p">(</span><span class="n">ids</span><span class="p">):</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;terminal stabilizer sheets are incomplete&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"terminal stabilizer sheets are incomplete"</span><span class="p">)</span>
 
     <span class="c1"># Each frontier sheet supplies one stabilizer product for the ideal MPP.</span>
     <span class="n">targets</span> <span class="o">=</span> <span class="p">[]</span>
@@ -2605,11 +2605,11 @@ each GAP threshold:</p>
                 <span class="n">targets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stim</span><span class="o">.</span><span class="n">target_combiner</span><span class="p">())</span>
             <span class="n">targets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
     <span class="n">terminal</span> <span class="o">=</span> <span class="n">stim</span><span class="o">.</span><span class="n">Circuit</span><span class="p">()</span>
-    <span class="n">terminal</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;MPP&quot;</span><span class="p">,</span> <span class="n">targets</span><span class="p">)</span>
+    <span class="n">terminal</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"MPP"</span><span class="p">,</span> <span class="n">targets</span><span class="p">)</span>
     <span class="n">closed</span> <span class="o">=</span> <span class="n">companion</span> <span class="o">+</span> <span class="n">terminal</span>
     <span class="c1"># Shift earlier rec[-k] references past the newly appended measurements.</span>
     <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">observable</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ids</span><span class="p">):</span>
-        <span class="n">closed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;DETECTOR&quot;</span><span class="p">,</span> <span class="p">[</span>
+        <span class="n">closed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"DETECTOR"</span><span class="p">,</span> <span class="p">[</span>
             <span class="o">*</span><span class="p">(</span><span class="n">stim</span><span class="o">.</span><span class="n">target_rec</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">value</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">ids</span><span class="p">))</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">records</span><span class="p">[</span><span class="n">observable</span><span class="p">]),</span>
             <span class="n">stim</span><span class="o">.</span><span class="n">target_rec</span><span class="p">(</span><span class="n">index</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">ids</span><span class="p">)),</span>
         <span class="p">])</span>
@@ -2626,7 +2626,7 @@ each GAP threshold:</p>
     <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
     <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]],</span>
 <span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Append memory rounds and prepare the noisy simulator and GAP decoder.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Append memory rounds and prepare the noisy simulator and GAP decoder."""</span>
     <span class="p">[(</span><span class="n">path</span><span class="p">,</span> <span class="n">body</span><span class="p">)]</span> <span class="o">=</span> <span class="p">[(</span><span class="n">p</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">program</span><span class="o">.</span><span class="n">levels</span><span class="p">()</span> <span class="k">if</span> <span class="n">p</span><span class="p">]</span>
     <span class="n">program</span><span class="o">.</span><span class="n">insert_memory_rounds_after</span><span class="p">(</span><span class="n">body</span><span class="o">.</span><span class="n">quantum_tail</span><span class="p">(),</span> <span class="n">rounds</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">)</span>
     <span class="c1"># This calibration export keeps the T circuit and Clifford DEM records aligned.</span>
@@ -2639,13 +2639,13 @@ each GAP threshold:</p>
     <span class="n">postselection</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">manifest</span><span class="o">.</span><span class="n">postselection_detectors</span><span class="p">)</span>
     <span class="n">conditioned</span> <span class="o">=</span> <span class="n">stim</span><span class="o">.</span><span class="n">DetectorErrorModel</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">instruction</span> <span class="ow">in</span> <span class="n">dem</span><span class="o">.</span><span class="n">flattened</span><span class="p">():</span>
-        <span class="k">if</span> <span class="n">instruction</span><span class="o">.</span><span class="n">type</span> <span class="o">!=</span> <span class="s2">&quot;error&quot;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">instruction</span><span class="o">.</span><span class="n">type</span> <span class="o">!=</span> <span class="s2">"error"</span><span class="p">:</span>
             <span class="n">conditioned</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">instruction</span><span class="p">)</span>
             <span class="k">continue</span>
         <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">instruction</span><span class="o">.</span><span class="n">target_groups</span><span class="p">():</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">is_relative_detector_id</span><span class="p">()</span> <span class="ow">and</span> <span class="n">t</span><span class="o">.</span><span class="n">val</span> <span class="ow">in</span> <span class="n">postselection</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">group</span><span class="p">):</span>
-                <span class="n">conditioned</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;error&quot;</span><span class="p">,</span> <span class="n">instruction</span><span class="o">.</span><span class="n">args_copy</span><span class="p">(),</span> <span class="n">group</span><span class="p">)</span>
-    <span class="n">conditioned</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;detector&quot;</span><span class="p">,</span> <span class="p">[],</span> <span class="p">[</span>
+                <span class="n">conditioned</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"error"</span><span class="p">,</span> <span class="n">instruction</span><span class="o">.</span><span class="n">args_copy</span><span class="p">(),</span> <span class="n">group</span><span class="p">)</span>
+    <span class="n">conditioned</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"detector"</span><span class="p">,</span> <span class="p">[],</span> <span class="p">[</span>
         <span class="n">stim</span><span class="o">.</span><span class="n">target_relative_detector_id</span><span class="p">(</span><span class="n">closed</span><span class="o">.</span><span class="n">num_detectors</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span>
     <span class="p">])</span>
     <span class="n">observables</span> <span class="o">=</span> <span class="p">[</span><span class="n">manifest</span><span class="o">.</span><span class="n">gap_x_observable</span><span class="p">,</span> <span class="n">manifest</span><span class="o">.</span><span class="n">gap_z_observable</span><span class="p">]</span>
@@ -2653,7 +2653,7 @@ each GAP threshold:</p>
         <span class="n">conditioned</span><span class="p">,</span> <span class="n">observables</span><span class="o">=</span><span class="n">observables</span><span class="p">,</span> <span class="n">enable_correlations</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">simulator</span> <span class="o">=</span> <span class="n">clifft</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span>
-        <span class="n">artifacts</span><span class="o">.</span><span class="n">physical_t</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">terminal</span><span class="p">),</span>
+        <span class="n">artifacts</span><span class="o">.</span><span class="n">physical_t</span> <span class="o">+</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">terminal</span><span class="p">),</span>
         <span class="n">postselection_mask</span><span class="o">=</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">i</span> <span class="ow">in</span> <span class="n">postselection</span><span class="p">)</span>
                             <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">manifest</span><span class="o">.</span><span class="n">detector_signs</span><span class="p">))],</span>
         <span class="n">expected_detectors</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">manifest</span><span class="o">.</span><span class="n">detector_signs</span><span class="p">)),</span>
@@ -2662,7 +2662,7 @@ each GAP threshold:</p>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">calibrate</span><span class="p">(</span><span class="n">program</span><span class="p">:</span> <span class="n">bloq</span><span class="o">.</span><span class="n">Bloq</span><span class="p">,</span> <span class="n">shots</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Sample attempts in bounded batches and print statistics for each GAP cut.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Sample attempts in bounded batches and print statistics for each GAP cut."""</span>
     <span class="n">simulator</span><span class="p">,</span> <span class="n">decoder</span><span class="p">,</span> <span class="n">manifest</span><span class="p">,</span> <span class="n">observables</span><span class="p">,</span> <span class="n">columns</span> <span class="o">=</span> <span class="n">prepare</span><span class="p">(</span><span class="n">program</span><span class="p">)</span>
     <span class="n">thresholds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">21</span><span class="p">)</span>
     <span class="n">counts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">thresholds</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
@@ -2707,27 +2707,27 @@ each GAP threshold:</p>
             <span class="n">totals</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+=</span> <span class="n">accepted</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
             <span class="n">squares</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+=</span> <span class="n">np</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">accepted</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
 
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;GAP threshold,acceptance,infidelity,95</span><span class="si">% ha</span><span class="s2">lf-width&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"GAP threshold,acceptance,infidelity,95</span><span class="si">% ha</span><span class="s2">lf-width"</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">threshold</span><span class="p">,</span> <span class="n">count</span><span class="p">,</span> <span class="n">total</span><span class="p">,</span> <span class="n">square</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">thresholds</span><span class="p">,</span> <span class="n">counts</span><span class="p">,</span> <span class="n">totals</span><span class="p">,</span> <span class="n">squares</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-        <span class="n">mean</span> <span class="o">=</span> <span class="n">total</span> <span class="o">/</span> <span class="n">count</span> <span class="k">if</span> <span class="n">count</span> <span class="k">else</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;nan&quot;</span><span class="p">)</span>
-        <span class="n">half_width</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;nan&quot;</span><span class="p">)</span>
+        <span class="n">mean</span> <span class="o">=</span> <span class="n">total</span> <span class="o">/</span> <span class="n">count</span> <span class="k">if</span> <span class="n">count</span> <span class="k">else</span> <span class="nb">float</span><span class="p">(</span><span class="s2">"nan"</span><span class="p">)</span>
+        <span class="n">half_width</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">"nan"</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">count</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
             <span class="n">variance</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">square</span> <span class="o">-</span> <span class="n">total</span> <span class="o">*</span> <span class="n">mean</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">count</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
             <span class="n">half_width</span> <span class="o">=</span> <span class="mf">1.96</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">variance</span> <span class="o">/</span> <span class="n">count</span><span class="p">)</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">threshold</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">count</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">attempts</span><span class="si">:</span><span class="s2">.6g</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">mean</span><span class="si">:</span><span class="s2">.6g</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">half_width</span><span class="si">:</span><span class="s2">.6g</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">threshold</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">count</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">attempts</span><span class="si">:</span><span class="s2">.6g</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">mean</span><span class="si">:</span><span class="s2">.6g</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">half_width</span><span class="si">:</span><span class="s2">.6g</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Read the shot count and run calibration after building the source.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Read the shot count and run calibration after building the source."""</span>
     <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="vm">__doc__</span><span class="p">)</span>
-    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--shots&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">10_000</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--shots"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">10_000</span><span class="p">)</span>
     <span class="n">args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
     <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">shots</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;--shots must be positive&quot;</span><span class="p">)</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">"--shots must be positive"</span><span class="p">)</span>
     <span class="n">calibrate</span><span class="p">(</span><span class="n">build_program</span><span class="p">(),</span> <span class="n">args</span><span class="o">.</span><span class="n">shots</span><span class="p">)</span>
 
 
-<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
     <span class="n">main</span><span class="p">()</span>
 </code></pre></div>
 </div>
@@ -2826,7 +2826,7 @@ source’s acceptance and full error model. Infidelity alone is insufficient.</p
   
     Created using
     <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
-    8.1.3.
+    9.1.0.
      and
     <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
   
@@ -2848,7 +2848,7 @@ source’s acceptance and full error model. Infidelity alone is insufficient.</p
       
         <script src="../_static/sphinx_immaterial_theme.32136f45f91ae6956.min.js?v=a7a9472a"></script>
         <script>window.MathJax = {"options": {"processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
-        <script id="MathJax-script" src="../_static/mathjax/tex-mml-chtml.js?v=cadf963e"></script>
+        <script id="MathJax-script" src="../_static/mathjax/tex-mml-chtml.js"></script>
         <script src="../_static/versions.js?v=2f43aabb"></script>
         <script src="../_static/graph-viewer.js?v=b2321b27"></script>
     
