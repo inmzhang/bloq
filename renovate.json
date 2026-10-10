@@ -20,12 +20,6 @@
       "matchManagers": ["cargo"],
       "matchDepNames": ["getrandom_02"],
       "allowedVersions": "^0.2"
-    },
-    {
-      "description": "Keep Hotpath on 0.27 until its literal-label macro supports the workspace unsafe_code deny lint.",
-      "matchManagers": ["cargo"],
-      "matchPackageNames": ["hotpath"],
-      "allowedVersions": "^0.27"
     }
   ],
   "lockFileMaintenance": {

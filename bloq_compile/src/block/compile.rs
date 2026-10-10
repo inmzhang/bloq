@@ -54,7 +54,6 @@ pub(crate) struct LoweringTemplate {
 /// post-`REPEAT` lookback. A *moving* operator inside a loop body instead leaves
 /// a residual chain still carrying a `LoopState` term, refused with
 /// `LoopBoundaryMovingOperatorUnsupported`.
-#[hotpath::measure]
 fn drain_boundary_flows(
     engine: FlowEngine<'_, DetectorTerm<u32>>,
 ) -> Result<Vec<Flow>, CompileError> {
@@ -129,7 +128,6 @@ impl LoweringTemplate {
     /// detectors and boundary residual, then canonicalizes the gateway from
     /// chunk-local measurement ids to template ids so observable lowering never
     /// has to translate.
-    #[hotpath::measure]
     pub(crate) fn from_chunks(
         chunks: Vec<ChunkOrLoop>,
         observable_gateway: ObservableGateway,
@@ -198,7 +196,6 @@ struct ProgramTemplateBuild {
     measurement_remaps: Vec<Vec<u32>>,
 }
 
-#[hotpath::measure]
 fn build_program_template(
     chunks: &mut [ChunkOrLoop],
 ) -> Result<ProgramTemplateBuild, CompileError> {
@@ -314,7 +311,6 @@ struct ProgramTemplateState<'c> {
     next_loop_state: u32,
 }
 
-#[hotpath::measure]
 fn append_template_chunk_ops<'c>(
     state: &mut ProgramTemplateState<'c>,
     circuit: &mut CoordCircuit,
@@ -445,7 +441,6 @@ impl TemplateCircuitBuilder<'_, '_> {
     }
 }
 
-#[hotpath::measure]
 fn append_template_chunk_flows<'c>(
     state: &mut ProgramTemplateState<'c>,
     flows: &'c [Flow],

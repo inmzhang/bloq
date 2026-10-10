@@ -1,15 +1,12 @@
 //! Profile a saved artifact: `profile_ir INPUT [describe|validate|plans|decode] [ITERATIONS]`.
-//! File I/O and initial decoding are outside the profiled operation. Use the
-//! `hotpath-alloc` feature for allocations, or `/usr/bin/time -v` for process RSS.
+//! File I/O and initial decoding are outside the timed operation. Use `perf` or
+//! `samply` for CPU profiles, or `/usr/bin/time -v` for process RSS.
 
 use std::{hint::black_box, time::Instant};
 
 use bloq_ir::{
     Bloq, BloqEdge, BloqNode, ClassicalExpr, ClassicalNode, lowering::InstantiationOptions,
 };
-
-#[global_allocator]
-static GLOBAL: hotpath::CountingAllocator = hotpath::CountingAllocator::new();
 
 fn expression_storage(expr: &ClassicalExpr, cells: &mut usize, slots: &mut usize) {
     *cells += 1;
@@ -78,26 +75,19 @@ fn main() {
         );
         return;
     }
-    let _profile = hotpath::HotpathGuardBuilder::new("profile_ir").build();
     let started = Instant::now();
     for _ in 0..iterations {
         match operation {
-            "validate" => {
-                hotpath::measure_block!("ir.validate", program.validate().expect("valid artifact"))
-            }
+            "validate" => program.validate().expect("valid artifact"),
             "plans" => {
-                black_box(hotpath::measure_block!(
-                    "ir.plans",
+                black_box(
                     program
                         .validate_with_plans(&InstantiationOptions::default())
-                        .expect("valid artifact")
-                ));
+                        .expect("valid artifact"),
+                );
             }
             "decode" => {
-                black_box(hotpath::measure_block!(
-                    "ir.decode",
-                    Bloq::from_binary(&bytes).expect("decode artifact")
-                ));
+                black_box(Bloq::from_binary(&bytes).expect("decode artifact"));
             }
             _ => panic!("unknown operation {operation:?}"),
         }

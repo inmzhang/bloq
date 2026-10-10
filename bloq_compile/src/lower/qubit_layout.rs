@@ -69,7 +69,6 @@ pub(crate) fn validate_bloq_qubit_layout_with_limits(
 /// Runs the same-layer overlap check within a single graph level. When
 /// `skip_sequential` is set (region bodies), pairs joined by a directed path are
 /// exempt because they occupy the shared footprint at different times.
-#[hotpath::measure]
 fn validate_level_qubit_layout(
     bloq: &Bloq,
     source: &BlockGraph,

@@ -22,8 +22,6 @@ thiserror.workspace = true
 
 [features]
 verify = ["dep:stim"]
-hotpath = ["hotpath/hotpath"]
-hotpath-alloc = ["hotpath/hotpath-alloc"]
 
 [dev-dependencies]
 # Direct paths, no version: keeps internal dev-deps out of the published
@@ -33,7 +31,6 @@ bloq_compile = { path = "../bloq_compile" }
 bloq_graph = { path = "../bloq_graph" }
 bloq_test.workspace = true
 criterion.workspace = true
-hotpath.workspace = true
 insta.workspace = true
 [[bench]]
 name = "bench"

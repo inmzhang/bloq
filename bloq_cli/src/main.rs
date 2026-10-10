@@ -4,7 +4,6 @@
 //! also calls, so both entry points share one argument parser and exit-status
 //! contract.
 
-#[hotpath::main]
 fn main() -> std::process::ExitCode {
     bloq_cli::run(std::env::args_os()).into()
 }

@@ -37,9 +37,6 @@ use bloq_test::benchmark::{
     case_bench_specs, case_slug, controlled_adder, structural_branch_workload,
 };
 
-#[global_allocator]
-static GLOBAL: hotpath::CountingAllocator = hotpath::CountingAllocator::new();
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Stage {
     Compile,
@@ -189,7 +186,6 @@ fn main() {
     eprintln!("warmup done ({warmup} iterations)");
 
     // ---- Measured phase: this is what perf should capture ----
-    let _hotpath = hotpath::HotpathGuardBuilder::new("profile_case").build();
     let start = Instant::now();
     let mut iterations = 0usize;
     loop {

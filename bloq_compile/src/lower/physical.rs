@@ -124,7 +124,6 @@ impl<'a> PlacedPlan<'a> {
 
     /// Emit geometry and local region checks. Ordinary lowering reserves its
     /// semantic observable range before the T regions' auxiliary readouts.
-    #[hotpath::measure]
     pub(crate) fn emit(mut self, first_observable: u32) -> Result<PhysicalProgram, CompileError> {
         let PhysicalInput {
             graph,

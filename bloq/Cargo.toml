@@ -22,9 +22,6 @@ verify = ["bloq_stim/verify"]
 graph-verify = ["bloq_graph/verify"]
 # Bloq IR execution, dynamic emulation, and physical verification.
 vm = ["dep:bloq_vm", "dep:serde_json"]
-# Opt-in profiling for the compiler pipeline.
-hotpath = ["hotpath/hotpath"]
-hotpath-alloc = ["hotpath/hotpath-alloc"]
 
 [dependencies]
 bloq_circuit.workspace = true
@@ -37,7 +34,6 @@ bloq_utils.workspace = true
 # `glam` is public API here: the prelude re-exports `IVec3`, the coordinate type
 # every block-graph and qubit-layout signature below uses.
 glam.workspace = true
-hotpath.workspace = true
 serde_json = { workspace = true, optional = true }
 strum.workspace = true
 thiserror.workspace = true
@@ -45,10 +41,6 @@ thiserror.workspace = true
 # docs.rs builds with every feature so the gltf/verify surfaces show up.
 [package.metadata.docs.rs]
 all-features = true
-
-[package.metadata.cargo-machete]
-# This dependency enables profiling features across the compiler pipeline.
-ignored = ["hotpath"]
 
 [lints]
 workspace = true

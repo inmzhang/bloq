@@ -899,7 +899,6 @@ impl CompileContext {
     ///
     /// Returns [`CompileError`] when module validation, certification, or
     /// lowering fails.
-    #[hotpath::measure]
     pub fn compile_object(&self, program: &BlockGraph) -> Result<CompiledObject, CompileError> {
         let object = self.compile_object_with_jobs(program, default_module_jobs())?;
         self.report_progress(CompileStage::Complete)?;
@@ -919,10 +918,7 @@ impl CompileContext {
             } else {
                 program.validate_resource_limits(self.config.certification_limits())?;
             }
-            let key = hotpath::measure_block!(
-                "module.canonical_key",
-                (hierarchical, program.to_blog_text())
-            );
+            let key = (hierarchical, program.to_blog_text());
             let artifacts = if let Some(cached) = self.cache.module_object(&key) {
                 self.report_progress(CompileStage::CacheReuse)?;
                 cached
@@ -954,27 +950,23 @@ impl CompileContext {
         ),
         CompileError,
     > {
-        let (definition_keys, seam_faces) = hotpath::measure_block!("module.abi", {
-            (
-                program.module_definition_cache_keys(),
-                program.module_public_seam_faces(),
-            )
-        });
+        let (definition_keys, seam_faces) = (
+            program.module_definition_cache_keys(),
+            program.module_public_seam_faces(),
+        );
         let mut linked = bloq_graph::flatten_module_definition(program, program.root(), "")
             .map_err(|source| ModuleCertificationError::Graph {
                 module: program.root().name.clone(),
                 source,
             })?;
         linked.graph = linked.graph.fix_shadowed_faces();
-        let definitions = hotpath::measure_block!("module.compile_definitions", {
-            self.compile_module_definition_objects(
-                program,
-                &linked,
-                &definition_keys,
-                &seam_faces,
-                jobs,
-            )
-        })?;
+        let definitions = self.compile_module_definition_objects(
+            program,
+            &linked,
+            &definition_keys,
+            &seam_faces,
+            jobs,
+        )?;
         Ok((linked, definitions))
     }
 
@@ -984,7 +976,6 @@ impl CompileContext {
     ///
     /// Returns a target mismatch. Compilation errors are reported when building
     /// the object.
-    #[hotpath::measure]
     pub fn link_object(&self, object: &CompiledObject) -> Result<CompileArtifacts, CompileError> {
         self.check_cancellation()?;
         if object.config != self.config {
@@ -1034,7 +1025,6 @@ impl CompileContext {
     }
 
     /// Validate the pinned oracle's source before omitting its action track.
-    #[hotpath::measure]
     fn preflight_proxy(&self, graph: &BlockGraph) -> Result<ProxyPreflight, CompileError> {
         graph.validate_resource_limits(self.config.certification_limits())?;
         let proxy = self
@@ -1043,34 +1033,23 @@ impl CompileContext {
             .expect("Clifford proxy context");
         let module_summary = proxy.source_summary.as_deref();
         let graph = graph.canonical_true_branch_view()?;
-        hotpath::measure_block!("preflight.validate_source", {
-            graph.validate_source()?;
-        });
+        graph.validate_source()?;
         reject_structural_proxy(&graph)?;
         let linked_offset = module_summary
             .map(|summary| module_normalization_offset(&graph, summary))
             .transpose()?
             .unwrap_or(IVec3::ZERO);
-        let graph = hotpath::measure_block!("preflight.normalize", {
-            graph.with_zero_min_z()?.fix_shadowed_faces()
-        });
+        let graph = graph.with_zero_min_z()?.fix_shadowed_faces();
         let (source_graph, mut stabilizers) = if let Some(summary) = module_summary {
-            hotpath::measure_block!("preflight.compose_module_stabilizers", {
-                let zx = bloq_graph::ZXGraph::from_block_graph_for_analysis(&graph)
-                    .map_err(bloq_graph::RuntimeBasisError::from)?;
-                let stabilizers = summary.materialize_stabilizers(&zx, linked_offset)?;
-                (graph.with_analyzed_action_graph(&stabilizers)?, stabilizers)
-            })
+            let zx = bloq_graph::ZXGraph::from_block_graph_for_analysis(&graph)
+                .map_err(bloq_graph::RuntimeBasisError::from)?;
+            let stabilizers = summary.materialize_stabilizers(&zx, linked_offset)?;
+            (graph.with_analyzed_action_graph(&stabilizers)?, stabilizers)
         } else {
-            hotpath::measure_block!(
-                "preflight.analyze_actions",
-                graph.analyze_actions_with_limits(self.config.certification_limits())?
-            )
+            graph.analyze_actions_with_limits(self.config.certification_limits())?
         };
-        let (graph, spatial_ports) = hotpath::measure_block!(
-            "preflight.expand_spatial_ports",
-            expand_spatial_ports(&source_graph, self.config.code_distance(), &stabilizers)?
-        );
+        let (graph, spatial_ports) =
+            expand_spatial_ports(&source_graph, self.config.code_distance(), &stabilizers)?;
         // Module materialization already certifies this on its composed rows.
         if module_summary.is_none() {
             stabilizers.validate_measurements_close_before_outputs_with_limits(
@@ -1087,15 +1066,13 @@ impl CompileContext {
             graph
         };
         let stabilizers = self.proxy_stabilizers(&graph, &stabilizers)?;
-        let signatures = hotpath::measure_block!("preflight.link_signatures", {
-            select_link_signatures(
-                self.config,
-                &graph,
-                &spatial_ports,
-                #[cfg(test)]
-                &self.flat_signature_builds,
-            )?
-        });
+        let signatures = select_link_signatures(
+            self.config,
+            &graph,
+            &spatial_ports,
+            #[cfg(test)]
+            &self.flat_signature_builds,
+        )?;
         Ok(ProxyPreflight {
             graph,
             signatures,
@@ -1114,7 +1091,6 @@ impl CompileContext {
     ///
     /// Any structural, per-block, or lowering failure `graph` provokes under
     /// this context's [`CompileConfig`].
-    #[hotpath::measure]
     pub fn compile(&self, graph: &BlockGraph) -> Result<CompileArtifacts, CompileError> {
         self.cancellable(|| {
             let artifacts = if self.clifford_proxy.is_none() {
@@ -1534,7 +1510,6 @@ impl CompileContext {
         Ok(inventory)
     }
 
-    #[hotpath::measure]
     fn compile_blocks(
         &self,
         graph: &BlockGraph,
@@ -1821,7 +1796,6 @@ fn spatial_hadamard_key(
 ///
 /// Free-standing rather than a method because the cache runs it outside its
 /// lock: it takes only the config values it needs, never the context.
-#[hotpath::measure]
 fn compile_signature(
     signature: BlockSignature,
     distance: u32,

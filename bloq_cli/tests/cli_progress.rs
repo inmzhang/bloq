@@ -1,14 +1,5 @@
 use std::process::Command;
 
-fn cli(directory: &std::path::Path) -> Command {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_bloq"));
-    // All-features runs enable Hotpath; isolate its server and report output.
-    command
-        .env("HOTPATH_METRICS_SERVER_OFF", "1")
-        .env("HOTPATH_OUTPUT_PATH", directory.join("hotpath.txt"));
-    command
-}
-
 fn assert_finished_once(stderr: &str) {
     assert_eq!(stderr.matches("Finished").count(), 1, "{stderr}");
     let footer = stderr.lines().last().expect("final status line");
@@ -35,7 +26,7 @@ fn view_renders_saved_ir_codecs_with_classical_flag_and_protects_input() {
         std::fs::write(&input, &bytes).unwrap();
         let output = directory.path().join("graph.svg");
         for include_classical in [false, true] {
-            let mut command = cli(directory.path());
+            let mut command = Command::new(env!("CARGO_BIN_EXE_bloq"));
             command
                 .arg("view")
                 .arg(&input)
@@ -56,7 +47,7 @@ fn view_renders_saved_ir_codecs_with_classical_flag_and_protects_input() {
                 program.to_svg(include_classical)
             );
         }
-        let result = cli(directory.path())
+        let result = Command::new(env!("CARGO_BIN_EXE_bloq"))
             .arg("view")
             .arg(&input)
             .arg("-o")
@@ -91,7 +82,7 @@ fn stats_prints_static_inventory_for_both_codecs_without_full_audit() {
     ] {
         let input = directory.path().join(name);
         std::fs::write(&input, bytes).unwrap();
-        let result = cli(directory.path())
+        let result = Command::new(env!("CARGO_BIN_EXE_bloq"))
             .arg("stats")
             .arg(input)
             .output()
@@ -111,9 +102,8 @@ fn stats_prints_static_inventory_for_both_codecs_without_full_audit() {
 
 #[test]
 fn redirected_progress_stays_on_stderr_and_quiet_suppresses_it() {
-    let directory = tempfile::tempdir().expect("temporary profiling output");
     let run = |quiet: bool| {
-        let mut command = cli(directory.path());
+        let mut command = Command::new(env!("CARGO_BIN_EXE_bloq"));
         command.args([
             "compile",
             "--gallery",
@@ -174,7 +164,7 @@ fn redirected_progress_stays_on_stderr_and_quiet_suppresses_it() {
 fn elapsed_footer_covers_multi_target_file_run_but_not_errors() {
     let directory = tempfile::tempdir().expect("temporary outputs");
     let output = directory.path().join("compiled.bloqir");
-    let run = cli(directory.path())
+    let run = Command::new(env!("CARGO_BIN_EXE_bloq"))
         .args([
             "compile",
             "--gallery",
@@ -200,7 +190,7 @@ fn elapsed_footer_covers_multi_target_file_run_but_not_errors() {
     assert!(directory.path().join("compiled-d3.bloqir").exists());
     assert!(directory.path().join("compiled-d5.bloqir").exists());
 
-    let failed = cli(directory.path())
+    let failed = Command::new(env!("CARGO_BIN_EXE_bloq"))
         .args(["compile", "-d", "3"])
         .arg(directory.path().join("missing.blog"))
         .output()
@@ -213,7 +203,7 @@ fn elapsed_footer_covers_multi_target_file_run_but_not_errors() {
 
     let input = directory.path().join("t.blog");
     std::fs::write(&input, bloq_graph::GalleryItem::T.entry().blog()).unwrap();
-    let rejected = cli(directory.path())
+    let rejected = Command::new(env!("CARGO_BIN_EXE_bloq"))
         .args(["compile", "-d", "3", "--quiet"])
         .arg(&input)
         .output()
@@ -237,7 +227,7 @@ fn compile_and_emit_print_exact_artifacts() {
         ("ir-binary", "bloq"),
     ] {
         let input = directory.path().join(format!("program.{extension}"));
-        let saved = cli(directory.path())
+        let saved = Command::new(env!("CARGO_BIN_EXE_bloq"))
             .args([
                 "compile",
                 "--gallery",
@@ -259,7 +249,7 @@ fn compile_and_emit_print_exact_artifacts() {
         );
         let expected = std::fs::read(&input).expect("read saved artifact");
 
-        let printed = cli(directory.path())
+        let printed = Command::new(env!("CARGO_BIN_EXE_bloq"))
             .args([
                 "compile",
                 "--gallery",
@@ -282,7 +272,7 @@ fn compile_and_emit_print_exact_artifacts() {
         assert!(printed.stderr.is_empty());
 
         if backend != "stim" {
-            let emitted = cli(directory.path())
+            let emitted = Command::new(env!("CARGO_BIN_EXE_bloq"))
                 .arg("emit")
                 .arg(&input)
                 .args(["--quiet", "--backend", backend, "--print"])

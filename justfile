@@ -152,8 +152,7 @@ pre-release: check test-full lint audit miri
 release: pre-release
     cargo build --release
 
-# lint + nextest + doctests, all features and locked. Test bloq_py separately
-# to avoid sibling profiling features entering its cdylib through unification.
+# lint + nextest + doctests, all features and locked. Test bloq_py separately.
 # Its rustdoc is Python docstring source; the empty doctest pass detects accidental
 # Rust code blocks. Binary-only crates have no doctest target.
 [group('development')]

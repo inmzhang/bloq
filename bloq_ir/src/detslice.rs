@@ -804,7 +804,7 @@ impl TapeBuilder {
         // Resolve record parities and positioned Pauli seeds into tape space;
         // drop any region reaching an instance outside this tape.
         let (detectors, seeds, meta) =
-            hotpath::measure_block!("detslice.resolve_regions", {
+            {
                 let mut detectors = Vec::with_capacity(self.pending.len());
                 let mut seeds = Vec::new();
                 let mut meta: Vec<ProgramRegion> = Vec::with_capacity(self.pending.len());
@@ -875,48 +875,43 @@ impl TapeBuilder {
                     });
                 }
                 (detectors, seeds, meta)
-            });
+            };
 
         let region_base = checked_region_base(out.regions.len(), meta.len())?;
         let segment_refs: Vec<&[Op]> = self.segments.iter().map(Vec::as_slice).collect();
-        let mut slices = hotpath::measure_block!("detslice.reverse_track", {
-            detector_slices_with_seeds(&segment_refs, &detectors, &seeds)?
-        });
+        let mut slices = detector_slices_with_seeds(&segment_refs, &detectors, &seeds)?;
 
         // Every node appears, with an inner vec per moment (empty if no regions).
-        hotpath::measure_block!("detslice.scatter", {
-            for (node_ref, start, len) in &self.node_ranges {
-                let mut node_slices = vec![Vec::new(); *len];
-                for (moment, slots) in node_slices.iter_mut().enumerate() {
-                    for (detector_id, terms) in std::mem::take(&mut slices.slices[start + moment]) {
-                        slots.push(RegionView {
-                            region: region_base + detector_id,
-                            terms,
-                        });
-                    }
-                }
-                out.per_node
-                    .insert(node_ref.clone(), NodeSlices(node_slices));
-            }
-
-            for brk in slices.breaks {
-                let meta = &meta[brk.detector as usize];
-                let Some((node, moment)) = self.segment_owner.get(brk.segment).cloned() else {
-                    return Err(ProgramSliceError::BreakOutsideTimeline {
-                        region: meta.id.clone(),
+        for (node_ref, start, len) in &self.node_ranges {
+            let mut node_slices = vec![Vec::new(); *len];
+            for (moment, slots) in node_slices.iter_mut().enumerate() {
+                for (detector_id, terms) in std::mem::take(&mut slices.slices[start + moment]) {
+                    slots.push(RegionView {
+                        region: region_base + detector_id,
+                        terms,
                     });
-                };
-                out.breaks.push(ProgramRegionBreak {
-                    node,
-                    moment,
-                    region: meta.id.clone(),
-                    qubit: brk.qubit,
-                    kind: brk.kind,
-                });
+                }
             }
-            out.regions.extend(meta);
-            Ok::<_, ProgramSliceError>(())
-        })?;
+            out.per_node
+                .insert(node_ref.clone(), NodeSlices(node_slices));
+        }
+
+        for brk in slices.breaks {
+            let meta = &meta[brk.detector as usize];
+            let Some((node, moment)) = self.segment_owner.get(brk.segment).cloned() else {
+                return Err(ProgramSliceError::BreakOutsideTimeline {
+                    region: meta.id.clone(),
+                });
+            };
+            out.breaks.push(ProgramRegionBreak {
+                node,
+                moment,
+                region: meta.id.clone(),
+                qubit: brk.qubit,
+                kind: brk.kind,
+            });
+        }
+        out.regions.extend(meta);
         Ok(())
     }
 }

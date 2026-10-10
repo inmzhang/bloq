@@ -320,7 +320,6 @@ impl FamilyCompiler {
         self.index.coordinates_fit(member)
     }
 
-    #[hotpath::measure]
     pub(super) fn order_same_layer(
         &mut self,
         nodes: &mut [BloqNodeId],
@@ -330,7 +329,6 @@ impl FamilyCompiler {
         order_same_layer(nodes, members, &self.index, &mut self.pairs, topology)
     }
 
-    #[hotpath::measure]
     fn recipe(
         &mut self,
         producer: FlowMember,
@@ -487,7 +485,6 @@ impl FamilyCompiler {
         Ok(Some(recipe))
     }
 
-    #[hotpath::measure]
     pub(super) fn plan_component(
         &mut self,
         group: &[BloqNodeId],

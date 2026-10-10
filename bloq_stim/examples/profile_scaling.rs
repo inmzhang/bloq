@@ -139,7 +139,6 @@ fn main() {
                 .read_line(&mut String::new())
                 .expect("profile start signal");
         }
-        let _hotpath = hotpath::HotpathGuardBuilder::new("profile_scaling").build();
         let (_, elapsed_ms) = timed(|| {
             for _ in 0..iterations {
                 match mode {

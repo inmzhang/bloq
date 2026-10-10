@@ -13,7 +13,6 @@ readme.workspace = true
 strum.workspace = true
 bloq_utils.workspace = true
 glam = { workspace = true, features = ["serde"] }
-hotpath.workspace = true
 thiserror.workspace = true
 rustc-hash.workspace = true
 serde.workspace = true
@@ -21,10 +20,6 @@ smallvec = { workspace = true, features = ["serde"] }
 
 [lints]
 workspace = true
-
-[features]
-hotpath = ["hotpath/hotpath"]
-hotpath-alloc = ["hotpath/hotpath-alloc"]
 
 [dev-dependencies]
 postcard.workspace = true

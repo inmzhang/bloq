@@ -115,7 +115,6 @@ pub(super) fn compile_hierarchy(
     compile_native(context, &linked.graph, &linked.sites, &[], jobs)
 }
 
-#[hotpath::measure]
 pub(super) fn certify_definition(
     name: &str,
     graph: &BlockGraph,
@@ -147,7 +146,6 @@ pub(super) fn certify_definition(
         })
 }
 
-#[hotpath::measure]
 fn compile_native(
     context: &CompileContext,
     source: &BlockGraph,
@@ -180,18 +178,12 @@ fn compile_native(
             })
             .collect::<Result<_, CompileError>>()?;
         context.report_progress(super::CompileStage::Correlations)?;
-        let topology =
-            hotpath::measure_block!("native.topology", GuardedTopology::new(&graph, limits))?;
-        let relation = hotpath::measure_block!(
-            "native.compose_surfaces",
-            GuardedSurfaceSpace::new(topology, &sites, limits)
-        )?;
-        let mut readout_plan =
-            hotpath::measure_block!("native.plan_readouts", relation.plan_readouts())?;
+        let topology = GuardedTopology::new(&graph, limits)?;
+        let relation = GuardedSurfaceSpace::new(topology, &sites, limits)?;
+        let mut readout_plan = relation.plan_readouts()?;
         context.report_progress(super::CompileStage::Placement)?;
-        let mut family = hotpath::measure_block!("native.physical_plan", {
-            physical::ScheduledFamily::new(&mut readout_plan.topology, distance, limits)
-        })?;
+        let mut family =
+            physical::ScheduledFamily::new(&mut readout_plan.topology, distance, limits)?;
         let mut assembly = assembly::Assembly::new();
         let mut imported = Vec::new();
         // Physical template compilation follows the existing worker budget. Signed
@@ -318,16 +310,10 @@ fn finish_native(
     context.report_progress(super::CompileStage::Optimization)?;
     let limits = context.config.certification_limits();
     let distance = context.config.code_distance();
-    hotpath::measure_block!(
-        "native.finalize",
-        crate::lower::finish_program(&mut bloq, interface)
-    )?;
+    crate::lower::finish_program(&mut bloq, interface)?;
     bloq.insert_metadata(super::CODE_DISTANCE_METADATA_KEY, distance);
     bloq.insert_metadata(super::CONVENTION_METADATA_KEY, "fixed-bulk".to_owned());
-    hotpath::measure_block!(
-        "native.validate_layout",
-        crate::lower::validate_bloq_qubit_layout_with_limits(&bloq, graph, limits.boolean_limits())
-    )?;
+    crate::lower::validate_bloq_qubit_layout_with_limits(&bloq, graph, limits.boolean_limits())?;
     Ok(CompileArtifacts {
         bloq,
         warnings,

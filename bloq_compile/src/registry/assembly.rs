@@ -197,7 +197,6 @@ impl Assembly {
         })
     }
 
-    #[hotpath::measure]
     pub(super) fn import(
         &mut self,
         physical: PhysicalProjection,
@@ -570,7 +569,6 @@ impl Assembly {
         Ok(())
     }
 
-    #[hotpath::measure]
     pub(super) fn build(
         &mut self,
         topology: &mut GuardedTopology,
@@ -734,7 +732,6 @@ impl Assembly {
         }
     }
 
-    #[hotpath::measure]
     pub(super) fn compose_flows(
         &mut self,
         topology: &mut GuardedTopology,

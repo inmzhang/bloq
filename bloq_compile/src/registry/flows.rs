@@ -296,7 +296,6 @@ impl GuardedFlowEngine {
         Ok(row)
     }
 
-    #[hotpath::measure]
     pub(super) fn append(
         &mut self,
         flows: &[BoundaryFlow],
@@ -520,7 +519,6 @@ impl GuardedFlowEngine {
         Ok(())
     }
 
-    #[hotpath::measure]
     fn matrix(
         &self,
         sources: &[FlowRow],
@@ -563,7 +561,6 @@ impl GuardedFlowEngine {
         Ok(result)
     }
 
-    #[hotpath::measure]
     fn transition(
         &mut self,
         old: Vec<FlowRow>,
@@ -663,7 +660,6 @@ impl GuardedFlowEngine {
         Ok(())
     }
 
-    #[hotpath::measure]
     fn compact_constant(
         &mut self,
         diagram: &mut BooleanDecisionDiagram,
@@ -708,7 +704,6 @@ impl GuardedFlowEngine {
         Ok(())
     }
 
-    #[hotpath::measure]
     fn compact(
         &mut self,
         diagram: &mut BooleanDecisionDiagram,

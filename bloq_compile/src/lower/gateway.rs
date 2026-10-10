@@ -68,7 +68,6 @@ impl LocalSurfaceContext<'_> {
 
     /// Bounded geometry must supply an anchor when `needs_dynamic_anchor` is
     /// true. Without one, the fallback queries require a complete source graph.
-    #[hotpath::measure]
     pub(crate) fn resolve(
         &self,
         positions: &[IVec3],

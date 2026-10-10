@@ -214,25 +214,17 @@ pub(crate) fn finish_program(
     bloq: &mut Bloq,
     interface: LogicalInterface,
 ) -> Result<(), CompileError> {
-    hotpath::measure_block!(
-        "finish.occupancy_edges",
-        schedule::induce_occupancy_order_edges(bloq)
-    )?;
-    hotpath::measure_block!("finish.optimize", bloq.optimize())
+    schedule::induce_occupancy_order_edges(bloq)?;
+    bloq.optimize()
         .map_err(|_| BloqValidationError::CyclicGraph)?;
-    let inputs = hotpath::measure_block!(
-        "finish.logical_inputs",
-        logical_inputs(bloq, interface.inputs, interface.distance)
-    )?;
+    let inputs = logical_inputs(bloq, interface.inputs, interface.distance)?;
     bloq.set_logical_inputs(inputs);
-    let outputs = hotpath::measure_block!("finish.logical_outputs", {
-        logical_outputs(
-            bloq,
-            interface.outputs,
-            interface.multiplex,
-            interface.distance,
-        )
-    })?;
+    let outputs = logical_outputs(
+        bloq,
+        interface.outputs,
+        interface.multiplex,
+        interface.distance,
+    )?;
     bloq.set_logical_outputs(outputs);
     Ok(())
 }
@@ -385,7 +377,6 @@ fn logical_faces(
     (placements, faces)
 }
 
-#[hotpath::measure]
 fn template_logical_pair(
     template: &bloq_ir::lowering::BloqTemplate,
     face: bloq_ir::BoundaryFace,

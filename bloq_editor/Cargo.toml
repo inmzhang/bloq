@@ -51,7 +51,6 @@ web-time.workspace = true
 # Without this, native TaskPool::spawn runs CPU jobs on the calling UI thread.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 bevy = { workspace = true, features = ["multi_threaded"] }
-hotpath.workspace = true
 winit.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
@@ -99,12 +98,6 @@ ignored = ["getrandom", "getrandom_02", "winresource"]
 
 [build-dependencies]
 winresource.workspace = true
-
-[features]
-# Hotpath's native-only dependency keeps web builds uninstrumented, including
-# --all-features. Desktop timing and allocation profiling remain available.
-hotpath = ["hotpath/hotpath"]
-hotpath-alloc = ["hotpath/hotpath-alloc"]
 
 [lints]
 workspace = true

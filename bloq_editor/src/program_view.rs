@@ -36,7 +36,6 @@ pub(crate) struct BloqCircuitView {
     pub(crate) node_refs: HashMap<NodeRef, u32>,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), hotpath::measure)]
 pub(crate) fn build_bloq_circuit_view(
     program: &Bloq,
     source_graph: &BlockGraph,

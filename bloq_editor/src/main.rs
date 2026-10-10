@@ -54,7 +54,6 @@ use plugins::BloqEditorPlugin;
 // 3D labels reuse the Zed Mono subset; non-ASCII labels have no glyph.
 const EMBEDDED_FONT: &[u8] = include_bytes!("../assets/fonts/ZedMono-Regular.ttf");
 
-#[cfg_attr(not(target_arch = "wasm32"), hotpath::main)]
 fn main() {
     // The same WASM module also runs inside the compilation Worker.
     #[cfg(target_arch = "wasm32")]
