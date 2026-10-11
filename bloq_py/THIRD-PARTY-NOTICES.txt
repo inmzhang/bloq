@@ -1086,29 +1086,29 @@ Declared authors: Kirill Chibisov <contact@kchibisov.com>
   [c138726a726ac37bae09d0f8a48e74e8e3aa8a8952fcd10fae0fb224cc1c05f1] cursor-icon@1.2.0/LICENSE-MIT
   [01e533bd94e8f1c32b2c2531e2c398de7d35d7804add3d574b4e1fe581d53537] cursor-icon@1.2.0/LICENSE-ZLIB
 
-cxx@1.0.204
+cxx@1.0.205
 Declared license: MIT OR Apache-2.0
 Declared authors: David Tolnay <dtolnay@gmail.com>
-  [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] cxx@1.0.204/LICENSE-APACHE
-  [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] cxx@1.0.204/LICENSE-MIT
+  [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] cxx@1.0.205/LICENSE-APACHE
+  [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] cxx@1.0.205/LICENSE-MIT
 
-cxx-build@1.0.204
+cxx-build@1.0.205
 Declared license: MIT OR Apache-2.0
 Declared authors: David Tolnay <dtolnay@gmail.com>
-  [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] cxx-build@1.0.204/LICENSE-APACHE
-  [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] cxx-build@1.0.204/LICENSE-MIT
+  [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] cxx-build@1.0.205/LICENSE-APACHE
+  [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] cxx-build@1.0.205/LICENSE-MIT
 
-cxxbridge-flags@1.0.204
+cxxbridge-flags@1.0.205
 Declared license: MIT OR Apache-2.0
 Declared authors: David Tolnay <dtolnay@gmail.com>
-  [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] cxxbridge-flags@1.0.204/LICENSE-APACHE
-  [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] cxxbridge-flags@1.0.204/LICENSE-MIT
+  [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] cxxbridge-flags@1.0.205/LICENSE-APACHE
+  [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] cxxbridge-flags@1.0.205/LICENSE-MIT
 
-cxxbridge-macro@1.0.204
+cxxbridge-macro@1.0.205
 Declared license: MIT OR Apache-2.0
 Declared authors: David Tolnay <dtolnay@gmail.com>
-  [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] cxxbridge-macro@1.0.204/LICENSE-APACHE
-  [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] cxxbridge-macro@1.0.204/LICENSE-MIT
+  [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] cxxbridge-macro@1.0.205/LICENSE-APACHE
+  [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] cxxbridge-macro@1.0.205/LICENSE-MIT
 
 dasp_sample@0.11.0
 Declared license: MIT OR Apache-2.0
@@ -3218,11 +3218,10 @@ Declared authors: Erick Tryzelaar <erick.tryzelaar@gmail.com>; David Tolnay <dto
   [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] serde_derive@1.0.229/LICENSE-APACHE
   [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] serde_derive@1.0.229/LICENSE-MIT
 
-serde_json@1.0.151
+serde_json@1.0.152
 Declared license: MIT OR Apache-2.0
-Declared authors: Erick Tryzelaar <erick.tryzelaar@gmail.com>; David Tolnay <dtolnay@gmail.com>
-  [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] serde_json@1.0.151/LICENSE-APACHE
-  [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] serde_json@1.0.151/LICENSE-MIT
+  [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] serde_json@1.0.152/LICENSE-APACHE
+  [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] serde_json@1.0.152/LICENSE-MIT
 
 serde_spanned@1.1.2
 Declared license: MIT OR Apache-2.0
