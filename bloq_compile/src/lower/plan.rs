@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use bloq_graph::{Basis, BlockGraph, Pipe, UDirection};
+use bloq_graph::{Basis, BlockGraph, BlockKind, Pipe, UDirection, WalkingKind};
 use glam::IVec3;
 use petgraph::algo::toposort;
 use petgraph::graph::{DiGraph, NodeIndex};
@@ -25,6 +25,7 @@ pub(crate) struct LowerPlan {
 #[derive(Debug, Clone)]
 pub(crate) struct LinkedPlanInput {
     blocks: Vec<IVec3>,
+    walking: crate::FxMap<IVec3, WalkingKind>,
     pipes: Vec<LinkedPipePlan>,
     spatial_ports: Vec<SpatialPortExpansion>,
 }
@@ -39,7 +40,7 @@ struct LinkedPipePlan {
 #[derive(Debug, Clone)]
 pub(crate) struct NodePlan {
     pub(crate) layer: i64,
-    /// Whether the complete spatial component has an incoming quantum cut.
+    /// Whether the complete block component has an incoming quantum cut.
     /// Local physical contexts retain this global timeline fact explicitly.
     pub(crate) incoming_cut: bool,
     pub(crate) provenance: NodeProvenance,
@@ -179,8 +180,16 @@ impl LinkedPlanInput {
         spatial_ports.sort_unstable_by_key(|port| port.source.to_array());
         let mut blocks = linked_positions.into_iter().collect::<Vec<_>>();
         blocks.sort_unstable_by_key(glam::IVec3::to_array);
+        let walking = blocks
+            .iter()
+            .filter_map(|&position| match source.get_block(position)?.kind() {
+                BlockKind::Walking(kind) => Some((position, kind)),
+                _ => None,
+            })
+            .collect();
         Self {
             blocks,
+            walking,
             pipes,
             spatial_ports,
         }
@@ -240,7 +249,7 @@ impl LowerPlan {
                 .get(&layer)
                 .map(Vec::as_slice)
                 .unwrap_or_default();
-            for component in spatial_components(&block_positions, spatial_pipes) {
+            for component in block_components(&block_positions, spatial_pipes, &source.walking) {
                 let members = component
                     .iter()
                     .copied()
@@ -485,7 +494,11 @@ fn temporal_edge_endpoints(
     }
 }
 
-fn spatial_components(block_positions: &[IVec3], spatial_pipes: &[&Pipe]) -> Vec<Vec<IVec3>> {
+fn block_components(
+    block_positions: &[IVec3],
+    spatial_pipes: &[&Pipe],
+    walking: &crate::FxMap<IVec3, WalkingKind>,
+) -> Vec<Vec<IVec3>> {
     let position_index: crate::FxMap<IVec3, usize> = block_positions
         .iter()
         .copied()
@@ -500,6 +513,27 @@ fn spatial_components(block_positions: &[IVec3], spatial_pipes: &[&Pipe]) -> Vec
             (position_index.get(&src), position_index.get(&dst))
         {
             components.union(src_index, dst_index);
+        }
+    }
+
+    // Parallel walks share transit qubits and therefore one set of common rounds.
+    for (index, &position) in block_positions.iter().enumerate() {
+        let Some(kind) = walking.get(&position) else {
+            continue;
+        };
+        for offset in kind
+            .reserved_offsets()
+            .into_iter()
+            .filter(|offset| offset.z == 0 && *offset != IVec3::ZERO)
+        {
+            if let Ok(neighbor) = bloq_graph::checked_add_position(position, offset)
+                && walking
+                    .get(&neighbor)
+                    .is_some_and(|other| other.movement() == kind.movement())
+                && let Some(&neighbor_index) = position_index.get(&neighbor)
+            {
+                components.union(index, neighbor_index);
+            }
         }
     }
 
@@ -552,9 +586,7 @@ fn temporal_hadamard_top_basis(graph: &BlockGraph, pipe: &TemporalPipeRef) -> Ba
 
 #[cfg(test)]
 mod tests {
-    use bloq_graph::{
-        Block, BlockKind, CubeKind, Direction, PatchRotationKind, WalkingBoundaryKind, WalkingKind,
-    };
+    use bloq_graph::{Block, CubeKind, Direction, PatchRotationKind, WalkingBoundaryKind};
     use glam::ivec3;
 
     use super::*;
@@ -631,6 +663,7 @@ mod tests {
         };
         let input = LinkedPlanInput {
             blocks: [0, 1, 2, 3, 10, 11].map(|x| ivec3(x, 0, 0)).to_vec(),
+            walking: crate::FxMap::default(),
             pipes: vec![
                 h(2, (ivec3(2, 0, 0), ivec3(3, 0, 0))),
                 h(10, (ivec3(10, 0, 0), ivec3(11, 0, 0))),

@@ -57,10 +57,25 @@ inherited Cargo versions.
 ## Changelog
 
 Do not edit `CHANGELOG.md` manually, including unreleased entries and version
-headings. Release-plz generates it in release PRs from Conventional Commit
-messages. Record compatibility and migration details in `BREAKING CHANGE:`
-footers and the relevant user documentation, then review the generated notes
-in the release PR. `just changelog` previews notes without writing the file.
+headings. Release-plz owns versions, release PRs, and retained release notes.
+Its supported changelog postprocessor invokes git-cliff over repository-wide
+history since the previous stable tag. The same notes appear in the file and
+release PR. `just changelog` previews them without writing the file.
+
+The configuration follows [git-cliff's scoped template](https://github.com/orhun/git-cliff/blob/v2.14.2/examples/scoped.toml):
+Conventional Commit scopes group entries into Python API (`python` or `py`),
+Rust API and compiler (`rust`, `graph`, `compile`, `ir`, `stim`, `vm`), editor,
+CLI, workflows and packaging (`ci`, `build`, `workflows`, `release`), documentation
+(`docs`), and dependencies (`deps`). Each area has Added, Fixed, Changed, or
+Performance subsections. Unscoped `docs` and `ci` commits use their corresponding
+areas; other unscoped changes remain under General. Use meaningful scopes in
+commit messages and squash-merge titles rather than inferring intent from files.
+
+Record migration details in `BREAKING CHANGE:` footers and the relevant user
+documentation; breaking entries retain the footer. Review generated notes in the
+release PR. Release and development-version housekeeping is omitted. Package
+changes still determine release eligibility and versions; Python, documentation,
+and workflow changes outside publishable crates join the next eligible release.
 
 ## Stable release versions
 

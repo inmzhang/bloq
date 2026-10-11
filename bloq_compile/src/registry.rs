@@ -16,7 +16,10 @@ use std::collections::BTreeSet;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
-use bloq_graph::{BlockGraph, GuardedSurfaceSpace, GuardedTopology, MaterializedModuleSite};
+use bloq_graph::{
+    BlockGraph, GuardedSurfaceSpace, GuardedTopology, MaterializedModuleSite,
+    PreparedModuleRelations,
+};
 use bloq_ir::lowering::{InstanceMeasurement, TemplateInstanceId};
 use bloq_ir::{
     Bloq, BloqEdge, BloqNode, BloqNodeId, BloqNodeKind, ClassicalNode, InstanceProvenance,
@@ -32,19 +35,6 @@ fn assembly(reason: impl Into<String>) -> CompileError {
     }
 }
 
-fn needs_local_variants(graph: &BlockGraph) -> bool {
-    graph.has_continuing_branches()
-        || graph
-            .blocks()
-            .chain(
-                graph
-                    .branch_definitions()
-                    .iter()
-                    .flat_map(|region| region.on_false().blocks().chain(region.on_true().blocks())),
-            )
-            .any(|block| block.kind().is_selective())
-}
-
 fn hierarchy_needs_local_variants(program: &BlockGraph) -> bool {
     let mut pending = vec![program.root()];
     let mut seen = BTreeSet::new();
@@ -52,7 +42,7 @@ fn hierarchy_needs_local_variants(program: &BlockGraph) -> bool {
         if !seen.insert(&module.name) {
             continue;
         }
-        if needs_local_variants(module.local_body()) {
+        if module.local_body().has_continuing_branches() {
             return true;
         }
         pending.extend(module.instances.iter().map(|instance| {
@@ -64,6 +54,23 @@ fn hierarchy_needs_local_variants(program: &BlockGraph) -> bool {
     false
 }
 
+#[cfg(test)]
+pub(super) fn compile_hierarchy_without_inventory(
+    context: &CompileContext,
+    program: &BlockGraph,
+) -> Result<CompileArtifacts, CompileError> {
+    let summary = context.prepare_relations(program, bloq_graph::default_module_jobs())?;
+    let linked = summary.linked();
+    compile_native(
+        context,
+        &linked.graph,
+        &linked.sites,
+        &[],
+        Some(&summary),
+        bloq_graph::default_module_jobs(),
+    )
+}
+
 pub(super) fn compile_graph(
     context: &CompileContext,
     graph: &BlockGraph,
@@ -73,6 +80,7 @@ pub(super) fn compile_graph(
         graph,
         &Default::default(),
         &[],
+        None,
         bloq_graph::default_module_jobs(),
     )
 }
@@ -82,37 +90,21 @@ pub(super) fn compile_hierarchy(
     program: &BlockGraph,
     jobs: NonZeroUsize,
 ) -> Result<CompileArtifacts, CompileError> {
-    if !hierarchy_needs_local_variants(program) {
-        let (linked, definitions) = context.prepare_module_definitions(program, jobs)?;
-        return compile_native(context, &linked.graph, &linked.sites, &definitions, jobs);
-    }
-    // C0 remains a definition contract, including definitions whose parent
-    // later consumes all their public outputs.
-    let limits = context.config.certification_limits();
-    let mut pending = vec![program.root()];
-    let mut seen = BTreeSet::new();
-    while let Some(module) = pending.pop() {
-        if !seen.insert(module.name.clone()) {
-            continue;
-        }
-        pending.extend(module.instances.iter().map(|instance| {
-            program
-                .module(&instance.definition)
-                .expect("validated definition")
-        }));
-        if module.name == program.root().name {
-            continue;
-        }
-        let linked = bloq_graph::flatten_module_definition(program, module, "")?;
-        certify_definition(
-            &module.name,
-            &linked.graph.fix_shadowed_faces(),
-            &linked.sites,
-            limits,
-        )?;
-    }
-    let linked = bloq_graph::flatten_module_definition(program, program.root(), "")?;
-    compile_native(context, &linked.graph, &linked.sites, &[], jobs)
+    let summary = context.prepare_relations(program, jobs)?;
+    let definitions = if hierarchy_needs_local_variants(program) {
+        Vec::new()
+    } else {
+        context.prepare_module_definitions(program, &summary, jobs)?
+    };
+    let linked = summary.linked();
+    compile_native(
+        context,
+        &linked.graph,
+        &linked.sites,
+        &definitions,
+        Some(&summary),
+        jobs,
+    )
 }
 
 pub(super) fn certify_definition(
@@ -120,9 +112,10 @@ pub(super) fn certify_definition(
     graph: &BlockGraph,
     sites: &std::collections::HashMap<IVec3, MaterializedModuleSite>,
     limits: bloq_graph::ModuleCertificationLimits,
+    summary: &PreparedModuleRelations,
 ) -> Result<(), CompileError> {
     GuardedTopology::new(graph, limits)
-        .and_then(|topology| GuardedSurfaceSpace::new(topology, sites, limits))
+        .and_then(|topology| summary.compose(topology, sites))
         .and_then(|space| space.plan_readouts().map(drop))
         .map_err(|source| match source {
             bloq_graph::BlockGraphError::Stabilizer(
@@ -151,6 +144,7 @@ fn compile_native(
     source: &BlockGraph,
     source_sites: &std::collections::HashMap<IVec3, MaterializedModuleSite>,
     definitions: &[Arc<super::PreparedDefinitionObject>],
+    summary: Option<&PreparedModuleRelations>,
     jobs: NonZeroUsize,
 ) -> Result<CompileArtifacts, CompileError> {
     use bloq_utils::boolean::DECISION_TRUE;
@@ -179,7 +173,10 @@ fn compile_native(
             .collect::<Result<_, CompileError>>()?;
         context.report_progress(super::CompileStage::Correlations)?;
         let topology = GuardedTopology::new(&graph, limits)?;
-        let relation = GuardedSurfaceSpace::new(topology, &sites, limits)?;
+        let relation = match summary {
+            Some(summary) => summary.compose(topology, &sites)?,
+            None => GuardedSurfaceSpace::new(topology, &sites, limits)?,
+        };
         let mut readout_plan = relation.plan_readouts()?;
         context.report_progress(super::CompileStage::Placement)?;
         let mut family =
@@ -222,8 +219,8 @@ fn compile_native(
             )?);
         }
         drop((imported, selectors));
+        assembly.group_walking_choreography(&mut readout_plan.topology)?;
         let mut boolean = assembly.build(&mut readout_plan.topology)?;
-        assembly.order_walking_choreography(&mut readout_plan.topology)?;
         assembly.compose_flows(
             &mut readout_plan.topology,
             &mut boolean,

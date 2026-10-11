@@ -107,13 +107,9 @@ fn neighbor_in_users(
 /// only, so these pure-ordering edges only constrain emission order — they
 /// never change emitted detectors or observables.
 ///
-/// Only era boundaries (terminal → source) are ordered. Mid-column walking
-/// nodes also touch other columns' qubits (a glide's rotation transits a
-/// neighbour cell's corner), but their member z-extent says nothing about
-/// *when* within the walk the shared qubit is used, so any z-derived edge
-/// between mid-column nodes can invert the real choreography
-/// (ghz_slide_then_glide breaks under a naive per-qubit z ordering). At an
-/// era boundary the direction is unambiguous.
+/// Only era boundaries (terminal → source) are ordered. Moving patches touch
+/// transit qubits in other columns, so source z alone cannot establish their
+/// reuse order.
 ///
 /// The Clifford proxy was the first emitter to need this: a T column's
 /// source node hovers a layer gap above the previous era's terminating block
@@ -255,15 +251,9 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
     // The CCZ factories hit both: their merged patches carry seams for other
     // columns across every era boundary.
     //
-    // Walking nodes are excluded entirely: their layout footprint covers the
-    // whole transit, and member z says nothing about when *within* the walk a
-    // shared qubit is used. In ghz_slide_then_glide the glide endpoint's
-    // patch (member z=5) is live *before* the neighbour arm's slide transit
-    // (member z=3) crosses it, so any z-derived edge between them inverts the
-    // real choreography. A walk is detected by displacement between a node's
-    // member columns and its seam endpoints: a slide/glide block keeps its
-    // source member position but hands off (or was handed) the patch at a
-    // different xy column.
+    // Exclude moving patches: their footprints include transit qubits, whose
+    // reuse order is not determined by source z. Displaced seam endpoints
+    // identify these nodes without the source graph.
     let slot_by_id: crate::FxMap<BloqNodeId, usize> = footprints
         .iter()
         .enumerate()
@@ -365,7 +355,7 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
         };
     // Computed once per slot: the probe is pure per-node but was previously
     // re-evaluated for every (qubit, pair) window it appeared in.
-    let is_walking: Vec<bool> = (0..footprints.len())
+    let is_moving: Vec<bool> = (0..footprints.len())
         .map(|slot| {
             let footprint = &footprints[slot];
             let displaced =
@@ -387,8 +377,8 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
         let (lower_slot, upper_slot) = (lower_slot as usize, upper_slot as usize);
         let (lower, upper) = (&footprints[lower_slot], &footprints[upper_slot]);
         lower.z_max < upper.z_min
-            && !is_walking[lower_slot]
-            && !is_walking[upper_slot]
+            && !is_moving[lower_slot]
+            && !is_moving[upper_slot]
             && !worldline_continues(lower_slot, users, user_slots, Dir::Outgoing)
             && !worldline_continues(upper_slot, users, user_slots, Dir::Incoming)
     });

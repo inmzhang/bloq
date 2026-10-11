@@ -310,14 +310,6 @@ impl BranchRegion {
         }
     }
 
-    pub(crate) fn incoming_for(&self, value: bool) -> &[BranchCut] {
-        if value {
-            &self.incoming
-        } else {
-            &self.false_incoming
-        }
-    }
-
     /// Returns the arm selected by `value`.
     pub fn arm(&self, value: bool) -> &BranchArm {
         if value { &self.on_true } else { &self.on_false }

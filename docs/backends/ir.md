@@ -87,7 +87,7 @@ Every node has a kind and a **provenance** that links it back to the source.
 
 | Provenance | Node it marks |
 | --- | --- |
-| `BlockComponent` | Quantum node for connected source blocks |
+| `BlockComponent` | Quantum node for source blocks sharing physical qubits on a layer |
 | `TemporalPipe` | Realignment layer of a temporal Hadamard pipe |
 | `SpatialPortSubstitution` | Compiler-inserted replacement of a spatial Port |
 | `MemoryPadding` | Memory rounds inserted after compilation, with their count |
