@@ -670,7 +670,8 @@ mod tests {
                     condition: Expr::Var(format!("input{index}")),
                 });
             }
-            let (mut zx, _) = ZXGraph::from_module_body(&graph, &[]).unwrap();
+            let mut zx =
+                ZXGraph::from_block_graph_parts(&graph, crate::ActionDag::default()).unwrap();
             zx.action_graph = ActionDag::from_actions(&actions);
             assert!(
                 matches!(zx.stabilizers_with_limits(ModuleCertificationLimits {

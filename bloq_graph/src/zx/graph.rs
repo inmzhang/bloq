@@ -4,11 +4,10 @@ use super::ZXLayerView;
 use super::modular::{StabilizerPhaseBasis, canonical_external_basis};
 use super::stabilizer::{
     CanonicalStabilizerTable, SearchBudget, Stabilizer, StabilizerError, StabilizerGenerator,
-    StabilizerGenerators, StabilizerRowKind, canonicalize_stabilizer_table,
-    canonicalize_stabilizer_table_legacy, canonicalize_stabilizer_table_with_external_basis,
-    canonicalize_stabilizer_table_with_measurement_prefix,
-    canonicalize_stabilizer_table_with_tagged_prefix, complete_stabilizer_search, contracted_sign,
-    has_forced_direct_action_cycle, stabilizers_satisfy_global_constraints,
+    StabilizerGenerators, canonicalize_stabilizer_table, canonicalize_stabilizer_table_legacy,
+    canonicalize_stabilizer_table_with_external_basis,
+    canonicalize_stabilizer_table_with_measurement_prefix, complete_stabilizer_search,
+    contracted_sign, has_forced_direct_action_cycle, stabilizers_satisfy_global_constraints,
 };
 use crate::{
     Action, ActionDag, BlockGraphError, CubeKind, FeedbackTarget, MeasureTarget,
@@ -375,27 +374,13 @@ impl ZXGraph {
     pub(crate) fn stabilizers_from_composed_basis(
         &self,
         external_basis: &[PhasedPauliString],
-        adjustment_basis: &[PauliString],
-        cached_prefix: &[(StabilizerRowKind, PauliString)],
         limits: ModuleCertificationLimits,
     ) -> Result<StabilizerGenerators, StabilizerError> {
         self.validate_feedback_targets()?;
-        let mut budget = SearchBudget::with_limits(limits);
+        let budget = SearchBudget::with_limits(limits);
         budget.check_matrix(external_basis.len().saturating_mul(3), self.total_ids, 0, 0)?;
         let external_basis = canonical_external_basis(external_basis.to_vec(), self.total_ids);
-        let raw_external = external_basis
-            .iter()
-            .map(|row| row.paulis.clone())
-            .collect::<Vec<_>>();
-        let mut rows = canonicalize_stabilizer_table_with_tagged_prefix(
-            self,
-            &raw_external,
-            &external_basis,
-            adjustment_basis,
-            cached_prefix,
-            &mut budget,
-        )
-        .and_then(|table| table.into_stabilizers(self))?;
+        let mut rows = self.stabilizers_from_external_basis_with_limits(&external_basis, limits)?;
         // Runtime recipes use the same composed signed certificate.
         rows.zx_graph
             .stabilizer_phase_basis
@@ -1350,7 +1335,7 @@ pub(super) fn filled_node_kind(chosen: PauliBasis) -> NodeKind {
 mod tests {
     use std::collections::HashMap;
 
-    use bloq_utils::{Pauli, PauliString, PhasedPauliString};
+    use bloq_utils::{Pauli, PauliString};
     use glam::ivec3;
     use rustc_hash::FxHashMap;
 
@@ -1460,29 +1445,6 @@ mod tests {
         row.set(zx.total_ids, Pauli::X);
         assert!(!zx.contains_stabilizer_support(&row));
         assert_eq!(zx.stabilizer_row_phases(&[row]), [0]);
-    }
-
-    #[test]
-    fn composed_basis_does_not_fall_back_when_measurement_rows_are_missing() {
-        let zx = manual_single_node_graph(
-            NodeKind::Z,
-            MeasurementObservable::Concrete(crate::PauliBasis::X),
-        );
-        let external = zx
-            .to_external_generator_table()
-            .into_iter()
-            .map(PhasedPauliString::positive)
-            .collect::<Vec<_>>();
-
-        assert!(matches!(
-            zx.stabilizers_from_composed_basis(
-                &external,
-                &[],
-                &[],
-                ModuleCertificationLimits::UNLIMITED
-            ),
-            Err(StabilizerError::ComposedPresentationUnsatisfied)
-        ));
     }
 
     #[test]

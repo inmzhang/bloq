@@ -95,11 +95,12 @@ configuration, compilation reuses it.
 
 On a cache miss, a hierarchical graph is prepared definition by definition:
 
-1. **Reuse.** A definition variant compiled earlier for the same configuration
-   and orientation is reused, including across different root programs.
-2. **Link.** The root geometry is linked once. Only missing definition variants
-   materialize descendant geometry, join connected ports, and qualify action
-   names by instance path.
+1. **Reuse.** Logical definition relations are shared independently of physical
+   configuration; their keys include transitive definitions and certification
+   limits. Physical definition variants are shared within their configuration
+   and orientation. Both can be reused across different root programs.
+2. **Link.** Linking joins connected ports and qualifies action names by
+   instance path. Each use retains its own outcome names and physical records.
 3. **Certify.** Each child definition's public interface is checked: every
    named readout must close before its live outputs. The root is checked again
    after composition, because a new connection can make a locally valid
@@ -118,9 +119,11 @@ Reachability here describes Boolean control, not the probability of a quantum
 outcome. If one selector is $a$ and another is $\neg a$, the planner does not
 treat all four joint choices as reachable.
 
-The general composed-surface planner builds the correlation space by seam
-elimination with Boolean-guarded coefficients, plans named readouts in causal
-waves, and derives terminal frame equations. It produces these recipes:
+The composed-surface planner reuses compatible definition relations and closes
+parent seams with Boolean-guarded coefficients. Public module summaries derive
+their signed presentation from the same complete relation; production prepares
+the factored relation directly. After composition, the planner selects named
+readouts in causal waves and derives terminal frame equations:
 
 | Recipe | Contents |
 | --- | --- |
@@ -170,6 +173,14 @@ holds:
 
 A selective cap has one template per basis. A T block has cultivation and
 escape templates, or the configured ideal preparation.
+
+Hierarchies without continuing branches retain a physical inventory per
+definition, including both arms of each selective cap. Linking chooses entries
+using the actual connectivity, orientation, boundary basis, and component
+schedule. The inventory is reusable across parent programs with different
+classical bindings: each instance binds its selector and receives its own
+measurement records during guarded assembly. Continuing branches keep their
+local guarded physical contexts.
 
 **Place instances.** An instance places a template at an offset for one source
 block. Two instances of the same template share circuit data but own distinct

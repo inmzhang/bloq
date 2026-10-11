@@ -614,7 +614,7 @@ impl AuthoredGeometry {
 /// A shared decision diagram over source measurement variables, with local
 /// structural alternatives. It never lists the full joint branch domain.
 #[doc(hidden)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GuardedTopology {
     pub source: BlockGraph,
     pub diagram: BooleanDecisionDiagram,

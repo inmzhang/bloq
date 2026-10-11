@@ -28,8 +28,7 @@ pub(crate) use basis::{
 pub(crate) use computation::{
     CanonicalStabilizerTable, canonicalize_stabilizer_table, canonicalize_stabilizer_table_legacy,
     canonicalize_stabilizer_table_with_external_basis,
-    canonicalize_stabilizer_table_with_measurement_prefix,
-    canonicalize_stabilizer_table_with_tagged_prefix, complete_stabilizer_search,
+    canonicalize_stabilizer_table_with_measurement_prefix, complete_stabilizer_search,
     has_forced_direct_action_cycle, stabilizers_satisfy_global_constraints,
 };
 pub(crate) use engine::StabilizerBasis;
