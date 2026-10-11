@@ -139,6 +139,9 @@ Placement decides how each patch is realized physically:
 - **Schedules.** Patches joined by spatial pipes need compatible syndrome
   extraction schedules. Bloq groups each spatial component and selects
   compatible compact, padded, or wall schedules for it.
+- **Walks.** Adjacent walks on the same source layer with the same movement
+  share one quantum node. Their templates merge tick by tick, so slides and
+  glides run together while preserving each patch's measurement records.
 - **Reservations.** T-resource spill cells are reserved against the union of
   all alternatives that can occupy them.
 - **Spatial Ports.** A spatial Port expands into an inferred cube and a

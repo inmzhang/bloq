@@ -222,8 +222,8 @@ fn compile_native(
             )?);
         }
         drop((imported, selectors));
+        assembly.group_walking_choreography(&mut readout_plan.topology)?;
         let mut boolean = assembly.build(&mut readout_plan.topology)?;
-        assembly.order_walking_choreography(&mut readout_plan.topology)?;
         assembly.compose_flows(
             &mut readout_plan.topology,
             &mut boolean,

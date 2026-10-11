@@ -20,7 +20,7 @@ pub(super) struct WallLowering {
 /// exhaustiveness check find every pass that must handle it.
 #[derive(Debug)]
 pub(super) enum NodeLowering {
-    /// Ordinary spatial component: one fixed template instance per member, plus
+    /// Fixed block component: one template instance per member, plus
     /// one per spatial Hadamard wall standing between two of them.
     Fixed {
         members: Vec<(SourceBlockRef, LoweringTemplateId)>,

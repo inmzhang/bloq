@@ -126,7 +126,6 @@ impl<'a> PlacedPlan<'a> {
     /// semantic observable range before the T regions' auxiliary readouts.
     pub(crate) fn emit(mut self, first_observable: u32) -> Result<PhysicalProgram, CompileError> {
         let PhysicalInput {
-            graph,
             plan,
             template_pool,
             layout,
@@ -264,7 +263,6 @@ impl<'a> PlacedPlan<'a> {
             bloq.add_edge(source, target, BloqEdge::quantum(pipes));
         }
 
-        induce_walking_choreography_order_edges(graph, plan, &node_map, bloq.top_mut())?;
         // Composed detectors can read across nodes without a physical seam.
         induce_detector_order_edges(bloq.top_mut());
 
@@ -426,43 +424,6 @@ fn induce_detector_order_edges(body: &mut SubGraph) {
             body.add_edge(owner, target, BloqEdge::Order);
         }
     }
-}
-
-/// Parallel walking blocks share transit qubits. If one walk enters another
-/// walk's source cell, the latter must finish vacating it first; source order is
-/// otherwise rotation-dependent and can corrupt the merged physical schedule.
-fn induce_walking_choreography_order_edges(
-    graph: &BlockGraph,
-    plan: &LowerPlan,
-    node_map: &[Option<BloqNodeId>],
-    body: &mut SubGraph,
-) -> Result<(), CompileError> {
-    for &position in plan.node_by_block().keys() {
-        let block = graph.get_block(position).expect("planned block exists");
-        let BlockKind::Walking(kind) = block.kind() else {
-            continue;
-        };
-        let destination_source = kind.try_end_position(block.pos())? - IVec3::Z;
-        if !graph
-            .get_block(destination_source)
-            .is_some_and(|block| matches!(block.kind(), BlockKind::Walking(_)))
-        {
-            continue;
-        }
-        let Some(entering) = node_map[plan.node_by_block()[&block.pos()].index()] else {
-            continue;
-        };
-        let Some(&vacating_plan) = plan.node_by_block().get(&destination_source) else {
-            continue;
-        };
-        let Some(vacating) = node_map[vacating_plan.index()] else {
-            continue;
-        };
-        if entering != vacating {
-            body.add_edge(vacating, entering, BloqEdge::Order);
-        }
-    }
-    Ok(())
 }
 
 /// Split a tall cube's rounds across its occupied source layers. All layers on

@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use bloq_graph::{GuardedTopology, GuardedVariable};
+use bloq_graph::{GuardedTopology, GuardedVariable, WalkingKind};
 use bloq_ir::lowering::{TemplateInstance, TemplateInstanceId};
 use bloq_ir::{
     Bloq, BloqEdge, BloqNode, BloqNodeId, BloqNodeKind, ClassicalExpr, ClassicalNode,
@@ -85,8 +85,7 @@ pub(super) struct Assembly {
     region_nodes: HashMap<IVec3, BloqNodeId>,
     pub owners: HashMap<TemplateInstanceId, BloqNodeId>,
     pub next_observable: u32,
-    // Guards remain roots until choreography consumes these owned sites.
-    walking: Vec<(IVec3, IVec3, TemplateInstanceId, DecisionId)>,
+    walking: Vec<(IVec3, WalkingKind, TemplateInstanceId)>,
 }
 
 impl Assembly {
@@ -103,7 +102,6 @@ impl Assembly {
             .map(|member| &mut member.guard)
             .chain(self.regions.iter_mut().map(|region| &mut region.guard))
             .chain(self.edges.values_mut())
-            .chain(self.walking.iter_mut().map(|walk| &mut walk.3))
     }
 
     pub(super) fn new() -> Self {
@@ -183,12 +181,7 @@ impl Assembly {
                 .sites
                 .get(&ChunkSiteSource::Block(position))
         {
-            self.walking.push((
-                position,
-                kind.try_end_position(position)? - IVec3::Z,
-                instance,
-                guard,
-            ));
+            self.walking.push((position, kind, instance));
         }
         Ok(Profile {
             position,
@@ -327,47 +320,6 @@ impl Assembly {
             }
         }
         let mut seams = Vec::new();
-        let instance_owners = program
-            .top()
-            .quantum_nodes()
-            .flat_map(|(node, quantum)| {
-                quantum
-                    .instances
-                    .iter()
-                    .map(move |instance| (instance.id, node))
-            })
-            .collect::<HashMap<_, _>>();
-        let mut local_walking_orders = crate::FxSet::default();
-        for (&site, instance) in &physical.placements.instances {
-            let ChunkSiteSource::Block(position) = site else {
-                continue;
-            };
-            let Some(block) = physical.geometry.graph.get_block(position) else {
-                continue;
-            };
-            let bloq_graph::BlockKind::Walking(kind) = block.kind() else {
-                continue;
-            };
-            let vacated = kind.try_end_position(position)? - IVec3::Z;
-            if !physical
-                .geometry
-                .graph
-                .get_block(vacated)
-                .is_some_and(|block| matches!(block.kind(), bloq_graph::BlockKind::Walking(_)))
-            {
-                continue;
-            }
-            if let Some(vacating) = physical
-                .placements
-                .instances
-                .get(&ChunkSiteSource::Block(vacated))
-                && let (Some(&vacating), Some(&entering)) =
-                    (instance_owners.get(vacating), instance_owners.get(instance))
-                && entering != vacating
-            {
-                local_walking_orders.insert((vacating, entering));
-            }
-        }
         for edge in program.edges() {
             let source = nodes[&edge.source];
             let target = nodes[&edge.target];
@@ -375,24 +327,6 @@ impl Assembly {
             remap_edge(&mut kind, &templates);
             match kind {
                 BloqEdge::Order => {
-                    // Context neighbors are not registrations. Rebuild walking
-                    // choreography from owned profiles after global assembly;
-                    // retain a coincident record dependency independently.
-                    if local_walking_orders.contains(&(edge.source, edge.target))
-                        && !program[edge.target].try_quantum().is_some_and(|quantum| {
-                            quantum
-                                .detectors
-                                .iter()
-                                .map(|row| &row.parity)
-                                .chain(quantum.restarts.iter().map(|row| &row.parity))
-                                .flat_map(bloq_circuit::DetectorParity::measurements)
-                                .any(|term| {
-                                    instance_owners.get(&term.instance) == Some(&edge.source)
-                                })
-                        })
-                    {
-                        continue;
-                    }
                     self.edges.insert((source, target, BloqEdge::Order), ONE);
                 }
                 BloqEdge::Quantum(quantum) => {
@@ -700,24 +634,61 @@ impl Assembly {
         Ok(boolean)
     }
 
-    /// Restore choreography across local projection boundaries using only
-    /// registered source sites, not their imported context neighbors.
-    pub(super) fn order_walking_choreography(
+    /// Walks sharing a transit corridor execute in one node's common rounds.
+    /// Only registered sites participate, not imported context neighbors.
+    pub(super) fn group_walking_choreography(
         &mut self,
         topology: &mut GuardedTopology,
     ) -> Result<(), CompileError> {
         topology.diagram.charge(self.walking.len())?;
-        let mut walks = Vec::new();
-        for (position, destination, instance, guard) in std::mem::take(&mut self.walking) {
-            let Some(&owner) = self.owners.get(&instance) else {
-                continue;
-            };
-            walks.push((position, destination, owner, guard));
+        let mut sites =
+            HashMap::<(IVec3, glam::IVec2), (WalkingKind, crate::FxSet<usize>)>::default();
+        for (position, kind, instance) in std::mem::take(&mut self.walking) {
+            let (_, variants) = sites
+                .entry((position, kind.movement()))
+                .or_insert_with(|| (kind, crate::FxSet::default()));
+            variants.insert(instance.0 as usize);
         }
-        if walks.is_empty() {
-            return Ok(());
+        let mut joins = Vec::new();
+        for (&(position, movement), (kind, variants)) in &sites {
+            for offset in kind
+                .reserved_offsets()
+                .into_iter()
+                .filter(|offset| offset.z == 0 && *offset != IVec3::ZERO)
+            {
+                topology.diagram.charge(1)?;
+                let neighbor = bloq_graph::checked_add_position(position, offset)?;
+                let Some((_, neighbors)) = sites.get(&(neighbor, movement)) else {
+                    continue;
+                };
+                for &member in variants {
+                    for &other in neighbors {
+                        topology.diagram.charge(1)?;
+                        if member == other {
+                            continue;
+                        }
+                        let together = topology.diagram.apply(
+                            BooleanOp::And,
+                            self.members[member].guard,
+                            self.members[other].guard,
+                        )?;
+                        if topology
+                            .diagram
+                            .apply(BooleanOp::And, together, topology.domain)?
+                            != ZERO
+                        {
+                            joins.push((member.min(other), member.max(other)));
+                        }
+                    }
+                }
+            }
         }
-        add_walking_order_edges(self.bloq.top_mut(), &walks, topology)
+        joins.sort_unstable();
+        joins.dedup();
+        for (member, other) in joins {
+            self.groups.union(member, other);
+        }
+        Ok(())
     }
 
     fn node(&self, reference: Reference) -> Option<BloqNodeId> {
@@ -1092,61 +1063,6 @@ fn append_provenance(
     }
 }
 
-fn add_walking_order_edges(
-    body: &mut SubGraph,
-    walks: &[(IVec3, IVec3, BloqNodeId, DecisionId)],
-    topology: &mut GuardedTopology,
-) -> Result<(), CompileError> {
-    if walks.is_empty() {
-        return Ok(());
-    }
-    topology
-        .diagram
-        .charge(walks.len().saturating_add(body.edge_count()))?;
-    let mut sites = HashMap::<IVec3, HashMap<(BloqNodeId, IVec3), DecisionId>>::default();
-    for &(position, destination, owner, guard) in walks {
-        let active = sites
-            .entry(position)
-            .or_default()
-            .entry((owner, destination))
-            .or_insert(ZERO);
-        *active = topology.diagram.apply(BooleanOp::Or, *active, guard)?;
-    }
-    let mut existing = body
-        .edges()
-        .filter(|edge| matches!(edge.edge, BloqEdge::Order))
-        .map(|edge| (edge.source, edge.target))
-        .collect::<crate::FxSet<_>>();
-    let mut orders = Vec::new();
-    for variants in sites.values() {
-        for (&(entering, destination), &guard) in variants {
-            let Some(vacating) = sites.get(&destination) else {
-                continue;
-            };
-            for (&(vacating, _), &other) in vacating {
-                topology.diagram.charge(1)?;
-                if entering == vacating || existing.contains(&(vacating, entering)) {
-                    continue;
-                }
-                let together = topology.diagram.apply(BooleanOp::And, guard, other)?;
-                if topology
-                    .diagram
-                    .apply(BooleanOp::And, together, topology.domain)?
-                    != ZERO
-                {
-                    existing.insert((vacating, entering));
-                    orders.push((vacating, entering));
-                }
-            }
-        }
-    }
-    orders.sort_unstable();
-    for (vacating, entering) in orders {
-        body.add_edge(vacating, entering, BloqEdge::Order);
-    }
-    Ok(())
-}
-
 fn order_same_layer(
     nodes: &mut [BloqNodeId],
     sources: &HashMap<BloqNodeId, Vec<BoundaryFlow>>,
@@ -1416,7 +1332,7 @@ impl BooleanProgram {
 
 #[cfg(test)]
 mod tests {
-    use bloq_graph::{Block, BlockGraph, BlockKind, CubeKind, WalkingBoundaryKind, WalkingKind};
+    use bloq_graph::{Block, BlockGraph, BlockKind, CubeKind, WalkingBoundaryKind};
     use bloq_ir::TemporalPipeRef;
 
     use super::*;
@@ -1554,48 +1470,91 @@ mod tests {
         let from = assembly.bloq.add_node(BloqNode::from_members(Vec::new()));
         let to = assembly.bloq.add_node(BloqNode::from_members(Vec::new()));
         assembly.bloq.add_edge(from, to, BloqEdge::Order);
-        assembly.order_walking_choreography(&mut topology).unwrap();
-        add_walking_order_edges(assembly.bloq.top_mut(), &[], &mut topology).unwrap();
+        assembly.group_walking_choreography(&mut topology).unwrap();
         assert_eq!(topology.diagram.steps(), 0);
         assert_eq!(assembly.bloq.top().edge_count(), 1);
     }
 
-    #[test]
-    fn walking_choreography_joins_owned_sites_only_when_guards_coexist() {
-        let mut topology = GuardedTopology::new(
-            &BlockGraph::new(),
-            bloq_graph::ModuleCertificationLimits::DEFAULT,
-        )
-        .unwrap();
-        let guard = topology.diagram.make_node(0, ZERO, ONE).unwrap();
-        let absent = topology.diagram.negate(guard).unwrap();
-        let mut body = SubGraph::new();
-        let entering = body.add_node(BloqNode::from_members(Vec::new()));
-        let vacating = body.add_node(BloqNode::from_members(Vec::new()));
-        let placement = |position, owner, guard| {
-            (
-                position,
-                WalkingKind::DEFAULT.try_end_position(position).unwrap() - IVec3::Z,
-                owner,
+    fn walking_assembly(walks: &[(IVec3, WalkingKind, DecisionId)]) -> Assembly {
+        let mut assembly = Assembly::new();
+        let template = assembly
+            .bloq
+            .add_template(bloq_ir::lowering::BloqTemplate::new(
+                bloq_circuit::CoordCircuit::new(),
+            ));
+        for &(position, kind, guard) in walks {
+            let member = assembly.groups.new_set();
+            let instance = TemplateInstance::new(
+                TemplateInstanceId(member as u32),
+                template,
+                position.truncate(),
+            );
+            assembly.members.push(Member {
+                instance,
                 guard,
-            )
-        };
-        // No pipe joins these sites, and an unregistered context neighbor
-        // contributes no placement to this global choreography join.
-        let enters = placement(IVec3::ZERO, entering, guard);
-        add_walking_order_edges(&mut body, &[enters], &mut topology).unwrap();
-        assert_eq!(body.edge_count(), 0);
-        let exclusive = placement(IVec3::X, vacating, absent);
-        add_walking_order_edges(&mut body, &[enters, exclusive], &mut topology).unwrap();
-        assert_eq!(body.edge_count(), 0);
-        let together = placement(IVec3::X, vacating, ONE);
-        for _ in 0..2 {
-            add_walking_order_edges(&mut body, &[enters, enters, together], &mut topology).unwrap();
+                nested: false,
+            });
+            assembly.stages.insert(
+                member,
+                Stage {
+                    member,
+                    provenance: NodeProvenance::BlockComponent {
+                        members: vec![bloq_ir::SourceBlockRef { pos: position }],
+                    },
+                    timeline: Some(bloq_ir::QuantumTimeline {
+                        layer_round_ends: vec![4, 8],
+                    }),
+                },
+            );
+            assembly.walking.push((position, kind, instance.id));
         }
-        assert_eq!(body.edge_count(), 1);
-        let edge = body.edges().next().unwrap();
-        assert_eq!((edge.source, edge.target), (vacating, entering));
-        assert_eq!(edge.edge, &BloqEdge::Order);
+        assembly
+    }
+
+    #[test]
+    fn walking_choreography_groups_registered_sites_only_when_guards_coexist() {
+        for registered in [false, true] {
+            for coexist in [false, true] {
+                let mut topology = GuardedTopology::new(
+                    &BlockGraph::new(),
+                    bloq_graph::ModuleCertificationLimits::DEFAULT,
+                )
+                .unwrap();
+                topology
+                    .variables
+                    .push(GuardedVariable::Outcome("m".into()));
+                let guard = topology.diagram.make_node(0, ZERO, ONE).unwrap();
+                let absent = topology.diagram.negate(guard).unwrap();
+                let mut assembly = walking_assembly(&[
+                    (IVec3::ZERO, WalkingKind::DEFAULT, guard),
+                    (
+                        IVec3::X,
+                        WalkingKind::DEFAULT,
+                        if coexist { ONE } else { absent },
+                    ),
+                ]);
+                if !registered {
+                    assembly.walking.pop();
+                    assembly.members[1].guard = ZERO;
+                }
+                assembly.walking.extend(assembly.walking.clone());
+                assembly.group_walking_choreography(&mut topology).unwrap();
+                assembly.build(&mut topology).unwrap();
+                assert_eq!(
+                    assembly.bloq.quantum_nodes().count(),
+                    if registered && !coexist { 2 } else { 1 }
+                );
+                let owner = assembly.owners[&TemplateInstanceId(0)];
+                let first = assembly.bloq[owner].expect_quantum();
+                assert_eq!(first.guards.len(), 1);
+                assert_eq!(first.guards[0].instances, [TemplateInstanceId(0)]);
+                if registered {
+                    assert_eq!(assembly.owners[&TemplateInstanceId(1)] == owner, coexist,);
+                } else {
+                    assert!(!assembly.owners.contains_key(&TemplateInstanceId(1)));
+                }
+            }
+        }
     }
 
     #[test]
