@@ -15,7 +15,11 @@ notes. Preserve each release's documentation and API reference.
 Do not edit `CHANGELOG.md` manually, including unreleased entries and version
 headings. Release-plz generates it in release PRs. Record release-note details
 in Conventional Commit messages and compatibility changes in `BREAKING CHANGE:`
-footers; keep migration guidance in the relevant user documentation.
+footers; keep migration guidance in the relevant user documentation. Notes cover
+the whole repository and group changes by Conventional Commit scope. Use
+`python`, `rust`, `editor`, `cli`, `ci`, `docs`, or `deps` to identify the affected
+area, including dependency-only fixes such as `fix(editor): ...`. Unscoped
+commits remain visible under General. See [changelog generation](docs/releasing.md#changelog).
 `just changelog` previews generated notes without writing the file.
 
 ## Issues and pull requests

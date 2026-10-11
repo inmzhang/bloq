@@ -75,6 +75,7 @@ jobs:
           persist-credentials: false
       - name: Install pinned Rust toolchain
         run: rustup toolchain install
+      - uses: astral-sh/setup-uv@v10.3.0
       - name: Compare development changes against the last stable release
         run: |
           python3 tools/workspace_version.py release-baseline

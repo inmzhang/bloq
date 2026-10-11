@@ -231,7 +231,7 @@ py-sdist:
 # Preview only; release-plz writes CHANGELOG.md in the release PR.
 [group('production')]
 changelog:
-    uvx --from git-cliff git-cliff --config cliff.toml --unreleased
+    uvx --from git-cliff==2.14.2 git-cliff --config cliff.toml --unreleased
 
 # Generate annotated stubs and strip trailing whitespace. PYTHONHOME locates
 # stdlib on relocatable Python installs; perl supports both BSD and GNU hosts.

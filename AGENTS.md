@@ -42,6 +42,14 @@ architecture cannot support it:
 - Do not edit `CHANGELOG.md` manually. Release-plz generates it in release PRs.
   Record release-note details in Conventional Commit messages and compatibility
   changes in `BREAKING CHANGE:` footers.
+- Use Conventional Commit scopes in commit messages and squash-merge titles:
+  `python` for Python API, `rust` for Rust API and compiler, `editor`, `cli`,
+  `ci` for workflows and packaging, `docs` for documentation, and `deps` for
+  dependency updates. Choose the affected area even when only shared files
+  change, such as `fix(editor): ...` for a root dependency update that fixes
+  the editor. Other unscoped changes remain under General; unscoped `docs` and
+  `ci` commits use their corresponding areas. See
+  [Contributing](CONTRIBUTING.md) and [changelog generation](docs/releasing.md#changelog).
 - Use Conventional Commits. Follow the repository's
   [AI contribution policy](CONTRIBUTING.md#ai-assisted-contributions), including
   tool/model disclosure and an `Assisted-by: <tool> (<model>)` commit trailer.
