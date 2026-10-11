@@ -10,7 +10,7 @@
     MissingInputValue(<a class="struct" href="https://doc.rust-lang.org/1.99.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>),
     FeedbackTargetWithoutWire {
         target: IVec3,
-        pauli: PauliBasis,
+        pauli: <a class="enum" href="../../bloq_utils/pauli/enum.PauliBasis.html" title="enum bloq_utils::pauli::PauliBasis">PauliBasis</a>,
     },
     MeasurementPhaseUnavailable(<a class="struct" href="https://doc.rust-lang.org/1.99.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>),
     TooManySymbols,
@@ -47,7 +47,7 @@
 </div><section id="variant.MissingInputValue" class="variant"><a href="#variant.MissingInputValue" class="anchor">§</a><h3 class="code-header">MissingInputValue(<a class="struct" href="https://doc.rust-lang.org/1.99.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>)</h3></section><div class="docblock"><p>An external Boolean input lacks an assigned value.</p>
 </div><section id="variant.FeedbackTargetWithoutWire" class="variant"><a href="#variant.FeedbackTargetWithoutWire" class="anchor">§</a><h3 class="code-header">FeedbackTargetWithoutWire</h3></section><div class="docblock"><p>A feedback target has no wire carrying the requested Pauli frame.</p>
 </div><div class="sub-variant" id="variant.FeedbackTargetWithoutWire.fields"><h4>Fields</h4><div class="sub-variant-field"><span id="variant.FeedbackTargetWithoutWire.field.target" class="section-header"><a href="#variant.FeedbackTargetWithoutWire.field.target" class="anchor field">§</a><code>target: IVec3</code></span><div class="docblock"><p>Block receiving feedback.</p>
-</div></div><div class="sub-variant-field"><span id="variant.FeedbackTargetWithoutWire.field.pauli" class="section-header"><a href="#variant.FeedbackTargetWithoutWire.field.pauli" class="anchor field">§</a><code>pauli: PauliBasis</code></span><div class="docblock"><p>Pauli correction being inserted.</p>
+</div></div><div class="sub-variant-field"><span id="variant.FeedbackTargetWithoutWire.field.pauli" class="section-header"><a href="#variant.FeedbackTargetWithoutWire.field.pauli" class="anchor field">§</a><code>pauli: <a class="enum" href="../../bloq_utils/pauli/enum.PauliBasis.html" title="enum bloq_utils::pauli::PauliBasis">PauliBasis</a></code></span><div class="docblock"><p>Pauli correction being inserted.</p>
 </div></div></div><section id="variant.MeasurementPhaseUnavailable" class="variant"><a href="#variant.MeasurementPhaseUnavailable" class="anchor">§</a><h3 class="code-header">MeasurementPhaseUnavailable(<a class="struct" href="https://doc.rust-lang.org/1.99.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>)</h3></section><div class="docblock"><p>A measurement outcome cannot be represented as a native ZX phase.</p>
 </div><section id="variant.TooManySymbols" class="variant"><a href="#variant.TooManySymbols" class="anchor">§</a><h3 class="code-header">TooManySymbols</h3></section><div class="docblock"><p>The symbolic phase count exceeds QuiZX’s variable-ID range.</p>
 </div><section id="variant.BoundaryArityMismatch" class="variant"><a href="#variant.BoundaryArityMismatch" class="anchor">§</a><h3 class="code-header">BoundaryArityMismatch</h3></section><div class="docblock"><p>Actual and expected logical maps have different boundary arity.</p>

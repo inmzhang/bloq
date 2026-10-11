@@ -35,7 +35,7 @@ An empty program has nothing to derive.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.resolve_value_domain" class="method"><a class="src rightside" href="../src/bloq_graph/action_dag.rs.html#796-806">Source</a><h4 class="code-header">pub fn <a href="#method.resolve_value_domain" class="fn">resolve_value_domain</a>(
     &amp;self,
     targets: &amp;[IVec3],
-) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.99.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="struct.ResolveValueDomain.html" title="struct bloq_graph::ResolveValueDomain">ResolveValueDomain</a>, BooleanResourceError&gt;</h4></section></summary><div class="docblock"><p>Builds the exact distinct resolve-value domain at <code>targets</code>, following
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.99.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="struct.ResolveValueDomain.html" title="struct bloq_graph::ResolveValueDomain">ResolveValueDomain</a>, <a class="struct" href="../bloq_utils/boolean/struct.BooleanResourceError.html" title="struct bloq_utils::boolean::BooleanResourceError">BooleanResourceError</a>&gt;</h4></section></summary><div class="docblock"><p>Builds the exact distinct resolve-value domain at <code>targets</code>, following
 <code>Let</code> bindings. A reduced shared decision diagram avoids enumerating the
 measurement inputs; materializing the output domain can still be
 exponential when that many distinct tuples are genuinely reachable.
@@ -55,7 +55,7 @@ distinct tuples.</p>
     &amp;self,
     targets: &amp;[IVec3],
     limit: <a class="primitive" href="https://doc.rust-lang.org/1.99.0/std/primitive.usize.html">usize</a>,
-    boolean_limits: BooleanLimits,
+    boolean_limits: <a class="struct" href="../bloq_utils/boolean/struct.BooleanLimits.html" title="struct bloq_utils::boolean::BooleanLimits">BooleanLimits</a>,
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.99.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="struct.ResolveValueDomain.html" title="struct bloq_graph::ResolveValueDomain">ResolveValueDomain</a>, <a class="enum" href="enum.ResolveDomainError.html" title="enum bloq_graph::ResolveDomainError">ResolveDomainError</a>&gt;</h4></section></summary><div class="docblock"><p>Query a bounded output domain with an explicit Boolean work/allocation budget.</p>
 <h5 id="errors-3"><a class="doc-anchor" href="#errors-3">§</a>Errors</h5>
 <p>Returns resource exhaustion or the first domain size above <code>limit</code>.</p>
@@ -63,7 +63,7 @@ distinct tuples.</p>
     &amp;self,
     targets: &amp;[IVec3],
     values: &amp;[<a class="primitive" href="https://doc.rust-lang.org/1.99.0/std/primitive.bool.html">bool</a>],
-) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.99.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.99.0/std/primitive.bool.html">bool</a>, BooleanResourceError&gt;</h4></section></summary><div class="docblock"><p>Whether <code>values</code> is jointly reachable for <code>targets</code>, decided
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.99.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.99.0/std/primitive.bool.html">bool</a>, <a class="struct" href="../bloq_utils/boolean/struct.BooleanResourceError.html" title="struct bloq_utils::boolean::BooleanResourceError">BooleanResourceError</a>&gt;</h4></section></summary><div class="docblock"><p>Whether <code>values</code> is jointly reachable for <code>targets</code>, decided
 symbolically without materializing the full output domain. Missing or
 cyclic targets and mismatched slice lengths are not reachable.</p>
 <h5 id="errors-4"><a class="doc-anchor" href="#errors-4">§</a>Errors</h5>

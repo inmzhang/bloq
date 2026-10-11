@@ -4,7 +4,7 @@
         qubits: <a class="struct" href="https://doc.rust-lang.org/1.99.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;IVec2&gt;,
     },
     Measure {
-        basis: PauliBasis,
+        basis: <a class="enum" href="../bloq_utils/pauli/enum.PauliBasis.html" title="enum bloq_utils::pauli::PauliBasis">PauliBasis</a>,
         qubits: <a class="struct" href="https://doc.rust-lang.org/1.99.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;IVec2&gt;,
         measurements: <a class="struct" href="https://doc.rust-lang.org/1.99.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.99.0/std/primitive.u32.html">u32</a>&gt;,
         flip_probability: <a class="primitive" href="https://doc.rust-lang.org/1.99.0/std/primitive.f64.html">f64</a>,
@@ -23,7 +23,7 @@
     },
     PauliError {
         probability: <a class="primitive" href="https://doc.rust-lang.org/1.99.0/std/primitive.f64.html">f64</a>,
-        pauli: PauliBasis,
+        pauli: <a class="enum" href="../bloq_utils/pauli/enum.PauliBasis.html" title="enum bloq_utils::pauli::PauliBasis">PauliBasis</a>,
         qubits: <a class="struct" href="https://doc.rust-lang.org/1.99.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;IVec2&gt;,
     },
     Tick,
@@ -38,7 +38,7 @@
 </div></div><div class="sub-variant-field"><span id="variant.Gate.field.qubits" class="section-header"><a href="#variant.Gate.field.qubits" class="anchor field">§</a><code>qubits: <a class="struct" href="https://doc.rust-lang.org/1.99.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;IVec2&gt;</code></span><div class="docblock"><p>Target qubits.</p>
 </div></div></div><section id="variant.Measure" class="variant"><a href="#variant.Measure" class="anchor">§</a><h3 class="code-header">Measure</h3></section><div class="docblock"><p>A single-qubit measurement of each qubit in <code>basis</code>; <code>measurements[i]</code>
 is the record id produced for <code>qubits[i]</code>.</p>
-</div><div class="sub-variant" id="variant.Measure.fields"><h4>Fields</h4><div class="sub-variant-field"><span id="variant.Measure.field.basis" class="section-header"><a href="#variant.Measure.field.basis" class="anchor field">§</a><code>basis: PauliBasis</code></span><div class="docblock"><p>Measured basis.</p>
+</div><div class="sub-variant" id="variant.Measure.fields"><h4>Fields</h4><div class="sub-variant-field"><span id="variant.Measure.field.basis" class="section-header"><a href="#variant.Measure.field.basis" class="anchor field">§</a><code>basis: <a class="enum" href="../bloq_utils/pauli/enum.PauliBasis.html" title="enum bloq_utils::pauli::PauliBasis">PauliBasis</a></code></span><div class="docblock"><p>Measured basis.</p>
 </div></div><div class="sub-variant-field"><span id="variant.Measure.field.qubits" class="section-header"><a href="#variant.Measure.field.qubits" class="anchor field">§</a><code>qubits: <a class="struct" href="https://doc.rust-lang.org/1.99.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;IVec2&gt;</code></span><div class="docblock"><p>Measured qubits.</p>
 </div></div><div class="sub-variant-field"><span id="variant.Measure.field.measurements" class="section-header"><a href="#variant.Measure.field.measurements" class="anchor field">§</a><code>measurements: <a class="struct" href="https://doc.rust-lang.org/1.99.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.99.0/std/primitive.u32.html">u32</a>&gt;</code></span><div class="docblock"><p>Measurement ids produced in qubit order.</p>
 </div></div><div class="sub-variant-field"><span id="variant.Measure.field.flip_probability" class="section-header"><a href="#variant.Measure.field.flip_probability" class="anchor field">§</a><code>flip_probability: <a class="primitive" href="https://doc.rust-lang.org/1.99.0/std/primitive.f64.html">f64</a></code></span><div class="docblock"><p>Probability of flipping each reported measurement result.</p>
@@ -57,7 +57,7 @@ stabilizers as an ideal noiseless open boundary.</p>
 </div></div><div class="sub-variant-field"><span id="variant.Depolarize2.field.qubits" class="section-header"><a href="#variant.Depolarize2.field.qubits" class="anchor field">§</a><code>qubits: <a class="struct" href="https://doc.rust-lang.org/1.99.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;IVec2&gt;</code></span><div class="docblock"><p>Affected consecutive qubit pairs.</p>
 </div></div></div><section id="variant.PauliError" class="variant"><a href="#variant.PauliError" class="anchor">§</a><h3 class="code-header">PauliError</h3></section><div class="docblock"><p>Independent Pauli errors on <code>qubits</code> (Stim <code>X_ERROR</code>/<code>Y_ERROR</code>/<code>Z_ERROR</code>).</p>
 </div><div class="sub-variant" id="variant.PauliError.fields"><h4>Fields</h4><div class="sub-variant-field"><span id="variant.PauliError.field.probability" class="section-header"><a href="#variant.PauliError.field.probability" class="anchor field">§</a><code>probability: <a class="primitive" href="https://doc.rust-lang.org/1.99.0/std/primitive.f64.html">f64</a></code></span><div class="docblock"><p>Error probability.</p>
-</div></div><div class="sub-variant-field"><span id="variant.PauliError.field.pauli" class="section-header"><a href="#variant.PauliError.field.pauli" class="anchor field">§</a><code>pauli: PauliBasis</code></span><div class="docblock"><p>Applied Pauli.</p>
+</div></div><div class="sub-variant-field"><span id="variant.PauliError.field.pauli" class="section-header"><a href="#variant.PauliError.field.pauli" class="anchor field">§</a><code>pauli: <a class="enum" href="../bloq_utils/pauli/enum.PauliBasis.html" title="enum bloq_utils::pauli::PauliBasis">PauliBasis</a></code></span><div class="docblock"><p>Applied Pauli.</p>
 </div></div><div class="sub-variant-field"><span id="variant.PauliError.field.qubits" class="section-header"><a href="#variant.PauliError.field.qubits" class="anchor field">§</a><code>qubits: <a class="struct" href="https://doc.rust-lang.org/1.99.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;IVec2&gt;</code></span><div class="docblock"><p>Affected qubits.</p>
 </div></div></div><section id="variant.Tick" class="variant"><a href="#variant.Tick" class="anchor">§</a><h3 class="code-header">Tick</h3></section><div class="docblock"><p>A moment barrier separating parallel operations.</p>
 </div><section id="variant.Repeat" class="variant"><a href="#variant.Repeat" class="anchor">§</a><h3 class="code-header">Repeat</h3></section><div class="docblock"><p>Executes <code>body</code> <code>repetitions</code> times (Stim <code>REPEAT</code>).</p>

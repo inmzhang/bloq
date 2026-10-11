@@ -2728,7 +2728,7 @@ jobs require <code class="docutils literal notranslate"><span class="pre">RELEAS
 a release or publishing manually. This variable does not gate local CLI uploads.</p>
 </div>
 <p>CI checks platform wheels and source installations for relevant PRs. The
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/bdaea0d5514d7ca97dca80002812b9d0f46be072/.github/workflows/pypi.yml">PyPI workflow</a> uses the same checks for tag and
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/f7d3395fe3e0255304ed8c611decff8e7ffce1c0/.github/workflows/pypi.yml">PyPI workflow</a> uses the same checks for tag and
 manual builds. See <a class="reference internal" href="site-maintenance.html"><span class="std std-doc">website maintenance</span></a> for site previews
 and publication.
 Binary release builds use the checked-in Cargo lockfile. Security audits cover
@@ -2770,10 +2770,23 @@ changelog with release-plz. Do not set a separate Python version or replace
 inherited Cargo versions.</p>
 <h2 id="changelog">Changelog<a class="headerlink" href="#changelog" title="Link to this heading">¶</a></h2>
 <p>Do not edit <code class="docutils literal notranslate"><span class="pre">CHANGELOG.md</span></code> manually, including unreleased entries and version
-headings. Release-plz generates it in release PRs from Conventional Commit
-messages. Record compatibility and migration details in <code class="docutils literal notranslate"><span class="pre">BREAKING</span> <span class="pre">CHANGE:</span></code>
-footers and the relevant user documentation, then review the generated notes
-in the release PR. <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">changelog</span></code> previews notes without writing the file.</p>
+headings. Release-plz owns versions, release PRs, and retained release notes.
+Its supported changelog postprocessor invokes git-cliff over repository-wide
+history since the previous stable tag. The same notes appear in the file and
+release PR. <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">changelog</span></code> previews them without writing the file.</p>
+<p>The configuration follows <a class="reference external" href="https://github.com/orhun/git-cliff/blob/v2.14.2/examples/scoped.toml">git-cliff’s scoped template</a>:
+Conventional Commit scopes group entries into Python API (<code class="docutils literal notranslate"><span class="pre">python</span></code> or <code class="docutils literal notranslate"><span class="pre">py</span></code>),
+Rust API and compiler (<code class="docutils literal notranslate"><span class="pre">rust</span></code>, <code class="docutils literal notranslate"><span class="pre">graph</span></code>, <code class="docutils literal notranslate"><span class="pre">compile</span></code>, <code class="docutils literal notranslate"><span class="pre">ir</span></code>, <code class="docutils literal notranslate"><span class="pre">stim</span></code>, <code class="docutils literal notranslate"><span class="pre">vm</span></code>), editor,
+CLI, workflows and packaging (<code class="docutils literal notranslate"><span class="pre">ci</span></code>, <code class="docutils literal notranslate"><span class="pre">build</span></code>, <code class="docutils literal notranslate"><span class="pre">workflows</span></code>, <code class="docutils literal notranslate"><span class="pre">release</span></code>), documentation
+(<code class="docutils literal notranslate"><span class="pre">docs</span></code>), and dependencies (<code class="docutils literal notranslate"><span class="pre">deps</span></code>). Each area has Added, Fixed, Changed, or
+Performance subsections. Unscoped <code class="docutils literal notranslate"><span class="pre">docs</span></code> and <code class="docutils literal notranslate"><span class="pre">ci</span></code> commits use their corresponding
+areas; other unscoped changes remain under General. Use meaningful scopes in
+commit messages and squash-merge titles rather than inferring intent from files.</p>
+<p>Record migration details in <code class="docutils literal notranslate"><span class="pre">BREAKING</span> <span class="pre">CHANGE:</span></code> footers and the relevant user
+documentation; breaking entries retain the footer. Review generated notes in the
+release PR. Release and development-version housekeeping is omitted. Package
+changes still determine release eligibility and versions; Python, documentation,
+and workflow changes outside publishable crates join the next eligible release.</p>
 <h2 id="stable-release-versions">Stable release versions<a class="headerlink" href="#stable-release-versions" title="Link to this heading">¶</a></h2>
 <p>The first stable release is <code class="docutils literal notranslate"><span class="pre">0.1.0</span></code>, tagged <code class="docutils literal notranslate"><span class="pre">v0.1.0</span></code>. Prepare subsequent stable
 versions in reviewed release PRs.</p>
@@ -2813,7 +2826,7 @@ binaries can use <code class="docutils literal notranslate"><span class="pre">/r
 <code class="docutils literal notranslate"><span class="pre">bloq.__version__</span></code> retain that spelling; Python package metadata normalizes it to
 <code class="docutils literal notranslate"><span class="pre">0.1.2.dev0</span></code>. The suffix stays unchanged throughout the development cycle.</p>
 <p>After Rust, Python, and binary publication succeeds, the
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/bdaea0d5514d7ca97dca80002812b9d0f46be072/.github/workflows/post-release.yml">post-release workflow</a> opens a PR for the
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/f7d3395fe3e0255304ed8c611decff8e7ffce1c0/.github/workflows/post-release.yml">post-release workflow</a> opens a PR for the
 next development version. Review its checks and merge it. The PR updates the
 shared version, exact internal requirements, and both Cargo lockfiles.
 Release-plz prepares the next stable version in a separate release PR.</p>
