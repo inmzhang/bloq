@@ -7,7 +7,10 @@
 use std::num::NonZeroUsize;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use bloq_graph::{BlockGraph, ModuleCertificationError, ModuleCertificationLimits, ModuleSummary};
+use bloq_graph::{
+    BlockGraph, ModuleCertificationError, ModuleCertificationLimits, ModuleSummary,
+    PreparedModuleRelations,
+};
 
 use crate::block::{LoweringTemplate, LoweringTemplateId, LoweringTemplatePool};
 use crate::compile::{Signature, TemplateRef};
@@ -87,6 +90,8 @@ impl SharedCompileCache {
 pub(crate) struct ModuleSummaryCache {
     // ponytail: keep collision-free text keys; hash only if key memory profiles hot.
     entries: Mutex<crate::FxMap<(String, ModuleCertificationLimits), Arc<ModuleSummary>>>,
+    definitions:
+        Mutex<crate::FxMap<(String, ModuleCertificationLimits), Arc<PreparedModuleRelations>>>,
 }
 
 impl ModuleSummaryCache {
@@ -116,17 +121,66 @@ impl ModuleSummaryCache {
         if let Some(summary) = lock(&self.entries).get(&key) {
             return Ok(Arc::clone(summary));
         }
-        let summary = match jobs {
-            Some(jobs) => program.summarize_root_with_jobs(limits, jobs),
-            None => program.summarize_root(limits),
-        }?;
+        let jobs = jobs.unwrap_or_else(bloq_graph::default_module_jobs);
+        let summary = self
+            .prepare(program, limits, jobs)?
+            .summarize_with_jobs(jobs)?;
         Ok(Arc::clone(
             lock(&self.entries).entry(key).or_insert(summary),
         ))
     }
 
+    pub(crate) fn prepare(
+        &self,
+        program: &BlockGraph,
+        limits: ModuleCertificationLimits,
+        jobs: NonZeroUsize,
+    ) -> Result<Arc<PreparedModuleRelations>, ModuleCertificationError> {
+        let inferred;
+        let program = if program.has_module_structure() {
+            program
+        } else {
+            inferred = program
+                .clone_local_definition()
+                .with_inferred_interface()
+                .map_err(|error| ModuleCertificationError::Graph {
+                    module: program.name.clone(),
+                    source: bloq_graph::BlockGraphError::ModuleSource(Arc::new(error)),
+                })?;
+            &inferred
+        };
+        // Definition key construction assumes a validated dependency graph.
+        program
+            .validate_with_limits(limits)
+            .map_err(|error| ModuleCertificationError::Graph {
+                module: program.name.clone(),
+                source: bloq_graph::BlockGraphError::ModuleSource(Arc::new(error)),
+            })?;
+        let keys = program.module_definition_cache_keys();
+        let reused = {
+            let definitions = lock(&self.definitions);
+            keys.values()
+                .filter_map(|key| {
+                    definitions
+                        .get(&(key.clone(), limits))
+                        .map(|summary| (key.clone(), Arc::clone(summary)))
+                })
+                .collect()
+        };
+        let prepared = program.prepare_module_relations(limits, jobs, &reused)?;
+        let mut definitions = lock(&self.definitions);
+        for definition in prepared.definitions() {
+            let key = (keys[definition.name()].clone(), limits);
+            definitions.entry(key).or_insert(definition);
+        }
+        Ok(Arc::clone(
+            &definitions[&(keys[prepared.name()].clone(), limits)],
+        ))
+    }
+
     fn clear(&self) {
         lock(&self.entries).clear();
+        lock(&self.definitions).clear();
     }
 }
 

@@ -1,13 +1,10 @@
 //! Source DAG inspection through the compiler's module composition boundary.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use super::{ActionDag, ActionOwner};
-use crate::{
-    BlockGraph, BlockGraphError, GuardedSurfaceSpace, GuardedTopology, LinkedModuleDefinition,
-    ModuleCertificationError, ModuleCertificationLimits, StabilizerError,
-};
+use crate::{BlockGraph, BlockGraphError, GuardedTopology, ModuleCertificationLimits};
 
 pub(crate) fn analyze(
     source: &BlockGraph,
@@ -18,30 +15,14 @@ pub(crate) fn analyze(
         .validate_with_limits(limits)
         .map_err(|error| BlockGraphError::ModuleSource(Arc::new(error)))?;
 
-    // Match compiler definition contracts: a parent consuming an output cannot
-    // repair an unsafe named readout in the reusable child definition.
-    let mut definitions = BTreeSet::new();
-    let mut pending = vec![source.root()];
-    while let Some(module) = pending.pop() {
-        if !definitions.insert(module.name.clone()) {
-            continue;
-        }
-        pending.extend(module.instances.iter().map(|instance| {
-            source
-                .module(&instance.definition)
-                .expect("validated definition")
-        }));
-        if module.name != source.root().name {
-            let linked = crate::flatten_module_definition(source, module, "")?;
-            plan(&linked, limits).map_err(|error| definition_error(&module.name, error))?;
-        }
-    }
-
-    // The linker is shared with compilation. Its site ownership makes the
-    // planner compose complete local relations at module seams, rather than
-    // deriving a new relation from a whole-program flat ZX graph.
-    let linked = crate::flatten_module_definition(source, source.root(), "")?;
-    let mut plan = plan(&linked, limits)?;
+    // Summary construction certifies each child's interface before a parent
+    // can consume its outputs, and retains the same relations used below.
+    let summary = source
+        .prepare_module_relations(limits, crate::default_module_jobs(), &Default::default())
+        .map_err(|error| BlockGraphError::ModuleMaterialization(Arc::new(error)))?;
+    let linked = summary.linked();
+    let topology = GuardedTopology::new(&linked.graph, limits)?;
+    let mut plan = summary.compose(topology, &linked.sites)?.plan_readouts()?;
     let mut dag = plan
         .topology
         .source
@@ -72,35 +53,6 @@ pub(crate) fn analyze(
         dag.graph[index].owner = Some(owners[scope].clone());
     }
     Ok(dag)
-}
-
-fn plan(
-    linked: &LinkedModuleDefinition,
-    limits: ModuleCertificationLimits,
-) -> Result<crate::GuardedReadoutPlan, BlockGraphError> {
-    let graph = linked.graph.clone().fix_shadowed_faces();
-    let topology = GuardedTopology::new(&graph, limits)?;
-    GuardedSurfaceSpace::new(topology, &linked.sites, limits)?.plan_readouts()
-}
-
-fn definition_error(name: &str, source: BlockGraphError) -> BlockGraphError {
-    let error = match source {
-        BlockGraphError::Stabilizer(StabilizerError::ResourceLimited {
-            phase,
-            observed,
-            limit,
-        }) => ModuleCertificationError::ResourceLimited {
-            module: name.to_owned(),
-            phase,
-            observed,
-            limit,
-        },
-        source => ModuleCertificationError::Graph {
-            module: name.to_owned(),
-            source,
-        },
-    };
-    BlockGraphError::ModuleMaterialization(Arc::new(error))
 }
 
 #[cfg(test)]

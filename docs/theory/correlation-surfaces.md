@@ -241,9 +241,10 @@ frames retain their authored outcome labels; closed logical checks absorb
 known offsets into their reference parity. Binding does not add the tensor
 sign a second time.
 
-Projection can erase local factors, so signed witnesses and module reference
-certificates preserve their contribution. Elimination multiplies these signed
-rows with phases modulo four instead of losing their signs through XOR alone.
+The symbolic planner retains full native half-edge support while eliminating
+binary coefficients. Signed projection tables reconstruct exact local witnesses
+and multiply their phases modulo four. This recovers the tensor sign once even
+when a boundary projection omits interior factors.
 
 ## Dynamic choices
 
@@ -459,9 +460,11 @@ across blocks. Logical support alone does not determine every physical check.
 ## Module composition
 
 For [modular graphs](../modules/index.md), Bloq computes correlations from the
-innermost instances outward. Each child first closes its internal seams. Its
-relation retains both correlations reaching its exposed Ports and closed
-surfaces within the child, together with their signs and internal support.
+innermost instances outward. A definition retains the result of closing its
+internal seams, with external half-edges left open. Compatible instances reuse
+that result through local column and Boolean-variable mappings. The relation
+retains both correlations reaching exposed Ports and closed surfaces, including
+complete interior support in native half-edge frames.
 
 The parent combines these child relations with its own local tensors and
 applies the same seam constraints at connected Ports. Pauli support must match
@@ -469,15 +472,18 @@ across each connection, with X and Z exchanged on a Hadamard seam. Compatible
 combinations form the parent's correlation space. Repeating this through the
 hierarchy produces surfaces that can span several module instances.
 
-Within a planning run, compatible instances reuse an already eliminated open
-relation. The reuse key retains the complete ordered tensor rows, internal
-seam equations, and Boolean functions after renaming column pairs and Boolean
-variables. Each use maps the full interior support and guards back to that
-instance. This preserves independent outcomes, shared classical dependencies,
-closed surfaces, and the original readout/frame representatives. Different
-port neighborhoods or rotation-dependent row/seam orders can require separate
-templates; matching boundary relations alone is insufficient. Cache capacity
-only limits reuse: other instances follow the same seam elimination directly.
+`ModuleSummary` and production compilation share this factored relation.
+The public signed certificate is a presentation of its complete rows; deriving
+that presentation does not solve the internal seams again. Production keeps
+Boolean coefficients factored and does not enumerate joint selector assignments.
+Instance positions, outcome names, and physical measurement records remain
+distinct even when their relation or physical templates are shared.
+
+Reuse requires the same ordered tensor and seam equations after renaming
+columns and Boolean variables. Translation alone does not change those
+equations. Rotations or port replacements that change the local tensor or
+boundary frame produce separate compatible variants. Local topology construction,
+column mapping, and parent seam composition still cost work for each use.
 
 Named readouts and terminal frames are then selected from the composed relation
 using the guarded and causal rules above. Classical bindings and feedback can

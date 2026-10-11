@@ -312,10 +312,6 @@ impl PauliCombinationBasis {
         }
     }
 
-    pub(super) fn source_count(&self) -> usize {
-        self.source_count
-    }
-
     pub(super) fn solve(&self, target: &PauliString) -> Option<CoeffVec> {
         let mut reduced = target.clone();
         let mut witness = CoeffVec::zeros(self.source_count);

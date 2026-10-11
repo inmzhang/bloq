@@ -1,4 +1,4 @@
-# Shared by git-cliff and release-plz, following inmzhang/ticit.
+# Based on git-cliff's scoped template: https://github.com/orhun/git-cliff/blob/v2.14.2/examples/scoped.toml
 [changelog]
 header = """
 # Changelog
@@ -7,33 +7,66 @@ All notable changes to this project will be documented in this file.
 
 """
 body = """
+{% if package is defined -%}
+BLOQ_REPOSITORY_CHANGELOG {{ version | trim_start_matches(pat="v") }} {{ timestamp | date(format="%Y-%m-%d") }} {% if previous %}{{ previous.version }}{% endif %}
+{% else -%}
 {% if version -%}
-## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+## [{{ version | trim_start_matches(pat="v") }}] - {{ get_env(name="BLOQ_RELEASE_DATE", default=timestamp | date(format="%Y-%m-%d")) }}
 {% else -%}
 ## [Unreleased]
 {% endif -%}
+{% for scope, commits in commits | filter(attribute="merge_commit", value=false) | group_by(attribute="scope") %}
+### {{ scope }}
 {% for group, commits in commits | group_by(attribute="group") %}
-### {{ group | upper_first }}
+#### {{ group }}
 
 {% for commit in commits -%}
-- {% if commit.breaking %}**BREAKING:** {% endif %}{{ commit.message | split(pat="\n") | first | upper_first | trim }}
+- {% if commit.breaking %}**BREAKING:** {% endif %}{{ commit.message | split(pat="\n") | first | upper_first | trim }} ([{{ commit.id | truncate(length=7, end="") }}](https://github.com/inmzhang/bloq/commit/{{ commit.id }}))
+{% if commit.breaking_description -%}
+{% for line in commit.breaking_description | split(pat="\n") %}  {{ line }}
+{% endfor -%}
+{% endif -%}
 {% endfor %}
 {% endfor %}
+{% endfor %}
+{% endif -%}
 """
 trim = true
+# Only release-plz supplies `package`. The nested git-cliff renders the normal template.
+postprocessors = [
+  { pattern = "^BLOQ_REPOSITORY_CHANGELOG", replace_command = '''
+read -r marker release_version release_date previous_version
+if [ -n "$previous_version" ]; then
+  git merge-base --is-ancestor "refs/tags/v${previous_version#v}" HEAD || exit 1
+fi
+BLOQ_RELEASE_DATE="$release_date" uvx --from git-cliff==2.14.2 git-cliff --config cliff.toml --unreleased --tag "$release_version" --strip header ${previous_version:+"v${previous_version#v}..HEAD"}
+''' },
+  { pattern = "\n{3,}", replace = "\n\n" },
+]
 
 [git]
 conventional_commits = true
 filter_unconventional = false
 protect_breaking_commits = true
+commit_preprocessors = [
+  { pattern = '\(#([0-9]+)\)', replace = '([#${1}](https://github.com/inmzhang/bloq/pull/${1}))' },
+]
 commit_parsers = [
-  { message = "^feat", group = "Added" },
-  { message = "^fix", group = "Fixed" },
-  { message = "^perf", group = "Performance" },
-  { message = "^docs", group = "Documentation" },
-  { message = "^chore.*: release", skip = true },
-  { message = ".*", group = "Changed" },
+  { message = '^chore(?:\([^)]*\))?: (?:release v?\d+\.\d+\.\d+|start development after v\d+\.\d+\.\d+|synchronize release example lockfile)(?: \(.*\))?$', skip = true },
+  { message = '^\w+\((python|py)\)!?:', scope = "Python API", continue = true },
+  { message = '^\w+\((rust|graph|compile|ir|stim|vm)\)!?:', scope = "Rust API and compiler", continue = true },
+  { message = '^\w+\(editor\)!?:', scope = "Editor", continue = true },
+  { message = '^\w+\(cli\)!?:', scope = "CLI", continue = true },
+  { message = '^\w+\((ci|build|workflows|release)\)!?:', scope = "Workflows and packaging", continue = true },
+  { message = '^\w+\(docs\)!?:', scope = "Documentation", continue = true },
+  { message = '^\w+\(deps\)!?:', scope = "Dependencies", continue = true },
+  { message = "^feat", group = "Added", default_scope = "General" },
+  { message = "^fix", group = "Fixed", default_scope = "General" },
+  { message = "^perf", group = "Performance", default_scope = "General" },
+  { message = "^docs", group = "Changed", default_scope = "Documentation" },
+  { message = "^(ci|build)", group = "Changed", default_scope = "Workflows and packaging" },
+  { message = ".*", group = "Changed", default_scope = "General" },
 ]
 filter_commits = false
-tag_pattern = "^v[0-9]+\\.[0-9]+\\.[0-9]+.*$"
+tag_pattern = "^v?[0-9]+\\.[0-9]+\\.[0-9]+$"
 sort_commits = "oldest"

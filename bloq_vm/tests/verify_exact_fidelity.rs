@@ -78,7 +78,9 @@ fn assert_gallery_choi(item: GalleryItem, byproduct_varies: bool, both_arms: boo
     let arity = match item {
         GalleryItem::CNOT | GalleryItem::CZTemporalH => (2, 2),
         GalleryItem::BellState => (0, 2),
-        GalleryItem::GHZ | GalleryItem::GHZPatchRotations => (0, 4),
+        GalleryItem::GHZ | GalleryItem::GHZPatchRotations | GalleryItem::GHZSlideThenGlide => {
+            (0, 4)
+        }
         GalleryItem::ToffoliFromAndDelayedCZ => (3, 3),
         _ => (1, 1),
     };
@@ -111,12 +113,15 @@ fn assert_gallery_choi(item: GalleryItem, byproduct_varies: bool, both_arms: boo
                 sim.h(0);
                 sim.cx(0, 1)?;
             }
-            GalleryItem::GHZ | GalleryItem::GHZPatchRotations => {
+            GalleryItem::GHZ | GalleryItem::GHZPatchRotations | GalleryItem::GHZSlideThenGlide => {
                 sim.h(0);
                 for qubit in 1..4 {
                     sim.cx(0, qubit)?;
                 }
-                if item == GalleryItem::GHZPatchRotations {
+                if matches!(
+                    item,
+                    GalleryItem::GHZPatchRotations | GalleryItem::GHZSlideThenGlide
+                ) {
                     for qubit in 0..4 {
                         sim.h(qubit);
                     }
@@ -170,6 +175,11 @@ fn assert_gallery_choi(item: GalleryItem, byproduct_varies: bool, both_arms: boo
 #[test]
 fn cnot_preserves_choi_state() {
     assert_gallery_choi(GalleryItem::CNOT, true, false);
+}
+
+#[test]
+fn ghz_slide_then_glide_preserves_choi_state() {
+    assert_gallery_choi(GalleryItem::GHZSlideThenGlide, true, false);
 }
 
 #[test]

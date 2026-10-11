@@ -124,50 +124,51 @@ fn structural_parallel_cut_preserves_both_hadamard_realignments() {
 }
 
 #[test]
-fn structural_walking_arms_vacate_shared_cells_before_entering() {
-    let mut graph = bloq_graph::BlockGraph::new();
-    let first = ivec3(0, 0, 1);
-    let second = ivec3(1, 0, 1);
-    for position in [ivec3(0, 0, 0), ivec3(1, 0, 0), ivec3(10, 0, 0)] {
-        graph.add_block(Block::new(position, BlockKind::Cube(CubeKind::ZXZ)));
-    }
-    let walking = WalkingKind::new(WalkingBoundaryKind::ZXZ, glam::IVec2::X).unwrap();
-    let arm = || {
-        BranchArm::new(
-            vec![
-                Block::new(first, BlockKind::Walking(walking)),
-                Block::new(second, BlockKind::Walking(walking)),
-                Block::new(ivec3(1, 0, 3), BlockKind::Measurement(Basis::Z)),
-                Block::new(ivec3(2, 0, 3), BlockKind::Measurement(Basis::Z)),
-            ],
-            vec![
-                Pipe::new(ivec3(0, 0, 0), Direction::ZPLUS),
-                Pipe::new(ivec3(1, 0, 0), Direction::ZPLUS),
-                Pipe::new(walking.end_position(first), Direction::ZPLUS),
-                Pipe::new(walking.end_position(second), Direction::ZPLUS),
-            ],
-        )
-    };
-    let branch = graph.try_add_branch_region("walk", arm(), arm()).unwrap();
-    graph
-        .set_actions(vec![
-            Action::Measure {
-                target: MeasureTarget::Node(ivec3(10, 0, 0)),
-                name: "m".into(),
-            },
-            Action::Branch {
-                target: branch,
-                condition: Expr::Var("m".into()),
-            },
-        ])
-        .unwrap();
+fn structural_walking_arms_share_transit_rounds() {
+    for movement in [glam::IVec2::X, glam::ivec2(-1, 1)] {
+        let mut graph = bloq_graph::BlockGraph::new();
+        let first = ivec3(0, 0, 1);
+        let second = ivec3(1, 0, 1);
+        for position in [ivec3(0, 0, 0), ivec3(1, 0, 0), ivec3(10, 0, 0)] {
+            graph.add_block(Block::new(position, BlockKind::Cube(CubeKind::ZXZ)));
+        }
+        let walking = WalkingKind::new(WalkingBoundaryKind::ZXZ, movement).unwrap();
+        let output = |position| walking.end_position(position) + glam::IVec3::Z;
+        let arm = || {
+            BranchArm::new(
+                vec![
+                    Block::new(first, BlockKind::Walking(walking)),
+                    Block::new(second, BlockKind::Walking(walking)),
+                    Block::new(output(first), BlockKind::Measurement(Basis::Z)),
+                    Block::new(output(second), BlockKind::Measurement(Basis::Z)),
+                ],
+                vec![
+                    Pipe::new(ivec3(0, 0, 0), Direction::ZPLUS),
+                    Pipe::new(ivec3(1, 0, 0), Direction::ZPLUS),
+                    Pipe::new(walking.end_position(first), Direction::ZPLUS),
+                    Pipe::new(walking.end_position(second), Direction::ZPLUS),
+                ],
+            )
+        };
+        let branch = graph.try_add_branch_region("walk", arm(), arm()).unwrap();
+        graph
+            .set_actions(vec![
+                Action::Measure {
+                    target: MeasureTarget::Node(ivec3(10, 0, 0)),
+                    name: "m".into(),
+                },
+                Action::Branch {
+                    target: branch,
+                    condition: Expr::Var("m".into()),
+                },
+            ])
+            .unwrap();
 
-    let bloq = bloq_compile::compile(&graph, 3).unwrap();
-    for pinned in common::pinned_memberships(&bloq) {
-        let vacates = pinned.node_by_block(second).unwrap();
-        let enters = pinned.node_by_block(first).unwrap();
-        assert!(pinned.has_path(vacates, enters));
-        bloq_stim::emit_bloq_stim(&pinned).unwrap();
+        let bloq = bloq_compile::compile(&graph, 3).unwrap();
+        for pinned in common::pinned_memberships(&bloq) {
+            assert_eq!(pinned.node_by_block(first), pinned.node_by_block(second));
+            bloq_stim::emit_bloq_stim(&pinned).unwrap();
+        }
     }
 }
 

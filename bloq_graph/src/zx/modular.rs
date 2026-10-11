@@ -199,7 +199,7 @@ impl ProjectedExternalTable {
         self.arena.materialize(row.witness, self.width)
     }
 
-    /// The canonical witnessed basis of this table, with each row's pivot.
+    /// The canonical witnessed basis of this table.
     ///
     /// Building it is independent of any row being reduced, so callers that
     /// classify many rows against one table build it once and reuse it.
@@ -215,14 +215,7 @@ impl ProjectedExternalTable {
                 .chain(self.closed_rows.iter().cloned())
                 .collect::<Vec<_>>();
             FlowWitnessBasis {
-                rows: canonical_witnessed_external_basis(basis, self.width)
-                    .into_iter()
-                    .map(|row| {
-                        let pivot = first_component(&row.signed.paulis)
-                            .expect("a canonical basis row has a pivot component");
-                        (row, pivot)
-                    })
-                    .collect(),
+                rows: canonical_witnessed_external_basis(basis, self.width),
             }
         })
     }
@@ -231,28 +224,12 @@ impl ProjectedExternalTable {
 /// A reduced basis over one [`ProjectedExternalTable`], reusable across rows.
 #[derive(Debug, Clone)]
 pub(crate) struct FlowWitnessBasis {
-    rows: Vec<(WitnessedRow, (usize, Pauli))>,
+    rows: Vec<WitnessedRow>,
 }
 
 impl FlowWitnessBasis {
     pub(crate) fn to_external_basis(&self) -> Vec<PhasedPauliString> {
-        self.rows
-            .iter()
-            .map(|(row, _)| row.signed.clone())
-            .collect()
-    }
-
-    /// The combined flow witness of `row`, or `None` if it is outside the span.
-    pub(crate) fn witness_for_row(&self, row: &PauliString) -> Option<FlowWitness> {
-        let mut residual = row.clone();
-        let mut witness = FlowWitness::default();
-        for &(ref candidate, (column, axis)) in &self.rows {
-            if residual.get(column) & axis {
-                residual ^= &candidate.signed.paulis;
-                witness.xor_assign(&candidate.flow_witness);
-            }
-        }
-        residual.is_identity().then_some(witness)
+        self.rows.iter().map(|row| row.signed.clone()).collect()
     }
 }
 
@@ -326,10 +303,6 @@ impl SparseRow {
 }
 
 impl FlowWitness {
-    pub(crate) fn source_count(&self) -> usize {
-        self.sources.len()
-    }
-
     pub(crate) fn xor_assign(&mut self, other: &Self) {
         if self
             .sources
@@ -356,11 +329,6 @@ impl FlowWitness {
         sources.extend(left);
         sources.extend(right.map(Arc::clone));
         self.sources = sources;
-    }
-
-    pub(crate) fn strip_positions(&mut self, positions: &FxHashSet<IVec3>) {
-        self.sources
-            .retain(|source| !positions.contains(&source.position));
     }
 
     pub(crate) fn transformed(
@@ -673,6 +641,107 @@ impl ZXGraph {
             );
         }
 
+        self.finish_projected_table(rows, closed_candidates, arena, boundary_columns, limits)
+    }
+
+    /// Present an already composed complete relation without solving its seams again.
+    /// `None` rejects support or phases that do not belong to the local tensors.
+    pub(crate) fn projected_external_table_from_rows(
+        &self,
+        boundary_columns: &[usize],
+        complete: Vec<PhasedPauliString>,
+        limits: ProjectionLimits,
+    ) -> Result<Option<ProjectedExternalTable>, ProjectionError> {
+        if boundary_columns.len() > limits.max_frontier_width {
+            return Err(ProjectionError::FrontierLimit {
+                observed: boundary_columns.len(),
+                limit: limits.max_frontier_width,
+            });
+        }
+        let mut arena = WitnessArena::default();
+        let mut pivots = BTreeMap::new();
+        for node in &self.nodes {
+            let mut local = self.projected_source_rows(
+                &[node.id],
+                &FxHashSet::from_iter([node.id]),
+                &mut arena,
+                limits.max_witness_nodes,
+            )?;
+            let columns = local
+                .iter()
+                .flat_map(|row| row.paulis.keys().copied())
+                .collect::<BTreeSet<_>>();
+            let rank = projected_gaussian_elimination(
+                &mut local,
+                axis_pivot_constraints(columns),
+                |row, &(column, axis)| row.get(column) & axis,
+                &mut arena,
+                limits.max_witness_nodes,
+            )?;
+            for row in local.into_iter().take(rank) {
+                let (&column, &pauli) = row.paulis.first_key_value().expect("local pivot");
+                pivots.insert((column, pauli & Pauli::X), row);
+            }
+        }
+        let mut rows = Vec::with_capacity(complete.len());
+        for mut full in complete {
+            self.clear_cross_centers(std::slice::from_mut(&mut full.paulis));
+            if !self.row_has_external_edge_pair_support(&full.paulis) {
+                return Ok(None);
+            }
+            let mut residual = full.paulis.iter_support().collect::<BTreeMap<_, _>>();
+            let mut witness = None;
+            while let Some((&column, &pauli)) = residual.first_key_value() {
+                let Some(pivot) = pivots.get(&(column, pauli & Pauli::X)) else {
+                    return Ok(None);
+                };
+                for (&column, &pauli) in &pivot.paulis {
+                    let value = residual.get(&column).copied().unwrap_or(Pauli::I) ^ pauli;
+                    if value == Pauli::I {
+                        residual.remove(&column);
+                    } else {
+                        residual.insert(column, value);
+                    }
+                }
+                witness = Some(match witness {
+                    None => pivot.witness,
+                    Some(previous) => {
+                        arena.push_xor(previous, pivot.witness, limits.max_witness_nodes)?
+                    }
+                });
+            }
+            let Some(witness) = witness else {
+                if full.phase() != 0 {
+                    return Ok(None);
+                }
+                continue;
+            };
+            if arena.materialize(witness, self.total_ids) != full {
+                return Ok(None);
+            }
+            rows.push(SparseRow {
+                paulis: boundary_columns
+                    .iter()
+                    .filter_map(|&column| {
+                        let pauli = full.paulis.get(column);
+                        (pauli != Pauli::I).then_some((column, pauli))
+                    })
+                    .collect(),
+                witness,
+            });
+        }
+        self.finish_projected_table(rows, Vec::new(), arena, boundary_columns, limits)
+            .map(Some)
+    }
+
+    fn finish_projected_table(
+        &self,
+        mut rows: Vec<SparseRow>,
+        mut closed_candidates: Vec<WitnessedRow>,
+        mut arena: WitnessArena,
+        boundary_columns: &[usize],
+        limits: ProjectionLimits,
+    ) -> Result<ProjectedExternalTable, ProjectionError> {
         let rank = projected_gaussian_elimination(
             &mut rows,
             axis_pivot_constraints(boundary_columns.iter().copied()),
@@ -1909,6 +1978,64 @@ mod tests {
     #[test]
     fn projected_table_matches_eager_boundary_span_signs_and_closed_rank() {
         check_projected_tables(dense_oracle_galleries());
+    }
+
+    #[test]
+    fn composed_rows_retain_complete_certificates_and_exact_local_witnesses() {
+        for entry in dense_oracle_galleries() {
+            for projection in gallery_projections(&entry.build().materialize_root_graph().unwrap())
+            {
+                let zx = ZXGraph::try_from(&projection).unwrap();
+                let expected = zx.to_signed_external_generator_table();
+                let table = zx
+                    .projected_external_table_from_rows(
+                        &free_boundary_columns(&zx),
+                        expected.clone(),
+                        ProjectionLimits {
+                            max_frontier_width: usize::MAX,
+                            max_witness_nodes: usize::MAX,
+                        },
+                    )
+                    .unwrap()
+                    .expect("complete rows belong to their local tensors");
+                assert_eq!(
+                    table.flow_witness_basis().to_external_basis(),
+                    expected,
+                    "{entry}"
+                );
+                for row in &table.boundary_rows {
+                    let full = table.materialize(row);
+                    assert_eq!(
+                        zx.materialize_flow_witness(&row.flow_witness, &full.paulis),
+                        Some(full),
+                        "{entry}: boundary witness"
+                    );
+                }
+                for row in &table.closed_rows {
+                    assert_eq!(
+                        zx.materialize_flow_witness(&row.flow_witness, &row.signed.paulis),
+                        Some(row.signed.clone()),
+                        "{entry}: closed witness"
+                    );
+                }
+                if let Some(first) = expected.first() {
+                    let mut invalid = first.clone();
+                    invalid.shift_phase(2);
+                    assert!(
+                        zx.projected_external_table_from_rows(
+                            &free_boundary_columns(&zx),
+                            vec![invalid],
+                            ProjectionLimits {
+                                max_frontier_width: usize::MAX,
+                                max_witness_nodes: usize::MAX,
+                            },
+                        )
+                        .unwrap()
+                        .is_none()
+                    );
+                }
+            }
+        }
     }
 
     /// The external table splits as `rank = b + z`: one independent surface per
