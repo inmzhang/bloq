@@ -32,7 +32,7 @@ anstyle = "1.0.13"
 ariadne = "0.6"
 base64 = "0.23.0"
 bevy = { version = "0.20.0", default-features = false }
-bevy_egui = { version = "0.43.0", default-features = false }
+bevy_egui = { version = "0.43.1", default-features = false }
 bevy_rich_text3d = { version = "0.8.0", default-features = false }
 binar = "0.1.8"
 # Internal crates carry an exact (`=`) version requirement: the workspace
