@@ -155,6 +155,8 @@ struct PreparedProxy {
     template_pool: crate::block::LoweringTemplatePool,
 }
 
+/// Selector-free physical inventory. Selective entries retain both measurement
+/// templates; Boolean bindings and record identities belong to linked instances.
 pub(crate) struct PreparedDefinitionObject {
     name: String,
     dependencies: Vec<Arc<PreparedDefinitionObject>>,
@@ -891,6 +893,15 @@ impl CompileContext {
         self.summaries.get_or_summarize(program, limits, Some(jobs))
     }
 
+    fn prepare_relations(
+        &self,
+        program: &BlockGraph,
+        jobs: NonZeroUsize,
+    ) -> Result<Arc<bloq_graph::PreparedModuleRelations>, ModuleCertificationError> {
+        self.summaries
+            .prepare(program, self.config.certification_limits(), jobs)
+    }
+
     /// Compile a target-specific block-graph object for repeated linking.
     /// Both fixed and symbolic inputs cache their finished IR. Exact
     /// definition variants remain reusable across different root programs.
@@ -942,6 +953,7 @@ impl CompileContext {
     fn prepare_module_definitions(
         &self,
         program: &BlockGraph,
+        summary: &bloq_graph::PreparedModuleRelations,
         jobs: NonZeroUsize,
     ) -> Result<
         (
@@ -965,6 +977,7 @@ impl CompileContext {
             &linked,
             &definition_keys,
             &seam_faces,
+            summary,
             jobs,
         )?;
         Ok((linked, definitions))
@@ -1123,6 +1136,7 @@ impl CompileContext {
         linked_root: &bloq_graph::LinkedModuleDefinition,
         definition_keys: &std::collections::HashMap<String, String>,
         seam_faces: &std::collections::HashMap<(String, IVec3), Vec<bloq_graph::Direction>>,
+        summary: &bloq_graph::PreparedModuleRelations,
         jobs: NonZeroUsize,
     ) -> Result<Vec<Arc<PreparedDefinitionObject>>, CompileError> {
         let orientations_by_name = program.definition_orientations();
@@ -1175,14 +1189,17 @@ impl CompileContext {
                             .map(|position| (position, site))
                     })
                     .collect::<Result<std::collections::HashMap<_, _>, _>>()?;
-                // Native lowering plans the root's readouts again. Child
-                // interfaces still need their own C0 proof before linking.
-                if name != BlockGraph::ENTRY_MODULE {
+                // Preparation proves each child's authored interface. Rotated
+                // time directions still need their own C0 check before linking.
+                if name != BlockGraph::ENTRY_MODULE
+                    && orientation != bloq_graph::ModuleOrientation::IDENTITY
+                {
                     registry::certify_definition(
                         name,
                         &oriented_graph,
                         &oriented_sites,
                         self.config.certification_limits(),
+                        summary.definition(name).expect("summarized definition"),
                     )?;
                 }
                 let graph = oriented_graph.canonical_true_branch_view()?;
@@ -4335,6 +4352,194 @@ mod tests {
         assert!(Arc::ptr_eq(&first.artifacts, &second.artifacts));
     }
 
+    fn selective_module_program(kind: &str, boundary: &str, binding: &str) -> BlockGraph {
+        BlockGraph::from_text(&format!(
+            "BLOG 1.0
+module Cap {{
+  in q: data = 0
+  in basis
+  out result = m
+  0: Port [0,0,0] role=input
+  1: {kind} [0,0,1]
+  0 -> +Z
+  resolve 1 if basis
+  m = measure 1
+}}
+module main {{
+  in qa: data = 0
+  in qb: data = 2
+  out x = mx
+  out y = my
+  0: Port [0,0,-1] role=input
+  1: {boundary} [0,0,0]
+  2: Port [3,0,-1] role=input
+  3: {boundary} [3,0,0]
+  4: ZXZ [6,0,-1]
+  5: ZXZ [8,0,-1]
+  0 -> +Z
+  2 -> +Z
+  a: Cap @ [0,0,0]
+  b: Cap @ [3,0,0] rotate Z 90
+  1 -> a.q
+  3 -H> b.q
+  mx = measure 4
+  my = measure 5
+  x => a.basis
+  {binding} => b.basis
+}}"
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn selective_definition_inventory_matches_guarded_physical_selection() {
+        for kind in ["XY", "XZ", "YZ"] {
+            for boundary in ["ZXZ", "XZX"] {
+                let program = selective_module_program(kind, boundary, "y");
+                let context = CompileContext::new(CompileConfig::default());
+                let prepared = context.compile(&program).unwrap().bloq;
+                let definitions = cached_module_definitions(&context, &program);
+                let cap = &definitions["Cap"];
+                let bases = cap
+                    .variants
+                    .iter()
+                    .filter(|(key, _)| key.local_position == IVec3::Z)
+                    .map(|(key, info)| {
+                        assert!(matches!(info.template, TemplateRef::Selective { .. }));
+                        key.signature.boundary_basis.unwrap()
+                    })
+                    .collect::<crate::FxSet<_>>();
+                assert_eq!(bases, crate::FxSet::from_iter([Basis::X, Basis::Z]));
+                let reference = registry::compile_hierarchy_without_inventory(
+                    &CompileContext::new(CompileConfig::default()),
+                    &program,
+                )
+                .unwrap()
+                .bloq;
+                assert_eq!(
+                    prepared.to_binary(),
+                    reference.to_binary(),
+                    "{kind} {boundary}"
+                );
+                for a in [false, true] {
+                    for b in [false, true] {
+                        let pinned = prepared
+                            .pin_membership(&std::collections::BTreeMap::from([
+                                (bloq_graph::selective_selector_name(ivec3(0, 0, 2)), a),
+                                (bloq_graph::selective_selector_name(ivec3(3, 0, 2)), b),
+                            ]))
+                            .unwrap();
+                        assert!(!pinned.has_conditional_membership());
+                        pinned.validate().unwrap();
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn selective_definition_inventory_reuses_across_parent_bindings() {
+        let cache = crate::SharedCompileCache::new();
+        let config = CompileConfig::default();
+        let independent = selective_module_program("XZ", "ZXZ", "y");
+        let shared = selective_module_program("XZ", "XZX", "x");
+        let first_context = CompileContext::with_shared_cache(config, &cache);
+        let first = first_context.compile_object(&independent).unwrap();
+        let first_definition = cached_module_definitions(&first_context, &independent)
+            .remove("Cap")
+            .unwrap();
+        let second_context = CompileContext::with_shared_cache(config, &cache);
+        let second = second_context.compile_object(&shared).unwrap();
+        let second_definition = cached_module_definitions(&second_context, &shared)
+            .remove("Cap")
+            .unwrap();
+
+        assert!(!Arc::ptr_eq(&first.artifacts, &second.artifacts));
+        assert!(Arc::ptr_eq(&first_definition, &second_definition));
+        let first_relations = first_context
+            .prepare_relations(&independent, default_module_jobs())
+            .unwrap();
+        let second_relations = second_context
+            .prepare_relations(&shared, default_module_jobs())
+            .unwrap();
+        assert!(!Arc::ptr_eq(&first_relations, &second_relations));
+        assert!(std::ptr::eq(
+            first_relations.definition("Cap").unwrap(),
+            second_relations.definition("Cap").unwrap(),
+        ));
+        let selector_names =
+            [ivec3(0, 0, 2), ivec3(3, 0, 2)].map(bloq_graph::selective_selector_name);
+        let choices = |a, b| {
+            std::collections::BTreeMap::from([
+                (selector_names[0].clone(), a),
+                (selector_names[1].clone(), b),
+            ])
+        };
+        first
+            .artifacts
+            .bloq
+            .pin_membership(&choices(false, true))
+            .unwrap();
+        assert!(matches!(
+            second.artifacts.bloq.pin_membership(&choices(false, true)),
+            Err(bloq_ir::MembershipPinError::UnreachableAssignment)
+        ));
+        for selected in [false, true] {
+            let pinned = second
+                .artifacts
+                .bloq
+                .pin_membership(&choices(selected, selected))
+                .unwrap();
+            let instances = [ivec3(0, 0, 2), ivec3(3, 0, 2)].map(|position| {
+                let (_, node) = pinned
+                    .quantum_nodes()
+                    .find(|(id, _)| {
+                        pinned[*id]
+                            .block_members()
+                            .iter()
+                            .any(|block| block.pos == position)
+                    })
+                    .unwrap();
+                assert_eq!(node.instances.len(), 1);
+                node.instances[0].id
+            });
+            assert_ne!(instances[0], instances[1]);
+            pinned.validate().unwrap();
+        }
+    }
+
+    #[test]
+    fn selective_definition_inventory_preserves_feedback_and_output_frames() {
+        for (label, graph) in [
+            ("T", GalleryItem::T.build()),
+            ("phase gradient", GalleryItem::PhaseGradientK4.build()),
+            ("terminal branch", mixed_structural_dynamic_graph()),
+        ] {
+            let program = graph.with_inferred_interface().unwrap();
+            let context = CompileContext::new(CompileConfig::default());
+            let prepared = context.compile(&program).unwrap().bloq;
+            let reference = registry::compile_hierarchy_without_inventory(
+                &CompileContext::new(CompileConfig::default()),
+                &program,
+            )
+            .unwrap()
+            .bloq;
+            assert_eq!(prepared.to_binary(), reference.to_binary(), "{label}");
+            assert!(!prepared.output_frames().is_empty());
+            assert!(
+                cached_module_definitions(&context, &program)
+                    .values()
+                    .any(|definition| {
+                        definition
+                            .variants
+                            .values()
+                            .any(|info| info.template.is_selective())
+                    }),
+                "{label} needs selective inventory coverage"
+            );
+        }
+    }
+
     #[test]
     fn module_link_reports_a_missing_physical_variant() {
         let mut graph = BlockGraph::new();
@@ -4537,6 +4742,23 @@ module main {
                 parallel.bloq.to_binary(),
                 "{label}"
             );
+            if program.has_continuing_branches() {
+                let orientations = program.definition_orientations();
+                for (name, implementation) in program.module_definition_cache_keys() {
+                    assert!(
+                        serial_context
+                            .cache
+                            .definition_object(&DefinitionObjectCacheKey {
+                                implementation,
+                                orientations: orientations[&name].clone(),
+                            })
+                            .is_none(),
+                        "continuing hierarchies retain guarded physical contexts"
+                    );
+                }
+            } else {
+                assert!(!cached_module_definitions(&serial_context, &program).is_empty());
+            }
         }
     }
 

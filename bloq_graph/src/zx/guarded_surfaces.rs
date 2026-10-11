@@ -350,9 +350,18 @@ impl GuardedSurfaceSpace {
     ///
     /// Panics if validated topology metadata references a missing local column.
     pub fn new(
+        topology: GuardedTopology,
+        sites: &HashMap<IVec3, MaterializedModuleSite>,
+        limits: ModuleCertificationLimits,
+    ) -> Result<Self, BlockGraphError> {
+        Self::with_relations(topology, sites, limits, &HashMap::new())
+    }
+
+    pub(crate) fn with_relations(
         mut topology: GuardedTopology,
         sites: &HashMap<IVec3, MaterializedModuleSite>,
         limits: ModuleCertificationLimits,
+        relations: &HashMap<String, Arc<crate::summary::relations::ModuleRelations>>,
     ) -> Result<Self, BlockGraphError> {
         type Scope = Vec<String>;
         let scope = |position: [i32; 3]| -> Scope {
@@ -573,14 +582,15 @@ impl GuardedSurfaceSpace {
         groups.entry(Vec::new()).or_default();
         let mut scopes = groups.keys().cloned().collect::<Vec<_>>();
         scopes.sort_by(|left, right| right.len().cmp(&left.len()).then(left.cmp(right)));
+        let mut column_rank = vec![0; columns.len()];
+        for (rank, &column) in columns.values().enumerate() {
+            column_rank[column] = rank;
+        }
         let mut root = Vec::new();
         for mut owner in scopes {
-            let mut rows = BooleanRowSpace::new(
-                groups
-                    .remove(&owner)
-                    .expect("scope order contains each existing owner once"),
-                &mut topology.diagram,
-            )?;
+            let rows = groups
+                .remove(&owner)
+                .expect("scope order contains each existing owner once");
             let mut edges = seams
                 .remove(&owner)
                 .unwrap_or_default()
@@ -588,32 +598,39 @@ impl GuardedSurfaceSpace {
                 .collect::<Vec<_>>();
             // Close lower layers first, as in the ordinary module projector.
             edges.sort_by_key(|((a, b), _)| (a[2].max(b[2]), *a, *b));
-            for ((left, right), hadamard) in edges {
-                let lhs = columns[&SurfaceColumn::Edge(left, right)];
-                let rhs = columns[&SurfaceColumn::Edge(right, left)];
-                for axis in 0..2 {
-                    // Preserve the source equation's reference sector. A
-                    // shorter pivot can add a logical readout to its frames.
-                    rows.eliminate_linear(
-                        &[
+            let constraints = edges
+                .into_iter()
+                .flat_map(|((left, right), hadamard)| {
+                    let lhs = columns[&SurfaceColumn::Edge(left, right)];
+                    let rhs = columns[&SurfaceColumn::Edge(right, left)];
+                    (0..2).map(move |axis| {
+                        vec![
                             (2 * lhs + axis, ONE),
                             (2 * rhs + axis, ONE),
                             (2 * rhs, hadamard),
                             (2 * rhs + 1, hadamard),
-                        ],
-                        &mut topology.diagram,
-                    )?;
-                }
-                if topology.diagram.nodes().len() > limits.max_witness_nodes {
-                    return Err(StabilizerError::ResourceLimited {
-                        phase: "guarded correlation coefficients",
-                        observed: topology.diagram.nodes().len(),
-                        limit: limits.max_witness_nodes,
-                    }
-                    .into());
-                }
-            }
-            let rows = rows.into_rows(&mut topology.diagram)?;
+                        ]
+                    })
+                })
+                .collect::<Vec<_>>();
+            let path = owner.join("__");
+            let cache = relations.get(&path);
+            let rows = if let Some(cache) = cache {
+                cache.reduce(
+                    rows,
+                    constraints,
+                    &column_rank,
+                    &mut topology.diagram,
+                    limits,
+                )?
+            } else {
+                crate::summary::relations::close_seams(
+                    rows,
+                    &constraints,
+                    &mut topology.diagram,
+                    limits,
+                )?
+            };
             if owner.pop().is_some() {
                 groups
                     .get_mut(&owner)
@@ -2249,6 +2266,19 @@ impl GuardedSurfaceSpace {
             zx,
             evaluate,
         )
+    }
+
+    pub(crate) fn materialize_relation(
+        &self,
+        zx: &ZXGraph,
+        evaluate: impl Fn(DecisionId) -> bool,
+    ) -> Vec<crate::PauliString> {
+        self.rows
+            .iter()
+            .filter(|row| evaluate(row.active))
+            .map(|row| self.materialize_row(row, zx, &evaluate))
+            .filter(|row| !row.is_identity())
+            .collect()
     }
 
     #[cfg(test)]

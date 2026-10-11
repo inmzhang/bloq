@@ -7,12 +7,6 @@ use bloq_utils::{Basis, UDirection};
 use glam::IVec3;
 use std::collections::{HashMap, HashSet};
 
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct ModuleSeam {
-    pub block: IVec3,
-    pub direction: Direction,
-}
-
 impl TryFrom<&BlockGraph> for ZXGraph {
     type Error = ZXError;
 
@@ -34,7 +28,7 @@ impl TryFrom<&BlockGraph> for ZXGraph {
         }
         let actions = crate::validate::validate_source(&graph)
             .map_err(|error| ZXError::Graph(Box::new(error)))?;
-        Self::from_block_graph_parts(&graph, actions, &[]).map(|(graph, _)| graph)
+        Self::from_block_graph_parts(&graph, actions)
     }
 }
 
@@ -52,29 +46,7 @@ impl ZXGraph {
         let action_graph = graph
             .build_action_graph(&graph.actions())
             .map_err(|error| ZXError::Graph(Box::new(error)))?;
-        Self::from_block_graph_parts(&graph, action_graph, &[]).map(|(graph, _)| graph)
-    }
-
-    pub(crate) fn from_module_body(
-        graph: &BlockGraph,
-        seams: &[ModuleSeam],
-    ) -> Result<(Self, Vec<usize>), ZXError> {
-        let actions = graph.actions();
-        let action_graph = if actions.iter().any(|action| {
-            !matches!(
-                action,
-                crate::Action::Let { .. } | crate::Action::DiscardIf(_)
-            )
-        }) {
-            // Quantum actions need their complete classical dependencies.
-            graph
-                .build_action_graph(&actions)
-                .map_err(|error| ZXError::Graph(Box::new(error)))?
-        } else {
-            // Pure classical work does not couple independent quantum components.
-            crate::ActionDag::default()
-        };
-        Self::from_block_graph_parts(graph, action_graph, seams)
+        Self::from_block_graph_parts(&graph, action_graph)
     }
 
     /// Build the center's tensor/incidence view from a validated projection
@@ -149,109 +121,16 @@ impl ZXGraph {
         })
     }
 
-    /// Split a connector's independent quantum components, preserving node order
-    /// so directed Hadamard frames and incoming Choi transposes do not change.
-    pub(crate) fn into_connector_components(self) -> Vec<(Self, Vec<usize>)> {
-        debug_assert_eq!(self.action_graph.ordered_nodes().count(), 0);
-        let mut owners = vec![usize::MAX; self.nodes.len()];
-        let mut components = Vec::<Vec<usize>>::new();
-        for start in 0..self.nodes.len() {
-            if owners[start] != usize::MAX {
-                continue;
-            }
-            let owner = components.len();
-            let mut nodes = vec![start];
-            owners[start] = owner;
-            let mut scan = 0;
-            while scan < nodes.len() {
-                for &neighbor in self.neighbors(nodes[scan]).unwrap_or_default() {
-                    if owners[neighbor] == usize::MAX {
-                        owners[neighbor] = owner;
-                        nodes.push(neighbor);
-                    }
-                }
-                scan += 1;
-            }
-            nodes.sort_unstable();
-            components.push(nodes);
-        }
-        if components.len() <= 1 {
-            return components
-                .pop()
-                .map(|nodes| vec![(self, nodes)])
-                .unwrap_or_default();
-        }
-        let mut edge_groups = vec![Vec::new(); components.len()];
-        for edge in self.edges {
-            edge_groups[owners[edge.n1]].push(edge);
-        }
-        let mut local_ids = vec![0; self.nodes.len()];
-        components
-            .into_iter()
-            .zip(edge_groups)
-            .map(|(original_ids, edges)| {
-                let nodes = original_ids
-                    .iter()
-                    .enumerate()
-                    .map(|(id, &original)| {
-                        local_ids[original] = id;
-                        ZXNode {
-                            id,
-                            ..self.nodes[original]
-                        }
-                    })
-                    .collect::<Vec<_>>();
-                let edges = edges
-                    .into_iter()
-                    .enumerate()
-                    .map(|(id, edge)| ZXEdge {
-                        id: nodes.len() + id,
-                        n1: local_ids[edge.n1],
-                        n2: local_ids[edge.n2],
-                        ..edge
-                    })
-                    .collect::<Vec<_>>();
-                let adjacency = CsrAdjacency::from_edges(
-                    nodes.len(),
-                    &edges.iter().map(|e| (e.n1, e.n2, e.id)).collect::<Vec<_>>(),
-                );
-                let pos_to_node = original_ids
-                    .iter()
-                    .filter_map(|&original| {
-                        let pos = self.nodes[original].pos;
-                        (self.pos_to_node.get(&pos) == Some(&original))
-                            .then_some((pos, local_ids[original]))
-                    })
-                    .collect();
-                let total_ids = nodes.len() + edges.len();
-                (
-                    Self {
-                        nodes,
-                        edges,
-                        adjacency,
-                        pos_to_node,
-                        action_graph: crate::ActionDag::default(),
-                        total_ids,
-                        cross_incident: Default::default(),
-                        stabilizer_phase_basis: Default::default(),
-                    },
-                    original_ids,
-                )
-            })
-            .collect()
-    }
-
-    fn from_block_graph_parts(
+    pub(super) fn from_block_graph_parts(
         graph: &BlockGraph,
         mut action_graph: crate::ActionDag,
-        seams: &[ModuleSeam],
-    ) -> Result<(Self, Vec<usize>), ZXError> {
+    ) -> Result<Self, ZXError> {
         graph
             .require_flat_hierarchy("ZX conversion")
             .map_err(|error| ZXError::Graph(Box::new(error)))?;
-        let mut nodes = Vec::with_capacity(graph.block_count() + seams.len());
-        let mut edges = Vec::with_capacity(2 * (graph.pipe_count() + seams.len()));
-        let mut directed_edges = Vec::with_capacity(2 * (graph.pipe_count() + seams.len()));
+        let mut nodes = Vec::with_capacity(graph.block_count());
+        let mut edges = Vec::with_capacity(2 * graph.pipe_count());
+        let mut directed_edges = Vec::with_capacity(2 * graph.pipe_count());
         let mut endpoint_to_node: HashMap<IVec3, usize> =
             HashMap::with_capacity(graph.block_count());
         let mut id = 0;
@@ -302,21 +181,6 @@ impl ZXGraph {
             }
         }
 
-        let original_node_count = nodes.len();
-        let mut seam_nodes = Vec::with_capacity(seams.len());
-        let mut seam_edges = Vec::with_capacity(seams.len());
-        for seam in seams {
-            let position = crate::checked_add_position(seam.block, seam.direction.to_ivec3())
-                .map_err(|error| ZXError::Graph(Box::new(error)))?;
-            let target = endpoint_to_node.get(&seam.block).copied().ok_or_else(|| {
-                ZXError::Graph(Box::new(crate::BlockGraphError::BlockNotFound(seam.block)))
-            })?;
-            nodes.push(ZXNode::new(id, position, NodeKind::Port));
-            seam_nodes.push(id);
-            seam_edges.push((target, id));
-            id += 1;
-        }
-
         let mut pipes = graph.pipes().collect::<Vec<_>>();
         pipes.sort_unstable_by_key(|pipe| {
             let first = endpoint_to_node[&pipe.src];
@@ -333,38 +197,22 @@ impl ZXGraph {
                 &mut directed_edges,
             );
         }
-        for (target, boundary) in seam_edges {
-            push_edge_pair(
-                target,
-                boundary,
-                false,
-                &mut id,
-                &mut edges,
-                &mut directed_edges,
-            );
-        }
         let adjacency = CsrAdjacency::from_edges(nodes.len(), &directed_edges);
 
         // node_at needs only block centers, so key the lookup by `node.pos`
         // rather than reusing the endpoint-offset map above.
-        let pos_to_node = nodes[..original_node_count]
-            .iter()
-            .map(|node| (node.pos, node.id))
-            .collect();
+        let pos_to_node = nodes.iter().map(|node| (node.pos, node.id)).collect();
 
-        Ok((
-            ZXGraph {
-                nodes,
-                edges,
-                adjacency,
-                pos_to_node,
-                action_graph,
-                total_ids: id,
-                cross_incident: Default::default(),
-                stabilizer_phase_basis: Default::default(),
-            },
-            seam_nodes,
-        ))
+        Ok(ZXGraph {
+            nodes,
+            edges,
+            adjacency,
+            pos_to_node,
+            action_graph,
+            total_ids: id,
+            cross_incident: Default::default(),
+            stabilizer_phase_basis: Default::default(),
+        })
     }
 }
 

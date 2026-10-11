@@ -95,7 +95,7 @@ pub use program::{
     QuantumConnection, QuantumPort, UnknownCertificationLimit, flatten_module_definition,
     qualified_name,
 };
-pub use summary::{ModuleSummary, default_module_jobs, map_jobs};
+pub use summary::{ModuleSummary, PreparedModuleRelations, default_module_jobs, map_jobs};
 // `Stabilizer`'s support maps and `SelectiveFixings` are public `FxHashMap`s,
 // so re-export the type rather than force downstream code onto a matching
 // `rustc-hash` version to name them.
