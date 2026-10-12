@@ -899,7 +899,7 @@ impl CompileContext {
         jobs: NonZeroUsize,
     ) -> Result<Arc<bloq_graph::PreparedModuleRelations>, ModuleCertificationError> {
         self.summaries
-            .prepare(program, self.config.certification_limits(), jobs)
+            .prepare_validated(program, self.config.certification_limits(), jobs)
     }
 
     /// Compile a target-specific block-graph object for repeated linking.
