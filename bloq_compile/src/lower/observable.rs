@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use bloq_circuit::PauliMap;
 use bloq_graph::{
-    Block, BlockGraph, Direction, Pauli, Stabilizer, StabilizerGenerator, StabilizerGenerators,
+    Block, BlockGraph, Direction, Pauli, StabilizerGenerator, StabilizerGenerators,
     StabilizerRowKind, SurfaceSupport, checked_add_position,
 };
 use bloq_ir::{
@@ -466,15 +466,15 @@ pub(super) fn resolve_observables(
         context.input.spatial_port_templates,
         context.input.template_pool,
     )?;
-    insertions.extend(resolve_pipe_observable_insertions(
+    let (pipe_insertions, mut reference_offsets) = resolve_pipe_observable_insertions(
         context.input.graph,
         context.input.plan,
         context.input.compiled,
         context.input.temporal_templates,
         context.input.template_pool,
         generators,
-    )?);
-    let mut reference_offsets = crate::FxSet::default();
+    )?;
+    insertions.extend(pipe_insertions);
     for (index, generator) in generators.iter().enumerate() {
         if !statically_resolved(generator, context.input.compiled) {
             continue;
@@ -488,11 +488,8 @@ pub(super) fn resolve_observables(
             index as u32,
             &mut insertions,
         )?;
-        if matches!(generator.kind, StabilizerRowKind::Logical)
-            && (wall_sign
-                ^ temporal_hadamard_observable_sign(context.input.graph, &generator.stabilizer))
-        {
-            reference_offsets.insert(index as u32);
+        if matches!(generator.kind, StabilizerRowKind::Logical) && wall_sign {
+            crate::xor_toggle(&mut reference_offsets, [index as u32]);
         }
     }
 
@@ -503,26 +500,6 @@ pub(super) fn resolve_observables(
         .map(|insertion| resolve_observable_insertion(&insertion, context))
         .collect::<Result<_, _>>()?;
     Ok((resolved, reference_offsets))
-}
-
-/// Constant parity picked up by a logical row crossing temporal Hadamards.
-/// Gateways carry phaseless Paulis, so the `Y_L -> -Y_L` phase must ride as a
-/// classical bit inside the projection's conditioned observable content.
-pub(super) fn temporal_hadamard_observable_sign(
-    graph: &BlockGraph,
-    stabilizer: &Stabilizer,
-) -> bool {
-    stabilizer
-        .interior_edges
-        .iter()
-        .filter_map(|(&(src, dst), &edge_pauli)| {
-            let pipe = hadamard_temporal_pipe(graph, src, dst)?;
-            Some(realignment_observable_pauli(
-                graph, &pipe, stabilizer, edge_pauli,
-            ))
-        })
-        .filter(|pauli| *pauli != Pauli::I)
-        .fold(false, |sign, pauli| sign ^ (pauli == Pauli::Y))
 }
 
 /// Public row values shared by the pinned proxy's frame constraints.
@@ -898,8 +875,9 @@ fn resolve_pipe_observable_insertions(
     temporal_templates: &crate::FxMap<super::TemplatePlan, crate::block::LoweringTemplateId>,
     template_pool: &LoweringTemplatePool,
     generators: &[StabilizerGenerator],
-) -> Result<Vec<ObservableChunkInsertion>, CompileError> {
+) -> Result<(Vec<ObservableChunkInsertion>, crate::FxSet<u32>), CompileError> {
     let mut insertions = Vec::new();
+    let mut reference_offsets = crate::FxSet::default();
     for (obs_index, stabilizer) in generators.iter().enumerate() {
         // Mirror the block pass's ownership skip exactly, or a U6-owned
         // generator's realignment operator dangles one-sidedly at the H seam
@@ -921,7 +899,10 @@ fn resolve_pipe_observable_insertions(
             .collect::<Vec<_>>();
         hadamard_edges.sort_by_key(|(pipe, _)| (pipe.src.to_array(), pipe.dst.to_array()));
 
+        let mut sign = false;
         for (pipe, pauli) in hadamard_edges {
+            // H Y H = -Y fixes the row's reference even without a pipe plan node.
+            sign ^= pauli == Pauli::Y;
             let Some(&plan_node) = plan.node_by_temporal_pipe().get(&pipe) else {
                 continue;
             };
@@ -974,8 +955,11 @@ fn resolve_pipe_observable_insertions(
                 ));
             }
         }
+        if matches!(stabilizer.kind, StabilizerRowKind::Logical) && sign {
+            reference_offsets.insert(obs_index as u32);
+        }
     }
-    Ok(insertions)
+    Ok((insertions, reference_offsets))
 }
 
 /// Route logical crossings through the spatial Hadamard walls a row touches.
@@ -1403,7 +1387,7 @@ fn incident_edge_pauli(
 
 #[cfg(test)]
 mod tests {
-    use bloq_graph::{Basis, BlockKind, CubeKind, PatchRotationKind, Pipe};
+    use bloq_graph::{Basis, BlockKind, CubeKind, PatchRotationKind, Pipe, Stabilizer};
     use glam::{ivec2, ivec3};
 
     use super::*;
@@ -1501,17 +1485,53 @@ mod tests {
     }
 
     #[test]
-    fn projection_observable_sign_tracks_y_temporal_hadamard_crossing() {
-        let lower = ivec3(0, 0, 0);
-        let upper = ivec3(0, 0, 1);
+    fn proxy_temporal_reference_offsets_preserve_y_parity() {
         let mut graph = BlockGraph::new();
-        graph.add_block(Block::new(lower, BlockKind::Cube(CubeKind::ZXZ)));
-        graph.add_block(Block::new(upper, BlockKind::Cube(CubeKind::ZXZ)));
-        graph.add_pipe(Pipe::new(lower, Direction::ZPLUS).with_hadamard());
-        let stabilizer = Stabilizer::from_interior_nodes([(lower, Pauli::Y), (upper, Pauli::Y)])
-            .with_interior_edges([((lower, upper), Pauli::Y)]);
-
-        assert!(temporal_hadamard_observable_sign(&graph, &stabilizer));
+        for z in 0..3 {
+            graph.add_block(Block::new(ivec3(0, 0, z), BlockKind::Cube(CubeKind::ZXZ)));
+        }
+        for z in 0..2 {
+            graph.add_pipe(Pipe::new(ivec3(0, 0, z), Direction::ZPLUS).with_hadamard());
+        }
+        for (paulis, expected) in [
+            (vec![Pauli::X], false),
+            (vec![Pauli::Z], false),
+            (vec![Pauli::Y], true),
+            (vec![Pauli::Y, Pauli::Y], false),
+            (vec![Pauli::Y, Pauli::X], true),
+        ] {
+            let stabilizer = Stabilizer::from_interior_nodes([]).with_interior_edges(
+                paulis.iter().enumerate().map(|(index, &pauli)| {
+                    (
+                        (ivec3(0, 0, index as i32), ivec3(0, 0, index as i32 + 1)),
+                        pauli,
+                    )
+                }),
+            );
+            let generators = [
+                StabilizerGenerator::new(stabilizer.clone(), StabilizerRowKind::Logical),
+                StabilizerGenerator::new(
+                    stabilizer,
+                    StabilizerRowKind::Measurement { name: "m".into() },
+                ),
+            ];
+            // Even an omitted pipe plan node retains the pinned row's reference.
+            let (insertions, offsets) = resolve_pipe_observable_insertions(
+                &graph,
+                &super::super::LowerPlan::default(),
+                &CompiledTemplateMap::default(),
+                &crate::FxMap::default(),
+                &LoweringTemplatePool::default(),
+                &generators,
+            )
+            .unwrap();
+            assert!(insertions.is_empty());
+            assert_eq!(offsets.contains(&0), expected, "{paulis:?}");
+            assert!(
+                !offsets.contains(&1),
+                "named outcomes retain their physical label"
+            );
+        }
     }
 
     #[test]

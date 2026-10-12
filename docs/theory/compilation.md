@@ -123,8 +123,11 @@ treat all four joint choices as reachable.
 The composed-surface planner reuses compatible definition relations and closes
 parent seams with Boolean-guarded coefficients. Public module summaries derive
 their signed presentation from the same complete relation; production prepares
-the factored relation directly. After composition, the planner selects named
-readouts in causal waves and derives terminal frame equations:
+the factored relation directly without computing certificate phases. Signed
+summary construction and placement map raw support directly and replay exact
+local witnesses for phases. Public boundary rows share the complete certificate's
+storage. After composition, the planner selects named readouts in causal waves
+and derives terminal frame equations:
 
 | Recipe | Contents |
 | --- | --- |
@@ -207,6 +210,15 @@ pattern and asks that instance's gateway for the records that realize it. The
 records of all blocks combine into one complete `Observable` node per named
 readout or output axis. That node carries both the raw parity and the
 corrected value. The decoder estimates the difference between them.
+
+Named readouts and output frames preserve the authored physical outcome
+convention; lowering adds no separate tensor-sign bit. Closed logical
+observables absorb their gateway transport offsets into the reference parity.
+The Clifford proxy also retains public observable references for its frame
+equations: temporal-Hadamard offsets are collected together with pipe records
+and combined with spatial wall offsets. These references are distinct from
+the signed correlation certificate described in
+[Correlation Surfaces](correlation-surfaces.md#signs).
 
 The source's classical behavior becomes IR nodes:
 
