@@ -123,14 +123,15 @@ impl ModuleSummaryCache {
         }
         let jobs = jobs.unwrap_or_else(bloq_graph::default_module_jobs);
         let summary = self
-            .prepare(program, limits, jobs)?
+            .prepare_validated(program, limits, jobs)?
             .summarize_with_jobs(jobs)?;
         Ok(Arc::clone(
             lock(&self.entries).entry(key).or_insert(summary),
         ))
     }
 
-    pub(crate) fn prepare(
+    /// Callers validate source; graph preparation checks inferred interfaces.
+    pub(crate) fn prepare_validated(
         &self,
         program: &BlockGraph,
         limits: ModuleCertificationLimits,
@@ -149,13 +150,6 @@ impl ModuleSummaryCache {
                 })?;
             &inferred
         };
-        // Definition key construction assumes a validated dependency graph.
-        program
-            .validate_with_limits(limits)
-            .map_err(|error| ModuleCertificationError::Graph {
-                module: program.name.clone(),
-                source: bloq_graph::BlockGraphError::ModuleSource(Arc::new(error)),
-            })?;
         let keys = program.module_definition_cache_keys();
         let reused = {
             let definitions = lock(&self.definitions);
