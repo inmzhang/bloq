@@ -694,7 +694,7 @@ impl BlockGraph {
                 module: self.name.clone(),
                 source: crate::BlockGraphError::ModuleSource(Arc::new(error)),
             })?;
-        prepare_program(self, limits, jobs, reused)
+        prepare_validated_program(self, limits, jobs, reused)
     }
 
     /// Physical endpoints of direct child-to-child pipes in declaration order.
@@ -1095,16 +1095,12 @@ pub fn map_jobs<T: Sync, R: Send>(
     items.iter().map(f).collect()
 }
 
-fn prepare_program(
+fn prepare_validated_program(
     program: &BlockGraph,
     limits: ModuleCertificationLimits,
     jobs: NonZeroUsize,
     reused: &HashMap<String, Arc<PreparedModuleRelations>>,
 ) -> Result<Arc<PreparedModuleRelations>, ModuleCertificationError> {
-    preflight_program_expansion(program, limits).map_err(|error| match error {
-        ModuleError::InvalidGeometry { source, .. } => source,
-        _ => unreachable!("size preflight only reports resource limits"),
-    })?;
     let mut depths = HashMap::new();
     let mut levels: Vec<Vec<&BlockGraph>> = Vec::new();
     for module in module_postorder_from(program, [program.root().name.as_str()]) {
