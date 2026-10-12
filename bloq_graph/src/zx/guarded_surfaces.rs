@@ -5,7 +5,10 @@
 //! parent composition closes the connecting seams. Coefficients retain shared
 //! Boolean ancestry throughout, including products of independent selectors.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+#[cfg(test)]
+mod component_tests;
+
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
 use bloq_utils::boolean::{
@@ -893,11 +896,11 @@ impl GuardedSurfaceSpace {
                     }
                 }
             }
-            let newly_resolved = resolved.difference(&filled).copied().collect();
             if !RECLAIM {
+                let newly_resolved = resolved.difference(&filled).copied().collect();
                 self.fill_selective(&mut causal_basis, &newly_resolved)?;
+                filled = resolved;
             }
-            filled = resolved.clone();
             let pending = unavailable
                 .iter()
                 .copied()
@@ -938,8 +941,8 @@ impl GuardedSurfaceSpace {
                         self.topology
                             .diagram
                             .charge(self.local[&target.target.to_array()].len())?;
-                        for variant in self.local[&target.target.to_array()].clone() {
-                            for index in self.feedback_support(target, &variant)? {
+                        for variant in &self.local[&target.target.to_array()] {
+                            for index in self.feedback_support(target, variant)? {
                                 terms.push((index, variant.guard));
                             }
                         }
@@ -973,9 +976,15 @@ impl GuardedSurfaceSpace {
                 .iter()
                 .filter(|(name, _)| !known.contains(name))
                 .collect::<Vec<_>>();
-            let mut factored = if RECLAIM && FACTORED {
+            let relevant = if RECLAIM && FACTORED {
+                Some(self.named_component_rows(&available_rows, &unknown)?)
+            } else {
+                None
+            };
+            let mut factored = if let Some(ids) = &relevant {
                 self.injective_named_candidates(
                     &available_rows,
+                    ids,
                     &unknown,
                     physical_columns,
                     physical_columns + names.len(),
@@ -987,14 +996,22 @@ impl GuardedSurfaceSpace {
                 BooleanRowSpace::default()
             } else {
                 let allowed = if RECLAIM {
-                    self.topology.diagram.charge(available_rows.len())?;
-                    for row in available_rows.rows() {
-                        self.topology.diagram.charge(row.terms().len())?;
-                    }
-                    BooleanRowSpace::new(
-                        available_rows.rows().cloned().collect(),
-                        &mut self.topology.diagram,
-                    )?
+                    let rows = if let Some(ids) = &relevant {
+                        let mut rows = Vec::with_capacity(ids.len());
+                        for &id in ids {
+                            let row = available_rows.row(id).expect("selected row exists");
+                            self.topology.diagram.charge(row.terms().len() + 1)?;
+                            rows.push(row.clone());
+                        }
+                        rows
+                    } else {
+                        self.topology.diagram.charge(available_rows.len())?;
+                        for row in available_rows.rows() {
+                            self.topology.diagram.charge(row.terms().len())?;
+                        }
+                        available_rows.rows().cloned().collect()
+                    };
+                    BooleanRowSpace::new(rows, &mut self.topology.diagram)?
                 } else {
                     self.charge_row_copy(&causal_basis)?;
                     let mut allowed =
@@ -1576,6 +1593,53 @@ impl GuardedSurfaceSpace {
         Ok(named)
     }
 
+    /// Select algebraic components after constraints have coupled their rows.
+    /// Keep every physical and known-name column, including private kernels;
+    /// only the temporary named solve omits components with no unknown name.
+    fn named_component_rows(
+        &mut self,
+        available: &BooleanRowSpace,
+        unknown: &[&(String, usize)],
+    ) -> Result<Vec<usize>, BooleanResourceError> {
+        let mut columns = HashSet::new();
+        let mut rows = HashSet::new();
+        let mut pending = Vec::new();
+        // Seed every name first so injective spaces need no physical walk.
+        for (_, column) in unknown {
+            self.topology.diagram.charge(1)?;
+            columns.insert(*column);
+            for id in available.row_ids_with_column(*column) {
+                self.topology.diagram.charge(1)?;
+                if rows.insert(id) {
+                    pending.push(id);
+                }
+            }
+        }
+        while rows.len() < available.len() {
+            let Some(id) = pending.pop() else { break };
+            let row = available.row(id).expect("indexed row exists");
+            self.topology.diagram.charge(row.terms().len())?;
+            for &(column, _) in row.terms() {
+                if columns.insert(column) {
+                    // Removed postings have zero support on their activation.
+                    for id in available.row_ids_with_column(column) {
+                        self.topology.diagram.charge(1)?;
+                        if rows.insert(id) {
+                            pending.push(id);
+                        }
+                    }
+                }
+            }
+        }
+        self.topology.diagram.charge(
+            rows.len()
+                .saturating_mul(rows.len().max(1).ilog2() as usize + 1),
+        )?;
+        let mut rows = rows.into_iter().collect::<Vec<_>>();
+        rows.sort_unstable();
+        Ok(rows)
+    }
+
     /// Try a named-only reduction. Private tags record each source row's exact
     /// combination. An empty residual certifies that named projection is
     /// injective, so each full witness is the unique lift of its named row.
@@ -1584,6 +1648,7 @@ impl GuardedSurfaceSpace {
     fn injective_named_candidates(
         &mut self,
         available: &BooleanRowSpace,
+        source_ids: &[usize],
         unknown: &[&(String, usize)],
         physical_columns: usize,
         first_tag: usize,
@@ -1591,15 +1656,10 @@ impl GuardedSurfaceSpace {
         if self.topology.domain != ONE {
             return Ok(None);
         }
-        self.topology.diagram.charge(
-            available
-                .indexed_slot_count()
-                .saturating_add(available.len()),
-        )?;
-        let mut source_ids = Vec::with_capacity(available.len());
-        let mut skeleton = Vec::with_capacity(available.len());
-        for (id, source) in available.indexed_rows() {
-            source_ids.push(id);
+        self.topology.diagram.charge(source_ids.len())?;
+        let mut skeleton = Vec::with_capacity(source_ids.len());
+        for &id in source_ids {
+            let source = available.row(id).expect("selected row exists");
             skeleton.push(BooleanRow::new(source.active));
         }
         for column in physical_columns..first_tag {
@@ -1610,11 +1670,12 @@ impl GuardedSurfaceSpace {
                     2 + source_ids.len().max(1).ilog2() as usize
                         + source.terms().len().max(1).ilog2() as usize,
                 )?;
-                let position = source_ids.binary_search(&id).expect("source row exists");
-                skeleton[position].set(column, source.get(column));
+                if let Ok(position) = source_ids.binary_search(&id) {
+                    skeleton[position].set(column, source.get(column));
+                }
             }
         }
-        for (row, id) in skeleton.iter_mut().zip(source_ids) {
+        for (row, &id) in skeleton.iter_mut().zip(source_ids) {
             self.topology.diagram.charge(1)?;
             row.set(first_tag + id, ONE);
         }
@@ -2111,7 +2172,7 @@ impl GuardedSurfaceSpace {
                 .diagram
                 .charge(self.local[&target.target.to_array()].len())?;
             let mut value = ZERO;
-            for variant in self.local[&target.target.to_array()].clone() {
+            for variant in &self.local[&target.target.to_array()] {
                 let edge = variant
                     .zx
                     .feedback_edge(target)
@@ -2177,10 +2238,10 @@ impl GuardedSurfaceSpace {
             };
             self.topology.diagram.charge(targets.len())?;
             for target in targets {
-                let variants = self.local[&target.target.to_array()].clone();
+                let variants = &self.local[&target.target.to_array()];
                 self.topology.diagram.charge(variants.len())?;
                 for variant in variants {
-                    let support = self.feedback_support(target, &variant)?;
+                    let support = self.feedback_support(target, variant)?;
                     self.topology.diagram.charge(support.len())?;
                     for column in support {
                         let ordinals = columns.entry(column).or_default();
@@ -2341,6 +2402,63 @@ pub(super) fn materialize_row(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[track_caller]
+    pub(super) fn assert_same_raw_plan(
+        actual: &GuardedSurfaceSpace,
+        expected: &GuardedSurfaceSpace,
+    ) {
+        // Both plans use the same source variable order; compare raw functions
+        // on every assignment, including outside activation and source domain.
+        let mut canonical = expected.topology.diagram.clone();
+        let mut remap = vec![ZERO, ONE];
+        for node in actual.topology.diagram.nodes() {
+            remap.push(
+                canonical
+                    .make_node(node.variable, remap[node.low.0], remap[node.high.0])
+                    .unwrap(),
+            );
+        }
+        assert_eq!(actual.columns, expected.columns);
+        assert_eq!(remap[actual.topology.domain.0], expected.topology.domain);
+        assert_eq!(actual.surfaces.len(), expected.surfaces.len());
+        for (actual, expected) in actual.surfaces.iter().zip(&expected.surfaces) {
+            assert_eq!(remap[actual.row.active.0], expected.row.active);
+            assert_eq!(
+                actual
+                    .row
+                    .terms()
+                    .iter()
+                    .map(|&(column, value)| (column, remap[value.0]))
+                    .collect::<Vec<_>>(),
+                expected.row.terms(),
+                "complete raw witness, including off-domain coefficients"
+            );
+            assert_eq!(
+                actual
+                    .feedbacks
+                    .iter()
+                    .map(|&(ordinal, value)| (ordinal, remap[value.0]))
+                    .collect::<Vec<_>>(),
+                expected.feedbacks
+            );
+            let mut kind = actual.kind.clone();
+            match &mut kind {
+                GuardedSurfaceKind::Readout { folds, .. } => {
+                    for (_, value) in folds {
+                        *value = remap[value.0];
+                    }
+                }
+                GuardedSurfaceKind::OutputFrame { folds, .. } => {
+                    for (_, _, value) in folds {
+                        *value = remap[value.0];
+                    }
+                }
+                GuardedSurfaceKind::LogicalReadout => {}
+            }
+            assert_eq!(kind, expected.kind, "ordered role, label, and folds");
+        }
+    }
 
     #[test]
     fn correlation_columns_are_edges_except_for_isolated_variants() {
@@ -2518,58 +2636,7 @@ mod tests {
             expanded.plan_causal_readouts::<true, false>().unwrap();
             let mut taped = build();
             taped.plan_causal_readouts::<true, true>().unwrap();
-            // Import both BDDs into one canonical arena. This checks every
-            // Boolean assignment, including raw off-activation coefficients.
-            let mut comparison = expanded.topology.diagram.clone();
-            let mut remap = vec![ZERO, ONE];
-            for node in taped.topology.diagram.nodes() {
-                remap.push(
-                    comparison
-                        .make_node(node.variable, remap[node.low.0], remap[node.high.0])
-                        .unwrap(),
-                );
-            }
-            assert_eq!(taped.columns, expanded.columns);
-            assert_eq!(taped.surfaces.len(), expanded.surfaces.len());
-            for (actual, expected) in taped.surfaces.iter().zip(&expanded.surfaces) {
-                assert_eq!(remap[actual.row.active.0], expected.row.active);
-                assert_eq!(
-                    actual
-                        .row
-                        .terms()
-                        .iter()
-                        .map(|&(column, value)| (column, remap[value.0]))
-                        .collect::<Vec<_>>(),
-                    expected.row.terms(),
-                    "raw source/reference witness changed",
-                );
-                assert_eq!(
-                    actual
-                        .feedbacks
-                        .iter()
-                        .map(|&(ordinal, value)| (ordinal, remap[value.0]))
-                        .collect::<Vec<_>>(),
-                    expected.feedbacks,
-                );
-                let mut kind = actual.kind.clone();
-                match &mut kind {
-                    GuardedSurfaceKind::Readout { folds, .. } => {
-                        for (_, value) in folds {
-                            *value = remap[value.0];
-                        }
-                    }
-                    GuardedSurfaceKind::OutputFrame { folds, .. } => {
-                        for (_, _, value) in folds {
-                            *value = remap[value.0];
-                        }
-                    }
-                    GuardedSurfaceKind::LogicalReadout => {}
-                }
-                assert_eq!(
-                    kind, expected.kind,
-                    "reference identity/activation folds changed"
-                );
-            }
+            assert_same_raw_plan(&taped, &expanded);
         }
     }
 
@@ -3237,23 +3304,6 @@ mod tests {
     }
 
     fn assert_injective_named_lift_matches_full_causal_adder_rows(bits: usize) {
-        use bloq_utils::boolean::BooleanDecisionDiagram;
-
-        fn import(
-            source: &BooleanDecisionDiagram,
-            target: &mut BooleanDecisionDiagram,
-        ) -> Vec<DecisionId> {
-            let mut roots = vec![ZERO, ONE];
-            for node in source.nodes() {
-                roots.push(
-                    target
-                        .make_node(node.variable, roots[node.low.0], roots[node.high.0])
-                        .unwrap(),
-                );
-            }
-            roots
-        }
-
         // The fixture crate depends on this crate; a BLOG round trip
         // brings its program into this test's crate instance.
         let source = bloq_test::benchmark::controlled_adder(bits);
@@ -3277,71 +3327,9 @@ mod tests {
         expected
             .plan_causal_readouts_with_fast_path::<true, true, false>()
             .unwrap();
-        let actual_rows = actual
-            .surfaces
-            .iter()
-            .filter(|surface| matches!(surface.kind, GuardedSurfaceKind::Readout { .. }))
-            .collect::<Vec<_>>();
-        let expected_rows = expected
-            .surfaces
-            .iter()
-            .filter(|surface| matches!(surface.kind, GuardedSurfaceKind::Readout { .. }))
-            .collect::<Vec<_>>();
-        assert_eq!(actual_rows.len(), expected_rows.len(), "{bits} bits");
-        let mut diagram = BooleanDecisionDiagram::default();
-        let actual_roots = import(&actual.topology.diagram, &mut diagram);
-        let expected_roots = import(&expected.topology.diagram, &mut diagram);
         assert_eq!(actual.topology.domain, ONE, "{bits} bits");
         assert_eq!(expected.topology.domain, ONE, "{bits} bits");
-        for (actual, expected) in actual_rows.into_iter().zip(expected_rows) {
-            let (
-                GuardedSurfaceKind::Readout { name, folds },
-                GuardedSurfaceKind::Readout {
-                    name: expected_name,
-                    folds: expected_folds,
-                },
-            ) = (&actual.kind, &expected.kind)
-            else {
-                unreachable!()
-            };
-            assert_eq!(name, expected_name, "{bits} bits");
-            let mut same = |a: DecisionId, b: DecisionId, label: &str| {
-                let delta = diagram
-                    .apply(BooleanOp::Xor, actual_roots[a.0], expected_roots[b.0])
-                    .unwrap();
-                assert_eq!(delta, ZERO, "{bits} bits, {name}, {label}");
-            };
-            same(actual.row.active, expected.row.active, "activation");
-            for &(column, _) in actual.row.terms().iter().chain(expected.row.terms()) {
-                same(
-                    actual.row.get(column),
-                    expected.row.get(column),
-                    "raw row coefficient",
-                );
-            }
-            let folds = folds.iter().cloned().collect::<BTreeMap<_, _>>();
-            let expected_folds = expected_folds.iter().cloned().collect::<BTreeMap<_, _>>();
-            for name in folds.keys().chain(expected_folds.keys()) {
-                same(
-                    folds.get(name).copied().unwrap_or(ZERO),
-                    expected_folds.get(name).copied().unwrap_or(ZERO),
-                    "fold",
-                );
-            }
-            let feedbacks = actual.feedbacks.iter().copied().collect::<BTreeMap<_, _>>();
-            let expected_feedbacks = expected
-                .feedbacks
-                .iter()
-                .copied()
-                .collect::<BTreeMap<_, _>>();
-            for ordinal in feedbacks.keys().chain(expected_feedbacks.keys()) {
-                same(
-                    feedbacks.get(ordinal).copied().unwrap_or(ZERO),
-                    expected_feedbacks.get(ordinal).copied().unwrap_or(ZERO),
-                    "feedback",
-                );
-            }
-        }
+        assert_same_raw_plan(&actual, &expected);
     }
 
     #[test]
@@ -3382,7 +3370,7 @@ mod tests {
         )
         .unwrap();
         let fast = space
-            .injective_named_candidates(&guarded, &unknown, 2, 3)
+            .injective_named_candidates(&guarded, &[0, 1], &unknown, 2, 3)
             .unwrap()
             .unwrap()
             .remove(0)
@@ -3407,7 +3395,7 @@ mod tests {
         .unwrap();
         assert!(
             space
-                .injective_named_candidates(&kernel, &unknown, 2, 3)
+                .injective_named_candidates(&kernel, &[0, 1], &unknown, 2, 3)
                 .unwrap()
                 .is_none()
         );
@@ -3416,7 +3404,7 @@ mod tests {
         space.topology.diagram.charge(remaining - 7).unwrap();
         let before = space.topology.diagram.steps();
         assert!(matches!(
-            space.injective_named_candidates(&kernel, &unknown, 2, 3),
+            space.injective_named_candidates(&kernel, &[0, 1], &unknown, 2, 3),
             Err(BooleanResourceError {
                 resource: "Boolean work steps",
                 ..
