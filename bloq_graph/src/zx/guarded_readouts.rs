@@ -393,7 +393,8 @@ impl GuardedReadoutPlan {
     }
 
     /// Representative source query and supported sites of one shared fragment.
-    /// Global signs and corrected-parity folds remain on the complete query.
+    /// Corrected-parity folds remain on the complete query; physical binding
+    /// supplies any gateway transport offsets.
     ///
     /// # Panics
     ///

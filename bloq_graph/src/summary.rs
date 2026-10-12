@@ -14,8 +14,8 @@ use crate::zx::{FlowWitness, ProjectionLimits, ZXGraph};
 use crate::{
     Basis, Block, BlockGraph, BlockKind, Direction, InstancePort, ModuleCertificationError,
     ModuleCertificationLimits, ModuleError, ModuleInstance, ModuleOrientation, Pauli, PauliString,
-    PhasedPauliString, Pipe, QuantumConnection, QuantumPort, Stabilizer, StabilizerGenerators,
-    UDirection, checked_add_position,
+    PhasedPauliString, Pipe, QuantumConnection, QuantumPort, StabilizerGenerators, UDirection,
+    checked_add_position,
 };
 
 /// Geometry and basis data recorded when a module Port is removed.
@@ -180,7 +180,8 @@ pub struct ModuleSummary {
     prepared: Arc<PreparedModuleRelations>,
     dependencies: HashMap<String, Arc<ModuleSummary>>,
     ports: Vec<QuantumPort>,
-    rows: Vec<SupportedRow>,
+    /// Public boundary rows precede the closed rows in the complete certificate.
+    boundary_len: usize,
     /// Complete signed rows retain boundary-zero support and exact local witnesses.
     certificate_rows: Vec<SupportedRow>,
     projection: Option<Box<ModuleProjection>>,
@@ -244,7 +245,9 @@ impl ModuleSummary {
 
     /// Iterates over signed public boundary relations.
     pub fn boundary_rows(&self) -> impl ExactSizeIterator<Item = &PhasedPauliString> {
-        self.rows.iter().map(|row| &row.signed)
+        self.certificate_rows[..self.boundary_len]
+            .iter()
+            .map(|row| &row.signed)
     }
 
     /// Materialize and present the complete composed certificate without
@@ -394,8 +397,8 @@ impl ModuleSummary {
             .certificate_rows
             .iter()
             .map(|row| {
-                let stabilizer = materialize_summary_row(
-                    &row.signed,
+                let paulis = materialize_summary_row(
+                    &row.signed.paulis,
                     &row.support,
                     &self.ports,
                     zx,
@@ -403,8 +406,6 @@ impl ModuleSummary {
                     offset,
                     &self.name,
                 )?;
-                let mut paulis = stabilizer.paulis;
-                zx.clear_cross_centers(std::slice::from_mut(&mut paulis));
                 let witness = row
                     .witness
                     .transformed(orientation, offset)
@@ -426,7 +427,7 @@ impl ModuleSummary {
                         "composed certificate witness does not reproduce its positioned support",
                     ));
                 }
-                Ok(PhasedPauliString::new(paulis, witnessed.phase()))
+                Ok(witnessed)
             })
             .collect::<Result<Vec<_>, ModuleCertificationError>>()?;
         zx.stabilizers_from_composed_basis(&external_basis, self.limits)
@@ -453,14 +454,14 @@ impl ModuleSummary {
 }
 
 fn materialize_summary_row(
-    signed: &PhasedPauliString,
+    boundary: &PauliString,
     support: &PositionedSupport,
     ports: &[QuantumPort],
     zx: &ZXGraph,
     orientation: ModuleOrientation,
     translation: IVec3,
     module: &str,
-) -> Result<Stabilizer, ModuleCertificationError> {
+) -> Result<PauliString, ModuleCertificationError> {
     let mut support = support
         .transformed(orientation, translation)
         .map_err(|source| ModuleCertificationError::Graph {
@@ -468,7 +469,7 @@ fn materialize_summary_row(
             source,
         })?;
     for (column, port) in ports.iter().enumerate() {
-        let pauli = signed.paulis.get(column);
+        let pauli = boundary.get(column);
         if pauli == Pauli::I {
             continue;
         }
@@ -489,7 +490,7 @@ fn materialize_summary_row(
             ));
         }
     }
-    support.materialize(zx, signed.phase()).ok_or_else(|| {
+    support.materialize(zx).ok_or_else(|| {
         invalid(
             module,
             "composed certificate support does not fit the linked graph",
@@ -521,27 +522,30 @@ struct PositionedSupport {
 }
 
 impl PositionedSupport {
-    fn from_stabilizer(stabilizer: &Stabilizer, zx: &ZXGraph) -> Self {
+    fn from_paulis(mut paulis: PauliString, zx: &ZXGraph) -> Self {
         // Cross centers are ORs of incident support, not independent GF(2) bits.
-        // Keep raw support through composition and reconstruct at materialization.
-        let mut raw = stabilizer.paulis.clone();
-        zx.clear_cross_centers(std::slice::from_mut(&mut raw));
-        Self {
-            nodes: stabilizer
-                .interior_nodes
-                .iter()
-                .filter(|(position, _)| !stabilizer.port_stabilizer.contains_key(position))
-                .filter_map(|(&p, _)| {
-                    let pauli = raw.get(zx.node_at(p).expect("surface node exists").id);
-                    (pauli != Pauli::I).then_some((p, pauli))
-                })
-                .collect(),
-            edges: stabilizer
-                .interior_edges
-                .iter()
-                .map(|(&edge, &pauli)| (edge, pauli))
-                .collect(),
+        zx.clear_cross_centers(std::slice::from_mut(&mut paulis));
+        let mut support = Self::default();
+        for (column, pauli) in paulis.iter_support() {
+            if column < zx.nodes().len() {
+                let node = zx.nodes()[column];
+                if !node.kind.is_port() {
+                    support.nodes.insert(node.pos, pauli);
+                }
+            } else {
+                let edge = zx.edges()[column - zx.nodes().len()];
+                if edge.n1 <= edge.n2 {
+                    debug_assert_eq!(
+                        pauli,
+                        paulis.get(zx.edge_id(edge.n2, edge.n1).expect("paired edge"))
+                    );
+                    support
+                        .edges
+                        .insert((zx.nodes()[edge.n1].pos, zx.nodes()[edge.n2].pos), pauli);
+                }
+            }
         }
+        support
     }
 
     fn transformed(
@@ -564,7 +568,7 @@ impl PositionedSupport {
         })
     }
 
-    fn materialize(&self, zx: &ZXGraph, mut phase: u8) -> Option<Stabilizer> {
+    fn materialize(&self, zx: &ZXGraph) -> Option<PauliString> {
         let mut row = PauliString::new(zx.total_ids());
         for (&position, &pauli) in &self.nodes {
             row.set(zx.node_at(position)?.id, pauli);
@@ -577,9 +581,6 @@ impl PositionedSupport {
             let edge = &zx.edges()[forward - zx.nodes().len()];
             let mut stored = pauli_at_source;
             if source_id > target_id && edge.hadamard {
-                if stored == Pauli::Y {
-                    phase = (phase + 2) % 4;
-                }
                 stored = stored.flip();
             }
             row.set(forward, stored);
@@ -587,8 +588,8 @@ impl PositionedSupport {
         }
         // A spatial rotation can recolor a degree-two identity spider, changing
         // which component was stored as raw node support. Recover its native
-        // component from the broadcast on all incident arms before rebuilding
-        // crossing centers. Isolated nodes retain their explicit raw support.
+        // component from the broadcast on all incident arms. Isolated nodes
+        // retain their explicit raw support.
         for node in zx
             .nodes()
             .iter()
@@ -615,21 +616,10 @@ impl PositionedSupport {
                 row.set(node.id, current ^ native);
             }
         }
-        zx.reconstruct_cross_center(std::slice::from_mut(&mut row));
-        Some(zx.pauli_string_to_stabilizer_with_row_phase(row, phase))
+        // Witness replay owns the phase, including changes of endpoint frame.
+        zx.clear_cross_centers(std::slice::from_mut(&mut row));
+        Some(row)
     }
-}
-
-#[cfg(test)]
-fn stabilizer_phase(stabilizer: &Stabilizer) -> u8 {
-    let yy = stabilizer
-        .interior_edges
-        .values()
-        .filter(|&&pauli| pauli == Pauli::Y)
-        .count()
-        % 2
-        == 1;
-    2 * u8::from(stabilizer.sign ^ yy)
 }
 
 #[derive(Clone)]
@@ -1371,28 +1361,22 @@ fn summarize_space_view(
                 "composed relation has invalid local tensor support",
             )
         })?;
-    let rows = table
+    let mut certificate_rows = table
         .boundary_rows
         .iter()
         .map(|row| {
             let full = table.materialize(row);
             SupportedRow {
                 signed: row.signed.clone(),
-                support: PositionedSupport::from_stabilizer(
-                    &zx.materialize_stabilizer_with_sign(full.paulis, false),
-                    &zx,
-                ),
+                support: PositionedSupport::from_paulis(full.paulis, &zx),
                 witness: row.flow_witness.clone(),
             }
         })
         .collect::<Vec<_>>();
-    let mut certificate_rows = rows.clone();
+    let boundary_len = certificate_rows.len();
     certificate_rows.extend(table.closed_rows.iter().map(|row| SupportedRow {
         signed: PhasedPauliString::new(PauliString::new(columns.len()), row.signed.phase()),
-        support: PositionedSupport::from_stabilizer(
-            &zx.materialize_stabilizer_with_sign(row.signed.paulis.clone(), false),
-            &zx,
-        ),
+        support: PositionedSupport::from_paulis(row.signed.paulis.clone(), &zx),
         witness: row.flow_witness.clone(),
     }));
     Ok(ModuleSummary {
@@ -1401,7 +1385,7 @@ fn summarize_space_view(
         prepared: Arc::clone(prepared),
         dependencies: HashMap::new(),
         ports: module.interface.quantum_ports.clone(),
-        rows,
+        boundary_len,
         certificate_rows,
         projection: None,
     })
@@ -2095,6 +2079,7 @@ mod certificate_tests {
 
     #[test]
     fn leaf_certificate_preserves_signed_rows() {
+        let mut phases = FxHashSet::default();
         for item in [
             GalleryItem::CCZInjectedAnd,
             GalleryItem::CCZInjectedMaj,
@@ -2107,8 +2092,8 @@ mod certificate_tests {
             let graph = program.materialize_root_graph().unwrap();
             let zx = ZXGraph::try_from(&graph).unwrap();
             for row in &summary.certificate_rows {
-                let stabilizer = materialize_summary_row(
-                    &row.signed,
+                let paulis = materialize_summary_row(
+                    &row.signed.paulis,
                     &row.support,
                     &summary.ports,
                     &zx,
@@ -2117,13 +2102,14 @@ mod certificate_tests {
                     summary.name(),
                 )
                 .unwrap();
-                let mut paulis = stabilizer.paulis.clone();
-                zx.clear_cross_centers(std::slice::from_mut(&mut paulis));
+                let witnessed = zx.materialize_flow_witness(&row.witness, &paulis).unwrap();
+                assert_eq!(witnessed.phase(), row.signed.phase(), "{item:?} witness");
                 assert_eq!(
-                    stabilizer_phase(&stabilizer),
+                    witnessed.phase(),
                     zx.external_stabilizer_row_phases(&[paulis])[0],
                     "{item:?} certificate"
                 );
+                phases.insert(witnessed.phase());
             }
             let composed = summary.materialize_stabilizers(&zx, IVec3::ZERO).unwrap();
             let flat = graph.analyze_actions().unwrap().1;
@@ -2134,6 +2120,7 @@ mod certificate_tests {
                 assert_eq!(composed.stabilizer.sign, flat.stabilizer.sign);
             }
         }
+        assert_eq!(phases, FxHashSet::from_iter([0, 2]));
     }
 
     #[test]
@@ -2185,8 +2172,8 @@ mod certificate_tests {
             .certificate_rows
             .iter()
             .map(|row| {
-                let stabilizer = materialize_summary_row(
-                    &row.signed,
+                materialize_summary_row(
+                    &row.signed.paulis,
                     &row.support,
                     &summary.ports,
                     &zx,
@@ -2194,10 +2181,7 @@ mod certificate_tests {
                     offset,
                     summary.name(),
                 )
-                .unwrap();
-                let mut paulis = stabilizer.paulis;
-                zx.clear_cross_centers(std::slice::from_mut(&mut paulis));
-                paulis
+                .unwrap()
             })
             .collect::<Vec<_>>();
         let flat = zx.to_external_generator_table();
