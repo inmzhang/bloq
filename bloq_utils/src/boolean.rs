@@ -787,7 +787,7 @@ impl RowWitnessTape {
         // Parents are newer than children. Coalesce every path's scale before
         // visiting a shared child; never materialize intermediate witness rows.
         let mut pending = BTreeMap::from([(root, DECISION_TRUE)]);
-        let mut result = BTreeMap::<usize, DecisionId>::new();
+        let mut result = FxHashMap::<usize, DecisionId>::default();
         while let Some((id, weight)) = pending.pop_last() {
             diagram.charge(1)?;
             if weight == DECISION_FALSE {
@@ -862,6 +862,12 @@ impl RowWitnessTape {
                 .into_iter()
                 .filter(|(_, value)| *value != DECISION_FALSE),
         );
+        diagram.charge(
+            terms
+                .len()
+                .saturating_mul(terms.len().max(1).ilog2() as usize + 1),
+        )?;
+        terms.sort_unstable_by_key(|&(column, _)| column);
         Ok(terms)
     }
 
