@@ -4,7 +4,6 @@
 //! ([`Pauli`], [`PauliBasis`], [`PauliString`], [`PhasedPauliString`]), basis types ([`Basis`]),
 //! spatial directions ([`Direction`], [`UDirection`]), and block-graph colors
 //! ([`RGBA`]).
-//! [`qasm`] parses a small OpenQASM subset into engine-independent instructions.
 //!
 //! This crate owns no quantum engine. Graph verification uses QuiZX, while
 //! compiled-circuit execution uses `ticit`; both stay in their owning crates.
@@ -15,7 +14,6 @@ mod dir;
 pub mod graph_layout;
 mod pauli;
 mod port;
-pub mod qasm;
 
 pub use color::RGBA;
 pub use dir::{Direction, DirectionParseError, UDirection};

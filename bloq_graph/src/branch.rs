@@ -909,8 +909,7 @@ fn controlling_measurements<'a>(condition: &'a Expr, actions: &'a [Action]) -> V
             _ => None,
         })
         .collect::<HashMap<_, _>>();
-    let mut names = Vec::new();
-    collect_expr_names(condition, &mut names);
+    let mut names: Vec<_> = condition.names().collect();
     let mut seen = HashSet::new();
     let mut measurements = Vec::new();
     while let Some(name) = names.pop() {
@@ -919,22 +918,11 @@ fn controlling_measurements<'a>(condition: &'a Expr, actions: &'a [Action]) -> V
         }
         match definitions.get(name).copied() {
             Some(Action::Measure { target, .. }) => measurements.push(*target),
-            Some(Action::Let { expr, .. }) => collect_expr_names(expr, &mut names),
+            Some(Action::Let { expr, .. }) => names.extend(expr.names()),
             _ => {}
         }
     }
     measurements
-}
-
-fn collect_expr_names<'a>(expr: &'a Expr, names: &mut Vec<&'a str>) {
-    match expr {
-        Expr::Var(name) => names.push(name),
-        Expr::Not(inner) => collect_expr_names(inner, names),
-        Expr::Binary(_, lhs, rhs) => {
-            collect_expr_names(lhs, names);
-            collect_expr_names(rhs, names);
-        }
-    }
 }
 
 fn measurement_touches_region(

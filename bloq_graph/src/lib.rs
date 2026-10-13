@@ -41,10 +41,6 @@ mod summary;
 pub(crate) mod validate;
 #[cfg(feature = "verify")]
 pub mod verify;
-#[cfg(feature = "verify")]
-pub use verify::feedback::{
-    FeedbackInferenceError, FeedbackOptions, infer_feedback, infer_feedback_with,
-};
 mod zx;
 
 pub use action::{Action, BinaryOp, Expr, FeedbackTarget, MeasureTarget};

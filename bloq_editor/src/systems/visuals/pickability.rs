@@ -239,35 +239,21 @@ pub(super) fn add_block_preview_system(
         {
             let endpoint_pos = match endpoint.endpoint {
                 PreviewEndpoint::Start => Some(start),
-                PreviewEndpoint::End if editor_state.block_kind.is_patch_rotation() => {
-                    editor_state.hovered_grid_pos.filter(|pos| {
-                        patch_rotation_candidate_kind(&editor_state, &graph_state.graph, *pos)
-                            .is_some()
-                    })
-                }
                 PreviewEndpoint::End => editor_state.hovered_grid_pos.filter(|pos| {
-                    walking_candidate_kind(&editor_state, &graph_state.graph, *pos).is_some()
+                    moving_block_candidate_kind(&editor_state, &graph_state.graph, *pos).is_some()
                 }),
                 PreviewEndpoint::PipeHint(_) => None,
-                PreviewEndpoint::WalkingHint(index)
-                    if editor_state.block_kind.is_patch_rotation() =>
-                {
-                    PATCH_ROTATION_MOVEMENTS
+                PreviewEndpoint::WalkingHint(index) => {
+                    moving_block_movements(editor_state.block_kind)
                         .get(index)
                         .and_then(|movement| {
                             start.checked_add(IVec3::new(movement.x, movement.y, 1))
                         })
                         .filter(|pos| {
-                            patch_rotation_candidate_kind(&editor_state, &graph_state.graph, *pos)
+                            moving_block_candidate_kind(&editor_state, &graph_state.graph, *pos)
                                 .is_some()
                         })
                 }
-                PreviewEndpoint::WalkingHint(index) => WALKING_MOVEMENTS
-                    .get(index)
-                    .and_then(|movement| start.checked_add(IVec3::new(movement.x, movement.y, 1)))
-                    .filter(|pos| {
-                        walking_candidate_kind(&editor_state, &graph_state.graph, *pos).is_some()
-                    }),
             };
             let Some(endpoint_pos) = endpoint_pos else {
                 continue;
@@ -295,38 +281,18 @@ pub(super) fn add_block_preview_system(
         && editor_state.hovered_element.is_none()
         && let Some(pos) = editor_state.hovered_grid_pos
     {
-        if editor_state.block_kind.is_walking() && editor_state.walking_start.is_none() {
-            if !walking_start_has_candidate(&editor_state, &graph_state.graph, pos) {
-                set_visibility_if_changed(&mut vis, Visibility::Hidden);
-                return;
-            }
-            set_visibility_if_changed(&mut vis, Visibility::Inherited);
-            set_transform_if_changed(
-                &mut transform,
-                Transform::from_translation(graph_to_world(
-                    pos.as_vec3(),
-                    editor_state.pipe_length,
-                )),
-            );
-            return;
-        }
-        if editor_state.block_kind.is_patch_rotation() && editor_state.walking_start.is_none() {
-            if !patch_rotation_start_has_candidate(&editor_state, &graph_state.graph, pos) {
-                set_visibility_if_changed(&mut vis, Visibility::Hidden);
-                return;
-            }
-            set_visibility_if_changed(&mut vis, Visibility::Inherited);
-            set_transform_if_changed(
-                &mut transform,
-                Transform::from_translation(graph_to_world(
-                    pos.as_vec3(),
-                    editor_state.pipe_length,
-                )),
-            );
-            return;
-        }
-        let block = Block::new(pos, editor_state.block_kind);
-        if graph_state.graph.can_place_block(&block).is_err() {
+        let can_place = if (editor_state.block_kind.is_walking()
+            || editor_state.block_kind.is_patch_rotation())
+            && editor_state.walking_start.is_none()
+        {
+            moving_block_start_has_candidate(&editor_state, &graph_state.graph, pos)
+        } else {
+            graph_state
+                .graph
+                .can_place_block(&Block::new(pos, editor_state.block_kind))
+                .is_ok()
+        };
+        if !can_place {
             set_visibility_if_changed(&mut vis, Visibility::Hidden);
             return;
         }

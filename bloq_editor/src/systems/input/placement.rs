@@ -20,55 +20,63 @@ pub(super) fn place_single_block(
     }
 }
 
-pub(super) fn place_walking_click(
+pub(super) fn place_moving_block_click(
     pos: IVec3,
     editor_state: &mut EditorState,
     graph_state: &mut GraphState,
     notifications: &mut Notifications,
 ) {
-    let BlockKind::Walking(selected_kind) = editor_state.block_kind else {
-        return;
+    let (name, title, step) = match editor_state.block_kind {
+        BlockKind::Walking(_) => ("walking", "Walking", "one spatial step"),
+        BlockKind::PatchRotation(_) => (
+            "patch rotation",
+            "Patch rotation",
+            "one cardinal spatial step",
+        ),
+        _ => return,
     };
 
     if let Some(start) = editor_state.walking_start {
         if start == pos {
             editor_state.walking_start = None;
-            notifications.push_info("Cancelled walking placement");
+            notifications.push_info(format!("Cancelled {name} placement"));
             return;
         }
-        let movement = movement_between(start, pos, &WALKING_MOVEMENTS);
+        let movement =
+            movement_between(start, pos, moving_block_movements(editor_state.block_kind));
         let Some(movement) = movement else {
-            notifications
-                .push_warn("Walking end must be on the next time layer within one spatial step");
+            notifications.push_warn(format!(
+                "{title} end must be on the next time layer within {step}"
+            ));
             return;
         };
         // The movement table and the constructor's rules live in separate
         // modules; degrade to a toast instead of crashing if they drift.
-        let walking_kind = match WalkingKind::new(selected_kind.boundary(), movement) {
+        let kind = match moving_block_kind(editor_state.block_kind, movement) {
             Ok(kind) => kind,
             Err(err) => {
-                notifications.push_error(format!("Cannot place walking block: {err}"));
+                notifications.push_error(format!("Cannot place {name} block: {err}"));
                 return;
             }
         };
-        let block = Block::new(start, BlockKind::Walking(walking_kind));
+        let block = Block::new(start, kind);
         match graph_state.graph.try_add_block(block) {
             Ok(_) => {
                 graph_state.commit();
                 editor_state.walking_start = None;
                 editor_state.sync_after_graph_edit(graph_state);
-                notifications.push_info(format!("Added walking block from {start} to {pos}"));
+                notifications.push_info(format!("Added {name} block from {start} to {pos}"));
             }
             Err(err) => {
-                notifications.push_error(format!("Failed to add walking block: {err}"));
+                notifications.push_error(format!("Failed to add {name} block: {err}"));
             }
         }
         return;
     }
 
-    if !walking_start_has_candidate(editor_state, &graph_state.graph, pos) {
+    if !moving_block_start_has_candidate(editor_state, &graph_state.graph, pos) {
         notifications.push_error(format!(
-            "Cannot start walking block at occupied position {pos}"
+            "Cannot start {name} block at occupied position {pos}"
         ));
         return;
     }
@@ -76,69 +84,7 @@ pub(super) fn place_walking_click(
     editor_state.plane_height = pos.z + 1;
     graph_state.needs_rerender = true;
     notifications.push_info(format!(
-        "Walking start set at {pos}; choose a highlighted end on z={}",
-        pos.z + 1
-    ));
-}
-
-pub(super) fn place_patch_rotation_click(
-    pos: IVec3,
-    editor_state: &mut EditorState,
-    graph_state: &mut GraphState,
-    notifications: &mut Notifications,
-) {
-    let BlockKind::PatchRotation(selected_kind) = editor_state.block_kind else {
-        return;
-    };
-
-    if let Some(start) = editor_state.walking_start {
-        if start == pos {
-            editor_state.walking_start = None;
-            notifications.push_info("Cancelled patch rotation placement");
-            return;
-        }
-        let movement = movement_between(start, pos, &PATCH_ROTATION_MOVEMENTS);
-        let Some(movement) = movement else {
-            notifications.push_warn(
-                "Patch rotation end must be on the next time layer within one cardinal spatial step",
-            );
-            return;
-        };
-        // Same table/constructor drift guard as in `place_walking_click`.
-        let kind = match PatchRotationKind::new(selected_kind.basis(), movement) {
-            Ok(kind) => kind,
-            Err(err) => {
-                notifications.push_error(format!("Cannot place patch rotation block: {err}"));
-                return;
-            }
-        };
-        let block = Block::new(start, BlockKind::PatchRotation(kind));
-        match graph_state.graph.try_add_block(block) {
-            Ok(_) => {
-                graph_state.commit();
-                editor_state.walking_start = None;
-                editor_state.sync_after_graph_edit(graph_state);
-                notifications
-                    .push_info(format!("Added patch rotation block from {start} to {pos}"));
-            }
-            Err(err) => {
-                notifications.push_error(format!("Failed to add patch rotation block: {err}"));
-            }
-        }
-        return;
-    }
-
-    if !patch_rotation_start_has_candidate(editor_state, &graph_state.graph, pos) {
-        notifications.push_error(format!(
-            "Cannot start patch rotation block at occupied position {pos}"
-        ));
-        return;
-    }
-    editor_state.walking_start = Some(pos);
-    editor_state.plane_height = pos.z + 1;
-    graph_state.needs_rerender = true;
-    notifications.push_info(format!(
-        "Patch rotation start set at {pos}; choose a highlighted end on z={}",
+        "{title} start set at {pos}; choose a highlighted end on z={}",
         pos.z + 1
     ));
 }

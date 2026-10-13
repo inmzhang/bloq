@@ -13,9 +13,7 @@
 mod correction;
 mod diagram;
 mod error;
-pub(crate) mod feedback;
 mod parity;
-mod qasm;
 mod replay;
 
 pub use diagram::{
@@ -24,5 +22,4 @@ pub use diagram::{
 };
 pub use error::VerifyLogicalError;
 pub(crate) use parity::{MeasurementKey, stabilizer_supports_measurement};
-pub use qasm::{QasmError, parse_qasm};
 pub(crate) use replay::{replay_fill, solve_evolved_correction};

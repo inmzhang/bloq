@@ -366,15 +366,6 @@ impl RuntimeStabilizerBasis {
             .collect()
     }
 
-    /// All resolved rows, including zero-output and private directions.
-    #[cfg(feature = "verify")]
-    pub(crate) fn resolved_surfaces(&self) -> Vec<Stabilizer> {
-        self.rows
-            .iter()
-            .map(|row| self.zx_graph.materialize_stabilizer(row.clone()))
-            .collect()
-    }
-
     /// Consumes this basis while deriving output corrections, moving its dense
     /// rows and provenance into the solve instead of cloning them.
     ///

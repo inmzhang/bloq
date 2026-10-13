@@ -7,14 +7,12 @@
 //! the recorded looped template (`first round + REPEAT r`), giving the program
 //! a genuine repeat body with loop-carried detector state.
 
-use bloq_compile::{CompileConfig, CompileContext};
-use bloq_graph::BlockGraph;
-use bloq_ir::{Bloq, BloqEdge, BloqNodeId, LevelPath, MemoryRoundTarget};
-use bloq_stim::{emit_bloq_stim, emit_bloq_stim_with_stim_noise};
+use bloq_ir::{Bloq, LevelPath, MemoryRoundTarget};
+use bloq_stim::emit_bloq_stim;
 use stim::Circuit;
 
 mod common;
-use common::uniform_depolarizing;
+use common::{compile_two_cubes, noisy_graphlike_distance, quantum_seam};
 
 const DISTANCE: u32 = 3;
 /// Enough wait rounds that the emitter keeps a `REPEAT` block instead of
@@ -23,12 +21,7 @@ const WAIT_ROUNDS: u32 = 5;
 
 /// Two ZXZ cubes stacked in time, with a decoder wait spliced into the seam.
 fn compile_waiting_two_cubes() -> Bloq {
-    let graph = BlockGraph::from_blog_text(
-        "BLOG 1.0\n\n  0: ZXZ [0,0,0]\n  1: ZXZ [0,0,1]\n  [0,0,0] -> +Z\n",
-    )
-    .expect("two-cube memory graph parses");
-    let ctx = CompileContext::new(CompileConfig::new(DISTANCE));
-    let mut bloq = ctx.compile(&graph).expect("two-cube graph compiles").bloq;
+    let mut bloq = compile_two_cubes(DISTANCE);
     let (from, to) = quantum_seam(&bloq);
     bloq.insert_memory_rounds(
         MemoryRoundTarget::Edge {
@@ -40,30 +33,6 @@ fn compile_waiting_two_cubes() -> Bloq {
     )
     .expect("decoder-wait insertion verifies and applies");
     bloq
-}
-
-/// The program's single `Quantum` edge.
-fn quantum_seam(bloq: &Bloq) -> (BloqNodeId, BloqNodeId) {
-    let mut seams = bloq.edges().filter_map(|edge| {
-        let BloqEdge::Quantum(quantum) = edge.edge else {
-            return None;
-        };
-        let [_seam] = quantum.pipes.as_slice() else {
-            panic!("two-cube seam carries exactly one pipe");
-        };
-        Some((edge.source, edge.target))
-    });
-    let seam = seams.next().expect("two-cube program has a Quantum seam");
-    assert!(seams.next().is_none(), "exactly one Quantum seam expected");
-    seam
-}
-
-fn noisy_graphlike_distance(bloq: &Bloq) -> usize {
-    let noisy: Circuit = emit_bloq_stim_with_stim_noise(bloq, &uniform_depolarizing())
-        .expect("emit noisy Stim")
-        .parse()
-        .expect("parse noisy Stim");
-    common::graphlike_distance(&noisy).expect("detectors are deterministic and graphlike")
 }
 
 #[test]

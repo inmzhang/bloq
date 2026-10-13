@@ -115,14 +115,11 @@ impl_from! {
     bloq_stim::StimEmissionError,
     bloq_utils::DirectionParseError,
     bloq_utils::PauliError,
-    bloq_utils::qasm::QasmError,
     bloq_utils::boolean::BooleanResourceError,
     strum::ParseError,
     std::io::Error,
     #[cfg(feature = "graph-verify")]
     bloq_graph::verify::VerifyLogicalError,
-    #[cfg(feature = "graph-verify")]
-    bloq_graph::FeedbackInferenceError,
     #[cfg(feature = "verify")]
     bloq_stim::StimVerifyError,
     #[cfg(feature = "verify")]

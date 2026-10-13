@@ -893,7 +893,7 @@ pub fn prune_unused_input(root: &mut BlockGraph, source: &BitRef) -> Result<(), 
             .interface
             .bit_outputs
             .iter()
-            .any(|output| expr_uses(&output.expr, &source.bit))
+            .any(|output| output.expr.names().any(|name| name == source.bit))
     {
         let inputs = root
             .action_graph()
@@ -905,14 +905,6 @@ pub fn prune_unused_input(root: &mut BlockGraph, source: &BitRef) -> Result<(), 
         root.interface.bit_inputs.retain(|name| name != &source.bit);
     }
     Ok(())
-}
-
-fn expr_uses(expr: &Expr, name: &str) -> bool {
-    match expr {
-        Expr::Var(value) => value == name,
-        Expr::Not(value) => expr_uses(value, name),
-        Expr::Binary(_, a, b) => expr_uses(a, name) || expr_uses(b, name),
-    }
 }
 
 #[cfg(test)]

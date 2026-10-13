@@ -2222,9 +2222,9 @@ fn validate_bits(
         .collect::<HashSet<_>>();
 
     for output in &module.interface.bit_outputs {
-        for name in expr_names(&output.expr) {
+        for name in output.expr.names().collect::<BTreeSet<_>>() {
             validate_bit_ref(
-                &name,
+                name,
                 &bit_inputs,
                 &local_actions,
                 definitions,
@@ -2480,10 +2480,10 @@ fn module_bit_dependencies(
         let action = action_node(node.ordinal);
         dependencies.insert(
             action.clone(),
-            action_expression(&node.action)
-                .map(expr_names)
-                .unwrap_or_default()
+            node.action
+                .referenced_names()
                 .into_iter()
+                .map(str::to_owned)
                 .collect(),
         );
         if let Action::Let { name, .. } | Action::Measure { name, .. } = &node.action {
@@ -2499,7 +2499,7 @@ fn module_bit_dependencies(
     for output in &module.interface.bit_outputs {
         dependencies.insert(
             output_node(&output.name),
-            expr_names(&output.expr).into_iter().collect(),
+            output.expr.names().map(str::to_owned).collect(),
         );
     }
     for instance in &module.instances {
@@ -2579,15 +2579,6 @@ fn action_node(ordinal: usize) -> String {
     format!("@action:{ordinal}")
 }
 
-fn action_expression(action: &Action) -> Option<&Expr> {
-    match action {
-        Action::Let { expr, .. } | Action::DiscardIf(expr) => Some(expr),
-        Action::Resolve { condition, .. } | Action::Branch { condition, .. } => Some(condition),
-        Action::Feedback { condition, .. } => condition.as_ref(),
-        Action::Measure { .. } => None,
-    }
-}
-
 fn dependency_cycle(
     node: &str,
     dependencies: &BitDependencies,
@@ -2633,24 +2624,6 @@ fn collect_input_dependencies(
             collect_input_dependencies(dependency, dependencies, inputs, seen, found);
         }
     }
-}
-
-fn expr_names(expr: &Expr) -> BTreeSet<String> {
-    fn collect(expr: &Expr, names: &mut BTreeSet<String>) {
-        match expr {
-            Expr::Var(name) => {
-                names.insert(name.clone());
-            }
-            Expr::Not(inner) => collect(inner, names),
-            Expr::Binary(_, left, right) => {
-                collect(left, names);
-                collect(right, names);
-            }
-        }
-    }
-    let mut names = BTreeSet::new();
-    collect(expr, &mut names);
-    names
 }
 
 pub(crate) fn split_member(name: &str) -> Option<(&str, &str)> {

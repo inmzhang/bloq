@@ -319,56 +319,47 @@ pub(super) fn preferred_pipe_endpoint(
     }
 }
 
-pub(crate) fn walking_start_has_candidate(
+pub(crate) fn moving_block_movements(kind: BlockKind) -> &'static [IVec2] {
+    match kind {
+        BlockKind::Walking(_) => &WALKING_MOVEMENTS,
+        BlockKind::PatchRotation(_) => &PATCH_ROTATION_MOVEMENTS,
+        _ => &[],
+    }
+}
+
+pub(super) fn moving_block_kind(kind: BlockKind, movement: IVec2) -> eyre::Result<BlockKind> {
+    Ok(match kind {
+        BlockKind::Walking(kind) => {
+            BlockKind::Walking(WalkingKind::new(kind.boundary(), movement)?)
+        }
+        BlockKind::PatchRotation(kind) => {
+            BlockKind::PatchRotation(PatchRotationKind::new(kind.basis(), movement)?)
+        }
+        _ => bail!("Only walking and patch-rotation blocks have a movement"),
+    })
+}
+
+pub(crate) fn moving_block_start_has_candidate(
     editor_state: &EditorState,
     graph: &BlockGraph,
     start: IVec3,
 ) -> bool {
-    let BlockKind::Walking(selected_kind) = editor_state.block_kind else {
-        return false;
-    };
-    WALKING_MOVEMENTS.into_iter().any(|movement| {
-        walking_kind_if_placeable(graph, start, selected_kind.boundary(), movement).is_some()
-    })
+    moving_block_movements(editor_state.block_kind)
+        .iter()
+        .any(|&movement| {
+            moving_block_kind_if_placeable(graph, start, editor_state.block_kind, movement)
+                .is_some()
+        })
 }
 
-pub(crate) fn walking_candidate_kind(
+pub(crate) fn moving_block_candidate_kind(
     editor_state: &EditorState,
     graph: &BlockGraph,
     end: IVec3,
-) -> Option<WalkingKind> {
-    let BlockKind::Walking(selected_kind) = editor_state.block_kind else {
-        return None;
-    };
+) -> Option<BlockKind> {
     let start = editor_state.walking_start?;
-    let movement = movement_between(start, end, &WALKING_MOVEMENTS)?;
-    walking_kind_if_placeable(graph, start, selected_kind.boundary(), movement)
-}
-
-pub(crate) fn patch_rotation_start_has_candidate(
-    editor_state: &EditorState,
-    graph: &BlockGraph,
-    start: IVec3,
-) -> bool {
-    let BlockKind::PatchRotation(selected_kind) = editor_state.block_kind else {
-        return false;
-    };
-    PATCH_ROTATION_MOVEMENTS.into_iter().any(|movement| {
-        patch_rotation_kind_if_placeable(graph, start, selected_kind.basis(), movement).is_some()
-    })
-}
-
-pub(crate) fn patch_rotation_candidate_kind(
-    editor_state: &EditorState,
-    graph: &BlockGraph,
-    end: IVec3,
-) -> Option<PatchRotationKind> {
-    let BlockKind::PatchRotation(selected_kind) = editor_state.block_kind else {
-        return None;
-    };
-    let start = editor_state.walking_start?;
-    let movement = movement_between(start, end, &PATCH_ROTATION_MOVEMENTS)?;
-    patch_rotation_kind_if_placeable(graph, start, selected_kind.basis(), movement)
+    let movement = movement_between(start, end, moving_block_movements(editor_state.block_kind))?;
+    moving_block_kind_if_placeable(graph, start, editor_state.block_kind, movement)
 }
 
 pub(crate) fn walking_port_promotion_candidate(
@@ -411,28 +402,15 @@ fn walking_promotion_fits_graph(
         && validate_pipe_edit_structure(graph, &probe).is_ok()
 }
 
-fn walking_kind_if_placeable(
+fn moving_block_kind_if_placeable(
     graph: &BlockGraph,
     start: IVec3,
-    boundary: WalkingBoundaryKind,
+    kind: BlockKind,
     movement: IVec2,
-) -> Option<WalkingKind> {
-    let walking_kind = WalkingKind::new(boundary, movement).ok()?;
+) -> Option<BlockKind> {
+    let kind = moving_block_kind(kind, movement).ok()?;
     graph
-        .can_place_block(&Block::new(start, BlockKind::Walking(walking_kind)))
-        .is_ok()
-        .then_some(walking_kind)
-}
-
-fn patch_rotation_kind_if_placeable(
-    graph: &BlockGraph,
-    start: IVec3,
-    basis: bloq_graph::Basis,
-    movement: IVec2,
-) -> Option<PatchRotationKind> {
-    let kind = PatchRotationKind::new(basis, movement).ok()?;
-    graph
-        .can_place_block(&Block::new(start, BlockKind::PatchRotation(kind)))
+        .can_place_block(&Block::new(start, kind))
         .is_ok()
         .then_some(kind)
 }

@@ -460,8 +460,7 @@ module main {{
     }
 }
 
-#[test]
-fn child_branch_can_read_a_bound_sibling_export() {
+fn producer_module() -> BlockGraph {
     let mut producer_body = BlockGraph::new();
     producer_body.add_block(Block::new(ivec3(0, 0, 0), BlockKind::Cube(CubeKind::ZXZ)));
     producer_body
@@ -470,7 +469,7 @@ fn child_branch_can_read_a_bound_sibling_export() {
             name: "m".into(),
         }])
         .unwrap();
-    let producer = BlockGraph::definition(
+    BlockGraph::definition(
         "Producer",
         producer_body,
         ModuleInterface {
@@ -483,7 +482,12 @@ fn child_branch_can_read_a_bound_sibling_export() {
         Vec::new(),
         Vec::new(),
         Vec::new(),
-    );
+    )
+}
+
+#[test]
+fn child_branch_can_read_a_bound_sibling_export() {
+    let producer = producer_module();
 
     let prefix = ivec3(0, 0, 0);
     let target = ivec3(0, 0, 1);
@@ -567,28 +571,7 @@ fn child_branch_can_read_a_bound_sibling_export() {
 
 #[test]
 fn composite_branch_can_read_a_child_export() {
-    let mut producer_body = BlockGraph::new();
-    producer_body.add_block(Block::new(ivec3(0, 0, 0), BlockKind::Cube(CubeKind::ZXZ)));
-    producer_body
-        .set_actions(vec![Action::Measure {
-            target: MeasureTarget::Node(ivec3(0, 0, 0)),
-            name: "m".into(),
-        }])
-        .unwrap();
-    let producer = BlockGraph::definition(
-        "Producer",
-        producer_body,
-        ModuleInterface {
-            bit_outputs: vec![BitOutput {
-                name: "fire".into(),
-                expr: Expr::Var("m".into()),
-            }],
-            ..ModuleInterface::default()
-        },
-        Vec::new(),
-        Vec::new(),
-        Vec::new(),
-    );
+    let producer = producer_module();
 
     let prefix = ivec3(3, 0, 0);
     let target = ivec3(3, 0, 1);

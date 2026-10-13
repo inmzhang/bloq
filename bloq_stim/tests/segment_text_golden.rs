@@ -6,31 +6,20 @@
 //! segment *container* must leave them untouched.
 
 use bloq_circuit::NoiseModel;
-use bloq_compile::{CompileConfig, CompileContext};
-use bloq_graph::BlockGraph;
-use bloq_ir::Bloq;
 use bloq_stim::{
     BloqStimOptions, emit_bloq_stim_segments, emit_bloq_stim_segments_pair,
     emit_bloq_stim_segments_with,
 };
 
+mod common;
+use common::compile_two_cubes;
+
 const DISTANCE: u32 = 3;
 const PHYSICAL_ERROR_PROBABILITY: f64 = 1e-3;
 
-/// Two ZXZ cubes stacked in time — the smallest program with a temporal seam,
-/// so the fixture exercises the cross-segment measurement frame.
-fn two_cube_memory() -> Bloq {
-    let graph = BlockGraph::from_blog_text(
-        "BLOG 1.0\n\n  0: ZXZ [0,0,0]\n  1: ZXZ [0,0,1]\n  [0,0,0] -> +Z\n",
-    )
-    .expect("two-cube memory graph parses");
-    let ctx = CompileContext::new(CompileConfig::new(DISTANCE));
-    ctx.compile(&graph).expect("two-cube graph compiles").bloq
-}
-
 #[test]
 fn clean_segment_text_is_unchanged() {
-    let segments = emit_bloq_stim_segments(&two_cube_memory()).expect("segments emit");
+    let segments = emit_bloq_stim_segments(&compile_two_cubes(DISTANCE)).expect("segments emit");
 
     insta::assert_snapshot!("clean_segments", segments.to_text());
 }
@@ -40,7 +29,7 @@ fn clean_segment_text_is_unchanged() {
 /// "noisy *and* checked" at all.
 #[test]
 fn noise_and_trust_compose_on_one_emission() {
-    let program = two_cube_memory();
+    let program = compile_two_cubes(DISTANCE);
     let noise = NoiseModel::uniform_depolarizing(PHYSICAL_ERROR_PROBABILITY);
     let checked_noisy = BloqStimOptions::new()
         .with_noise(&noise)
@@ -66,7 +55,7 @@ fn noise_and_trust_compose_on_one_emission() {
 fn noisy_segment_text_is_unchanged() {
     let noise = NoiseModel::uniform_depolarizing(PHYSICAL_ERROR_PROBABILITY);
     let segments = emit_bloq_stim_segments_with(
-        &two_cube_memory(),
+        &compile_two_cubes(DISTANCE),
         &BloqStimOptions::new().with_noise(&noise),
     )
     .expect("segments emit");
@@ -79,7 +68,7 @@ fn noisy_segment_text_is_unchanged() {
 /// do.
 #[test]
 fn segment_pair_matches_the_two_single_emissions() {
-    let program = two_cube_memory();
+    let program = compile_two_cubes(DISTANCE);
     let noise = NoiseModel::uniform_depolarizing(PHYSICAL_ERROR_PROBABILITY);
 
     let (clean, noisy) = emit_bloq_stim_segments_pair(&program, &noise).expect("pair emits");
@@ -105,7 +94,7 @@ fn segment_pair_matches_the_two_single_emissions() {
 fn segment_measurement_spans_tile_the_record_stream() {
     use stim::Circuit;
 
-    let segments = emit_bloq_stim_segments(&two_cube_memory()).expect("segments emit");
+    let segments = emit_bloq_stim_segments(&compile_two_cubes(DISTANCE)).expect("segments emit");
 
     let mut expected_start = 0;
     for segment in &segments.segments {

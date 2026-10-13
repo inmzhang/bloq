@@ -15,7 +15,6 @@ use crate::{
     ZXGraph,
 };
 
-use super::feedback::{FeedbackInferenceError, checked_count};
 use super::parity::{phase_constant, phase_value};
 use super::{
     MeasurementKey, QuizxGraph, VerifyLogicalError, replay_fill, solve_evolved_correction,
@@ -158,191 +157,6 @@ pub(super) struct ResolvedCorrection {
 }
 
 impl InternalCorrection {
-    /// Cover anonymous coordinates by complete corrected boundary-sign classes.
-    ///
-    /// With resource legs open, exposing the native phase bits as outcome legs
-    /// gives one Clifford stabilizer tensor. The resolved basis must span its
-    /// full correlation space, including private rows: its closed kernel then
-    /// gives complete affine support, and nonzero outcome slices have equal
-    /// norm. Complete boundary signs identify their rays; equal coordinate
-    /// fibers therefore have equal Kraus weight, not just equal directions.
-    /// A fixed resource contraction preserves within-class unit-phase equality,
-    /// while different classes may acquire different norms or vanish.
-    pub(super) fn representatives(
-        &self,
-        outputs: &[IVec3],
-        actions: &[ActionNode],
-        values: &FxHashMap<Var, bool>,
-        feedback_values: &FxHashMap<usize, bool>,
-        resolved: &ResolvedCorrection,
-        limit: usize,
-    ) -> Result<Vec<FxHashMap<Var, bool>>, FeedbackInferenceError> {
-        let ResolvedCorrection { basis, phases } = resolved;
-        let variables = self.sampled_vars().collect::<Vec<_>>();
-        let variable_set = variables.iter().copied().collect::<BTreeSet<_>>();
-        let named = phases
-            .iter()
-            .map(|(key, parity)| {
-                (
-                    key.clone(),
-                    phase_value(parity, |variable| {
-                        !variable_set.contains(&variable) && values[&variable]
-                    }),
-                )
-            })
-            .collect::<BTreeMap<_, _>>();
-        let closed = basis.closed_stabilizer_surfaces();
-        let constraints = self.parity_columns(&closed, phases);
-        let mut rhs = CoeffVec::zeros(closed.len());
-        for (row, surface) in closed.iter().enumerate() {
-            let parity = named.iter().fold(surface.sign, |odd, (key, value)| {
-                odd ^ (*value && stabilizer_supports_measurement(surface, key))
-            }) ^ feedback_sign(surface, basis.zx_graph(), actions, feedback_values);
-            rhs.set_bit(row, parity);
-        }
-        let Some(witness) = solve_coeff_combination(&constraints, &rhs) else {
-            return Ok(Vec::new());
-        };
-        let directions = kernel_directions(&constraints);
-        let reference = self.apply_coordinate(phases, named.clone(), &witness);
-        let (correction_surfaces, correction) =
-            solve_evolved_correction(basis, outputs, |surface| {
-                phases
-                    .keys()
-                    .any(|key| stabilizer_supports_measurement(surface, key))
-            })?;
-        let correction_columns = self.parity_columns(&correction_surfaces, phases);
-        let mut constant = CoeffVec::zeros(correction_surfaces.len());
-        for (row, surface) in correction_surfaces.iter().enumerate() {
-            constant.set_bit(
-                row,
-                named.iter().fold(false, |odd, (key, value)| {
-                    odd ^ ((*value ^ reference[key])
-                        && stabilizer_supports_measurement(surface, key))
-                }),
-            );
-        }
-        // Discharge every runtime consistency condition on the affine domain,
-        // without treating a failed correction as a physically impossible shot.
-        let witness_rhs = combine_columns(&correction_columns, &witness, constant.clone());
-        correction.evaluate(
-            &(0..witness_rhs.len())
-                .map(|bit| witness_rhs.bit(bit))
-                .collect::<Vec<_>>(),
-        )?;
-        for direction in &directions {
-            let test = combine_columns(&correction_columns, direction, witness_rhs.clone());
-            correction.evaluate(&(0..test.len()).map(|bit| test.bit(bit)).collect::<Vec<_>>())?;
-        }
-        if directions.is_empty() {
-            checked_count(0, limit, "anonymous boundary classes")?;
-            return Ok(vec![
-                variables
-                    .iter()
-                    .enumerate()
-                    .map(|(index, &variable)| (variable, witness.bit(index)))
-                    .collect(),
-            ]);
-        }
-
-        let surfaces = basis.resolved_surfaces();
-        let full_columns = self.parity_columns(&surfaces, phases);
-        let (bodies, extra_outputs, boundary_qubits) = boundary_bodies(basis, &surfaces, outputs)?;
-        let mut independent = Vec::<CoeffVec>::new();
-        for body in &bodies {
-            let column = pauli_coeffs(body);
-            if solve_coeff_combination(&independent, &column).is_none() {
-                independent.push(column);
-            }
-        }
-        if independent.len() != boundary_qubits
-            || bodies.iter().enumerate().any(|(index, body)| {
-                bodies[..index]
-                    .iter()
-                    .any(|other| !body.commutes_with(other))
-            })
-        {
-            return Err(FeedbackInferenceError::IncompleteCertificate {
-                rank: independent.len(),
-                expected: boundary_qubits,
-            });
-        }
-
-        let mut signatures = Vec::<CoeffVec>::new();
-        let mut selected = Vec::new();
-        for direction in directions {
-            let changes = combine_columns(
-                &correction_columns,
-                &direction,
-                CoeffVec::zeros(correction_surfaces.len()),
-            );
-            let frames = correction
-                .frames()
-                .iter()
-                .map(|pair| {
-                    let x = pair
-                        .x
-                        .iter()
-                        .fold(false, |odd, &row| odd ^ changes.bit(row));
-                    let z = pair
-                        .z
-                        .iter()
-                        .fold(false, |odd, &row| odd ^ changes.bit(row));
-                    match (x, z) {
-                        (false, false) => Pauli::I,
-                        (true, false) => Pauli::X,
-                        (false, true) => Pauli::Z,
-                        (true, true) => Pauli::Y,
-                    }
-                })
-                .collect::<Vec<_>>();
-            let native =
-                combine_columns(&full_columns, &direction, CoeffVec::zeros(surfaces.len()));
-            let mut signature = CoeffVec::zeros(bodies.len());
-            for (row, surface) in surfaces.iter().enumerate() {
-                let correction =
-                    outputs
-                        .iter()
-                        .zip(&frames)
-                        .fold(false, |odd, (position, frame)| {
-                            let node = basis
-                                .zx_graph()
-                                .node_at(*position)
-                                .expect("validated output");
-                            odd ^ frame.anticommutes(surface.paulis.get(node.id))
-                        });
-                signature.set_bit(row, native.bit(row) ^ correction);
-            }
-            for (extra, &output) in extra_outputs.iter().enumerate() {
-                signature.set_bit(
-                    surfaces.len() + extra,
-                    frames[output].anticommutes(Pauli::Z),
-                );
-            }
-            if solve_coeff_combination(&signatures, &signature).is_none() {
-                signatures.push(signature);
-                selected.push(direction);
-                checked_count(selected.len(), limit, "anonymous boundary classes")?;
-            }
-        }
-        let count = checked_count(selected.len(), limit, "anonymous boundary classes")?;
-        Ok((0..count)
-            .map(|mask| {
-                let mut coordinate = witness.clone();
-                for (bit, direction) in selected.iter().enumerate() {
-                    if mask & (1 << bit) != 0 {
-                        coordinate.xor_assign(direction);
-                    }
-                }
-                variables
-                    .iter()
-                    .enumerate()
-                    .map(|(index, &variable)| (variable, coordinate.bit(index)))
-                    .collect()
-            })
-            .collect())
-    }
-
     fn parity_columns(
         &self,
         surfaces: &[crate::Stabilizer],
@@ -573,7 +387,6 @@ impl InternalCorrection {
         let ResolvedCorrection {
             basis,
             phases: measurement_vars,
-            ..
         } = resolved;
         let measured = measurement_vars
             .iter()
@@ -672,22 +485,6 @@ impl InternalCorrection {
     }
 }
 
-fn combine_columns(columns: &[CoeffVec], selected: &CoeffVec, mut result: CoeffVec) -> CoeffVec {
-    for column in selected.iter_ones() {
-        result.xor_assign(&columns[column]);
-    }
-    result
-}
-
-fn pauli_coeffs(paulis: &crate::PauliString) -> CoeffVec {
-    let mut coefficients = CoeffVec::zeros(2 * paulis.len());
-    for (column, pauli) in paulis.iter_support() {
-        coefficients.set_bit(2 * column, pauli & Pauli::X);
-        coefficients.set_bit(2 * column + 1, pauli & Pauli::Z);
-    }
-    coefficients
-}
-
 fn kernel_directions(columns: &[CoeffVec]) -> Vec<CoeffVec> {
     let mut basis = Vec::<CoeffVec>::new();
     let mut selected = Vec::new();
@@ -727,67 +524,6 @@ fn feedback_sign(
                 odd ^ surface.paulis.get(column).anticommutes(pauli)
             })
         })
-}
-
-fn boundary_bodies(
-    basis: &RuntimeStabilizerBasis,
-    surfaces: &[crate::Stabilizer],
-    outputs: &[IVec3],
-) -> Result<(Vec<crate::PauliString>, Vec<usize>, usize), FeedbackInferenceError> {
-    let zx = basis.zx_graph();
-    let open = zx
-        .nodes()
-        .iter()
-        .filter(|node| matches!(node.kind, NodeKind::Port | NodeKind::T))
-        .collect::<Vec<_>>();
-    let width = open
-        .iter()
-        .map(|node| {
-            if node.role == crate::PortRole::Multiplex {
-                2
-            } else {
-                1
-            }
-        })
-        .sum();
-    let mut bodies = Vec::with_capacity(surfaces.len() + open.len());
-    for surface in surfaces {
-        let mut body = crate::PauliString::new(width);
-        let mut column = 0;
-        for node in &open {
-            let pauli = surface.paulis.get(node.id);
-            if node.role == crate::PortRole::Multiplex {
-                // The Z-copy isometry maps X -> X⊗X, Z -> I⊗Z and adds Z⊗Z.
-                body.set(column, if pauli & Pauli::X { Pauli::X } else { Pauli::I });
-                column += 1;
-            }
-            body.set(column, pauli);
-            column += 1;
-        }
-        bodies.push(body);
-    }
-    let mut extras = Vec::new();
-    let mut column = 0;
-    for node in open {
-        if node.role == crate::PortRole::Multiplex {
-            let output = outputs
-                .iter()
-                .position(|&position| position == node.pos)
-                .ok_or_else(|| {
-                    FeedbackInferenceError::Binding(
-                        "multiplex boundary missing from output order".into(),
-                    )
-                })?;
-            let mut body = crate::PauliString::new(width);
-            body.set(column, Pauli::Z);
-            body.set(column + 1, Pauli::Z);
-            bodies.push(body);
-            extras.push(output);
-            column += 1;
-        }
-        column += 1;
-    }
-    Ok((bodies, extras, width))
 }
 
 pub(super) fn fresh_var(next: &mut usize) -> Result<Var, VerifyLogicalError> {

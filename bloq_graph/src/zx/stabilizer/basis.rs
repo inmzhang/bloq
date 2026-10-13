@@ -99,11 +99,6 @@ impl CoeffVec {
     pub(crate) fn to_indices(&self) -> Vec<usize> {
         self.iter_ones().collect()
     }
-
-    #[cfg(feature = "verify")]
-    pub(crate) fn len(&self) -> usize {
-        self.len
-    }
 }
 
 #[derive(Debug, Clone)]

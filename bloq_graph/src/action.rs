@@ -46,6 +46,23 @@ pub enum Expr {
 }
 
 impl Expr {
+    /// Variable occurrences from left to right, including repeated names.
+    pub(crate) fn names(&self) -> impl Iterator<Item = &str> {
+        let mut pending = vec![self];
+        std::iter::from_fn(move || {
+            while let Some(expr) = pending.pop() {
+                match expr {
+                    Self::Var(name) => return Some(name.as_str()),
+                    Self::Not(inner) => pending.push(inner),
+                    Self::Binary(_, left, right) => {
+                        pending.extend([right.as_ref(), left.as_ref()]);
+                    }
+                }
+            }
+            None
+        })
+    }
+
     pub(crate) fn negated(self) -> Self {
         match self {
             Self::Not(inner) => *inner,
@@ -180,29 +197,13 @@ pub enum Action {
 impl Action {
     /// Boolean variable names consumed by this action, in sorted order.
     pub fn referenced_names(&self) -> BTreeSet<&str> {
-        fn collect<'a>(expr: &'a Expr, names: &mut BTreeSet<&'a str>) {
-            match expr {
-                Expr::Var(name) => {
-                    names.insert(name);
-                }
-                Expr::Not(expr) => collect(expr, names),
-                Expr::Binary(_, left, right) => {
-                    collect(left, names);
-                    collect(right, names);
-                }
-            }
-        }
-        let mut names = BTreeSet::new();
         let expression = match self {
             Self::Let { expr, .. } | Self::DiscardIf(expr) => Some(expr),
             Self::Resolve { condition, .. } | Self::Branch { condition, .. } => Some(condition),
             Self::Feedback { condition, .. } => condition.as_ref(),
             Self::Measure { .. } => None,
         };
-        if let Some(expression) = expression {
-            collect(expression, &mut names);
-        }
-        names
+        expression.into_iter().flat_map(Expr::names).collect()
     }
 
     pub(crate) fn try_with_orientation(

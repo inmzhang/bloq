@@ -607,45 +607,6 @@ impl LogicalVerifier {
         self.instantiate_resolved(&resolved, internal_value)
     }
 
-    /// One feasible representative of every corrected anonymous boundary class.
-    pub(super) fn branch_family(
-        &self,
-        assignment: &BranchAssignment,
-        limit: usize,
-    ) -> Result<(LogicalBranch, Vec<QuizxGraph>), super::feedback::FeedbackInferenceError> {
-        if let Some(structural) = &self.structural {
-            let values = structural.values_for(assignment, &self.inputs)?;
-            return structural.arm(&values)?.branch_family(assignment, limit);
-        }
-        let resolved = self.resolve_assignment(assignment)?;
-        if resolved.branch.status == BranchStatus::Rejected {
-            return Ok((resolved.branch, Vec::new()));
-        }
-        let representatives = match &self.correction {
-            Some(correction) => correction.representatives(
-                &self.boundaries.outputs,
-                &self.actions,
-                &resolved.variable_values,
-                &resolved.feedback_values,
-                resolved
-                    .correction
-                    .as_ref()
-                    .expect("resolved internal branch"),
-                limit,
-            )?,
-            None => vec![FxHashMap::default()],
-        };
-        let diagrams = representatives
-            .into_iter()
-            .map(|values| {
-                let (_, diagram) =
-                    self.instantiate_resolved(&resolved, |variable| values[&variable])?;
-                Ok(diagram.expect("resolved branch is not rejected"))
-            })
-            .collect::<Result<Vec<_>, VerifyLogicalError>>()?;
-        Ok((resolved.branch, diagrams))
-    }
-
     fn resolve_assignment(
         &self,
         assignment: &BranchAssignment,
@@ -861,7 +822,7 @@ fn contract(diagram: &QuizxGraph) -> TensorF {
     reduced.to_tensorf()
 }
 
-pub(super) fn eval_expr(expr: &Expr, values: &BTreeMap<String, bool>) -> bool {
+fn eval_expr(expr: &Expr, values: &BTreeMap<String, bool>) -> bool {
     match expr {
         Expr::Var(name) => values[name],
         Expr::Not(inner) => !eval_expr(inner, values),
@@ -1535,158 +1496,6 @@ mod tests {
                 "every unnamed phase assignment must preserve action input {name}"
             );
         }
-    }
-
-    #[test]
-    fn anonymous_class_weights_match_all_native_outcomes_with_an_odd_closed_relation() {
-        use quizx::fscalar::FScalar;
-        let mut source = BlockGraph::new();
-        for x in [0, 1, 3] {
-            source.add_block(Block::new(IVec3::new(x, 0, 0), BlockKind::Port));
-            for z in [1, 2] {
-                source.add_block(Block::new(
-                    IVec3::new(x, 0, z),
-                    BlockKind::Cube(CubeKind::XZX),
-                ));
-            }
-            source.add_block(Block::new(
-                IVec3::new(x, 0, 3),
-                if x == 3 {
-                    BlockKind::Port
-                } else {
-                    BlockKind::Measurement(Basis::X)
-                },
-            ));
-            for z in 0..3 {
-                source.add_pipe(Pipe::new(IVec3::new(x, 0, z), Direction::ZPLUS));
-            }
-        }
-        for z in [1, 2] {
-            source.add_pipe(Pipe::new(IVec3::new(0, 0, z), Direction::XPLUS));
-        }
-        source
-            .set_actions(vec![
-                Action::Measure {
-                    target: MeasureTarget::Edge {
-                        src: IVec3::Z,
-                        dir: Direction::XPLUS,
-                    },
-                    name: "m".into(),
-                },
-                Action::Feedback {
-                    targets: vec![FeedbackTarget {
-                        pauli: PauliBasis::X,
-                        target: IVec3::Z,
-                        direction: None,
-                    }],
-                    condition: None,
-                },
-            ])
-            .unwrap();
-        // The second ZZ readout must disagree with the first: X lies between
-        // the merges. Keep the first record's label, including that odd relation.
-        let qasm = "OPENQASM 2.0; qreg q[5]; creg m[1]; creg again[1]; creg erased[2];
-            reset q[3]; reset q[4]; cx q[0],q[3]; cx q[1],q[3]; measure q[3] -> m;
-            x q[0]; cx q[0],q[4]; cx q[1],q[4]; measure q[4] -> again;
-            h q[0]; h q[1]; measure q[0] -> erased[0]; measure q[1] -> erased[1];
-            if(m==1) x q[2];";
-        let options = crate::FeedbackOptions::default()
-            .with_search_limit(0)
-            .with_discarded_measurement("again[0]")
-            .with_discarded_measurement("erased[0]")
-            .with_discarded_measurement("erased[1]");
-        let actions = crate::infer_feedback_with(qasm, &source, &options).unwrap();
-        assert!(
-            matches!(actions.as_slice(), [Action::Feedback { targets, condition: Some(Expr::Var(name)) }]
-            if name == "m" && targets.len() == 1 && targets[0].pauli == PauliBasis::X && targets[0].target == IVec3::new(3,0,3))
-        );
-
-        fn choi(maps: &[TensorF]) -> Vec<FScalar> {
-            let width = maps[0].len();
-            let mut result = vec![FScalar::zero(); width * width];
-            for map in maps {
-                for (i, a) in map.iter().enumerate() {
-                    for (j, b) in map.iter().enumerate() {
-                        result[i * width + j] += *a * b.conj();
-                    }
-                }
-            }
-            result
-        }
-        let verifier = LogicalVerifier::with_internal_measurements(&source).unwrap();
-        let variables = verifier
-            .correction
-            .as_ref()
-            .unwrap()
-            .sampled_vars()
-            .collect::<Vec<_>>();
-        assert!(
-            variables.len() <= 6,
-            "keep exhaustive native enumeration small"
-        );
-        let mut resource = Circuit::new(3);
-        for qubit in 0..3 {
-            resource.add_gate("h", vec![qubit]);
-        }
-        resource.add_gate("ccz", vec![0, 1, 2]);
-        let mut resource: QuizxGraph = resource.to_graph();
-        resource.plug_inputs(&[quizx::graph::BasisElem::Z0; 3]);
-        let mut saw_vanishing_class = false;
-        for value in [false, true] {
-            let assignment = BranchAssignment::from([("m".into(), value)]);
-            let native = (0..1 << variables.len())
-                .map(|mask| {
-                    verifier
-                        .instantiate_with(&assignment, |variable| {
-                            mask & (1
-                                << variables
-                                    .iter()
-                                    .position(|candidate| *candidate == variable)
-                                    .unwrap())
-                                != 0
-                        })
-                        .unwrap()
-                        .1
-                        .unwrap()
-                })
-                .collect::<Vec<_>>();
-            let (_, representatives) = verifier.branch_family(&assignment, 64).unwrap();
-            let open = native.iter().map(contract).collect::<Vec<_>>();
-            let quotient = representatives.iter().map(contract).collect::<Vec<_>>();
-            let nonzero = open.iter().filter(|map| tensor_is_nonzero(map)).count();
-            assert!(
-                nonzero > 0 && nonzero < native.len(),
-                "odd closure must rule out native coordinates"
-            );
-            assert!(quotient.iter().all(tensor_is_nonzero));
-            assert_eq!(nonzero % quotient.len(), 0);
-            let multiplicity = FScalar::real((nonzero / quotient.len()) as f64);
-            assert_eq!(
-                choi(&open),
-                choi(&quotient)
-                    .into_iter()
-                    .map(|value| value * multiplicity)
-                    .collect::<Vec<_>>()
-            );
-            let prepared = |diagram: &QuizxGraph| {
-                let mut prepared = resource.clone();
-                prepared.plug(diagram);
-                contract(&prepared)
-            };
-            let open = native.iter().map(prepared).collect::<Vec<_>>();
-            let quotient = representatives.iter().map(prepared).collect::<Vec<_>>();
-            saw_vanishing_class |= quotient.iter().any(|map| !tensor_is_nonzero(map));
-            // Exactly the same multiplicity must work after non-Clifford
-            // resource contraction; individual rays may vanish or change norm.
-            assert_eq!(
-                choi(&open),
-                choi(&quotient)
-                    .into_iter()
-                    .map(|value| value * multiplicity)
-                    .collect::<Vec<_>>()
-            );
-        }
-        assert!(saw_vanishing_class);
     }
 
     #[test]

@@ -104,11 +104,10 @@ pub(crate) use picking::{
     on_preview_endpoint_click, on_preview_endpoint_out, on_preview_endpoint_over,
 };
 pub(crate) use probing::{
-    PATCH_ROTATION_MOVEMENTS, PIPE_HINT_OFFSETS, WALKING_MOVEMENTS, patch_rotation_candidate_kind,
-    patch_rotation_pipe_hint_target, patch_rotation_start_has_candidate,
+    PIPE_HINT_OFFSETS, WALKING_MOVEMENTS, moving_block_candidate_kind, moving_block_movements,
+    moving_block_start_has_candidate, patch_rotation_pipe_hint_target,
     pipe_candidate_at_with_snapshot, pipe_hint_target_with_snapshot, tall_cube_pipe_hint_target,
-    walking_candidate_kind, walking_pipe_hint_target, walking_port_promotion_candidate,
-    walking_start_has_candidate,
+    walking_pipe_hint_target, walking_port_promotion_candidate,
 };
 pub(crate) use transforms::{
     copy_selected_subgraph, insert_graph_without_overlap, rotate_selected_elements,
@@ -520,15 +519,8 @@ fn edit_system(
         && editor_state.hovered_element.is_none()
         && let Some(pos) = pick_grid_pos
     {
-        if editor_state.block_kind.is_walking() {
-            place_walking_click(pos, &mut editor_state, &mut graph_state, &mut notifications);
-        } else if editor_state.block_kind.is_patch_rotation() {
-            place_patch_rotation_click(
-                pos,
-                &mut editor_state,
-                &mut graph_state,
-                &mut notifications,
-            );
+        if editor_state.block_kind.is_walking() || editor_state.block_kind.is_patch_rotation() {
+            place_moving_block_click(pos, &mut editor_state, &mut graph_state, &mut notifications);
         } else {
             place_single_block(pos, &mut editor_state, &mut graph_state, &mut notifications);
         }
@@ -705,14 +697,15 @@ mod tests {
         collect_changed_interaction_elements, copy_selected_subgraph,
         delete_middle_clicked_element, handle_element_click, handle_pipe_keyboard_placement,
         insert_graph_without_overlap, is_hadamard_pipe_modifier_pressed,
-        is_unmodified_box_select_input, open_pipe_start_editor_if_double_clicked,
+        is_unmodified_box_select_input, moving_block_candidate_kind,
+        moving_block_start_has_candidate, open_pipe_start_editor_if_double_clicked,
         open_target_editor, patch_rotation_endpoint_for_pipe_click,
         patch_rotation_pipe_hint_target, picked_graph_element, pipe_endpoint_for_block_click,
-        pipe_hint_target, pipe_mode_selected_elements, place_pipe, place_pipe_or_walking_target,
-        plain_key_shortcuts_available, rotate_selected_elements, screen_rect_contains_point,
-        tall_cube_pipe_hint_target, translate_graph, translate_selected_elements,
-        view_translation_shortcut, walking_candidate_kind, walking_pipe_hint_target,
-        walking_port_promotion_candidate, walking_start_has_candidate, web_view_paste_system,
+        pipe_hint_target, pipe_mode_selected_elements, place_moving_block_click, place_pipe,
+        place_pipe_or_walking_target, plain_key_shortcuts_available, rotate_selected_elements,
+        screen_rect_contains_point, tall_cube_pipe_hint_target, translate_graph,
+        translate_selected_elements, view_translation_shortcut, walking_pipe_hint_target,
+        walking_port_promotion_candidate, web_view_paste_system,
     };
     use crate::components::GraphElement;
     use crate::resources::{
@@ -1569,6 +1562,67 @@ mod tests {
     }
 
     #[test]
+    fn moving_block_placement_preserves_movement_rules_cancellation_and_undo() {
+        for selected in [
+            BlockKind::Walking(WalkingKind::new(WalkingBoundaryKind::XZX, IVec2::X).unwrap()),
+            BlockKind::PatchRotation(PatchRotationKind::new(Basis::Z, IVec2::X).unwrap()),
+        ] {
+            let mut editor = EditorState {
+                block_kind: selected,
+                ..Default::default()
+            };
+            let mut graph = GraphState::default();
+            let mut notifications = Notifications::default();
+            place_moving_block_click(IVec3::ZERO, &mut editor, &mut graph, &mut notifications);
+            assert_eq!(editor.walking_start, Some(IVec3::ZERO));
+            assert_eq!(editor.plane_height, 1);
+            place_moving_block_click(IVec3::ZERO, &mut editor, &mut graph, &mut notifications);
+            assert!(editor.walking_start.is_none());
+            assert!(graph.graph.is_empty());
+            place_moving_block_click(IVec3::ZERO, &mut editor, &mut graph, &mut notifications);
+
+            let diagonal = IVec3::new(1, 1, 1);
+            assert_eq!(
+                moving_block_candidate_kind(&editor, &graph.graph, diagonal).is_some(),
+                selected.is_walking()
+            );
+            assert!(moving_block_candidate_kind(&editor, &graph.graph, IVec3::X).is_none());
+            place_moving_block_click(diagonal, &mut editor, &mut graph, &mut notifications);
+            let end = if selected.is_patch_rotation() {
+                assert!(graph.graph.is_empty());
+                assert_eq!(editor.walking_start, Some(IVec3::ZERO));
+                let end = IVec3::new(0, 1, 1);
+                assert!(moving_block_candidate_kind(&editor, &graph.graph, end).is_some());
+                place_moving_block_click(end, &mut editor, &mut graph, &mut notifications);
+                end
+            } else {
+                diagonal
+            };
+
+            let placed = graph.graph.get_block(IVec3::ZERO).unwrap().kind();
+            match (selected, placed) {
+                (BlockKind::Walking(before), BlockKind::Walking(after)) => {
+                    assert_eq!(before.boundary(), after.boundary());
+                    assert_eq!(after.end_position(IVec3::ZERO), end);
+                }
+                (BlockKind::PatchRotation(before), BlockKind::PatchRotation(after)) => {
+                    assert_eq!(before.basis(), after.basis());
+                    assert_eq!(after.end_position(IVec3::ZERO), end);
+                }
+                _ => panic!("placement changed the block type"),
+            }
+            assert!(editor.walking_start.is_none());
+            assert!(!moving_block_start_has_candidate(
+                &editor,
+                &graph.graph,
+                IVec3::ZERO
+            ));
+            graph.undo();
+            assert!(graph.graph.is_empty());
+        }
+    }
+
+    #[test]
     fn walking_start_preview_allows_parallel_soft_corridor_start_only_when_placeable() {
         let mut graph = BlockGraph::new();
         graph.add_block(Block::new(
@@ -1582,24 +1636,24 @@ mod tests {
             ..Default::default()
         };
 
-        assert!(walking_start_has_candidate(
+        assert!(moving_block_start_has_candidate(
             &editor_state,
             &graph,
             IVec3::new(0, 1, 0)
         ));
-        assert!(!walking_start_has_candidate(
+        assert!(!moving_block_start_has_candidate(
             &editor_state,
             &graph,
             IVec3::new(0, 1, 1)
         ));
 
         editor_state.walking_start = Some(IVec3::new(1, 0, 0));
-        assert!(!walking_start_has_candidate(
+        assert!(!moving_block_start_has_candidate(
             &editor_state,
             &graph,
             IVec3::new(0, 1, 1)
         ));
-        assert!(walking_candidate_kind(&editor_state, &graph, IVec3::new(0, 1, 1)).is_none());
+        assert!(moving_block_candidate_kind(&editor_state, &graph, IVec3::new(0, 1, 1)).is_none());
     }
 
     #[test]

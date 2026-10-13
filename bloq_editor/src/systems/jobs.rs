@@ -1590,14 +1590,15 @@ pub(super) fn install_graph_into_tab(
 ) {
     tab.snapshot.graph_state.pending_branch_arm = None;
     tab.snapshot.graph_state.source_graph = program.map(std::sync::Arc::new);
-    tab.snapshot.graph_state.graph = graph;
-    tab.snapshot.graph_state.commit();
-    tab.snapshot
-        .editor_state
-        .sync_after_graph_edit(&mut tab.snapshot.graph_state);
+    replace_graph_with_cleanup(
+        &mut tab.snapshot.graph_state,
+        &mut tab.snapshot.editor_state,
+        &mut tab.snapshot.target_state,
+        &mut tab.snapshot.compile_ui,
+        &mut tab.snapshot.circuit_viewer,
+        graph,
+    );
     tab.snapshot.target_state = TargetState::default();
-    tab.snapshot.compile_ui.reset_for_new_graph();
-    tab.snapshot.circuit_viewer.reset_for_new_graph();
     tab.snapshot.camera_settings = crate::systems::camera::camera_settings_for_graph(
         &tab.snapshot.graph_state.graph,
         tab.snapshot.editor_state.pipe_length,
@@ -2523,49 +2524,6 @@ mod tests {
     }
 
     #[test]
-    fn stabilizer_job_uses_the_composed_adder_in_its_display_coordinates() {
-        let parsed = parse_blog_for_editor(GalleryItem::ThreeBitAdder.entry().blog()).unwrap();
-        let graph = crate::utils::displayed_branch_projection(&parsed.graph).unwrap();
-        let state = GraphState {
-            graph: parsed.graph,
-            source_graph: Some(Arc::new(parsed.source_graph)),
-            revision: 1,
-            ..Default::default()
-        };
-        assert!(state.is_composed());
-        let generators = run_stabilizers_job_for_state(state);
-        let measured = graph
-            .actions()
-            .into_iter()
-            .filter_map(|action| match action {
-                bloq_graph::Action::Measure { name, .. } => Some(name),
-                _ => None,
-            })
-            .collect::<std::collections::BTreeSet<_>>();
-        let shown = generators
-            .iter()
-            .filter_map(|row| row.measurement_name().map(str::to_owned))
-            .collect::<std::collections::BTreeSet<_>>();
-        assert!(shown.contains("bit0_uma__m_ikprime"));
-        assert_eq!(shown, measured, "every named readout has a planned surface");
-        let outputs = bloq_graph::ZXGraph::try_from(&graph)
-            .unwrap()
-            .output_ports();
-        for generator in generators.iter().filter(|row| row.is_measurement()) {
-            assert!(
-                outputs
-                    .iter()
-                    .all(|position| !generator.stabilizer.port_stabilizer.contains_key(position)),
-                "every planned readout closes before live outputs"
-            );
-        }
-        for generator in &generators {
-            bloq_graph::stabilizer_as_gltf_data(generator, &graph, 2.0)
-                .expect("the composed surface fits the displayed graph");
-        }
-    }
-
-    #[test]
     fn stabilizer_result_requires_the_requested_layer_and_view_scope() {
         use crate::resources::EditorMode;
 
@@ -2997,6 +2955,64 @@ mod tests {
         state.undo();
         assert!(state.pending_branch_arm.is_some());
         assert!(state.graph.has_block_at(IVec3::ZERO));
+    }
+
+    #[test]
+    fn background_blog_parse_clears_placement_even_when_the_start_survives() {
+        let mut tabs = EditorTabs::default();
+        let tab_id = tabs.active;
+        let tab = tabs.active_tab_mut();
+        let start = ivec3(0, 0, 0);
+        tab.snapshot
+            .graph_state
+            .graph
+            .add_block(Block::new(start, BlockKind::Cube(CubeKind::ZXZ)));
+        tab.snapshot.graph_state.commit();
+        let revision = tab.snapshot.graph_state.revision;
+        tab.snapshot.editor_state.pipe_start = Some(start);
+        tab.snapshot.editor_state.walking_start = Some(ivec3(0, 1, 0));
+        tab.snapshot.editor_state.hovered_element = Some(GraphElement::Block(start));
+        tab.snapshot.target_state.open_window = true;
+        tab.snapshot.target_state.target = Some(GraphElement::Block(start));
+        tab.snapshot.target_state.pipe_hadamard_buffer = true;
+        let background = tabs.add_empty_tab(&EditorState::default());
+        tabs.set_active(background);
+        let mut parsed = BlockGraph::new();
+        parsed.add_block(Block::new(start, BlockKind::Cube(CubeKind::XZZ)));
+
+        apply_parse_blog_result_to_tab(
+            &mut tabs,
+            ParseBlogJobResult {
+                tab_id,
+                revision,
+                source: String::new(),
+                title: None,
+                result: Ok(ParsedBlog {
+                    source_graph: parsed.clone().with_inferred_interface().unwrap(),
+                    graph: parsed,
+                }),
+            },
+            &mut Notifications::default(),
+        );
+
+        tabs.set_active(tab_id);
+        let snapshot = &mut tabs.active_tab_mut().snapshot;
+        assert_eq!(
+            snapshot.graph_state.graph.get_block(start).unwrap().kind(),
+            BlockKind::Cube(CubeKind::XZZ)
+        );
+        assert!(snapshot.editor_state.pipe_start.is_none());
+        assert!(snapshot.editor_state.walking_start.is_none());
+        assert!(snapshot.editor_state.hovered_element.is_none());
+        assert!(!snapshot.target_state.open_window);
+        assert!(snapshot.target_state.target.is_none());
+        assert!(!snapshot.target_state.pipe_hadamard_buffer);
+        assert!(snapshot.graph_state.source_graph.is_some());
+        snapshot.graph_state.undo();
+        assert_eq!(
+            snapshot.graph_state.graph.get_block(start).unwrap().kind(),
+            BlockKind::Cube(CubeKind::ZXZ)
+        );
     }
 
     #[test]

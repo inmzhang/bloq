@@ -7,55 +7,15 @@
 use bloq_compile::{CompileConfig, CompileContext, compile_clifford_proxy};
 use bloq_graph::{BlockGraph, GalleryItem};
 use bloq_ir::lowering::PaddingInstance;
-use bloq_ir::{
-    Bloq, BloqEdge, BloqNodeId, EditError, LevelPath, MemoryRoundTarget, NodeProvenance,
-    TemporalPipeRef,
-};
+use bloq_ir::{Bloq, BloqEdge, EditError, LevelPath, MemoryRoundTarget, NodeProvenance};
 use bloq_stim::{emit_bloq_stim, emit_bloq_stim_with_stim_noise};
 use glam::{IVec2, ivec3};
 use stim::Circuit;
 
 mod common;
-use common::uniform_depolarizing;
+use common::{compile_two_cubes, noisy_graphlike_distance, quantum_seam, uniform_depolarizing};
 
 const DISTANCE: u32 = 3;
-
-/// Two ZXZ cubes stacked in time - one `Quantum` seam, one observable.
-fn two_cube_graph() -> BlockGraph {
-    BlockGraph::from_blog_text("BLOG 1.0\n\n  0: ZXZ [0,0,0]\n  1: ZXZ [0,0,1]\n  [0,0,0] -> +Z\n")
-        .expect("two-cube memory graph parses")
-}
-
-fn compile_two_cubes() -> Bloq {
-    let ctx = CompileContext::new(CompileConfig::new(DISTANCE));
-    ctx.compile(&two_cube_graph())
-        .expect("two-cube graph compiles")
-        .bloq
-}
-
-/// The program's single `Quantum` edge: `(from, to, pipe)`.
-fn quantum_seam(bloq: &Bloq) -> (BloqNodeId, BloqNodeId, TemporalPipeRef) {
-    let mut seams = bloq.edges().filter_map(|edge| {
-        let BloqEdge::Quantum(quantum) = edge.edge else {
-            return None;
-        };
-        let [seam] = quantum.pipes.as_slice() else {
-            panic!("two-cube seam carries exactly one pipe");
-        };
-        Some((edge.source, edge.target, seam.pipe))
-    });
-    let seam = seams.next().expect("two-cube program has a Quantum seam");
-    assert!(seams.next().is_none(), "exactly one Quantum seam expected");
-    seam
-}
-
-fn noisy_graphlike_distance(bloq: &Bloq) -> usize {
-    let noisy: Circuit = emit_bloq_stim_with_stim_noise(bloq, &uniform_depolarizing())
-        .expect("emit noisy Stim")
-        .parse()
-        .expect("parse noisy Stim");
-    common::graphlike_distance(&noisy).expect("spliced detectors are deterministic and graphlike")
-}
 
 fn parsed_emit(bloq: &Bloq) -> Circuit {
     emit_bloq_stim(bloq)
@@ -97,7 +57,7 @@ fn assert_detectors_deterministic(bloq: &Bloq, label: &str) {
 fn memory_padding_preserves_observables_and_distance() {
     // 1 exercises the recorded one-round template, 3 the looped template
     // verbatim, and 2/5 its repetition-count specialization.
-    let original = compile_two_cubes();
+    let original = compile_two_cubes(DISTANCE);
     let baseline = parsed_emit(&original);
     let baseline_distance = noisy_graphlike_distance(&original);
     assert_eq!(baseline_distance, DISTANCE as usize);
@@ -106,7 +66,7 @@ fn memory_padding_preserves_observables_and_distance() {
     for (index, rounds) in [1u32, 2, 3, 5].into_iter().enumerate() {
         let mut bloq = original.clone();
 
-        let (from, to, _pipe) = quantum_seam(&bloq);
+        let (from, to) = quantum_seam(&bloq);
         let mid = bloq
             .insert_memory_rounds(
                 MemoryRoundTarget::Edge {
@@ -391,10 +351,10 @@ fn wait_on_a_merged_factory_seam_preserves_observables_and_distance() {
 /// A reloaded `.bloq` program accepts decoder waits without its source graph.
 #[test]
 fn memory_padding_works_on_reloaded_program() {
-    let mut fresh = compile_two_cubes();
+    let mut fresh = compile_two_cubes(DISTANCE);
     let mut reloaded = Bloq::from_binary(&fresh.to_binary()).expect("binary round trip decodes");
 
-    let (from, to, _pipe) = quantum_seam(&reloaded);
+    let (from, to) = quantum_seam(&reloaded);
     reloaded
         .insert_memory_rounds(
             MemoryRoundTarget::Edge {
@@ -407,7 +367,7 @@ fn memory_padding_works_on_reloaded_program() {
         .expect("decoder wait splices into the reloaded program");
     reloaded.validate().expect("spliced program validates");
 
-    let (from, to, _pipe) = quantum_seam(&fresh);
+    let (from, to) = quantum_seam(&fresh);
     fresh
         .insert_memory_rounds(
             MemoryRoundTarget::Edge {
@@ -564,10 +524,10 @@ fn wait_on_a_spatially_merged_seam_preserves_observables_and_distance() {
 
 #[test]
 fn misplaced_padding_is_rejected_and_program_untouched() {
-    let mut bloq = compile_two_cubes();
+    let mut bloq = compile_two_cubes(DISTANCE);
     let baseline = emit_bloq_stim(&bloq).expect("emit baseline Stim");
 
-    let (from, to, _pipe) = quantum_seam(&bloq);
+    let (from, to) = quantum_seam(&bloq);
     let entry = bloq
         .edges_between(from, to)
         .find_map(|edge| match edge.edge {
