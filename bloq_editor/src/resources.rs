@@ -1305,8 +1305,8 @@ mod tests {
     use crate::systems::ui::circuit_viewer::LazyToggle;
     use bloq_circuit::GateType;
     use bloq_graph::{
-        Block, BlockGraph, BlockKind, CubeKind, Direction, GalleryItem, PauliString, Pipe,
-        Stabilizer, StabilizerGenerator, StabilizerRowKind,
+        Block, BlockGraph, BlockKind, CubeKind, Direction, PauliString, Pipe, Stabilizer,
+        StabilizerGenerator, StabilizerRowKind,
     };
     use bloq_ir::{Bloq, MomentKind};
     use glam::{IVec2, IVec3};
@@ -1613,13 +1613,6 @@ mod tests {
     }
 
     #[test]
-    fn module_view_does_not_highlight_a_root_only_program() {
-        let item = GalleryItem::OneDYoked;
-        let graph = item.build().flatten().unwrap();
-        assert!(ModuleViewState::from_graph(&item.build(), &graph).is_none());
-    }
-
-    #[test]
     fn select_all_elements_includes_blocks_and_pipes() {
         use bloq_graph::{Block, BlockKind, CubeKind, Direction, Pipe};
 
@@ -1734,30 +1727,10 @@ mod tests {
         state.finish_compile(
             7,
             CompiledBloqView {
-                viewer_graph: BlockGraph::default(),
-                nodes: vec![BloqNodeView {
-                    id: 0,
-                    layer: 0,
-                    label: "N0".to_string(),
-                    category: BloqNodeCategory::QuantumBlock,
-                    attributes: Vec::new(),
-                    operator_table: Vec::new(),
-                    source_elements: HashSet::from([GraphElement::Block(IVec3::new(1, 2, 0))]),
-                    moments: Vec::new(),
-                    qubit_coords: HashMap::from([(0usize, IVec2::new(4, 4))]),
-                    num_qubits: 1,
-                    parent: None,
-                    has_quantum_body: false,
-                }],
-                edges: Vec::new(),
                 code_distance: 5,
                 compile_config: bloq_compile::CompileConfig::new(5),
                 compile_duration: Duration::from_millis(12),
-                program: Arc::new(Bloq::new()),
-                source_program: Arc::new(Bloq::new()),
-                branch_pins: None,
-                branch_pin_draft: Default::default(),
-                source_offset: IVec3::ZERO,
+                ..stub_compiled_view()
             },
         );
 

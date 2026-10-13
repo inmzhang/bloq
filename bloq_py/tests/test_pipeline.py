@@ -805,25 +805,6 @@ def test_ir_introspection(y_memory_program):
     assert node.timeline == [3, 8]
 
 
-def test_insert_memory_rounds(y_memory_program):
-    g, _ = y_memory_program
-    # Fresh compile: mutation would leak into other tests via the shared fixture.
-    p = bloq.compile(g, distance=3)
-    quantum_edges = [
-        (e.source, e.target)
-        for e in p.edges()
-        if isinstance(e.edge, bloq.ir.BloqEdge.Quantum)
-    ]
-    assert (1, 2) in quantum_edges
-    before = p.node_count
-    new_id = p.insert_memory_rounds(1, 2, rounds=2)
-    assert p.node_count > before
-    node = p.node(new_id)
-    assert node.memory_rounds() == 2
-    assert isinstance(node.provenance, bloq.ir.NodeProvenance.MemoryPadding)
-    p.validate()
-
-
 def test_insert_memory_rounds_bad_endpoint(y_memory_program):
     g, _ = y_memory_program
     p = bloq.compile(g, distance=3)

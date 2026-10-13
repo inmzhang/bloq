@@ -1356,36 +1356,43 @@ mod tests {
     }
 
     #[test]
-    fn boundary_composition_accepts_an_equivalent_generator_basis() {
-        let a = x(IVec2::new(0, 0));
-        let b = z(IVec2::new(1, 0));
-        let ab = &a ^ &b;
-        let creators = [
-            flow(PauliMap::empty(), a.clone(), Some(0)),
-            flow(PauliMap::empty(), b, Some(1)),
-        ];
-        let consumers = [
-            flow(ab, PauliMap::empty(), Some(2)),
-            flow(a, PauliMap::empty(), Some(3)),
-        ];
-        let mut engine = FlowEngine::<u32>::new();
-        engine
-            .append_group_allowing_dangling(
-                &[OffsetFlows::new(&creators, IVec2::ZERO)],
-                |_, &measurement| measurement,
-            )
-            .expect("open the original basis");
-        engine
-            .append_group_allowing_stabilizer_transition(
-                &[OffsetFlows::new(&consumers, IVec2::ZERO)],
-                |_, &measurement| measurement,
-            )
-            .expect("consume the equivalent basis");
+    fn boundary_composition_accepts_exact_and_equivalent_generator_bases() {
+        for equivalent in [false, true] {
+            let a = x(IVec2::new(0, 0));
+            let b = z(IVec2::new(1, 0));
+            let creators = [
+                flow(PauliMap::empty(), a.clone(), Some(0)),
+                flow(PauliMap::empty(), b.clone(), Some(1)),
+            ];
+            let (first, second) = if equivalent { (&a ^ &b, a) } else { (a, b) };
+            let consumers = [
+                flow(first, PauliMap::empty(), Some(2)),
+                flow(second, PauliMap::empty(), Some(3)),
+            ];
+            let mut engine = FlowEngine::<u32>::new();
+            engine
+                .append_group_allowing_dangling(
+                    &[OffsetFlows::new(&creators, IVec2::ZERO)],
+                    |_, &measurement| measurement,
+                )
+                .expect("open the original basis");
+            engine
+                .append_group_allowing_stabilizer_transition(
+                    &[OffsetFlows::new(&consumers, IVec2::ZERO)],
+                    |_, &measurement| measurement,
+                )
+                .expect("consume the basis");
 
-        let mut completed = engine.finish().expect("the rebased seam closes");
-        completed.sort_by_key(|flow| flow.measurements[0]);
-        assert_eq!(completed[0].measurements.as_slice(), [2, 0, 1]);
-        assert_eq!(completed[1].measurements.as_slice(), [3, 0]);
+            let mut completed = engine.finish().expect("the seam closes");
+            if equivalent {
+                completed.sort_by_key(|flow| flow.measurements[0]);
+                assert_eq!(completed[0].measurements.as_slice(), [2, 0, 1]);
+                assert_eq!(completed[1].measurements.as_slice(), [3, 0]);
+            } else {
+                assert_eq!(completed[0].measurements.as_slice(), [2, 0]);
+                assert_eq!(completed[1].measurements.as_slice(), [3, 1]);
+            }
+        }
     }
 
     #[test]
@@ -1574,37 +1581,6 @@ mod tests {
         let completed = engine.finish().unwrap();
         assert_eq!(completed[0].measurements.as_slice(), [2, 1]);
         assert_eq!(completed[1].measurements.as_slice(), [3, 0]);
-    }
-
-    #[test]
-    fn boundary_composition_matches_an_exact_generator_basis() {
-        let a = x(IVec2::new(0, 0));
-        let b = z(IVec2::new(1, 0));
-        let creators = [
-            flow(PauliMap::empty(), a.clone(), Some(0)),
-            flow(PauliMap::empty(), b.clone(), Some(1)),
-        ];
-        let consumers = [
-            flow(a, PauliMap::empty(), Some(2)),
-            flow(b, PauliMap::empty(), Some(3)),
-        ];
-        let mut engine = FlowEngine::<u32>::new();
-        engine
-            .append_group_allowing_dangling(
-                &[OffsetFlows::new(&creators, IVec2::ZERO)],
-                |_, &measurement| measurement,
-            )
-            .expect("open the basis");
-        engine
-            .append_group_allowing_stabilizer_transition(
-                &[OffsetFlows::new(&consumers, IVec2::ZERO)],
-                |_, &measurement| measurement,
-            )
-            .expect("consume the same basis");
-
-        let completed = engine.finish().expect("the seam closes");
-        assert_eq!(completed[0].measurements.as_slice(), [2, 0]);
-        assert_eq!(completed[1].measurements.as_slice(), [3, 1]);
     }
 
     #[test]

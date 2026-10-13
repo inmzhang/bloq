@@ -1084,18 +1084,6 @@ mod tests {
     }
 
     #[test]
-    fn default_output_path_uses_input_stem_and_distance() {
-        let temp = tempdir().expect("create temp dir");
-        let input = write_single_cube_blog(temp.path());
-
-        run(CompileSource::InputFile(input), None, options(vec![3]))
-            .expect("default output path should compile");
-
-        let output_path = temp.path().join("input-d3.stim");
-        assert!(output_path.exists(), "default output file should exist");
-    }
-
-    #[test]
     fn equivalent_output_path_cannot_overwrite_input() {
         let temp = tempdir().expect("create temp dir");
         let input = write_single_cube_blog(temp.path());

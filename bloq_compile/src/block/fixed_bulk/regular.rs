@@ -112,41 +112,36 @@ mod tests {
     use crate::block::fixed_bulk::grid::describe_patch;
     use crate::block::fixed_bulk::utils::make_surface_code_chunk;
 
-    #[test]
-    fn test_regular_patch_d3_isolated_zxz() {
+    #[rstest]
+    #[case(3, 8)]
+    #[case(5, 24)]
+    fn test_regular_patch_isolated_zxz(#[case] distance: u32, #[case] tiles: usize) {
         let (patch, init, meas) = build_regular_patch(
             CubeKind::ZXZ,
-            3,
+            distance,
             Connectivity::ISOLATED,
             LayerSchedule::Compact,
         );
-        // 8 tiles for isolated d=3 (4 Z + 4 X)
-        assert_eq!(patch.tiles().len(), 8);
-        assert_eq!(patch.z_tiles().count(), 4);
-        assert_eq!(patch.x_tiles().count(), 4);
+        assert_eq!(patch.tiles().len(), tiles);
+        assert_eq!(patch.z_tiles().count(), tiles / 2);
+        assert_eq!(patch.x_tiles().count(), tiles / 2);
         // All data qubits should be in init and meas (isolated = no temporal pipes)
         assert_eq!(init.len(), meas.len());
         assert!(!init.is_empty());
     }
 
-    #[test]
-    fn test_regular_patch_d5_isolated_zxz() {
-        let (patch, _, _) = build_regular_patch(
-            CubeKind::ZXZ,
-            5,
-            Connectivity::ISOLATED,
-            LayerSchedule::Compact,
-        );
-        // 24 tiles for isolated d=5
-        assert_eq!(patch.tiles().len(), 24);
-    }
-
     #[rstest]
-    fn test_regular_flows_isolated_d3(
-        #[values(CubeKind::ZXZ, CubeKind::XZX, CubeKind::XZZ, CubeKind::ZXX)] kind: CubeKind,
-    ) {
+    #[case(CubeKind::ZXZ, Connectivity::ISOLATED)]
+    #[case(CubeKind::XZX, Connectivity::ISOLATED)]
+    #[case(CubeKind::XZZ, Connectivity::ISOLATED)]
+    #[case(CubeKind::ZXX, Connectivity::ISOLATED)]
+    #[case(CubeKind::ZXZ, Connectivity::ISOLATED.with_pipe(Direction::ZMINUS).with_pipe(Direction::ZPLUS))]
+    #[case(CubeKind::XZX, Connectivity::ISOLATED.with_pipe(Direction::ZMINUS).with_pipe(Direction::ZPLUS))]
+    #[case(CubeKind::ZXZ, Connectivity::ISOLATED.with_pipe(Direction::XPLUS))]
+    #[case(CubeKind::XZX, Connectivity::ISOLATED.with_pipe(Direction::XPLUS))]
+    fn test_regular_flows_d3(#[case] kind: CubeKind, #[case] connectivity: Connectivity) {
         let (patch, init, meas) =
-            build_regular_patch(kind, 3, Connectivity::ISOLATED, LayerSchedule::Compact);
+            build_regular_patch(kind, 3, connectivity, LayerSchedule::Compact);
         let init_chunk = make_surface_code_chunk(&patch, Some(&init), None).unwrap();
         let bulk_chunk = make_surface_code_chunk(&patch, None, None).unwrap();
         let meas_chunk = make_surface_code_chunk(&patch, None, Some(&meas)).unwrap();
@@ -200,38 +195,6 @@ mod tests {
         assert_eq!(init_chunk.flows.len(), 12);
         assert_eq!(bulk_chunk.flows.len(), 16);
         assert_eq!(meas_chunk.flows.len(), 12);
-    }
-
-    /// Flow verification with temporal pipes at d=3.
-    #[rstest]
-    fn test_regular_flows_with_temporal_pipes(
-        #[values(CubeKind::ZXZ, CubeKind::XZX)] kind: CubeKind,
-    ) {
-        let conn = Connectivity::ISOLATED
-            .with_pipe(Direction::ZMINUS)
-            .with_pipe(Direction::ZPLUS);
-        let (patch, init, meas) = build_regular_patch(kind, 3, conn, LayerSchedule::Compact);
-        let init_chunk = make_surface_code_chunk(&patch, Some(&init), None).unwrap();
-        let bulk_chunk = make_surface_code_chunk(&patch, None, None).unwrap();
-        let meas_chunk = make_surface_code_chunk(&patch, None, Some(&meas)).unwrap();
-        init_chunk.verify_flows(None, None).unwrap();
-        bulk_chunk.verify_flows(None, None).unwrap();
-        meas_chunk.verify_flows(None, None).unwrap();
-    }
-
-    /// Flow verification with spatial pipe at d=3.
-    #[rstest]
-    fn test_regular_flows_with_spatial_pipe(
-        #[values(CubeKind::ZXZ, CubeKind::XZX)] kind: CubeKind,
-    ) {
-        let conn = Connectivity::ISOLATED.with_pipe(Direction::XPLUS);
-        let (patch, init, meas) = build_regular_patch(kind, 3, conn, LayerSchedule::Compact);
-        let init_chunk = make_surface_code_chunk(&patch, Some(&init), None).unwrap();
-        let bulk_chunk = make_surface_code_chunk(&patch, None, None).unwrap();
-        let meas_chunk = make_surface_code_chunk(&patch, None, Some(&meas)).unwrap();
-        init_chunk.verify_flows(None, None).unwrap();
-        bulk_chunk.verify_flows(None, None).unwrap();
-        meas_chunk.verify_flows(None, None).unwrap();
     }
 
     /// A `+X` spatial Hadamard cedes the cube's rightmost cell column to the

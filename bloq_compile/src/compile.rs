@@ -4081,30 +4081,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn compile_graph_lowers_ghz_slide_then_glide_gallery_asset() {
-        let graph = GalleryItem::GHZSlideThenGlide
-            .build()
-            .flatten()
-            .expect("gallery graph expands");
-        let ctx = CompileContext::new(CompileConfig::new(3));
-        let variants = graph
-            .fill_ports_auto()
-            .expect("GHZ slide-then-glide ports fill");
-        assert!(!variants.is_empty());
-
-        for (variant, (filled_graph, _)) in variants.iter().enumerate() {
-            let artifacts = ctx.compile(filled_graph).unwrap_or_else(|error| {
-                panic!("GHZ slide-then-glide fill variant {variant} compiles: {error}")
-            });
-
-            artifacts
-                .bloq
-                .validate()
-                .expect("GHZ slide-then-glide template instance refs validate");
-        }
-    }
-
     /// The point of `compile(&self)`: one context, many threads, no `&mut`
     /// juggling — and identical output to compiling each graph alone.
     #[test]

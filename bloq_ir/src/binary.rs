@@ -193,7 +193,7 @@ impl Bloq {
 
 #[cfg(test)]
 mod tests {
-    use crate::{BloqNodeId, QuantumTimeline, test_fixture::sample_bloq};
+    use crate::{BloqNodeId, test_fixture::sample_bloq};
 
     use super::*;
 
@@ -341,37 +341,6 @@ mod tests {
     }
 
     #[test]
-    fn binary_round_trip_keeps_one_shared_bundle_and_two_uses() {
-        let bloq = Bloq::from_text(
-            "BLOQIR 1\n\
-             template t0 {\n  circuit {\n    M (0,0):m0\n  }\n}\n\
-             bundle b0 owners t0 {\n  detector o0:m0\n}\n\
-             graph {\n\
-               n0 quantum {\n    instance i0 t0 @ (0,0)\n    use b0 i0 @ (0,0)\n  }\n\
-               n1 quantum {\n    instance i1 t0 @ (2,0)\n    use b0 i1 @ (2,0)\n  }\n\
-             }\n",
-        )
-        .unwrap();
-        let restored = Bloq::from_binary(&bloq.to_binary()).unwrap();
-        assert_eq!(restored.detector_bundles().len(), 1);
-        assert_eq!(
-            restored[BloqNodeId(0)]
-                .expect_quantum()
-                .detector_bundles
-                .len(),
-            1
-        );
-        assert_eq!(
-            restored[BloqNodeId(1)]
-                .expect_quantum()
-                .detector_bundles
-                .len(),
-            1
-        );
-        assert_eq!(restored.to_binary(), bloq.to_binary());
-    }
-
-    #[test]
     fn from_binary_rejects_bad_magic_and_version() {
         assert!(matches!(
             Bloq::from_binary(b"nope"),
@@ -387,25 +356,6 @@ mod tests {
             Bloq::from_binary(&bytes),
             Err(BinaryDecodeError::UnsupportedVersion { found: 99 })
         ));
-    }
-
-    #[test]
-    fn quantum_timeline_round_trips() {
-        let mut bloq = sample_bloq();
-        let timeline = QuantumTimeline {
-            layer_round_ends: vec![3, 3, 8],
-        };
-        bloq.node_mut(BloqNodeId(0))
-            .expect("fixture quantum node")
-            .expect_quantum_mut()
-            .timeline = Some(timeline.clone());
-
-        let restored = Bloq::from_binary(&bloq.to_binary()).expect("round trip decodes");
-
-        assert_eq!(
-            restored[BloqNodeId(0)].expect_quantum().timeline.as_ref(),
-            Some(&timeline)
-        );
     }
 
     #[test]

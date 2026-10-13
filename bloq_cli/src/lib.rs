@@ -580,32 +580,20 @@ mod tests {
     }
 
     #[test]
-    fn root_and_subcommand_require_distance_at_parse_time() {
+    fn root_and_subcommand_require_source_and_distance_at_parse_time() {
         for args in [
             &["bloq", "foo.blog"][..],
             &["bloq", "compile", "foo.blog"][..],
-        ] {
-            let error = parse(args).expect_err("compile should require a code distance");
-            assert_eq!(
-                error.kind(),
-                clap::error::ErrorKind::MissingRequiredArgument
-            );
-            assert_eq!(error.exit_code(), 2);
-        }
-    }
-
-    #[test]
-    fn root_and_subcommand_require_source_at_parse_time() {
-        for args in [
             &["bloq", "-d", "3"][..],
             &["bloq", "compile", "-d", "3"][..],
         ] {
-            let error = parse(args).expect_err("compile should require a source");
+            let error = parse(args).expect_err("compile requires a source and distance");
             assert_eq!(
                 error.kind(),
-                clap::error::ErrorKind::MissingRequiredArgument
+                clap::error::ErrorKind::MissingRequiredArgument,
+                "{args:?}"
             );
-            assert_eq!(error.exit_code(), 2);
+            assert_eq!(error.exit_code(), 2, "{args:?}");
         }
     }
 

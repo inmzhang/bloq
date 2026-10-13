@@ -211,7 +211,7 @@ mod tests {
     }
 
     #[test]
-    fn detector_bundle_text_round_trip_preserves_sharing_and_guard() {
+    fn detector_bundle_round_trips_preserve_sharing_and_guard() {
         let bloq = Bloq::from_text(
             "BLOQIR 1\n\
              template t0 {\n  circuit {\n    M (0,0):m0\n  }\n}\n\
@@ -225,27 +225,34 @@ mod tests {
         let text = bloq.to_text();
         assert_eq!(text.matches("bundle b0 owners").count(), 1);
         assert_eq!(text.matches("use b0").count(), 2);
-        let restored = Bloq::from_text(&text).unwrap();
-        assert_same_program(&bloq, &restored);
-        assert_eq!(restored.detector_bundles().len(), 1);
-        assert_eq!(
-            restored[BloqNodeId(0)].expect_quantum().guards[0].detector_bundles,
-            vec![0]
-        );
-        let mut rows = restored
-            .node_detectors(restored[BloqNodeId(0)].expect_quantum())
-            .unwrap();
-        assert_eq!(
-            rows.next().unwrap().to_owned(),
-            rows.next().unwrap().to_owned()
-        );
-        let second = restored
-            .node_detectors(restored[BloqNodeId(1)].expect_quantum())
-            .unwrap()
-            .next()
-            .unwrap()
-            .to_owned();
-        assert_eq!(second.coords.unwrap().as_slice(), &[3.0, 2.0]);
+        for restored in [
+            Bloq::from_text(&text).unwrap(),
+            Bloq::from_binary(&bloq.to_binary()).unwrap(),
+        ] {
+            assert_same_program(&bloq, &restored);
+            assert_eq!(restored.detector_bundles().len(), 1);
+            for node in [BloqNodeId(0), BloqNodeId(1)] {
+                assert_eq!(restored[node].expect_quantum().detector_bundles.len(), 1);
+            }
+            assert_eq!(
+                restored[BloqNodeId(0)].expect_quantum().guards[0].detector_bundles,
+                vec![0]
+            );
+            let mut rows = restored
+                .node_detectors(restored[BloqNodeId(0)].expect_quantum())
+                .unwrap();
+            assert_eq!(
+                rows.next().unwrap().to_owned(),
+                rows.next().unwrap().to_owned()
+            );
+            let second = restored
+                .node_detectors(restored[BloqNodeId(1)].expect_quantum())
+                .unwrap()
+                .next()
+                .unwrap()
+                .to_owned();
+            assert_eq!(second.coords.unwrap().as_slice(), &[3.0, 2.0]);
+        }
     }
 
     #[test]
@@ -418,8 +425,16 @@ mod tests {
         });
 
         let text = bloq.to_text();
-        let restored = Bloq::from_text(&text).expect("timeline parses");
-        assert_same_program(&bloq, &restored);
+        for restored in [
+            Bloq::from_text(&text).expect("timeline parses"),
+            Bloq::from_binary(&bloq.to_binary()).expect("timeline decodes"),
+        ] {
+            assert_same_program(&bloq, &restored);
+            assert_eq!(
+                restored[BloqNodeId(0)].expect_quantum().timeline,
+                bloq[BloqNodeId(0)].expect_quantum().timeline
+            );
+        }
     }
 
     #[test]

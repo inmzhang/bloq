@@ -3710,6 +3710,7 @@ mod tests {
 
         assert_eq!(file_name, "bloq-program-r1.svg");
         assert!(svg.starts_with("<svg") && svg.ends_with("</svg>"));
+        assert!(svg.contains("<rect"));
         // Every tile label starts with `N{id}`, always on the first galley row.
         assert!(
             svg.contains(&format!("N{node_id}")),

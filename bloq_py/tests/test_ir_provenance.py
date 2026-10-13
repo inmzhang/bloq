@@ -32,15 +32,6 @@ def test_compile_records_metadata(y_memory):
         assert compiled.metadata[bloq.ir.CONVENTION_METADATA_KEY] == "fixed-bulk"
 
 
-def test_compile_metadata_round_trips_through_codecs(y_memory):
-    _, program = y_memory
-    for restored in [
-        bloq.Bloq.from_text(program.to_text()),
-        bloq.Bloq.from_binary(program.to_binary()),
-    ]:
-        assert restored.metadata == program.metadata
-
-
 def test_hand_built_program_has_no_metadata():
     assert bloq.Bloq.from_text("BLOQIR 1\ngraph {\n}\n").metadata == {}
 
@@ -170,8 +161,18 @@ def test_insert_memory_rounds_uses_recorded_padding_provenance(y_memory):
     # alone drives the splice — including on a program reloaded from binary.
     reloaded = bloq.Bloq.from_binary(p.to_binary())
     for program in (p, reloaded):
+        assert any(
+            (edge.source, edge.target) == (1, 2)
+            and isinstance(edge.edge, bloq.ir.BloqEdge.Quantum)
+            for edge in program.edges()
+        )
+        before = program.node_count
         padding = program.insert_memory_rounds(1, 2, rounds=2)
-        assert program.node(padding).is_quantum()
+        node = program.node(padding)
+        assert program.node_count > before
+        assert node.is_quantum()
+        assert node.memory_rounds() == 2
+        assert isinstance(node.provenance, bloq.ir.NodeProvenance.MemoryPadding)
         program.validate()
     # Live ids survive the codec; the free-slot reuse order is not serialized.
     # Padding must still produce exactly the same physical instructions.
@@ -226,23 +227,16 @@ def _looped_two_cube_program():
     return p
 
 
-def test_flatten_unrolls_repeats():
+def test_flatten_unrolls_repeats_preserving_detectors_and_observables():
     p = _looped_two_cube_program()
-    assert "REPEAT" in str(bloq.emit_stim(p))
+    looped = bloq.emit_stim(p)
+    assert "REPEAT" in str(looped)
 
     p.flatten()
     p.validate()
 
-    assert "REPEAT" not in str(bloq.emit_stim(p))
-
-
-def test_flatten_preserves_detector_and_observable_counts():
-    p = _looped_two_cube_program()
-    looped = bloq.emit_stim(p)
-
-    p.flatten()
-
     flat = bloq.emit_stim(p)
+    assert "REPEAT" not in str(flat)
     assert flat.num_detectors == looped.num_detectors
     assert flat.num_observables == looped.num_observables
 

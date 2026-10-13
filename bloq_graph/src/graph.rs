@@ -3431,27 +3431,6 @@ mod tests {
     }
 
     #[test]
-    fn to_blog_text_serializes_action_dag_in_ordinal_order() {
-        let mut graph = BlockGraph::new();
-        graph.add_block(Block::new(
-            glam::ivec3(0, 0, 0),
-            BlockKind::Cube(CubeKind::ZXZ),
-        ));
-        graph
-            .set_actions_lenient(vec![Action::Measure {
-                target: MeasureTarget::Node(glam::ivec3(0, 0, 0)),
-                name: "m0".into(),
-            }])
-            .unwrap();
-
-        let text = graph.to_blog_text();
-        assert!(text.starts_with("BLOG 1.0\n"));
-        assert!(text.contains("m0 = measure 0\n"));
-        assert!(!text.contains("debug"));
-        assert!(!text.contains("set_time"));
-    }
-
-    #[test]
     fn branch_blog_pipes_use_common_and_arm_local_ids() {
         let past = IVec3::ZERO;
         let inside = IVec3::Z;

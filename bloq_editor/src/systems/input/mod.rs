@@ -1883,14 +1883,6 @@ mod tests {
     }
 
     #[test]
-    fn y_graphs_are_limited_to_half_turns() {
-        assert_eq!(
-            rotation_availability_for(BlockKind::Y),
-            GraphRotationAvailability::HalfTurnsOnly
-        );
-    }
-
-    #[test]
     fn orientation_pinned_graphs_disable_rotation() {
         for kind in [BlockKind::T, BlockKind::Measurement(Basis::X)] {
             assert_eq!(

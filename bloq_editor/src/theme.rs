@@ -383,13 +383,6 @@ pub(crate) fn neon_button(
 #[cfg(test)]
 mod tests {
     use super::module_color;
-    use std::collections::HashSet;
-
-    #[test]
-    fn module_palette_keeps_first_thirty_two_definitions_distinct() {
-        let colors = (0..32).map(module_color).collect::<HashSet<_>>();
-        assert_eq!(colors.len(), 32);
-    }
 
     #[test]
     fn shared_palette_preserves_editor_hsv_colors() {

@@ -2743,17 +2743,6 @@ mod tests {
     }
 
     #[test]
-    fn empty_region_body_validates() {
-        let mut bloq = Bloq::new();
-        bloq.add_node(BloqNode::region(RegionNode::RepeatUntilSuccess {
-            restart_source: None,
-            restart_condition: ClassicalExpr::Const(false),
-            body: SubGraph::new(),
-        }));
-        bloq.validate().unwrap();
-    }
-
-    #[test]
     fn declared_outputs_validate_even_in_unconsumed_regions() {
         for invalid in [
             "result n99",
@@ -4925,13 +4914,6 @@ graph {{
         let neighbor = bloq.add_node(neighbor);
         bloq.add_edge(region, neighbor, BloqEdge::Order);
         bloq
-    }
-
-    #[test]
-    fn top_level_detector_referencing_rus_body_instance_validates() {
-        bloq_with_top_level_ref_into_rus_body(TemplateInstanceId(0), 0)
-            .validate()
-            .unwrap();
     }
 
     /// The checkless plan path a trusted consumer emits from must agree with

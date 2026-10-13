@@ -544,29 +544,6 @@ mod tests {
     }
 
     #[test]
-    fn render_svg_smoke_paints_rect_and_text() {
-        let svg = render_svg(Vec2::new(80.0, 40.0), |painter| {
-            painter.rect_filled(
-                egui::Rect::from_min_size(Pos2::new(4.0, 4.0), Vec2::new(30.0, 20.0)),
-                4.0,
-                Color32::from_rgb(10, 20, 30),
-            );
-            painter.text(
-                Pos2::new(40.0, 20.0),
-                egui::Align2::CENTER_CENTER,
-                "Hello",
-                egui::FontId::monospace(12.0),
-                Color32::WHITE,
-            );
-        });
-
-        assert!(svg.starts_with("<svg"));
-        assert!(svg.ends_with("</svg>"));
-        assert!(svg.contains("<rect"));
-        assert!(svg.contains("Hello"));
-    }
-
-    #[test]
     fn mesh_triangle_becomes_averaged_polygon() {
         let mut mesh = Mesh::default();
         mesh.vertices
