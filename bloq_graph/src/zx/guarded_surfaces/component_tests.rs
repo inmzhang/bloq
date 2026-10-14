@@ -30,6 +30,31 @@ fn named_row_from_ids(
 }
 
 #[test]
+fn named_lifts_preserve_coefficients_that_cancel_and_reappear() {
+    let mut space = empty_space();
+    let names = [("a".into(), 2), ("b".into(), 3), ("c".into(), 4)];
+    let unknown = names.iter().collect::<Vec<_>>();
+    let rows = BooleanRowSpace::new(
+        vec![
+            BooleanRow::from_terms(ONE, [(0, ONE), (2, ONE)]),
+            BooleanRow::from_terms(ONE, [(0, ONE), (2, ONE), (3, ONE)]),
+            BooleanRow::from_terms(ONE, [(0, ONE), (3, ONE), (4, ONE)]),
+        ],
+        &mut space.topology.diagram,
+    )
+    .unwrap();
+    for _ in 0..2 {
+        let lifted = space
+            .injective_named_candidates(&rows, &[0, 1, 2], &unknown, 2, 5)
+            .unwrap()
+            .unwrap();
+        assert_eq!(lifted[0].as_ref().unwrap().terms(), [(0, ONE), (2, ONE)]);
+        assert_eq!(lifted[1].as_ref().unwrap().terms(), [(3, ONE)]);
+        assert_eq!(lifted[2].as_ref().unwrap().terms(), [(0, ONE), (4, ONE)]);
+    }
+}
+
+#[test]
 fn unrelated_kernel_does_not_reject_an_injective_named_component() {
     let mut space = empty_space();
     space.topology.diagram.make_node(1, ZERO, ONE).unwrap();

@@ -209,6 +209,7 @@ pub struct BooleanDecisionDiagram {
     not_cache: Vec<DecisionId>,
     limits: BooleanLimits,
     steps: usize,
+    generation: u64,
     row_witnesses: Option<RowWitnessTape>,
 }
 
@@ -229,6 +230,12 @@ impl BooleanDecisionDiagram {
     /// Returns cumulative charged work.
     pub fn steps(&self) -> usize {
         self.steps
+    }
+
+    /// Per-arena collection counter for invalidating decision-id caches.
+    /// Every collection advances it, even if no nodes are removed.
+    pub fn generation(&self) -> u64 {
+        self.generation
     }
 
     /// Charge before traversal or allocation. Collection and cloning preserve
@@ -263,6 +270,7 @@ impl BooleanDecisionDiagram {
         &mut self,
         roots: impl IntoIterator<Item = &'a mut DecisionId>,
     ) -> usize {
+        self.generation = self.generation.wrapping_add(1);
         let mut roots = roots.into_iter().collect::<Vec<_>>();
         if let Some(tape) = &mut self.row_witnesses {
             roots.extend(tape.decisions_mut());
@@ -294,6 +302,7 @@ impl BooleanDecisionDiagram {
             not_cache: vec![DECISION_FALSE; retained],
             limits: self.limits,
             steps: self.steps,
+            generation: self.generation,
             ..Self::default()
         };
         // A node is allocated after its children. Retaining this order also
@@ -1543,6 +1552,24 @@ impl BooleanRow {
             row.set(column, value);
         }
         row
+    }
+
+    /// Build a row from nonzero coefficients in strictly increasing column order.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a coefficient is zero or columns are not strictly increasing.
+    pub fn from_sorted_terms(active: DecisionId, terms: Vec<(usize, DecisionId)>) -> Self {
+        assert!(
+            terms.iter().all(|&(_, value)| value != DECISION_FALSE)
+                && terms.windows(2).all(|pair| pair[0].0 < pair[1].0),
+            "sorted row terms must be nonzero and have strictly increasing columns",
+        );
+        Self {
+            active,
+            bits: terms,
+            witness: RowWitness::Explicit,
+        }
     }
 
     /// Explicit nonzero coefficients in strictly increasing column order.
@@ -3204,6 +3231,37 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn sorted_rows_preserve_raw_coefficients_and_reject_invalid_support() {
+        let terms = vec![(0, DECISION_TRUE), (9, DecisionId(2))];
+        let row = BooleanRow::from_sorted_terms(DECISION_FALSE, terms.clone());
+        assert_eq!(row.active, DECISION_FALSE);
+        assert_eq!(row.terms(), terms);
+        for invalid in [
+            vec![(1, DECISION_TRUE), (0, DECISION_TRUE)],
+            vec![(1, DECISION_TRUE), (1, DECISION_TRUE)],
+            vec![(1, DECISION_FALSE)],
+        ] {
+            std::panic::catch_unwind(|| BooleanRow::from_sorted_terms(DECISION_TRUE, invalid))
+                .unwrap_err();
+        }
+    }
+
+    #[test]
+    fn collection_advances_the_handle_generation_even_without_removing_nodes() {
+        let mut diagram = BooleanDecisionDiagram::default();
+        let mut root = diagram.make_node(0, DECISION_FALSE, DECISION_TRUE).unwrap();
+        let before = diagram.generation();
+        assert_eq!(diagram.collect_garbage([&mut root]), 0);
+        assert_ne!(diagram.generation(), before);
+        let before = diagram.generation();
+        diagram.make_node(1, DECISION_FALSE, DECISION_TRUE).unwrap();
+        assert_eq!(diagram.collect_garbage([&mut root]), 1);
+        assert_ne!(diagram.generation(), before);
+        assert!(diagram.evaluate(root, |_| true));
+        assert!(!diagram.evaluate(root, |_| false));
     }
 
     #[test]

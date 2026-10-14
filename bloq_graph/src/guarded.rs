@@ -48,18 +48,43 @@ pub fn selective_selector_name(position: IVec3) -> String {
     format!("selective [{},{},{}]", position.x, position.y, position.z)
 }
 
-/// Availability for one fixed set of known outcomes. Decision nodes may be
-/// appended while querying, but the query must end before collection renumbers
-/// them or another outcome becomes known.
+/// Availability as known outcomes grow. Refresh after collection before querying.
 pub(crate) struct AvailabilityQuery {
     // None is an unknown outcome. A known outcome needs no further input;
     // a structural variable instead requires its source condition.
     requirements: Vec<Option<DecisionId>>,
+    outcomes: crate::FxHashMap<String, usize>,
+    generation: u64,
     values: crate::FxHashMap<DecisionId, bool>,
     pending: Vec<DecisionId>,
 }
 
 impl AvailabilityQuery {
+    pub(crate) fn learn<'a>(
+        &mut self,
+        names: impl IntoIterator<Item = &'a str>,
+        diagram: &mut BooleanDecisionDiagram,
+    ) -> Result<(), BooleanResourceError> {
+        debug_assert_eq!(self.generation, diagram.generation());
+        let mut indices = Vec::new();
+        for name in names {
+            diagram.charge(1)?;
+            if let Some(&index) = self.outcomes.get(name)
+                && self.requirements[index].is_none()
+            {
+                indices.push(index);
+            }
+        }
+        if !indices.is_empty() {
+            diagram.charge(self.values.len())?;
+            self.values.retain(|_, available| *available);
+            for index in indices {
+                self.requirements[index] = Some(DECISION_TRUE);
+            }
+        }
+        Ok(())
+    }
+
     fn cached(&self, root: DecisionId) -> Option<bool> {
         if root.0 < 2 {
             Some(true)
@@ -73,6 +98,7 @@ impl AvailabilityQuery {
         root: DecisionId,
         diagram: &mut BooleanDecisionDiagram,
     ) -> Result<bool, BooleanResourceError> {
+        debug_assert_eq!(self.generation, diagram.generation());
         if let Some(value) = self.cached(root) {
             return Ok(value);
         }
@@ -1091,9 +1117,30 @@ impl GuardedTopology {
                     GuardedVariable::Branch { condition, .. } => Some(*condition),
                 })
                 .collect(),
+            outcomes: self
+                .variables
+                .iter()
+                .enumerate()
+                .filter_map(|(index, variable)| match variable {
+                    GuardedVariable::Outcome(name) => Some((name.clone(), index)),
+                    GuardedVariable::Branch { .. } => None,
+                })
+                .collect(),
+            generation: self.diagram.generation(),
             values: Default::default(),
             pending: Vec::new(),
         })
+    }
+
+    pub(crate) fn refresh_availability(
+        &mut self,
+        query: &mut AvailabilityQuery,
+        known: &BTreeSet<String>,
+    ) -> Result<(), BooleanResourceError> {
+        if query.generation != self.diagram.generation() {
+            *query = self.availability(known)?;
+        }
+        Ok(())
     }
 
     /// Returns one complete branch assignment satisfying `guard`.
@@ -1309,6 +1356,54 @@ mod tests {
             drop(query);
             topology.collect_garbage(roots.iter_mut());
         }
+    }
+
+    #[test]
+    fn availability_learns_outcomes_and_refreshes_after_collection() {
+        let mut topology =
+            GuardedTopology::new(&BlockGraph::new(), ModuleCertificationLimits::DEFAULT).unwrap();
+        topology
+            .diagram
+            .make_node(99, DECISION_FALSE, DECISION_TRUE)
+            .unwrap();
+        let a = topology
+            .diagram
+            .make_node(0, DECISION_FALSE, DECISION_TRUE)
+            .unwrap();
+        let b = topology
+            .diagram
+            .make_node(1, DECISION_FALSE, DECISION_TRUE)
+            .unwrap();
+        let condition = topology.diagram.apply(BooleanOp::Xor, a, b).unwrap();
+        topology.variables = vec![
+            GuardedVariable::Outcome("a".into()),
+            GuardedVariable::Outcome("b".into()),
+            GuardedVariable::Branch {
+                name: "choice".into(),
+                condition,
+            },
+        ];
+        let branch = topology
+            .diagram
+            .make_node(2, DECISION_FALSE, DECISION_TRUE)
+            .unwrap();
+        let mut roots = [a, b, branch];
+        let known = BTreeSet::from(["a".into()]);
+        let mut query = topology.availability(&known).unwrap();
+        assert!(query.available(a, &mut topology.diagram).unwrap());
+        assert!(!query.available(b, &mut topology.diagram).unwrap());
+        assert!(!query.available(branch, &mut topology.diagram).unwrap());
+        assert!(topology.collect_garbage(roots.iter_mut()) > 0);
+        topology.refresh_availability(&mut query, &known).unwrap();
+        assert!(query.available(roots[0], &mut topology.diagram).unwrap());
+        assert!(!query.available(roots[1], &mut topology.diagram).unwrap());
+        assert!(!query.available(roots[2], &mut topology.diagram).unwrap());
+        query.learn(["b"], &mut topology.diagram).unwrap();
+        let spent = topology.diagram.steps();
+        assert!(query.available(roots[0], &mut topology.diagram).unwrap());
+        assert_eq!(topology.diagram.steps(), spent, "known roots remain cached");
+        assert!(query.available(roots[1], &mut topology.diagram).unwrap());
+        assert!(query.available(roots[2], &mut topology.diagram).unwrap());
     }
 
     #[test]
