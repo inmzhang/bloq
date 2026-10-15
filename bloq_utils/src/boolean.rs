@@ -75,34 +75,14 @@ pub struct BooleanResourceError {
 
 // Caches may forget results; exhaustion must never change Boolean semantics.
 const MAX_CACHE_ENTRIES: usize = 262_144;
-const MAX_COMPUTED_ENTRIES: usize = 1 << 18;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-enum CacheOp {
-    Xor,
-    And,
-    Or,
-}
-
-impl From<BooleanOp> for CacheOp {
-    fn from(operator: BooleanOp) -> Self {
-        match operator {
-            BooleanOp::Xor => Self::Xor,
-            BooleanOp::And => Self::And,
-            BooleanOp::Or => Self::Or,
-        }
-    }
-}
-
-type ComputedKey = (CacheOp, DecisionId, DecisionId);
+type ComputedKey = (BooleanOp, DecisionId, DecisionId);
 
 #[derive(Clone, Copy)]
 struct ComputedEntry {
     left: DecisionId,
     right: DecisionId,
     result: DecisionId,
-    operator: CacheOp,
+    operator: BooleanOp,
 }
 
 impl ComputedEntry {
@@ -110,7 +90,7 @@ impl ComputedEntry {
         left: DecisionId(usize::MAX),
         right: DECISION_FALSE,
         result: DECISION_FALSE,
-        operator: CacheOp::Xor,
+        operator: BooleanOp::Xor,
     };
 
     fn key(self) -> ComputedKey {
@@ -152,7 +132,7 @@ impl ComputedTable {
     fn insert(&mut self, key: ComputedKey, result: DecisionId, nodes: usize) {
         let capacity = nodes
             .saturating_mul(2)
-            .clamp(1 << 16, MAX_COMPUTED_ENTRIES)
+            .clamp(1 << 16, MAX_CACHE_ENTRIES)
             .next_power_of_two();
         if capacity > self.entries.len() {
             let old = std::mem::replace(&mut self.entries, vec![ComputedEntry::EMPTY; capacity]);
@@ -711,8 +691,7 @@ impl BooleanDecisionDiagram {
         left: DecisionId,
         right: DecisionId,
     ) -> Result<DecisionId, BooleanResourceError> {
-        let cache_operator = CacheOp::from(operator);
-        if let Some(result) = self.apply_cache.get((cache_operator, left, right)) {
+        if let Some(result) = self.apply_cache.get((operator, left, right)) {
             return Ok(result);
         }
         self.charge(1)?;
@@ -730,7 +709,7 @@ impl BooleanDecisionDiagram {
                             results.push(value);
                             continue;
                         }
-                        let key = (cache_operator, left, right);
+                        let key = (operator, left, right);
                         if let Some(value) = self.apply_cache.get(key) {
                             results.push(value);
                             continue;
@@ -941,8 +920,6 @@ impl RowWitnessTape {
     ) -> Result<Vec<(usize, DecisionId)>, BooleanResourceError> {
         diagram.charge(1)?;
         let extended = self.explicit_columns.len() != self.initial_explicit_columns;
-        // ponytail: queries replay ancestry independently; batch fixed roots if
-        // overlapping query histories dominate after planner migration.
         // Parents are newer than children. Coalesce every path's scale before
         // visiting a shared child; never materialize intermediate witness rows.
         let mut pending = BTreeMap::from([(root, DECISION_TRUE)]);
@@ -962,23 +939,19 @@ impl RowWitnessTape {
             let requested = &requested[first..last];
             match &node.op {
                 RowWitnessOp::Leaf(terms) => {
-                    let mut accumulate = |column, value, diagram: &mut BooleanDecisionDiagram| {
-                        if extended && self.explicit_columns.contains(&column) {
-                            return Ok(());
-                        }
-                        let value = diagram.apply(BooleanOp::And, weight, value)?;
-                        let previous = result.entry(column).or_insert(DECISION_FALSE);
-                        *previous = diagram.apply(BooleanOp::Xor, *previous, value)?;
-                        Ok::<_, BooleanResourceError>(())
-                    };
                     diagram.charge(
                         requested
                             .len()
                             .saturating_mul(terms.len().ilog2() as usize + 1),
                     )?;
                     for &column in requested {
+                        if extended && self.explicit_columns.contains(&column) {
+                            continue;
+                        }
                         if let Ok(index) = terms.binary_search_by_key(&column, |term| term.0) {
-                            accumulate(column, terms[index].1, diagram)?;
+                            let value = diagram.apply(BooleanOp::And, weight, terms[index].1)?;
+                            let previous = result.entry(column).or_insert(DECISION_FALSE);
+                            *previous = diagram.apply(BooleanOp::Xor, *previous, value)?;
                         }
                     }
                 }
@@ -1684,24 +1657,6 @@ impl BooleanRow {
             row.set(column, value);
         }
         row
-    }
-
-    /// Build a row from nonzero coefficients in strictly increasing column order.
-    ///
-    /// # Panics
-    ///
-    /// Panics if a coefficient is zero or columns are not strictly increasing.
-    pub fn from_sorted_terms(active: DecisionId, terms: Vec<(usize, DecisionId)>) -> Self {
-        assert!(
-            terms.iter().all(|&(_, value)| value != DECISION_FALSE)
-                && terms.windows(2).all(|pair| pair[0].0 < pair[1].0),
-            "sorted row terms must be nonzero and have strictly increasing columns",
-        );
-        Self {
-            active,
-            bits: terms,
-            witness: RowWitness::Explicit,
-        }
     }
 
     /// Explicit nonzero coefficients in strictly increasing column order.
@@ -3321,11 +3276,11 @@ mod tests {
     fn computed_table_remapping_drops_dead_operands_and_results() {
         let mut table = ComputedTable::default();
         for (operator, left, right, result) in [
-            (CacheOp::And, 3, 4, 6),
-            (CacheOp::And, 2, 4, 4),
-            (CacheOp::Or, 3, 5, 6),
-            (CacheOp::Xor, 3, 4, 5),
-            (CacheOp::Xor, 3, 3, 0),
+            (BooleanOp::And, 3, 4, 6),
+            (BooleanOp::And, 2, 4, 4),
+            (BooleanOp::Or, 3, 5, 6),
+            (BooleanOp::Xor, 3, 4, 5),
+            (BooleanOp::Xor, 3, 3, 0),
         ] {
             table.insert(
                 (operator, DecisionId(left), DecisionId(right)),
@@ -3335,17 +3290,17 @@ mod tests {
         }
         table.remap(&[0, 1, 0, 2, 3, 0, 4].map(DecisionId));
         assert_eq!(
-            table.get((CacheOp::And, DecisionId(2), DecisionId(3))),
+            table.get((BooleanOp::And, DecisionId(2), DecisionId(3))),
             Some(DecisionId(4)),
         );
         assert_eq!(
-            table.get((CacheOp::Xor, DecisionId(2), DecisionId(2))),
+            table.get((BooleanOp::Xor, DecisionId(2), DecisionId(2))),
             Some(DECISION_FALSE),
         );
         for key in [
-            (CacheOp::And, DECISION_FALSE, DecisionId(3)),
-            (CacheOp::Or, DecisionId(2), DECISION_FALSE),
-            (CacheOp::Xor, DecisionId(2), DecisionId(3)),
+            (BooleanOp::And, DECISION_FALSE, DecisionId(3)),
+            (BooleanOp::Or, DecisionId(2), DECISION_FALSE),
+            (BooleanOp::Xor, DecisionId(2), DecisionId(3)),
         ] {
             assert_eq!(table.get(key), None);
         }
@@ -3398,22 +3353,6 @@ mod tests {
                     },
                 );
             }
-        }
-    }
-
-    #[test]
-    fn sorted_rows_preserve_raw_coefficients_and_reject_invalid_support() {
-        let terms = vec![(0, DECISION_TRUE), (9, DecisionId(2))];
-        let row = BooleanRow::from_sorted_terms(DECISION_FALSE, terms.clone());
-        assert_eq!(row.active, DECISION_FALSE);
-        assert_eq!(row.terms(), terms);
-        for invalid in [
-            vec![(1, DECISION_TRUE), (0, DECISION_TRUE)],
-            vec![(1, DECISION_TRUE), (1, DECISION_TRUE)],
-            vec![(1, DECISION_FALSE)],
-        ] {
-            std::panic::catch_unwind(|| BooleanRow::from_sorted_terms(DECISION_TRUE, invalid))
-                .unwrap_err();
         }
     }
 

@@ -52,8 +52,6 @@ pub struct GuardedSurfaceSpace {
     surfaces: Vec<GuardedSurface>,
     limits: ModuleCertificationLimits,
     module_sites: BTreeMap<[i32; 3], usize>,
-    lift_coefficients: Option<Box<[DecisionId]>>,
-    lift_touched: Vec<usize>,
 }
 
 #[doc(hidden)]
@@ -187,8 +185,7 @@ impl GuardedPivots {
 
 struct GuardedAvailability {
     pivots: GuardedPivots,
-    groups: HashMap<AvailabilityKey, Vec<usize>>,
-    pending: BTreeSet<AvailabilityKey>,
+    groups: BTreeMap<AvailabilityKey, Vec<usize>>,
     active: BTreeSet<usize>,
     auxiliary_start: usize,
 }
@@ -200,7 +197,7 @@ impl GuardedAvailability {
         auxiliary_start: usize,
         diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
     ) -> Result<(Self, BooleanRowSpace), BooleanResourceError> {
-        let mut groups = HashMap::<_, Vec<_>>::new();
+        let mut groups = BTreeMap::<_, Vec<_>>::new();
         let mut columns = HashMap::<usize, Vec<_>>::new();
         diagram.charge(constraints.len())?;
         for (index, (key, terms)) in constraints.iter().enumerate() {
@@ -254,13 +251,10 @@ impl GuardedAvailability {
                 available.push(row, diagram)?;
             }
         }
-        diagram.charge(groups.len())?;
-        let pending = groups.keys().copied().collect();
         Ok((
             Self {
                 pivots,
                 groups,
-                pending,
                 active,
                 auxiliary_start,
             },
@@ -275,19 +269,9 @@ impl GuardedAvailability {
         available: &mut BooleanRowSpace,
         diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
     ) -> Result<(), BooleanResourceError> {
-        diagram.charge(self.pending.len())?;
-        let released = self
-            .pending
-            .difference(pending)
-            .copied()
-            .collect::<Vec<_>>();
-        for key in released {
-            self.pending.remove(&key);
-            for column in self
-                .groups
-                .remove(&key)
-                .expect("released keys come from the current groups")
-            {
+        diagram.charge(self.groups.len())?;
+        for (_, columns) in self.groups.extract_if(.., |key, _| !pending.contains(key)) {
+            for column in columns {
                 self.active.remove(&column);
                 let row = self
                     .pivots
@@ -638,8 +622,6 @@ impl GuardedSurfaceSpace {
             surfaces: Vec::new(),
             limits,
             module_sites,
-            lift_coefficients: None,
-            lift_touched: Vec::new(),
         })
     }
 
@@ -1741,7 +1723,7 @@ impl GuardedSurfaceSpace {
             let source = available.row(id).expect("selected row exists");
             let terms = Self::named_terms(source, physical_columns, first_tag);
             self.topology.diagram.charge(terms.len() + 1)?;
-            let mut row = BooleanRow::from_sorted_terms(source.active, terms.to_vec());
+            let mut row = BooleanRow::from_terms(source.active, terms.iter().copied());
             row.set(first_tag + id, ONE);
             skeleton.push(row);
         }
@@ -1770,46 +1752,20 @@ impl GuardedSurfaceSpace {
                 result.push(None);
                 continue;
             }
-            let coefficients = self
-                .lift_coefficients
-                .get_or_insert_with(|| vec![ZERO; first_tag].into_boxed_slice());
-            let touched = &mut self.lift_touched;
             let diagram = &mut self.topology.diagram;
-            let full = (|| -> Result<BooleanRow, BooleanResourceError> {
-                diagram.charge(row.terms().len())?;
-                for &(column, scale) in row.terms() {
-                    if column < first_tag {
-                        continue;
-                    }
-                    let source = available
-                        .row(column - first_tag)
-                        .expect("tagged row exists");
-                    diagram.charge(source.terms().len())?;
-                    for &(column, value) in source.terms() {
-                        let term = diagram.apply(BooleanOp::And, scale, value)?;
-                        if coefficients[column] == ZERO {
-                            touched.push(column);
-                        }
-                        coefficients[column] =
-                            diagram.apply(BooleanOp::Xor, coefficients[column], term)?;
-                    }
+            let mut full = BooleanRow::new(ONE);
+            diagram.charge(row.terms().len())?;
+            for &(column, scale) in row.terms() {
+                if column >= first_tag {
+                    full.xor_scaled(
+                        available
+                            .row(column - first_tag)
+                            .expect("tagged row exists"),
+                        scale,
+                        diagram,
+                    )?;
                 }
-                touched.sort_unstable();
-                touched.dedup(); // A coefficient can cancel and become nonzero again.
-                diagram.charge(touched.len())?;
-                let terms = touched
-                    .iter()
-                    .filter_map(|&column| {
-                        (coefficients[column] != ZERO).then_some((column, coefficients[column]))
-                    })
-                    .collect();
-                Ok(BooleanRow::from_sorted_terms(ONE, terms))
-            })();
-            for &column in touched.iter() {
-                coefficients[column] = ZERO;
             }
-            touched.clear();
-            let full = full?;
             // Exact lifts must retain raw named coefficients, including off-domain values.
             let full_named = Self::named_terms(&full, physical_columns, first_tag);
             let expected_named = Self::named_terms(&row, physical_columns, first_tag);
