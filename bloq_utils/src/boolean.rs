@@ -1,6 +1,6 @@
 //! Reduced ordered Boolean decision diagrams shared by graph and IR guards.
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, BinaryHeap};
 use std::hash::{Hash, Hasher};
 
 /// A commutative binary operation over Boolean decision functions.
@@ -857,6 +857,17 @@ struct RowWitnessNode {
     columns: (usize, usize),
 }
 
+#[derive(Debug, Clone, Default)]
+struct WitnessExpansionScratch {
+    weights: Vec<DecisionId>,
+    stamps: Vec<u32>,
+    epoch: u32,
+    pending: BinaryHeap<usize>,
+    coefficients: Vec<DecisionId>,
+    column_stamps: Vec<u32>,
+    touched: Vec<usize>,
+}
+
 #[derive(Debug, Clone)]
 struct RowWitnessTape {
     explicit_columns: FxHashSet<usize>,
@@ -864,6 +875,7 @@ struct RowWitnessTape {
     ops: Vec<RowWitnessNode>,
     limit: usize,
     roots: usize,
+    expansion: WitnessExpansionScratch,
 }
 
 impl RowWitnessTape {
@@ -921,10 +933,10 @@ impl RowWitnessTape {
         })
     }
 
-    fn reconstruct(
+    fn reconstruct_columns(
         &self,
         root: usize,
-        requested: Option<&[usize]>,
+        requested: &[usize],
         diagram: &mut BooleanDecisionDiagram,
     ) -> Result<Vec<(usize, DecisionId)>, BooleanResourceError> {
         diagram.charge(1)?;
@@ -941,17 +953,13 @@ impl RowWitnessTape {
                 continue;
             }
             let node = &self.ops[id];
-            let requested = if let Some(columns) = requested {
-                diagram.charge(2 * (columns.len().max(1).ilog2() as usize + 1))?;
-                let first = columns.partition_point(|&column| column < node.columns.0);
-                let last = columns.partition_point(|&column| column <= node.columns.1);
-                if first == last {
-                    continue;
-                }
-                Some(&columns[first..last])
-            } else {
-                None
-            };
+            diagram.charge(2 * (requested.len().max(1).ilog2() as usize + 1))?;
+            let first = requested.partition_point(|&column| column < node.columns.0);
+            let last = requested.partition_point(|&column| column <= node.columns.1);
+            if first == last {
+                continue;
+            }
+            let requested = &requested[first..last];
             match &node.op {
                 RowWitnessOp::Leaf(terms) => {
                     let mut accumulate = |column, value, diagram: &mut BooleanDecisionDiagram| {
@@ -963,21 +971,14 @@ impl RowWitnessTape {
                         *previous = diagram.apply(BooleanOp::Xor, *previous, value)?;
                         Ok::<_, BooleanResourceError>(())
                     };
-                    if let Some(columns) = requested {
-                        diagram.charge(
-                            columns
-                                .len()
-                                .saturating_mul(terms.len().ilog2() as usize + 1),
-                        )?;
-                        for &column in columns {
-                            if let Ok(index) = terms.binary_search_by_key(&column, |term| term.0) {
-                                accumulate(column, terms[index].1, diagram)?;
-                            }
-                        }
-                    } else {
-                        diagram.charge(terms.len())?;
-                        for &(column, value) in terms {
-                            accumulate(column, value, diagram)?;
+                    diagram.charge(
+                        requested
+                            .len()
+                            .saturating_mul(terms.len().ilog2() as usize + 1),
+                    )?;
+                    for &column in requested {
+                        if let Ok(index) = terms.binary_search_by_key(&column, |term| term.0) {
+                            accumulate(column, terms[index].1, diagram)?;
                         }
                     }
                 }
@@ -1016,6 +1017,136 @@ impl RowWitnessTape {
         )?;
         terms.sort_unstable_by_key(|&(column, _)| column);
         Ok(terms)
+    }
+
+    fn reconstruct_all(
+        &mut self,
+        root: usize,
+        diagram: &mut BooleanDecisionDiagram,
+    ) -> Result<Vec<(usize, DecisionId)>, BooleanResourceError> {
+        let extended = self.explicit_columns.len() != self.initial_explicit_columns;
+        // Sparse coordinate domains must not allocate up to their largest column.
+        let dense = self.ops[root]
+            .columns
+            .1
+            .checked_add(1)
+            .is_some_and(|width| width <= self.roots);
+        let scratch = &mut self.expansion;
+        let result = (|| {
+            diagram.charge(1)?;
+            if scratch.weights.len() <= root {
+                diagram.charge((root + 1 - scratch.weights.len()).saturating_mul(2))?;
+                scratch.weights.resize(root + 1, DECISION_FALSE);
+                scratch.stamps.resize(root + 1, 0);
+            }
+            let mut epoch = scratch.epoch.wrapping_add(1);
+            if epoch == 0 {
+                diagram.charge(
+                    scratch
+                        .stamps
+                        .len()
+                        .saturating_add(scratch.column_stamps.len()),
+                )?;
+                scratch.stamps.fill(0);
+                scratch.column_stamps.fill(0);
+                epoch = 1;
+            }
+            scratch.epoch = epoch;
+            scratch.stamps[root] = epoch;
+            scratch.weights[root] = DECISION_TRUE;
+            scratch.pending.push(root);
+            let mut sparse = FxHashMap::<usize, DecisionId>::default();
+            while let Some(id) = scratch.pending.pop() {
+                diagram.charge(1)?;
+                let weight = scratch.weights[id];
+                if weight == DECISION_FALSE {
+                    continue;
+                }
+                match &self.ops[id].op {
+                    RowWitnessOp::Leaf(terms) => {
+                        diagram.charge(terms.len())?;
+                        for &(column, value) in terms {
+                            if extended && self.explicit_columns.contains(&column) {
+                                continue;
+                            }
+                            let value = diagram.apply(BooleanOp::And, weight, value)?;
+                            let previous = if dense {
+                                if scratch.coefficients.len() <= column {
+                                    diagram.charge(
+                                        (column + 1 - scratch.coefficients.len()).saturating_mul(2),
+                                    )?;
+                                    scratch.coefficients.resize(column + 1, DECISION_FALSE);
+                                    scratch.column_stamps.resize(column + 1, 0);
+                                }
+                                if scratch.column_stamps[column] != epoch {
+                                    scratch.column_stamps[column] = epoch;
+                                    scratch.coefficients[column] = DECISION_FALSE;
+                                    scratch.touched.push(column);
+                                }
+                                &mut scratch.coefficients[column]
+                            } else {
+                                sparse.entry(column).or_insert(DECISION_FALSE)
+                            };
+                            *previous = diagram.apply(BooleanOp::Xor, *previous, value)?;
+                        }
+                    }
+                    RowWitnessOp::Xor {
+                        left,
+                        right,
+                        factor,
+                    } => {
+                        let scaled = diagram.apply(BooleanOp::And, weight, *factor)?;
+                        for (child, value) in left
+                            .map(|id| (id, weight))
+                            .into_iter()
+                            .chain(std::iter::once((*right, scaled)))
+                        {
+                            if value == DECISION_FALSE {
+                                continue;
+                            }
+                            diagram.charge(1)?;
+                            if scratch.stamps[child] != epoch {
+                                scratch.stamps[child] = epoch;
+                                scratch.weights[child] = DECISION_FALSE;
+                                scratch.pending.push(child);
+                            }
+                            scratch.weights[child] =
+                                diagram.apply(BooleanOp::Xor, scratch.weights[child], value)?;
+                        }
+                    }
+                }
+            }
+            let count = if dense {
+                scratch.touched.len()
+            } else {
+                sparse.len()
+            };
+            diagram.charge(count)?;
+            let mut terms = Vec::with_capacity(count);
+            if dense {
+                terms.extend(scratch.touched.iter().filter_map(|&column| {
+                    let value = scratch.coefficients[column];
+                    (value != DECISION_FALSE).then_some((column, value))
+                }));
+            } else {
+                terms.extend(
+                    sparse
+                        .into_iter()
+                        .filter(|&(_, value)| value != DECISION_FALSE),
+                );
+            }
+            diagram.charge(
+                terms
+                    .len()
+                    .saturating_mul(terms.len().max(1).ilog2() as usize + 1),
+            )?;
+            terms.sort_unstable_by_key(|&(column, _)| column);
+            Ok(terms)
+        })();
+        // Every replay advances the stamps; stale scratch handles are never GC roots.
+        scratch.pending.clear();
+        scratch.touched.clear();
+        result
     }
 
     /// Propagate each requested coordinate through shared transfer uses once.
@@ -1197,6 +1328,7 @@ impl BooleanDecisionDiagram {
             ops: Vec::new(),
             limit: max_operations,
             roots: 0,
+            expansion: WitnessExpansionScratch::default(),
         });
         Ok(())
     }
@@ -1403,7 +1535,7 @@ impl BooleanRow {
             .row_witnesses
             .take()
             .expect("deferred row has an owned witness tape");
-        let passive = tape.reconstruct(root, Some(&requested), diagram);
+        let passive = tape.reconstruct_columns(root, &requested, diagram);
         diagram.row_witnesses = Some(tape);
         let passive = passive?;
         diagram.charge(
@@ -1502,11 +1634,11 @@ impl BooleanRow {
             self.witness = RowWitness::Explicit;
             return Ok(());
         };
-        let tape = diagram
+        let mut tape = diagram
             .row_witnesses
             .take()
             .expect("row witness tape started");
-        let expanded = tape.reconstruct(root, None, diagram);
+        let expanded = tape.reconstruct_all(root, diagram);
         diagram.row_witnesses = Some(tape);
         let passive = expanded?;
         diagram.charge(self.bits.len().saturating_add(passive.len()))?;
@@ -2629,6 +2761,42 @@ mod tests {
             combined.probe_coefficients(&columns, &mut diagram).unwrap(),
             vec![DECISION_FALSE; columns.len()],
         );
+    }
+
+    #[test]
+    fn dense_witness_replay_preserves_raw_rows_across_wrap_errors_and_collection() {
+        for high in [1, usize::MAX] {
+            let mut diagram = BooleanDecisionDiagram::default();
+            diagram
+                .make_node(99, DECISION_FALSE, DECISION_TRUE)
+                .unwrap();
+            let a = diagram.make_node(0, DECISION_FALSE, DECISION_TRUE).unwrap();
+            let b = diagram.make_node(1, DECISION_FALSE, DECISION_TRUE).unwrap();
+            let mut row = BooleanRow::from_terms(DECISION_FALSE, [(0, a), (high, b)]);
+            let mut other = BooleanRow::from_terms(DECISION_TRUE, [(0, b), (high, DECISION_TRUE)]);
+            let mut expected = row.clone();
+            expected.xor_scaled(&other, a, &mut diagram).unwrap();
+            diagram.start_witness_tape([], 100).unwrap();
+            row.defer_coefficients(&mut diagram).unwrap();
+            other.defer_coefficients(&mut diagram).unwrap();
+            row.xor_scaled(&other, a, &mut diagram).unwrap();
+            let mut warm = row.clone();
+            warm.expand_coefficients(&mut diagram).unwrap();
+            assert_eq!(warm.terms(), expected.terms());
+            diagram.row_witnesses.as_mut().unwrap().expansion.epoch = u32::MAX;
+            let mut wrapped = row.clone();
+            wrapped.expand_coefficients(&mut diagram).unwrap();
+            assert_eq!(wrapped.terms(), expected.terms());
+            diagram.limits.max_steps = diagram.steps() + 3;
+            let error = row.expand_coefficients(&mut diagram).unwrap_err();
+            assert_eq!(error.resource, "Boolean work steps");
+            drop((warm, wrapped, other));
+            diagram.collect_garbage(row.decisions_mut().chain(expected.decisions_mut()));
+            diagram.limits.max_steps = usize::MAX;
+            row.expand_coefficients(&mut diagram).unwrap();
+            assert_eq!(row.active, DECISION_FALSE);
+            assert_eq!(row.terms(), expected.terms());
+        }
     }
 
     #[test]
