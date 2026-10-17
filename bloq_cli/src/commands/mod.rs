@@ -151,14 +151,16 @@ fn atomic_write_with(
         Err(error) => return Err(error),
     };
 
-    let mut builder = tempfile::Builder::new();
+    let builder = tempfile::Builder::new();
     #[cfg(unix)]
-    {
+    let builder = {
         use std::os::unix::fs::PermissionsExt as _;
 
         // Match ordinary file creation: 0666 filtered through the process umask.
+        let mut builder = builder;
         builder.permissions(std::fs::Permissions::from_mode(0o666));
-    }
+        builder
+    };
     let mut temporary = builder.tempfile_in(parent)?;
     write(temporary.path())?;
     temporary.flush()?;
