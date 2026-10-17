@@ -1,6 +1,5 @@
 [workspace]
 resolver = "3"
-exclude = ["vendor/bevy_image"]
 members = [
   "bloq",
   "bloq_cli",

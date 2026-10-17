@@ -26,11 +26,11 @@ def notice_files(root):
     )
 
 
-def render(packages, supplemental, workspace_members):
+def render(packages, supplemental):
     texts = {}
     inventory = []
     for package in sorted(packages, key=lambda item: (item["name"], item["version"])):
-        if package["id"] in workspace_members:
+        if not package["source"]:
             continue
         key = f"{package['name']}@{package['version']}"
         root = Path(package["manifest_path"]).parent
@@ -76,21 +76,18 @@ def check_selection():
             file = root / name
             file.parent.mkdir(parents=True, exist_ok=True)
             file.write_text("a license\n", encoding="utf-8")
-        package = dict(id="example@1", name="example", version="1", source="registry", license="MIT",
+        package = dict(name="example", version="1", source="registry", license="MIT",
                        authors=["Example author"], manifest_path=str(root / "Cargo.toml"))
         (root / "Cargo.toml").touch()
-        output = render([package], [], [])
+        output = render([package], [])
         assert "example@1/vendor/stim/LICENSE" in output
         assert "example@1/fonts/OFL.txt" in output and "example@1/fonts/UFL.txt" in output
         assert output.count("a license\n") == 1
         assert directory not in output
-        package["source"] = None
-        assert "example@1/LICENSE" in render([package], [], [])
-        assert "example@1" not in render([package], [], [package["id"]])
         for file in notice_files(root):
             file.unlink()
         try:
-            render([package], [], [])
+            render([package], [])
         except ValueError:
             pass
         else:
@@ -107,7 +104,7 @@ def main():
         cwd=ROOT, text=True,
     ))
     supplemental = json.loads(Path(__file__).with_suffix(".json").read_text(encoding="utf-8"))
-    output = render(metadata["packages"], supplemental, metadata["workspace_members"])
+    output = render(metadata["packages"], supplemental)
     for path in OUTPUTS:
         if args.check:
             if not path.exists() or path.read_text(encoding="utf-8") != output:

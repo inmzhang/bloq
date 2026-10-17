@@ -1,4 +1,0 @@
-# Keep this editor-only patch out of Python sdists, which omit the editor and vendor sources.
-# shortcut: Bevy 0.20 pins vulnerable ruzstd; remove when a Bevy release permits ruzstd >=0.9.1.
-[patch.crates-io]
-bevy_image = { path = "vendor/bevy_image" }

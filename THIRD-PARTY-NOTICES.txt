@@ -3147,10 +3147,10 @@ Declared authors: David Tolnay <dtolnay@gmail.com>
   [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] rustversion@1.0.23/LICENSE-APACHE
   [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] rustversion@1.0.23/LICENSE-MIT
 
-ruzstd@0.9.1
+ruzstd@0.8.3
 Declared license: MIT
 Declared authors: Moritz Borcherding <moritz.borcherding@web.de>
-  [d715eb0d9cfe1cc0cc22577e387436aa568b31ca272a7c837004dc0cdde925b5] ruzstd@0.9.1/LICENSE
+  [d715eb0d9cfe1cc0cc22577e387436aa568b31ca272a7c837004dc0cdde925b5] ruzstd@0.8.3/LICENSE
 
 same-file@1.0.6
 Declared license: Unlicense/MIT
