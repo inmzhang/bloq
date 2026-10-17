@@ -5,6 +5,7 @@ rust:
     - 'Cargo.lock'
     - 'rust-toolchain.toml'
     - '.cargo/**'
+    - 'vendor/**'
     - 'justfile'
     - '.github/workflows/{ci,site-build,package-build}.yml'
     - '.github/ci-paths.yml'
