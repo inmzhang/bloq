@@ -35,7 +35,9 @@ jobs:
           fetch-depth: 0
 
       - name: Install Rust and WebAssembly target
-        run: rustup toolchain install --target wasm32-unknown-unknown
+        run: |
+          rustup toolchain install
+          rustup target add wasm32-unknown-unknown
 
       - uses: Swatinem/rust-cache@v2
         with:

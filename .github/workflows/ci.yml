@@ -208,7 +208,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Install Rust and WebAssembly target
-        run: rustup toolchain install --target wasm32-unknown-unknown
+        run: |
+          rustup toolchain install
+          rustup target add wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: bloq-site-check-${{ runner.os }}-v1
