@@ -43,6 +43,4 @@ Select exactly one option. AI-assisted submissions must follow the
 AI assistance details (only if you selected Yes: tool, exact model identifier,
 and how it was used):
 
-<!-- Retrieve model identifiers from runtime metadata before publishing; follow
-CONTRIBUTING.md#model-identifier-retrieval. Disclose each contributing model and
-its role. If retrieval fails, report the blocker before publishing this PR. -->
+<!-- Before publishing, follow CONTRIBUTING.md#model-identifier-retrieval. -->

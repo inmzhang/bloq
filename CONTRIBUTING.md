@@ -71,30 +71,22 @@ acknowledgement in the template. This policy is adapted from
 
 ### Model identifier retrieval
 
-Before creating an AI-assisted commit or publishing an issue or pull request,
-retrieve the exact model identifier from the tool's runtime metadata. If multiple
-models contributed, disclose each model and its role; use the contributing
-models in the relevant commits' `Assisted-by:` trailers.
+Before committing or publishing AI-assisted work, retrieve exact model identifiers
+from runtime metadata. Disclose each contributing model and role, and credit it
+in the relevant commits' `Assisted-by:` trailers.
 
 For local Codex sessions:
 
-1. Read `CODEX_THREAD_ID` to identify the current chat.
-2. Find the matching rollout JSONL under `${CODEX_HOME:-$HOME/.codex}/sessions/`
-   whose filename contains that thread ID. Do not select an unrelated or merely
-   most recent session.
-3. Read `payload.model` from the `turn_context` records for the turns that
-   contributed to the change. Check contributing chats separately when work
-   spans multiple chats or agents.
-4. Use the recorded identifiers verbatim in disclosures and commit trailers.
+1. Find the rollout JSONL matching `CODEX_THREAD_ID` under
+   `${CODEX_HOME:-$HOME/.codex}/sessions/`.
+2. Read `payload.model` from contributing `turn_context` records; repeat for
+   other contributing chats or agents. Copy identifiers verbatim.
 
-Do not infer the model from `config.toml`, available-model lists, family names,
-or examples in these instructions. Session-log availability and format may vary
-between Codex environments; use equivalent runtime metadata when available.
-Read only the metadata needed for attribution; do not publish session logs.
+Use equivalent runtime metadata in other environments. Never infer identifiers
+from config defaults, model lists, family names, or examples. Do not publish logs.
 
-If runtime metadata cannot be accessed or is ambiguous, finish preparing the
-changes and report the specific retrieval blocker before committing or
-publishing. Never guess or publish an "identifier unavailable" fallback.
+If retrieval fails or is ambiguous, prepare the changes and report the blocker
+before committing or publishing. Never guess or publish an "unavailable" fallback.
 
 ## Documentation scope
 
