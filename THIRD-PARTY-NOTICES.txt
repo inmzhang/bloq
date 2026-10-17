@@ -171,10 +171,10 @@ Declared license: Apache-2.0
 Declared authors: Brendan Zabarauskas <bjzaba@yahoo.com.au>
   [50e6751797c50dedd75ef1b8a0d9e42f5f8472e9fbce91f34718e9f97b0c780a] approx@0.5.1/LICENSE
 
-arboard@3.6.1
+arboard@3.7.0
 Declared license: MIT OR Apache-2.0
-  [bb28c48e3e078166e91cfc2b6db7ffebb8a0973b9e23b3df060561292d8d69ec] arboard@3.6.1/LICENSE-APACHE.txt
-  [f35468024534e0f4f16bb94cd0e88c87fbd1314f919c2645a07d350fb77b40c0] arboard@3.6.1/LICENSE-MIT.txt
+  [bb28c48e3e078166e91cfc2b6db7ffebb8a0973b9e23b3df060561292d8d69ec] arboard@3.7.0/LICENSE-APACHE.txt
+  [f35468024534e0f4f16bb94cd0e88c87fbd1314f919c2645a07d350fb77b40c0] arboard@3.7.0/LICENSE-MIT.txt
 
 ariadne@0.6.0
 Declared license: MIT
@@ -800,10 +800,10 @@ Declared authors: Jorge Aparicio <jorge@japaric.io>
   [143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4] cast@0.3.0/LICENSE-APACHE
   [005b3f9b4687364514bbaea2a25e96d54ce6a59277d157386e8259cbcae8e095] cast@0.3.0/LICENSE-MIT
 
-cc@1.7.0
+cc@1.8.0
 Declared license: MIT OR Apache-2.0
-  [143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4] cc@1.7.0/LICENSE-APACHE
-  [378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397] cc@1.7.0/LICENSE-MIT
+  [143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4] cc@1.8.0/LICENSE-APACHE
+  [378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397] cc@1.8.0/LICENSE-MIT
 
 cesu8@1.1.0
 Declared license: Apache-2.0/MIT
@@ -916,10 +916,10 @@ Declared license: MIT OR Apache-2.0
   [a8ad31b1c3f40dca5a84119351b8fa8ddc868edd77fad8a8ebf6d8f2d16fa4ae] colorchoice@1.0.5/LICENSE-APACHE
   [6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6] colorchoice@1.0.5/LICENSE-MIT
 
-combine@4.6.8
+combine@4.6.9
 Declared license: MIT
 Declared authors: Markus Westerlind <marwes91@gmail.com>
-  [09f1f9643769494262b9cacec3852201242b9c819f7d5316c7530be1c9855f75] combine@4.6.8/LICENSE
+  [09f1f9643769494262b9cacec3852201242b9c819f7d5316c7530be1c9855f75] combine@4.6.9/LICENSE
 
 concurrent-queue@2.5.0
 Declared license: Apache-2.0 OR MIT
@@ -1117,30 +1117,29 @@ Declared authors: mitchmindtree <mitchell.nordine@gmail.com>
   [756c8d2ab2dc24f256e1455b5f03937f4933d83d7bc9f2d55009fc962377d512] https://raw.githubusercontent.com/rustaudio/sample/97c3bb9b2363c0b46ac1633858bf1054fd02a980/LICENSE-APACHE
   [b1d6df41ed3aa96806e74c729444d7c121d90e6660a6aed01d298e03fde475a0] https://raw.githubusercontent.com/rustaudio/sample/97c3bb9b2363c0b46ac1633858bf1054fd02a980/LICENSE-MIT
 
-defmt@1.1.1
+defmt@1.2.0
 Declared license: MIT OR Apache-2.0
 Declared authors: The Knurling-rs developers
-  [af975c9737b3bdcdcf7ec3512b3dc936f91cc58a3c9152a8e4b0803f667df6b9] defmt@1.1.1/LICENSE-APACHE
-  [0d17b75c1867fd568bcbb735f329d0d4253846c4b756a65e4d440c1e4bd59187] defmt@1.1.1/LICENSE-MIT
+  [af975c9737b3bdcdcf7ec3512b3dc936f91cc58a3c9152a8e4b0803f667df6b9] defmt@1.2.0/LICENSE-APACHE
+  [0d17b75c1867fd568bcbb735f329d0d4253846c4b756a65e4d440c1e4bd59187] defmt@1.2.0/LICENSE-MIT
 
-defmt-macros@1.1.1
+defmt-macros@1.2.0
 Declared license: MIT OR Apache-2.0
 Declared authors: The Knurling-rs developers
-  [af975c9737b3bdcdcf7ec3512b3dc936f91cc58a3c9152a8e4b0803f667df6b9] defmt-macros@1.1.1/LICENSE-APACHE
-  [0d17b75c1867fd568bcbb735f329d0d4253846c4b756a65e4d440c1e4bd59187] defmt-macros@1.1.1/LICENSE-MIT
+  [af975c9737b3bdcdcf7ec3512b3dc936f91cc58a3c9152a8e4b0803f667df6b9] defmt-macros@1.2.0/LICENSE-APACHE
+  [0d17b75c1867fd568bcbb735f329d0d4253846c4b756a65e4d440c1e4bd59187] defmt-macros@1.2.0/LICENSE-MIT
 
-defmt-parser@1.0.0
+defmt-parser@1.1.0
 Declared license: MIT OR Apache-2.0
 Declared authors: The Knurling-rs developers
-  [af975c9737b3bdcdcf7ec3512b3dc936f91cc58a3c9152a8e4b0803f667df6b9] https://raw.githubusercontent.com/knurling-rs/defmt/4a8cdb44891ed57b8ff5a023b6bec7137c48708f/LICENSE-APACHE
-  [0d17b75c1867fd568bcbb735f329d0d4253846c4b756a65e4d440c1e4bd59187] https://raw.githubusercontent.com/knurling-rs/defmt/4a8cdb44891ed57b8ff5a023b6bec7137c48708f/LICENSE-MIT
-  [074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff] https://raw.githubusercontent.com/spdx/license-list-data/v3.27.0/text/Apache-2.0.txt
+  [af975c9737b3bdcdcf7ec3512b3dc936f91cc58a3c9152a8e4b0803f667df6b9] defmt-parser@1.1.0/LICENSE-APACHE
+  [0d17b75c1867fd568bcbb735f329d0d4253846c4b756a65e4d440c1e4bd59187] defmt-parser@1.1.0/LICENSE-MIT
 
-deranged@0.5.8
+deranged@0.5.9
 Declared license: MIT OR Apache-2.0
 Declared authors: Jacob Pratt <jacob@jhpratt.dev>
-  [8502aec5e5641474918f26b09b6a31981ea16bfbc3bdaecc88f33cb661bef58d] deranged@0.5.8/LICENSE-Apache
-  [231c837c45eb53f108fb48929e488965bc4fcc14e9ea21d35f50e6b99d98685b] deranged@0.5.8/LICENSE-MIT
+  [8502aec5e5641474918f26b09b6a31981ea16bfbc3bdaecc88f33cb661bef58d] deranged@0.5.9/LICENSE-Apache
+  [231c837c45eb53f108fb48929e488965bc4fcc14e9ea21d35f50e6b99d98685b] deranged@0.5.9/LICENSE-MIT
 
 derive_more@1.0.0
 Declared license: MIT
@@ -1336,10 +1335,10 @@ Declared authors: Emil Ernerfeldt <emil.ernerfeldt@gmail.com>
   [2f0015108d68627bd788d313f529c21ff4da2c2c42a5e1f3883acc83480f9002] epaint_default_fonts@0.36.2/fonts/UFL.txt
   [b9d2c1d909aa149996fd4c91dcb92b2362a04431640c1d200959da94caf8cde1] epaint_default_fonts@0.36.2/fonts/emoji-icon-font-mit-license.txt
 
-equivalent@1.0.2
+equivalent@1.0.3
 Declared license: Apache-2.0 OR MIT
-  [143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4] equivalent@1.0.2/LICENSE-APACHE
-  [7365cc8878a1d7ce155a58c4ca09c3d7a6be413efa5334a80ea842912b669349] equivalent@1.0.2/LICENSE-MIT
+  [143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4] equivalent@1.0.3/LICENSE-APACHE
+  [7365cc8878a1d7ce155a58c4ca09c3d7a6be413efa5334a80ea842912b669349] equivalent@1.0.3/LICENSE-MIT
 
 erased-serde@0.4.10
 Declared license: MIT OR Apache-2.0
@@ -1461,10 +1460,10 @@ Declared license: MIT OR Apache-2.0
   [021661359aa1fada5966f8f5270c9fb124c53874781a285eccff4e49045f2600] font-types@0.11.3/LICENSE-APACHE
   [8a62fa27ffdccc3df19dce90f8bb3d572e27aecffc1a383d0c2601834dcec434] font-types@0.11.3/LICENSE-MIT
 
-font-types@0.12.6
+font-types@0.12.7
 Declared license: MIT OR Apache-2.0
-  [eba684204073ed715c4abb48129acdfd2bff8ae48339e6a7da3b341d3027b7f0] font-types@0.12.6/LICENSE-APACHE
-  [7b4c9a3946dfcea7967582760e963e27799e225dcf20565c8ef55324bb017427] font-types@0.12.6/LICENSE-MIT
+  [eba684204073ed715c4abb48129acdfd2bff8ae48339e6a7da3b341d3027b7f0] font-types@0.12.7/LICENSE-APACHE
+  [7b4c9a3946dfcea7967582760e963e27799e225dcf20565c8ef55324bb017427] font-types@0.12.7/LICENSE-MIT
 
 fontconfig-parser@0.5.8
 Declared license: MIT
@@ -2029,10 +2028,10 @@ Declared authors: Alex Huszagh <ahuszagh@gmail.com>
   [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] lexical-write-integer@1.0.6/LICENSE-MIT
   [99aab70a96f3ecab683d8a319d9070af2213ae4c1601fb053fbe85e1361e32fe] lexical-write-integer@1.0.6/LICENSE.md
 
-libc@0.2.190
+libc@0.2.191
 Declared license: MIT OR Apache-2.0
-  [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] libc@0.2.190/LICENSE-APACHE
-  [123a331b5dbf04c30097fa43b8f858bc85df671fe776de498d01f3d6b7c1f69e] libc@0.2.190/LICENSE-MIT
+  [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] libc@0.2.191/LICENSE-APACHE
+  [123a331b5dbf04c30097fa43b8f858bc85df671fe776de498d01f3d6b7c1f69e] libc@0.2.191/LICENSE-MIT
 
 libloading@0.8.9
 Declared license: ISC
@@ -2087,11 +2086,11 @@ Declared license: Unicode-3.0
 Declared authors: The ICU4X Project Developers
   [f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2] litemap@0.8.3/LICENSE
 
-litrs@1.0.0
+litrs@1.0.1
 Declared license: MIT OR Apache-2.0
 Declared authors: Lukas Kalbertodt <lukas.kalbertodt@gmail.com>
-  [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] litrs@1.0.0/LICENSE-APACHE
-  [7dc1552e88f49132cb358b1b962fc5e79fa42d70bcbb88c526d33e45b8e98036] litrs@1.0.0/LICENSE-MIT
+  [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] litrs@1.0.1/LICENSE-APACHE
+  [7dc1552e88f49132cb358b1b962fc5e79fa42d70bcbb88c526d33e45b8e98036] litrs@1.0.1/LICENSE-MIT
 
 lock_api@0.4.14
 Declared license: MIT OR Apache-2.0
@@ -3218,10 +3217,10 @@ Declared authors: Erick Tryzelaar <erick.tryzelaar@gmail.com>; David Tolnay <dto
   [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] serde_derive@1.0.229/LICENSE-APACHE
   [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] serde_derive@1.0.229/LICENSE-MIT
 
-serde_json@1.0.152
+serde_json@1.0.154
 Declared license: MIT OR Apache-2.0
-  [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] serde_json@1.0.152/LICENSE-APACHE
-  [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] serde_json@1.0.152/LICENSE-MIT
+  [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] serde_json@1.0.154/LICENSE-APACHE
+  [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] serde_json@1.0.154/LICENSE-MIT
 
 serde_spanned@1.1.2
 Declared license: MIT OR Apache-2.0
@@ -3430,11 +3429,11 @@ Declared authors: David Tolnay <dtolnay@gmail.com>
   [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] syn@2.0.119/LICENSE-APACHE
   [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] syn@2.0.119/LICENSE-MIT
 
-syn@3.0.7
+syn@3.0.9
 Declared license: MIT OR Apache-2.0
 Declared authors: David Tolnay <dtolnay@gmail.com>
-  [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] syn@3.0.7/LICENSE-APACHE
-  [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] syn@3.0.7/LICENSE-MIT
+  [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] syn@3.0.9/LICENSE-APACHE
+  [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] syn@3.0.9/LICENSE-MIT
 
 synstructure@0.14.0
 Declared license: MIT
@@ -3586,10 +3585,10 @@ Declared authors: Lokathor <zefria@gmail.com>
   [fd80a26fbb3f644af1fa994134446702932968519797227e07a1368dea80f0bc] tinyvec@1.13.3/LICENSE-MIT.md
   [84b34dd7608f7fb9b17bd588a6bf392bf7de504e2716f024a77d89f1b145a151] tinyvec@1.13.3/LICENSE-ZLIB.md
 
-tokio@1.53.2
+tokio@1.53.3
 Declared license: MIT
 Declared authors: Tokio Contributors <team@tokio.rs>
-  [253cd04c6714889df2d32f3f64d669179a1c95c76ac43c40882c52eb06bc3552] tokio@1.53.2/LICENSE
+  [253cd04c6714889df2d32f3f64d669179a1c95c76ac43c40882c52eb06bc3552] tokio@1.53.3/LICENSE
 
 toml@1.1.8+spec-1.1.0
 Declared license: MIT OR Apache-2.0
@@ -3739,12 +3738,12 @@ Declared license: Apache-2.0
 Declared authors: YesLogic Pty. Ltd. <info@yeslogic.com>
   [a8ad31b1c3f40dca5a84119351b8fa8ddc868edd77fad8a8ebf6d8f2d16fa4ae] unicode-general-category@1.1.0/LICENSE
 
-unicode-ident@1.0.26
+unicode-ident@1.0.27
 Declared license: (MIT OR Apache-2.0) AND Unicode-3.0
 Declared authors: David Tolnay <dtolnay@gmail.com>
-  [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] unicode-ident@1.0.26/LICENSE-APACHE
-  [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] unicode-ident@1.0.26/LICENSE-MIT
-  [f7db81051789b729fea528a63ec4c938fdcb93d9d61d97dc8cc2e9df6d47f2a1] unicode-ident@1.0.26/LICENSE-UNICODE
+  [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] unicode-ident@1.0.27/LICENSE-APACHE
+  [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] unicode-ident@1.0.27/LICENSE-MIT
+  [f7db81051789b729fea528a63ec4c938fdcb93d9d61d97dc8cc2e9df6d47f2a1] unicode-ident@1.0.27/LICENSE-UNICODE
 
 unicode-linebreak@0.1.5
 Declared license: Apache-2.0
@@ -4137,12 +4136,6 @@ Declared authors: Microsoft
   [cb3b46a575dd9b39f881706288addc2e61e94c54658993da30cee083c0bb336f] windows-sys@0.59.0/license-apache-2.0
   [3d4ada4e04d153d74f5bc4e5e6aebd12ef20077716529c36089dc07f14fd0dcf] windows-sys@0.59.0/license-mit
 
-windows-sys@0.60.2
-Declared license: MIT OR Apache-2.0
-Declared authors: Microsoft
-  [cb3b46a575dd9b39f881706288addc2e61e94c54658993da30cee083c0bb336f] windows-sys@0.60.2/license-apache-2.0
-  [3d4ada4e04d153d74f5bc4e5e6aebd12ef20077716529c36089dc07f14fd0dcf] windows-sys@0.60.2/license-mit
-
 windows-sys@0.61.2
 Declared license: MIT OR Apache-2.0
   [cb3b46a575dd9b39f881706288addc2e61e94c54658993da30cee083c0bb336f] windows-sys@0.61.2/license-apache-2.0
@@ -4159,11 +4152,6 @@ Declared license: MIT OR Apache-2.0
 Declared authors: Microsoft
   [cb3b46a575dd9b39f881706288addc2e61e94c54658993da30cee083c0bb336f] windows-targets@0.52.6/license-apache-2.0
   [3d4ada4e04d153d74f5bc4e5e6aebd12ef20077716529c36089dc07f14fd0dcf] windows-targets@0.52.6/license-mit
-
-windows-targets@0.53.5
-Declared license: MIT OR Apache-2.0
-  [cb3b46a575dd9b39f881706288addc2e61e94c54658993da30cee083c0bb336f] windows-targets@0.53.5/license-apache-2.0
-  [3d4ada4e04d153d74f5bc4e5e6aebd12ef20077716529c36089dc07f14fd0dcf] windows-targets@0.53.5/license-mit
 
 windows-threading@0.2.1
 Declared license: MIT OR Apache-2.0
@@ -4182,11 +4170,6 @@ Declared authors: Microsoft
   [cb3b46a575dd9b39f881706288addc2e61e94c54658993da30cee083c0bb336f] windows_aarch64_gnullvm@0.52.6/license-apache-2.0
   [3d4ada4e04d153d74f5bc4e5e6aebd12ef20077716529c36089dc07f14fd0dcf] windows_aarch64_gnullvm@0.52.6/license-mit
 
-windows_aarch64_gnullvm@0.53.1
-Declared license: MIT OR Apache-2.0
-  [cb3b46a575dd9b39f881706288addc2e61e94c54658993da30cee083c0bb336f] windows_aarch64_gnullvm@0.53.1/license-apache-2.0
-  [3d4ada4e04d153d74f5bc4e5e6aebd12ef20077716529c36089dc07f14fd0dcf] windows_aarch64_gnullvm@0.53.1/license-mit
-
 windows_aarch64_msvc@0.42.2
 Declared license: MIT OR Apache-2.0
 Declared authors: Microsoft
@@ -4198,11 +4181,6 @@ Declared license: MIT OR Apache-2.0
 Declared authors: Microsoft
   [cb3b46a575dd9b39f881706288addc2e61e94c54658993da30cee083c0bb336f] windows_aarch64_msvc@0.52.6/license-apache-2.0
   [3d4ada4e04d153d74f5bc4e5e6aebd12ef20077716529c36089dc07f14fd0dcf] windows_aarch64_msvc@0.52.6/license-mit
-
-windows_aarch64_msvc@0.53.1
-Declared license: MIT OR Apache-2.0
-  [cb3b46a575dd9b39f881706288addc2e61e94c54658993da30cee083c0bb336f] windows_aarch64_msvc@0.53.1/license-apache-2.0
-  [3d4ada4e04d153d74f5bc4e5e6aebd12ef20077716529c36089dc07f14fd0dcf] windows_aarch64_msvc@0.53.1/license-mit
 
 windows_i686_gnu@0.42.2
 Declared license: MIT OR Apache-2.0
@@ -4216,21 +4194,11 @@ Declared authors: Microsoft
   [cb3b46a575dd9b39f881706288addc2e61e94c54658993da30cee083c0bb336f] windows_i686_gnu@0.52.6/license-apache-2.0
   [3d4ada4e04d153d74f5bc4e5e6aebd12ef20077716529c36089dc07f14fd0dcf] windows_i686_gnu@0.52.6/license-mit
 
-windows_i686_gnu@0.53.1
-Declared license: MIT OR Apache-2.0
-  [cb3b46a575dd9b39f881706288addc2e61e94c54658993da30cee083c0bb336f] windows_i686_gnu@0.53.1/license-apache-2.0
-  [3d4ada4e04d153d74f5bc4e5e6aebd12ef20077716529c36089dc07f14fd0dcf] windows_i686_gnu@0.53.1/license-mit
-
 windows_i686_gnullvm@0.52.6
 Declared license: MIT OR Apache-2.0
 Declared authors: Microsoft
   [cb3b46a575dd9b39f881706288addc2e61e94c54658993da30cee083c0bb336f] windows_i686_gnullvm@0.52.6/license-apache-2.0
   [3d4ada4e04d153d74f5bc4e5e6aebd12ef20077716529c36089dc07f14fd0dcf] windows_i686_gnullvm@0.52.6/license-mit
-
-windows_i686_gnullvm@0.53.1
-Declared license: MIT OR Apache-2.0
-  [cb3b46a575dd9b39f881706288addc2e61e94c54658993da30cee083c0bb336f] windows_i686_gnullvm@0.53.1/license-apache-2.0
-  [3d4ada4e04d153d74f5bc4e5e6aebd12ef20077716529c36089dc07f14fd0dcf] windows_i686_gnullvm@0.53.1/license-mit
 
 windows_i686_msvc@0.42.2
 Declared license: MIT OR Apache-2.0
@@ -4244,11 +4212,6 @@ Declared authors: Microsoft
   [cb3b46a575dd9b39f881706288addc2e61e94c54658993da30cee083c0bb336f] windows_i686_msvc@0.52.6/license-apache-2.0
   [3d4ada4e04d153d74f5bc4e5e6aebd12ef20077716529c36089dc07f14fd0dcf] windows_i686_msvc@0.52.6/license-mit
 
-windows_i686_msvc@0.53.1
-Declared license: MIT OR Apache-2.0
-  [cb3b46a575dd9b39f881706288addc2e61e94c54658993da30cee083c0bb336f] windows_i686_msvc@0.53.1/license-apache-2.0
-  [3d4ada4e04d153d74f5bc4e5e6aebd12ef20077716529c36089dc07f14fd0dcf] windows_i686_msvc@0.53.1/license-mit
-
 windows_x86_64_gnu@0.42.2
 Declared license: MIT OR Apache-2.0
 Declared authors: Microsoft
@@ -4260,11 +4223,6 @@ Declared license: MIT OR Apache-2.0
 Declared authors: Microsoft
   [cb3b46a575dd9b39f881706288addc2e61e94c54658993da30cee083c0bb336f] windows_x86_64_gnu@0.52.6/license-apache-2.0
   [3d4ada4e04d153d74f5bc4e5e6aebd12ef20077716529c36089dc07f14fd0dcf] windows_x86_64_gnu@0.52.6/license-mit
-
-windows_x86_64_gnu@0.53.1
-Declared license: MIT OR Apache-2.0
-  [cb3b46a575dd9b39f881706288addc2e61e94c54658993da30cee083c0bb336f] windows_x86_64_gnu@0.53.1/license-apache-2.0
-  [3d4ada4e04d153d74f5bc4e5e6aebd12ef20077716529c36089dc07f14fd0dcf] windows_x86_64_gnu@0.53.1/license-mit
 
 windows_x86_64_gnullvm@0.42.2
 Declared license: MIT OR Apache-2.0
@@ -4278,11 +4236,6 @@ Declared authors: Microsoft
   [cb3b46a575dd9b39f881706288addc2e61e94c54658993da30cee083c0bb336f] windows_x86_64_gnullvm@0.52.6/license-apache-2.0
   [3d4ada4e04d153d74f5bc4e5e6aebd12ef20077716529c36089dc07f14fd0dcf] windows_x86_64_gnullvm@0.52.6/license-mit
 
-windows_x86_64_gnullvm@0.53.1
-Declared license: MIT OR Apache-2.0
-  [cb3b46a575dd9b39f881706288addc2e61e94c54658993da30cee083c0bb336f] windows_x86_64_gnullvm@0.53.1/license-apache-2.0
-  [3d4ada4e04d153d74f5bc4e5e6aebd12ef20077716529c36089dc07f14fd0dcf] windows_x86_64_gnullvm@0.53.1/license-mit
-
 windows_x86_64_msvc@0.42.2
 Declared license: MIT OR Apache-2.0
 Declared authors: Microsoft
@@ -4295,11 +4248,6 @@ Declared authors: Microsoft
   [cb3b46a575dd9b39f881706288addc2e61e94c54658993da30cee083c0bb336f] windows_x86_64_msvc@0.52.6/license-apache-2.0
   [3d4ada4e04d153d74f5bc4e5e6aebd12ef20077716529c36089dc07f14fd0dcf] windows_x86_64_msvc@0.52.6/license-mit
 
-windows_x86_64_msvc@0.53.1
-Declared license: MIT OR Apache-2.0
-  [cb3b46a575dd9b39f881706288addc2e61e94c54658993da30cee083c0bb336f] windows_x86_64_msvc@0.53.1/license-apache-2.0
-  [3d4ada4e04d153d74f5bc4e5e6aebd12ef20077716529c36089dc07f14fd0dcf] windows_x86_64_msvc@0.53.1/license-mit
-
 winit@0.30.13
 Declared license: Apache-2.0
 Declared authors: The winit contributors; Pierre Krieger <pierre.krieger1708@gmail.com>
@@ -4309,10 +4257,10 @@ winnow@1.0.4
 Declared license: MIT
   [cb5aedb296c5246d1f22e9099f925a65146f9f0d6b4eebba97fd27a6cdbbab2d] winnow@1.0.4/LICENSE-MIT
 
-winresource@0.1.31
+winresource@0.1.34
 Declared license: MIT
 Declared authors: Max Resch <resch.max@gmail.com>
-  [3564da09711c475669c15346bb25a1530a7de683c13f4a51489c15a6d74438fa] winresource@0.1.31/LICENSE
+  [3564da09711c475669c15346bb25a1530a7de683c13f4a51489c15a6d74438fa] winresource@0.1.34/LICENSE
 
 wit-bindgen@0.57.1
 Declared license: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
@@ -4410,17 +4358,17 @@ Declared authors: Chad Brokaw <cbrokaw@gmail.com>
   [143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4] zeno@0.3.3/LICENSE-APACHE
   [74da489b69dcbd3ab41e84e289d66ff9f57f4ee8791de98523550f6f34027766] zeno@0.3.3/LICENSE-MIT
 
-zerocopy@0.8.62
+zerocopy@0.8.63
 Declared license: BSD-2-Clause OR Apache-2.0 OR MIT
-  [cb84f28c8b267bfd66ccf1f43f63bd9c357bb479576e437243ca38dad2851808] zerocopy@0.8.62/LICENSE-APACHE
-  [83c1763356e822adde0a2cae748d938a73fdc263849ccff6b27776dff213bd32] zerocopy@0.8.62/LICENSE-BSD
-  [24fa231567ace7e0cdd96e5b2e649b0445d280710f7018d01ba6411e06aa641e] zerocopy@0.8.62/LICENSE-MIT
+  [cb84f28c8b267bfd66ccf1f43f63bd9c357bb479576e437243ca38dad2851808] zerocopy@0.8.63/LICENSE-APACHE
+  [83c1763356e822adde0a2cae748d938a73fdc263849ccff6b27776dff213bd32] zerocopy@0.8.63/LICENSE-BSD
+  [24fa231567ace7e0cdd96e5b2e649b0445d280710f7018d01ba6411e06aa641e] zerocopy@0.8.63/LICENSE-MIT
 
-zerocopy-derive@0.8.62
+zerocopy-derive@0.8.63
 Declared license: BSD-2-Clause OR Apache-2.0 OR MIT
-  [cb84f28c8b267bfd66ccf1f43f63bd9c357bb479576e437243ca38dad2851808] zerocopy-derive@0.8.62/LICENSE-APACHE
-  [83c1763356e822adde0a2cae748d938a73fdc263849ccff6b27776dff213bd32] zerocopy-derive@0.8.62/LICENSE-BSD
-  [24fa231567ace7e0cdd96e5b2e649b0445d280710f7018d01ba6411e06aa641e] zerocopy-derive@0.8.62/LICENSE-MIT
+  [cb84f28c8b267bfd66ccf1f43f63bd9c357bb479576e437243ca38dad2851808] zerocopy-derive@0.8.63/LICENSE-APACHE
+  [83c1763356e822adde0a2cae748d938a73fdc263849ccff6b27776dff213bd32] zerocopy-derive@0.8.63/LICENSE-BSD
+  [24fa231567ace7e0cdd96e5b2e649b0445d280710f7018d01ba6411e06aa641e] zerocopy-derive@0.8.63/LICENSE-MIT
 
 zerofrom@0.1.8
 Declared license: Unicode-3.0
