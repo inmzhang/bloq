@@ -1,6 +1,8 @@
 default:
     @just --list --justfile {{ justfile() }}
 
+import 'tools/release.just'
+
 [group('security')]
 audit:
     cargo audit
@@ -21,6 +23,11 @@ check-no-default:
 [group('development')]
 doc-check:
     RUSTDOCFLAGS="-D warnings -D missing_docs" cargo doc --workspace --all-features --no-deps --locked
+
+# Check the Markdown examples embedded by the facade without building the editor.
+[group('development')]
+doc-test:
+    cargo test --doc -p bloq --all-features --locked
 
 # Check the inherited workspace MSRV by selecting the facade by name.
 [group('development')]
@@ -148,10 +155,6 @@ miri:
 [group('development')]
 pre-release: check test-full lint audit miri
 
-[group('production')]
-release: pre-release
-    cargo build --release
-
 # lint + nextest + doctests, all features and locked. Test bloq_py separately.
 # Its rustdoc is Python docstring source; the empty doctest pass detects accidental
 # Rust code blocks. Binary-only crates have no doctest target.
@@ -173,6 +176,11 @@ ci-fast: fmt-check py-lint editor-package-check release-build-check
 
 [group('development')]
 ci-rust: licenses-check check check-no-default doc-check test
+
+# Full optimized website assembly and publication run separately.
+[group('website')]
+ci-site: py-docs
+    cargo check -p bloq_editor --target wasm32-unknown-unknown --locked
 
 # Tests and docs share one editable extension build and Python environment.
 [group('python')]
@@ -227,11 +235,6 @@ py-build:
 [group('python')]
 py-sdist:
     uv build bloq_py --sdist --out-dir target/wheels
-
-# Preview only; release-plz writes CHANGELOG.md in the release PR.
-[group('production')]
-changelog:
-    uvx --from git-cliff==2.14.2 git-cliff --config cliff.toml --unreleased
 
 # Generate annotated stubs and strip trailing whitespace. PYTHONHOME locates
 # stdlib on relocatable Python installs; perl supports both BSD and GNU hosts.
@@ -294,16 +297,6 @@ editor-package-check:
 release-build-check:
     uv run --no-project python tools/test_release_build.py
     python3 tools/post_release.py --check
-
-# Run on a reviewed chore/ branch after all uploads for the stable tag succeed.
-[group('production')]
-start-dev:
-    python3 tools/workspace_version.py dev
-
-# Adjust a release candidate without rewriting previously released changelogs.
-[group('production')]
-set-version version:
-    python3 tools/workspace_version.py set {{ quote(version) }}
 
 [group('development')]
 licenses-check:

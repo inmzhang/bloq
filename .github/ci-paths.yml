@@ -19,14 +19,15 @@ rust:
   - 'bloq_editor/desktop/**'
   - 'THIRD-PARTY-NOTICES.txt'
   - 'tools/{release_build,test_release_build,check_ci}.py'
-  - 'tools/{workspace_version,post_release}.py'
   - 'tools/third_party_licenses.{py,json}'
   - 'xtask/**'
   - 'docs/fixtures/**'
-  # These Markdown files are embedded in Rust API documentation/doctests.
+  - '!bloq_py/tests/**'
+
+# Embedded by the facade only for doctests, not native/editor builds.
+doctests:
   - 'README.md'
   - 'docs/{guide,releasing}.md'
-  - '!bloq_py/tests/**'
 
 python:
   - *cargo

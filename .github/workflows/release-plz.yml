@@ -2,6 +2,9 @@ name: Release-plz
 
 # Release PRs are active. Publishing is opt-in; see docs/releasing.md.
 on:
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
   push:
     branches: [main]
 
@@ -10,7 +13,7 @@ permissions: {}
 jobs:
   release:
     name: Publish Rust crates
-    if: github.repository == 'inmzhang/bloq' && vars.RELEASE_PUBLISH_ENABLED == 'true'
+    if: github.event_name == 'push' && github.repository == 'inmzhang/bloq' && vars.RELEASE_PUBLISH_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     environment: crates-io
@@ -59,7 +62,8 @@ jobs:
 
   release-pr:
     name: Prepare release PR
-    if: github.repository == 'inmzhang/bloq'
+    if: >-
+      github.event_name != 'push' && github.ref == 'refs/heads/main' && github.repository == 'inmzhang/bloq'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

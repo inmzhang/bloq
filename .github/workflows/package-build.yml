@@ -36,6 +36,7 @@ jobs:
           command: build
           target: ${{ matrix.target }}
           manylinux: auto
+          sccache: true
           before-script-linux: |
             release_flags=$(/opt/python/cp310-cp310/bin/python tools/release_build.py --shell)
             eval "$release_flags"
@@ -86,8 +87,12 @@ jobs:
           PYTHON
       - name: Build source distribution
         run: uv build bloq_py --sdist --out-dir dist
+      - uses: mozilla-actions/sccache-action@v0.0.11
       - name: Build and smoke test from source distribution
         # Source installation also resolves the trimmed workspace lockfile.
+        env:
+          SCCACHE_GHA_ENABLED: 'true'
+          RUSTC_WRAPPER: sccache
         run: |
           BLOQ_EXPECTED_VERSION="$(cargo metadata --no-deps --locked --format-version 1 |
             python -c 'import json, sys; print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"] == "bloq_py"))')"

@@ -102,12 +102,14 @@ historical documentation does not select a historical editor build.
 
 ## Publish a reviewed build
 
-CI produces a validated `bloq-site-preview` artifact for website changes.
-Every push to `main` builds and publishes the development documentation and
-browser editor. PR builds produce previews only. Publishing reuses the built
-artifact and preserves retained release snapshots and the stable alias.
+CI checks documentation, Python bindings, and web editor compilation for relevant
+changes. The website workflow assembles and publishes the latest `main` daily at
+02:47 UTC (10:47 Asia/Shanghai), skipping it when that commit is already published.
+Full builds produce a validated `bloq-site-preview` artifact. Publishing reuses
+that artifact and preserves retained release snapshots and the stable alias.
 
-For a manual publication, run the website workflow with `publish` enabled;
+For an immediate preview, run the website workflow with `publish` disabled.
+For a manual publication, run it with `publish` enabled;
 optional `release_tag` adds a release snapshot and `make_stable` selects it.
 Package releases are separate; see [Releases](releasing.md).
 

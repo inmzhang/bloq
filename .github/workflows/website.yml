@@ -1,6 +1,8 @@
 name: Build Bloq Website
 
 on:
+  schedule:
+    - cron: '47 2 * * *'
   workflow_dispatch:
     inputs:
       publish:
@@ -22,13 +24,34 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      changed: ${{ steps.published.outputs.changed }}
+    steps:
+      - name: Compare main with the published development site
+        id: published
+        run: |
+          # gh-pages may be ahead of the live site after a failed deployment.
+          published_source=$(curl -fsSL --max-time 30 https://bloqec.com/docs/dev/build.json | jq -r '.source' || true)
+          if [ "$published_source" = "$GITHUB_SHA" ]; then
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+          fi
+
   build:
+    needs: changes
+    if: >-
+      !cancelled() && (github.event_name != 'schedule' || needs.changes.outputs.changed == 'true')
     permissions:
       contents: write
       pages: write
       id-token: write
     uses: ./.github/workflows/site-build.yml
     with:
-      publish: ${{ github.event_name == 'workflow_dispatch' && inputs.publish || false }}
+      publish: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.publish) }}
       release_tag: ${{ github.ref_type == 'tag' && github.ref_name || inputs.release_tag || '' }}
       make_stable: ${{ inputs.make_stable || false }}
