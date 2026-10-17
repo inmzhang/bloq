@@ -27,6 +27,8 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.0
         with:
           python-version: '3.10'
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install
       - name: Remap native build paths
         if: runner.os != 'Linux'
         run: uv run --no-project python tools/release_build.py --github-env
