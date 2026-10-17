@@ -64,12 +64,37 @@ disclosures. A family label such as `GPT-6` is not sufficient. For example:
 Assisted-by: Codex (gpt-6.1-sol)
 ```
 
-If the identifier is unavailable, state that explicitly instead of guessing.
-
 Keep the human contributor as the commit author; credit AI tools with
 `Assisted-by:`, rather than `Co-authored-by:`. Complete the AI contribution
 acknowledgement in the template. This policy is adapted from
 [Clifft's contribution guidelines](https://github.com/unitaryfoundation/clifft/blob/main/docs/development/contributing.md).
+
+### Model identifier retrieval
+
+Before creating an AI-assisted commit or publishing an issue or pull request,
+retrieve the exact model identifier from the tool's runtime metadata. If multiple
+models contributed, disclose each model and its role; use the contributing
+models in the relevant commits' `Assisted-by:` trailers.
+
+For local Codex sessions:
+
+1. Read `CODEX_THREAD_ID` to identify the current chat.
+2. Find the matching rollout JSONL under `${CODEX_HOME:-$HOME/.codex}/sessions/`
+   whose filename contains that thread ID. Do not select an unrelated or merely
+   most recent session.
+3. Read `payload.model` from the `turn_context` records for the turns that
+   contributed to the change. Check contributing chats separately when work
+   spans multiple chats or agents.
+4. Use the recorded identifiers verbatim in disclosures and commit trailers.
+
+Do not infer the model from `config.toml`, available-model lists, family names,
+or examples in these instructions. Session-log availability and format may vary
+between Codex environments; use equivalent runtime metadata when available.
+Read only the metadata needed for attribution; do not publish session logs.
+
+If runtime metadata cannot be accessed or is ambiguous, finish preparing the
+changes and report the specific retrieval blocker before committing or
+publishing. Never guess or publish an "identifier unavailable" fallback.
 
 ## Documentation scope
 

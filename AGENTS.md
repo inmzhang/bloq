@@ -54,8 +54,12 @@ architecture cannot support it:
   [AI contribution policy](CONTRIBUTING.md#ai-assisted-contributions), including
   tool/model disclosure and an `Assisted-by: <tool> (<model>)` commit trailer.
   Use the exact model identifier reported by the tool, such as `gpt-6.1-sol`,
-  rather than a family label such as `GPT-6`. If the identifier is unavailable,
-  state that explicitly instead of guessing.
+  rather than a family label such as `GPT-6`. Before committing or publishing
+  an AI-assisted PR, retrieve the identifier from runtime metadata using the
+  [model retrieval procedure](CONTRIBUTING.md#model-identifier-retrieval).
+  If retrieval fails or the result is ambiguous, prepare the changes and report
+  the specific blocker before committing or publishing; never guess or publish
+  an "identifier unavailable" fallback.
   Keep the human contributor as author; do not use AI `Co-authored-by:` credit.
 - Keep the aggregate `CI` check required. Release publication and stable website
   promotion are separate maintainer actions; follow [Releasing](docs/releasing.md) and
