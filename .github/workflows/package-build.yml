@@ -35,12 +35,16 @@ jobs:
         with:
           command: build
           target: ${{ matrix.target }}
-          manylinux: auto
+          manylinux: '2014'
           sccache: true
+          # Root installs are intentional; manylinux2014's NSS curl needs explicit TLS cipher names.
+          docker-options: >-
+            --env PIP_ROOT_USER_ACTION=ignore
+            --env RUSTUP_TLS_CIPHERSUITES=ecdhe_ecdsa_aes_128_gcm_sha_256,ecdhe_rsa_aes_128_gcm_sha_256
           before-script-linux: |
             release_flags=$(/opt/python/cp310-cp310/bin/python tools/release_build.py --shell)
             eval "$release_flags"
-          args: --release --locked --manifest-path bloq_py/Cargo.toml --out dist
+          args: --release --locked --manifest-path bloq_py/Cargo.toml --target-dir target --out dist
       - name: Smoke test installed wheel on minimum Python
         shell: bash
         run: |
