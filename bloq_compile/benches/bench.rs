@@ -60,8 +60,8 @@ fn bench_compile_scenarios(c: &mut Criterion) {
 
 // Fine-grained benchmarks: one Criterion group per fixture, one benchmark per
 // case variant (fills, rotations) and distance. Benchmark IDs look like
-// `compile-case/<fixture>/<case-slug>/d<distance>`, where `<case-slug>` is the
-// shared join key with `target/benchmark/profiles/` (see `just bench-report`).
+// `compile-case/<fixture>/<case-slug>/d<distance>`; case slugs also name profiles
+// under `target/benchmark/profiles/`.
 fn bench_compile_cases(c: &mut Criterion) {
     let case_query = benchmark_case_query_from_env();
     let groups = fixture_case_groups(case_query.as_deref()).expect("enumerate per-case specs");

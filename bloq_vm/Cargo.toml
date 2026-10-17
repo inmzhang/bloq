@@ -10,7 +10,6 @@ repository.workspace = true
 readme.workspace = true
 
 [dependencies]
-bloq_circuit.workspace = true
 bloq_ir.workspace = true
 glam.workspace = true
 rand.workspace = true

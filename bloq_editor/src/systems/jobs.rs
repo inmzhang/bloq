@@ -747,9 +747,8 @@ pub(crate) fn schedule_compile_job(
         CompileJobResult {
             tab_id,
             revision,
-            result: source.and_then(|graph| {
-                compilation::compile_downloads(&graph, &request, Some(&progress))
-            }),
+            result: source
+                .and_then(|graph| compilation::compile_downloads(&graph, &request, &progress)),
         }
     }));
     notifications.record_info("Started compilation");
@@ -779,9 +778,8 @@ fn schedule_viewer_compile_job(
         ViewerCompileJobResult {
             tab_id,
             revision,
-            result: source.and_then(|graph| {
-                compilation::compile_for_viewer(&graph, &request, Some(&progress))
-            }),
+            result: source
+                .and_then(|graph| compilation::compile_for_viewer(&graph, &request, &progress)),
         }
     }));
     notifications.record_info("Started Bloq viewer compilation");

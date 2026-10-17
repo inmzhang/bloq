@@ -125,7 +125,7 @@ impl MeasurementFrame {
     }
 
     pub(crate) fn resolve_measurement(&self, measurement: u32) -> Result<i32, CircuitError> {
-        let abs = self.last_occurrence(measurement)?;
+        let abs = self.resolve_absolute_measurement(measurement)?;
         self.lookback_to_absolute(abs)
     }
 
@@ -133,7 +133,10 @@ impl MeasurementFrame {
         &self,
         measurement: u32,
     ) -> Result<u32, CircuitError> {
-        self.last_occurrence(measurement)
+        match self.last_occurrence.get(measurement as usize) {
+            Some(&abs) if abs != NO_OCCURRENCE => Ok(abs),
+            _ => Err(CircuitError::InvalidMeasurementId(measurement)),
+        }
     }
 
     pub(crate) fn lookback_to_absolute(&self, abs: u32) -> Result<i32, CircuitError> {
@@ -149,13 +152,6 @@ impl MeasurementFrame {
             }
             .into()
         })
-    }
-
-    fn last_occurrence(&self, measurement: u32) -> Result<u32, CircuitError> {
-        match self.last_occurrence.get(measurement as usize) {
-            Some(&abs) if abs != NO_OCCURRENCE => Ok(abs),
-            _ => Err(CircuitError::InvalidMeasurementId(measurement)),
-        }
     }
 
     fn set_last_occurrence(&mut self, measurement: u32, abs: u32) {

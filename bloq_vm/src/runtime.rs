@@ -690,11 +690,8 @@ fn validate_rus_isolation(
         return Ok(());
     };
     let owned = owned_qubits.iter().copied().collect::<HashSet<_>>();
-    let outside_operation = |operation: &QuantumOp| {
-        quantum_op_qubits(operation)
-            .iter()
-            .any(|qubit| !owned.contains(qubit))
-    };
+    let outside_operation =
+        |operation: &QuantumOp| operation.qubits().any(|qubit| !owned.contains(&qubit));
     let outside_stream = |stream: &QuantumStream| {
         stream
             .moments
@@ -1014,29 +1011,6 @@ fn validate_quantum_op(
         Ok(())
     } else {
         Err(RuntimeError::InvalidProgram("invalid quantum operand"))
-    }
-}
-
-fn quantum_op_qubits(operation: &QuantumOp) -> Vec<u32> {
-    match operation {
-        QuantumOp::Gate1 { qubit, .. }
-        | QuantumOp::Pauli { qubit, .. }
-        | QuantumOp::T { qubit, .. }
-        | QuantumOp::Reset { qubit, .. }
-        | QuantumOp::ConditionalPauli { qubit, .. } => vec![*qubit],
-        QuantumOp::Gate2 {
-            control, target, ..
-        } => vec![*control, *target],
-        QuantumOp::Measure { observable, .. } => {
-            observable.terms.iter().map(|&(qubit, _)| qubit).collect()
-        }
-        QuantumOp::Depolarize1 { qubits, .. } | QuantumOp::PauliError { qubits, .. } => {
-            qubits.to_vec()
-        }
-        QuantumOp::Depolarize2 { pairs, .. } => pairs
-            .iter()
-            .flat_map(|&(left, right)| [left, right])
-            .collect(),
     }
 }
 

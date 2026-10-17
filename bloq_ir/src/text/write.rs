@@ -6,6 +6,7 @@ use std::fmt::{self, Write as _};
 
 use bloq_circuit::{
     CoordCircuit, DetectorParity, DetectorTerm, Flow, FlowMarker, Op, PauliBasis, PauliMap,
+    measurement_gate_name,
 };
 use glam::{IVec2, IVec3};
 
@@ -178,7 +179,7 @@ fn write_op(f: &mut String, op: &Op) -> fmt::Result {
                 measurements.len(),
                 "a Measure op allocates one measurement id per target qubit"
             );
-            write!(f, "{}", measure_name(*basis))?;
+            write!(f, "{}", measurement_gate_name(*basis))?;
             if *flip_probability != 0.0 {
                 write!(f, "({flip_probability})")?;
             }
@@ -251,14 +252,6 @@ fn pauli_error_name(pauli: PauliBasis) -> &'static str {
         PauliBasis::X => "X_ERROR",
         PauliBasis::Y => "Y_ERROR",
         PauliBasis::Z => "Z_ERROR",
-    }
-}
-
-fn measure_name(basis: PauliBasis) -> &'static str {
-    match basis {
-        PauliBasis::X => "MX",
-        PauliBasis::Y => "MY",
-        PauliBasis::Z => "M",
     }
 }
 

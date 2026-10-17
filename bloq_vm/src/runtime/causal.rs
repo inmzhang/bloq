@@ -14,8 +14,7 @@ use super::{
     DecoderDecisionRecord, DetectorResult, ExecutionArtifact, ExecutionEvent, LogicalInputState,
     MeasurementRecord, MemoryKind, ObservableResult, RetryRecord, RunMetadata, RunResult,
     RuntimeConfig, RuntimeError, StopReason, TIME_EPSILON, TaskMetadata, TaskTiming, WaitReason,
-    basis, engine_pauli_product, gate1, instruction_kind, max_time, quantum_op_qubits,
-    validate_program,
+    basis, engine_pauli_product, gate1, instruction_kind, max_time, validate_program,
 };
 
 /// The idle model saturates at the maximally mixing single-qubit channel:
@@ -1092,7 +1091,7 @@ impl<'a> Machine<'a> {
             let mut qubits = moment
                 .operations
                 .iter()
-                .flat_map(quantum_op_qubits)
+                .flat_map(QuantumOp::qubits)
                 .collect::<Vec<_>>();
             if qubits.is_empty() {
                 qubits.extend(&self.program.tasks[owner as usize].qubits);

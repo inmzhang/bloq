@@ -1348,10 +1348,7 @@ impl<'a> BloqStimEmitter<'a> {
             annotations,
             &mut ctx,
             &mut mapper,
-            StimEmitOptions {
-                emit_qubit_coords: false,
-                ..StimEmitOptions::default()
-            },
+            StimEmitOptions::default(),
         )
     }
 
@@ -1840,11 +1837,7 @@ impl<'a> BloqStimEmitter<'a> {
             Some(&self.annotations_scratch),
             &mut ctx,
             &mut mapper,
-            StimEmitOptions {
-                enable_clifford_proxy: false,
-                emit_qubit_coords: false,
-                ..StimEmitOptions::default()
-            },
+            StimEmitOptions::default(),
         )?;
         self.collect_detector_metadata()?;
         if needs_boundary_tick {
@@ -1930,7 +1923,6 @@ impl<'a> BloqStimEmitter<'a> {
                 enable_clifford_proxy,
                 allow_non_clifford,
                 emit_postselection_tags,
-                emit_qubit_coords: false,
                 qubit_offset: instance.offset,
             },
         )?;

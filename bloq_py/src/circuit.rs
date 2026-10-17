@@ -29,7 +29,7 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_complex_enum, gen_stub_pymethods};
 
 use crate::errors;
-use crate::primitives::{PyPauli, PyPauliBasis, ivec2_into, py_bool, py_option};
+use crate::primitives::{PyPauli, PyPauliBasis, py_bool, py_option};
 
 // ==============================================================================
 // Circuit ops
@@ -61,7 +61,7 @@ impl From<&bloq_circuit::ConditionalCorrection> for PyConditionalCorrection {
         Self {
             pauli: correction.pauli.into(),
             control: correction.control,
-            target: ivec2_into(correction.target),
+            target: correction.target.into(),
         }
     }
 }
@@ -159,7 +159,7 @@ impl From<&Op> for PyCircuitOp {
         match op {
             Op::Gate { gate, qubits } => PyCircuitOp::Gate {
                 gate: gate.to_string(),
-                qubits: qubits.iter().copied().map(ivec2_into).collect(),
+                qubits: qubits.iter().copied().map(Into::into).collect(),
             },
             Op::Measure {
                 basis,
@@ -168,7 +168,7 @@ impl From<&Op> for PyCircuitOp {
                 flip_probability,
             } => PyCircuitOp::Measure {
                 basis: (*basis).into(),
-                qubits: qubits.iter().copied().map(ivec2_into).collect(),
+                qubits: qubits.iter().copied().map(Into::into).collect(),
                 measurements: measurements.clone(),
                 flip_probability: *flip_probability,
             },
@@ -181,7 +181,7 @@ impl From<&Op> for PyCircuitOp {
                     .map(|product| {
                         product
                             .iter()
-                            .map(|(coord, pauli)| (ivec2_into(*coord), (*pauli).into()))
+                            .map(|(coord, pauli)| ((*coord).into(), (*pauli).into()))
                             .collect()
                     })
                     .collect(),
@@ -200,14 +200,14 @@ impl From<&Op> for PyCircuitOp {
                 qubits,
             } => PyCircuitOp::Depolarize1 {
                 probability: *probability,
-                qubits: qubits.iter().copied().map(ivec2_into).collect(),
+                qubits: qubits.iter().copied().map(Into::into).collect(),
             },
             Op::Depolarize2 {
                 probability,
                 qubits,
             } => PyCircuitOp::Depolarize2 {
                 probability: *probability,
-                qubits: qubits.iter().copied().map(ivec2_into).collect(),
+                qubits: qubits.iter().copied().map(Into::into).collect(),
             },
             Op::PauliError {
                 probability,
@@ -216,7 +216,7 @@ impl From<&Op> for PyCircuitOp {
             } => PyCircuitOp::PauliError {
                 probability: *probability,
                 pauli: (*pauli).into(),
-                qubits: qubits.iter().copied().map(ivec2_into).collect(),
+                qubits: qubits.iter().copied().map(Into::into).collect(),
             },
         }
     }
@@ -335,7 +335,7 @@ impl PyCircuit {
     /// Every qubit coordinate touched by any body or measurement record,
     /// sorted.
     fn qubits(&self) -> Vec<(i32, i32)> {
-        let mut qubits: Vec<(i32, i32)> = self.0.qubits().into_iter().map(ivec2_into).collect();
+        let mut qubits: Vec<(i32, i32)> = self.0.qubits().into_iter().map(Into::into).collect();
         qubits.sort_unstable();
         qubits
     }
@@ -358,7 +358,7 @@ impl PyCircuit {
             .meas_registry()
             .records()
             .iter()
-            .map(|record| (record.id, ivec2_into(record.qubit)))
+            .map(|record| (record.id, record.qubit.into()))
             .collect()
     }
 
@@ -501,7 +501,7 @@ impl From<&Flow> for PyBoundaryFlow {
     fn from(flow: &Flow) -> Self {
         let terms = |map: &bloq_circuit::PauliMap| {
             map.iter()
-                .map(|(coord, pauli)| (ivec2_into(*coord), PyPauli::from(*pauli)))
+                .map(|(coord, pauli)| ((*coord).into(), PyPauli::from(*pauli)))
                 .collect()
         };
         Self {
@@ -509,7 +509,7 @@ impl From<&Flow> for PyBoundaryFlow {
             end: terms(&flow.end),
             measurements: flow.measurements.to_vec(),
             sign: flow.sign,
-            center: flow.center.map(ivec2_into),
+            center: flow.center.map(Into::into),
             marker: match flow.marker {
                 FlowMarker::Detector => "detector",
                 FlowMarker::Discard => "discard",
@@ -904,7 +904,7 @@ pub(crate) struct PyPipePadding {
 impl From<&PipePadding> for PyPipePadding {
     fn from(padding: &PipePadding) -> Self {
         Self {
-            offset: ivec2_into(padding.offset),
+            offset: padding.offset.into(),
             one_round: padding.one_round.0,
             looped: padding.looped.0,
         }

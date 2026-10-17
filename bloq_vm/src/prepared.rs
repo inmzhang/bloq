@@ -138,7 +138,6 @@ impl PreparedProgramCore {
         // shot loop entirely.
         let layout = LayoutCtx {
             coord_to_index: &coord_index,
-            offset: IVec2::ZERO,
             qubit_count: coord_index.len(),
         };
         let prepared = node_streams
@@ -213,7 +212,6 @@ impl PreparedProgramCore {
         validate_record_remap(ops, &local_to_global)?;
         let layout = LayoutCtx {
             coord_to_index: &self.coord_index,
-            offset: IVec2::ZERO,
             qubit_count: self.coord_index.len(),
         };
         let prepared = Rc::new(SelectedOps {

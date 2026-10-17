@@ -92,8 +92,6 @@ pub(crate) fn module_elements(
     Ok(elements)
 }
 
-pub(crate) use bloq_graph::composition::{connected_instances, connection_seams};
-
 pub(crate) struct PortSnap {
     pub(crate) moving: IVec3,
     pub(crate) fixed: IVec3,
@@ -126,37 +124,4 @@ pub(crate) fn module_snap_points(program: &BlockGraph, name: &str) -> eyre::Resu
         }
     }
     Ok(candidates)
-}
-
-pub(crate) fn translate_module(
-    program: &BlockGraph,
-    name: &str,
-    offset: IVec3,
-    compact: bool,
-) -> eyre::Result<bloq_graph::composition::ModuleTranslation> {
-    Ok(bloq_graph::composition::translate_module(
-        program, name, offset, compact,
-    )?)
-}
-pub(super) fn connect_ports(
-    program: &BlockGraph,
-    output: InstancePort,
-    input: InstancePort,
-    hadamard: bool,
-    align: bool,
-    compact: bool,
-) -> eyre::Result<BlockGraph> {
-    Ok(
-        bloq_graph::composition::connect_ports(program, output, input, hadamard, align, compact)?
-            .program,
-    )
-}
-pub(super) fn translate_group(
-    root: &mut BlockGraph,
-    group: &BTreeSet<String>,
-    offset: IVec3,
-) -> eyre::Result<()> {
-    Ok(bloq_graph::composition::translate_group(
-        root, group, offset,
-    )?)
 }

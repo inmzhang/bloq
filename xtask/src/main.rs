@@ -1,4 +1,4 @@
-//! CLI for inspecting test cases and benchmark reports.
+//! CLI for inspecting test cases and benchmark workloads.
 
 use std::env;
 
@@ -8,9 +8,6 @@ use bloq_test::{
     benchmark::{DEFAULT_COMPILE_DISTANCES, benchmark_value, case_slug},
     compile_ready_test_cases, find_test_case,
 };
-
-mod html;
-mod report;
 
 fn main() -> Result<()> {
     color_eyre::install()?;
@@ -58,7 +55,6 @@ fn run() -> Result<()> {
             }
             Ok(())
         }
-        Some("bench-report") => report::generate(),
         Some("show-case") => {
             let Some(name) = args.next() else {
                 bail!("usage: cargo run -p xtask -- show-case <exact-case-name>");
@@ -71,7 +67,7 @@ fn run() -> Result<()> {
         }
         _ => {
             bail!(
-                "usage: cargo run -p xtask -- <list-scenarios|list-cases|show-case|bench-report> [--filter <scenario-id-substring>] [--case-query <fuzzy-case-query>] [--compile-ready] [--slugs] [args]"
+                "usage: cargo run -p xtask -- <list-scenarios|list-cases|show-case> [--filter <scenario-id-substring>] [--case-query <fuzzy-case-query>] [--compile-ready] [--slugs] [args]"
             )
         }
     }

@@ -2348,7 +2348,6 @@ dependencies = [
  "bloq_stim",
  "bloq_utils",
  "bloq_vm",
- "glam",
  "pyo3",
  "pyo3-stub-gen",
  "rand 0.10.3",
@@ -2402,7 +2401,6 @@ dependencies = [
 name = "bloq_vm"
 version = "0.1.2-dev"
 dependencies = [
- "bloq_circuit",
  "bloq_compile",
  "bloq_graph",
  "bloq_ir",
@@ -8841,8 +8839,6 @@ version = "0.1.2-dev"
 dependencies = [
  "bloq_test",
  "color-eyre",
- "serde_json",
- "tempfile",
 ]
 
 [[package]]

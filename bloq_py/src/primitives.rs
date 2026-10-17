@@ -8,7 +8,7 @@
 //!   `#[gen_stub_pymethods]` stacked *above* the pyo3 macro so
 //!   `just py-stub` picks the item up for `.pyi` generation.
 //! - `glam::IVec3`/`IVec2` never cross the boundary as classes — positions
-//!   are plain `(int, int, int)` / `(int, int)` tuples via the helpers below.
+//!   are plain `(int, int, int)` / `(int, int)` tuples.
 //! - Fallible upstream calls raise the exceptions in [`crate::errors`]; invalid
 //!   *arguments* (bad literals) raise `InvalidArgumentError` from that same
 //!   hierarchy. The Python protocols keep their builtins: sequence indexing
@@ -16,7 +16,6 @@
 
 use std::str::FromStr;
 
-use glam::{IVec2, IVec3};
 use pyo3::exceptions::PyIndexError;
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_pymethods};
@@ -26,26 +25,6 @@ use crate::errors;
 // ==============================================================================
 // Conversion helpers (crate-internal, not exposed to Python)
 // ==============================================================================
-
-/// `(x, y, z)` tuple (as extracted by pyo3) → `IVec3`.
-pub(crate) fn ivec3_from(t: (i32, i32, i32)) -> IVec3 {
-    IVec3::new(t.0, t.1, t.2)
-}
-
-/// `IVec3` → `(x, y, z)` tuple (converted by pyo3 into a Python tuple).
-pub(crate) fn ivec3_into(v: IVec3) -> (i32, i32, i32) {
-    (v.x, v.y, v.z)
-}
-
-/// `(x, y)` tuple → `IVec2`.
-pub(crate) fn ivec2_from(t: (i32, i32)) -> IVec2 {
-    IVec2::new(t.0, t.1)
-}
-
-/// `IVec2` → `(x, y)` tuple.
-pub(crate) fn ivec2_into(v: IVec2) -> (i32, i32) {
-    (v.x, v.y)
-}
 
 /// A `bool` spelled the way Python spells it, for `__repr__` bodies: Rust's
 /// `Display` writes `true`, which reads as a bug in Python output.
@@ -369,7 +348,7 @@ impl PyDirection {
 
     /// Returns the unit axis vector `(x, y, z)` pointing along this direction.
     fn vector(&self) -> (i32, i32, i32) {
-        ivec3_into(bloq_utils::Direction::from(*self).to_ivec3())
+        bloq_utils::Direction::from(*self).to_ivec3().into()
     }
 
     fn __str__(&self) -> String {

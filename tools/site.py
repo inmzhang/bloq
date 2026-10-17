@@ -58,7 +58,6 @@ def build_snapshot(root, destination, name, source, *, docs_only=False, isolated
     version = package_version(root)
     env = os.environ.copy()
     env["BLOQ_DOCS_VERSION"] = f"Development ({version})" if name == "dev" else name
-    env["BLOQ_DOCS_SOURCE"] = source
     env["BLOQ_DOCS_REF"] = source.split("+", 1)[0]
     # Tags never share compiled dependencies or installed bindings with dev.
     if isolated:

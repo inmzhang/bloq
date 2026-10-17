@@ -111,16 +111,6 @@ profile-all stage="compile" distance="11" duration="5":
         just profile-case "$slug" {{ stage }} {{ distance }} {{ duration }}
     done
 
-# regenerate target/benchmark/index.html and target/benchmark/data.json from Criterion
-# output and recorded profiles
-[group('benchmark')]
-bench-report:
-    cargo run -q -p xtask -- bench-report
-
-# full pipeline: all benchmarks, all profiles (both stages), then the report
-[group('benchmark')]
-bench-full: bench-all (profile-all "compile") (profile-all "stim") bench-report
-
 [group('development')]
 test-case-list filter="":
     cargo run -q -p xtask -- list-cases {{ if filter != "" { "--filter " + filter } else { "" } }}

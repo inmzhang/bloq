@@ -456,8 +456,12 @@ impl<'a> Resolver<'a> {
             .ok_or(ResolveError::MissingNode { node })?
             .kind
         {
-            BloqNodeKind::Region(region) => {
-                return self.region_value(region);
+            BloqNodeKind::Region(RegionNode::RepeatUntilSuccess { body, .. }) => {
+                // Only the accepted attempt contributes its declared result.
+                return body.value_output().map_or_else(
+                    || Ok(Value::default()),
+                    |producer| self.node_value(body, producer),
+                );
             }
             BloqNodeKind::Quantum(_) => return Err(ResolveError::NotClassical { node }),
             BloqNodeKind::Classical(payload) => payload.as_ref(),
@@ -492,21 +496,6 @@ impl<'a> Resolver<'a> {
             }
             ClassicalNode::Discard { .. } => Err(ResolveError::UnsupportedNode { node }),
         }
-    }
-
-    /// A retry region's exported value: its accepted body's declared bit producer
-    /// (SEM-RVAL), or the XOR identity when the body exports none.
-    fn region_value(&mut self, region: &RegionNode) -> Result<Value, ResolveError> {
-        // Only the accepted attempt is observable, so the body folds once.
-        let RegionNode::RepeatUntilSuccess { body, .. } = region;
-        self.body_value(body)
-    }
-
-    fn body_value(&mut self, body: &SubGraph) -> Result<Value, ResolveError> {
-        body.value_output().map_or_else(
-            || Ok(Value::default()),
-            |producer| self.node_value(body, producer),
-        )
     }
 
     fn expression(

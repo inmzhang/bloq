@@ -4,7 +4,7 @@
 
 use crate::components::{AxisHelper, CameraSettings, EditorCamera, GraphElement};
 use crate::module_authoring::{
-    ModuleEdit, definition_graph, edit_graph, module_elements, module_instance_at, translate_module,
+    ModuleEdit, edit_graph, module_elements, module_instance_at, translate_module,
 };
 use crate::resources::{
     BloqViewerState, BoxSelectionState, CompileUiState, EditorMode, EditorState, EditorTabId,
@@ -132,7 +132,9 @@ pub(crate) fn apply_ui_intents_system(
                     TranslationTarget::Module(name) => {
                         let result = graph_state
                             .resolved_graph()
-                            .and_then(|program| translate_module(&program, &name, offset, compact))
+                            .and_then(|program| {
+                                Ok(translate_module(&program, &name, offset, compact)?)
+                            })
                             .and_then(|moved| {
                                 let selected = module_elements(&moved.program, &name)?;
                                 install_source_graph(
@@ -262,7 +264,7 @@ pub(crate) fn apply_ui_intents_system(
             UiIntent::OpenModule(name) => {
                 let result = graph_state
                     .resolved_graph()
-                    .and_then(|program| definition_graph(&program, &name));
+                    .and_then(|program| Ok(program.extract_definition(&name)?));
                 let program = match result {
                     Ok(program) => program,
                     Err(error) => {
@@ -327,7 +329,7 @@ pub(crate) fn apply_ui_intents_system(
                         )?;
                     let current = parent.snapshot.graph_state.resolved_graph()?;
                     ensure!(
-                        definition_graph(&current, &origin.name)?.to_blog_text() == origin.original,
+                        current.extract_definition(&origin.name)?.to_blog_text() == origin.original,
                         "This definition changed in its parent. Reopen the latest definition before applying changes"
                     );
                     let program = edit_graph(
@@ -346,7 +348,8 @@ pub(crate) fn apply_ui_intents_system(
                             .definition_edit
                             .as_mut()
                             .expect("`origin` was cloned out of this same field")
-                            .original = definition_graph(&program, &origin.name)
+                            .original = program
+                            .extract_definition(&origin.name)
                             .expect("the replaced definition re-extracts from a validated program")
                             .to_blog_text();
                         let parent = tabs

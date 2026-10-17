@@ -1046,13 +1046,8 @@ mod tests {
         #[values(3, 5, 7, 9)] d: u32,
         #[values(Direction::ZMINUS, Direction::ZPLUS)] pipe_dir: Direction,
     ) {
-        compile_and_verify(basis, d, pipe_dir);
-    }
-
-    #[rstest]
-    fn test_y_chunk_structure(#[values(3, 5, 7, 9)] d: u32) {
+        let template = compile_and_verify(basis, d, pipe_dir);
         let expected_reps = d / 2;
-        let template = compile_and_verify(Basis::X, d, Direction::ZMINUS);
         if expected_reps == 1 {
             assert_eq!(loop_repetitions(&template), None);
         } else {
@@ -1128,17 +1123,23 @@ mod tests {
         assert!(template.program_template.circuit.num_measurements() > 0);
     }
 
-    #[test]
-    fn test_fixed_bulk_compiler_y_missing_basis() {
+    #[rstest]
+    fn test_fixed_bulk_compiler_y_missing_basis(
+        #[values(Connectivity::ISOLATED, Connectivity::ISOLATED.with_pipe(Direction::ZMINUS))]
+        connectivity: Connectivity,
+    ) {
         let sig = BlockSignature {
             kind: BlockKind::Y,
             rounds: None,
-            connectivity: Connectivity::ISOLATED.with_pipe(Direction::ZMINUS),
+            connectivity,
             boundary_basis: None,
             layer_schedule: None,
             surgery_side: None,
         };
-        assert!(validate_fixed_bulk(sig).is_err());
+        assert!(matches!(
+            validate_fixed_bulk(sig),
+            Err(CompileError::MissingBoundaryBasis { kind: BlockKind::Y })
+        ));
     }
 
     #[rstest]

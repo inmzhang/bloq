@@ -2,7 +2,7 @@
 
 Measure compilation or Stim emission with the shared workloads before adding a
 new benchmark. Workloads live in crate `benches/` and `examples/` directories
-and `bloq_test::benchmark`; reports and profiles stay local.
+and `bloq_test::benchmark`; measurements and profiles stay local.
 
 ## Choose a workload
 
@@ -17,16 +17,11 @@ and `bloq_test::benchmark`; reports and profiles stay local.
 ```sh
 just bench-case-list
 just bench-cases cube_line
-just bench-report
 ```
-
-`bench-report` writes `target/benchmark/index.html` and `target/benchmark/data.json` from
-`target/criterion`. Times are nanoseconds. An existing local report supplies the
-previous baseline; without one, the report omits changes.
 
 :::{tip}
 Criterion output can contain old workloads. Use a fresh `CARGO_TARGET_DIR` for
-an isolated run, and use the same directory when generating its report.
+an isolated run.
 :::
 
 ## Compare a change
@@ -69,4 +64,4 @@ env BLOQ_ADDER_BITS=3,10,32 BLOQ_ADDER_DISTANCES=3,5,9 \
 ```
 
 Large cases may reach a compiler resource cap. Keep
-those refusals in the report instead of dropping difficult samples.
+those refusals in the results instead of dropping difficult samples.

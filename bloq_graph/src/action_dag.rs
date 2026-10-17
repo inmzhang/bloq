@@ -120,7 +120,11 @@ impl ResolveDecisionDiagram {
                         // lexical names can interleave unrelated sites (bit10 before bit2).
                         let next = self.variable_indices.len();
                         let variable = *self.variable_indices.entry(name.clone()).or_insert(next);
-                        values.push(self.make_node(variable, DECISION_FALSE, DECISION_TRUE)?);
+                        values.push(self.diagram.make_node(
+                            variable,
+                            DECISION_FALSE,
+                            DECISION_TRUE,
+                        )?);
                     }
                 }
                 Step::Expr(Expr::Not(inner)) => {
@@ -140,7 +144,7 @@ impl ResolveDecisionDiagram {
                 }
                 Step::Not => {
                     let value = values.pop().expect("operand is evaluated before negation");
-                    values.push(self.negate(value)?);
+                    values.push(self.diagram.negate(value)?);
                 }
                 Step::Binary(operator) => {
                     let right = values
@@ -149,40 +153,18 @@ impl ResolveDecisionDiagram {
                     let left = values
                         .pop()
                         .expect("left operand is evaluated before its operator");
-                    values.push(self.apply(operator, left, right)?);
+                    let operator = match operator {
+                        crate::BinaryOp::Xor => BooleanOp::Xor,
+                        crate::BinaryOp::And => BooleanOp::And,
+                        crate::BinaryOp::Or => BooleanOp::Or,
+                    };
+                    values.push(self.diagram.apply(operator, left, right)?);
                 }
             }
         }
         Ok(values.pop())
     }
 
-    pub(crate) fn make_node(
-        &mut self,
-        variable: usize,
-        low: DecisionId,
-        high: DecisionId,
-    ) -> Result<DecisionId, BooleanResourceError> {
-        self.diagram.make_node(variable, low, high)
-    }
-    pub(crate) fn negate(&mut self, id: DecisionId) -> Result<DecisionId, BooleanResourceError> {
-        self.diagram.negate(id)
-    }
-    pub(crate) fn apply(
-        &mut self,
-        op: crate::BinaryOp,
-        left: DecisionId,
-        right: DecisionId,
-    ) -> Result<DecisionId, BooleanResourceError> {
-        let op = match op {
-            crate::BinaryOp::Xor => BooleanOp::Xor,
-            crate::BinaryOp::And => BooleanOp::And,
-            crate::BinaryOp::Or => BooleanOp::Or,
-        };
-        self.diagram.apply(op, left, right)
-    }
-    fn values(&mut self) -> Result<Vec<Vec<bool>>, BooleanResourceError> {
-        self.values_up_to(usize::MAX)
-    }
     pub(crate) fn values_up_to(
         &mut self,
         limit: usize,
@@ -196,8 +178,12 @@ impl ResolveDecisionDiagram {
         let mut conjunction = DECISION_TRUE;
         for (index, &value) in values.iter().enumerate() {
             let root = self.roots[index];
-            let required = if value { root } else { self.negate(root)? };
-            conjunction = self.apply(crate::BinaryOp::And, conjunction, required)?;
+            let required = if value {
+                root
+            } else {
+                self.diagram.negate(root)?
+            };
+            conjunction = self.diagram.apply(BooleanOp::And, conjunction, required)?;
             if conjunction == DECISION_FALSE {
                 return Ok(false);
             }
@@ -655,7 +641,7 @@ impl ActionDag {
             return Ok(ResolveValueDomain { values: Vec::new() });
         };
         Ok(ResolveValueDomain {
-            values: diagram.values()?,
+            values: diagram.values_up_to(usize::MAX)?,
         })
     }
 
@@ -786,17 +772,7 @@ impl ActionDag {
     ) -> HashMap<IVec3, bool> {
         let exprs = targets
             .iter()
-            .filter_map(|&target| {
-                self.ordered_nodes()
-                    .find_map(|node| match &node.action {
-                        Action::Resolve {
-                            target: candidate,
-                            condition,
-                        } if *candidate == target => Some(condition),
-                        _ => None,
-                    })
-                    .map(|expr| (target, expr))
-            })
+            .filter_map(|&target| self.resolve_expr(target).map(|expr| (target, expr)))
             .collect::<Vec<_>>();
         let aliases = self.let_bindings();
         let mut variables = BTreeSet::new();

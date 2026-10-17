@@ -169,7 +169,6 @@ dependencies = [
 name = "bloq_vm"
 version = "0.1.2-dev"
 dependencies = [
- "bloq_circuit",
  "bloq_ir",
  "glam",
  "rand",

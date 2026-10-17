@@ -62,7 +62,7 @@ impl Drag {
             }
             TranslationTarget::Module(name) => graph
                 .resolved_graph()
-                .and_then(|program| translate_module(&program, name, delta, self.compact))
+                .and_then(|program| Ok(translate_module(&program, name, delta, self.compact)?))
                 .map(|result| {
                     self.displayed = result.offset;
                     if result.connections == 0 {

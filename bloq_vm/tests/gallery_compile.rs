@@ -2,11 +2,11 @@
 //! convention. Analysis-only entries have rejection coverage in module and
 //! physical gallery tests. Open temporal/directed spatial ports compile directly.
 
-use bloq_circuit::Pauli;
 use bloq_graph::{
     Action, Block, BlockGraph, BlockKind, CubeKind, Direction, GalleryCategory, GalleryItem,
     MeasureTarget, Pipe, PortRole,
 };
+use bloq_ir::circuit::Pauli;
 use bloq_ir::{BoundaryFace, ClassicalNode, InstanceProvenance, NodeProvenance, SpatialPortPart};
 use bloq_vm::run_bloq;
 

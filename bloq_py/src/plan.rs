@@ -17,7 +17,6 @@ use rustc_hash::FxHashMap;
 
 use crate::circuit::PyEmissionPlan;
 use crate::errors;
-use crate::primitives::ivec2_from;
 
 fn parse_dialect(name: &str) -> PyResult<StimDialect> {
     if name.eq_ignore_ascii_case("stim") {
@@ -110,7 +109,7 @@ pub(crate) fn emit_plan_stim(
     let dialect = parse_dialect(dialect)?;
     let qubit_map: FxHashMap<_, _> = qubit_map
         .into_iter()
-        .map(|(coord, index)| (ivec2_from(coord), index))
+        .map(|(coord, index)| (coord.into(), index))
         .collect();
     let source = plan.plan();
     let lowered = py

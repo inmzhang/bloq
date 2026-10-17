@@ -271,34 +271,9 @@ pub fn parse_blog_to_graph_with_limits(
     input: &str,
     limits: crate::ModuleCertificationLimits,
 ) -> Result<BlockGraph, BlockGraphError> {
-    parse_graph_input(input, limits)
-}
-
-/// Parse BLOG graph-body text with explicit source-analysis limits.
-///
-/// # Errors
-///
-/// Returns a syntax, graph-construction, action-analysis, or resource-limit error.
-#[cfg(test)]
-pub(super) fn parse_blog_body(input: &str) -> Result<BlockGraph, ParseError> {
-    parse_blog_body_with_limits(input, crate::ModuleCertificationLimits::DEFAULT)
-}
-
-fn parse_blog_body_with_limits(
-    input: &str,
-    limits: crate::ModuleCertificationLimits,
-) -> Result<BlockGraph, ParseError> {
-    let ast = parse::parse(input)?;
-    lower::lower_with_inputs_and_limits(&ast, std::iter::empty(), limits)
-}
-
-// The explicit graph constructor accepts executable BLOG and body serialization.
-// Only syntax selects a grammar; a module or resource failure never falls back
-// to a different lowering path.
-pub(crate) fn parse_graph_input(
-    input: &str,
-    limits: crate::ModuleCertificationLimits,
-) -> Result<BlockGraph, BlockGraphError> {
+    // The explicit graph constructor accepts executable BLOG and body serialization.
+    // Only syntax selects a grammar; a module or resource failure never falls back
+    // to a different lowering path.
     match parse::parse_program(input) {
         Ok(source) if source.modules.is_empty() && source.imports.is_empty() => {
             parse_blog_body_with_limits(input, limits).map_err(Into::into)
@@ -320,6 +295,24 @@ pub(crate) fn parse_graph_input(
     }
 }
 
+/// Parse BLOG graph-body text with explicit source-analysis limits.
+///
+/// # Errors
+///
+/// Returns a syntax, graph-construction, action-analysis, or resource-limit error.
+#[cfg(test)]
+pub(super) fn parse_blog_body(input: &str) -> Result<BlockGraph, ParseError> {
+    parse_blog_body_with_limits(input, crate::ModuleCertificationLimits::DEFAULT)
+}
+
+fn parse_blog_body_with_limits(
+    input: &str,
+    limits: crate::ModuleCertificationLimits,
+) -> Result<BlockGraph, ParseError> {
+    let ast = parse::parse(input)?;
+    lower::lower_with_inputs_and_limits(&ast, std::iter::empty(), limits)
+}
+
 pub(crate) fn load_graph_input(
     path: &Path,
     limits: crate::ModuleCertificationLimits,
@@ -329,7 +322,7 @@ pub(crate) fn load_graph_input(
         source: Arc::new(source),
     })?;
     if !parse::parse_program(&text).is_ok_and(|source| !source.imports.is_empty()) {
-        return parse_graph_input(&text, limits);
+        return parse_blog_to_graph_with_limits(&text, limits);
     }
     // Preserve the actual I/O cause and path instead of the generic resolver's
     // display-only Load error. Reuse the root text on the first resolver call.

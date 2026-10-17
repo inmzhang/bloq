@@ -1,6 +1,6 @@
 """Sphinx configuration for the bloq website and generated Python reference.
 
-Docs are generated with autodoc/autosummary from the installed `bloq`
+Docs are generated with autodoc from the installed `bloq`
 package (docstrings originate in the Rust sources and the pure-Python
 facade), grouped by functionality with inline signatures and members.
 `api/python.rst` is kept in sync with `bloq` and `bloq.ir` exports by a unit test.
@@ -35,13 +35,11 @@ release = bloq.__version__
 extensions = [
     "sphinx_immaterial",
     "sphinx.ext.autodoc",
-    "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
     "sphinx.ext.mathjax",
     "myst_parser",
 ]
 
-autosummary_generate = True
 autodoc_member_order = "groupwise"
 object_description_options = [
     ("py:function", {"toc_icon_text": "func"}),

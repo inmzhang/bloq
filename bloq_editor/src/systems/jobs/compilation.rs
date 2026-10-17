@@ -45,15 +45,12 @@ impl CompiledDownload {
 fn compile_artifacts(
     source: &BlockGraph,
     request: &CompileRequest,
-    progress: Option<&CompileProgress>,
+    progress: &CompileProgress,
 ) -> eyre::Result<(CompileArtifacts, CompileConfig)> {
     let config = config_from_request(request)?;
-    let ctx = match progress {
-        Some(progress) => CompileContext::new(config)
-            .with_progress_observer(progress.observer())
-            .with_cancellation(progress.cancellation.clone()),
-        None => CompileContext::new(config),
-    };
+    let ctx = CompileContext::new(config)
+        .with_progress_observer(progress.observer())
+        .with_cancellation(progress.cancellation.clone());
 
     // The compiler is the single authority on what it can lower, and `compile`
     // runs the same validation `verify` would, so we compile directly instead
@@ -73,30 +70,17 @@ fn viewer_graph(graph: &BlockGraph) -> eyre::Result<BlockGraph> {
     Ok(graph.with_zero_min_z()?.fix_shadowed_faces())
 }
 
-#[cfg(all(test, not(target_arch = "wasm32")))]
-pub(super) fn compile_graph_downloads(
-    graph: &BlockGraph,
-    request: &CompileRequest,
-) -> eyre::Result<CompiledDownload> {
-    compile_downloads(graph, request, None)
-}
-
 #[cfg(not(target_arch = "wasm32"))]
 pub(super) fn compile_downloads(
     source: &BlockGraph,
     request: &CompileRequest,
-    progress: Option<&CompileProgress>,
+    progress: &CompileProgress,
 ) -> eyre::Result<CompiledDownload> {
     let (artifacts, _) = compile_artifacts(source, request, progress)?;
-    if let Some(progress) = progress {
-        progress.set_phase(CompileProgressPhase::Exporting);
-    }
-    match progress {
-        Some(progress) => progress
-            .cancellation
-            .run(|| export_download(artifacts.bloq, request)),
-        None => export_download(artifacts.bloq, request),
-    }
+    progress.set_phase(CompileProgressPhase::Exporting);
+    progress
+        .cancellation
+        .run(|| export_download(artifacts.bloq, request))
 }
 
 pub(super) fn export_download(
@@ -123,20 +107,22 @@ pub(crate) fn compile_graph_for_viewer(
     graph: &BlockGraph,
     request: &CompileRequest,
 ) -> eyre::Result<CompiledBloqView> {
-    compile_for_viewer(graph, request, None)
+    compile_for_viewer(
+        graph,
+        request,
+        &CompileProgress::new(super::EditorTabId::new(0), 0),
+    )
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 pub(super) fn compile_for_viewer(
     source: &BlockGraph,
     request: &CompileRequest,
-    progress: Option<&CompileProgress>,
+    progress: &CompileProgress,
 ) -> eyre::Result<CompiledBloqView> {
     let (artifacts, compile_config) = compile_artifacts(source, request, progress)?;
-    if let Some(progress) = progress {
-        progress.set_phase(CompileProgressPhase::BuildingView);
-    }
-    let build = || {
+    progress.set_phase(CompileProgressPhase::BuildingView);
+    progress.cancellation.run(|| {
         build_view_from_artifacts(
             source,
             request,
@@ -144,11 +130,7 @@ pub(super) fn compile_for_viewer(
             compile_config,
             artifacts.compile_duration,
         )
-    };
-    match progress {
-        Some(progress) => progress.cancellation.run(build),
-        None => build(),
-    }
+    })
 }
 
 pub(super) fn build_view_from_artifacts(
@@ -603,11 +585,12 @@ pub(super) fn save_compiled_downloads(output: &CompiledDownload) -> eyre::Result
 #[cfg(test)]
 mod tests {
     use super::{
-        build_detslice, compile_graph_downloads, compile_graph_for_viewer, selected_selective_pins,
+        CompileProgress, build_detslice, compile_downloads, compile_graph_for_viewer,
+        selected_selective_pins,
     };
     use crate::resources::{
         BloqNodeCategory, CompileOutputFormat, CompileRequest, CompiledBloqView, DetsliceData,
-        FlatMoment, FlatMomentOp, SliceRegionId,
+        EditorTabId, FlatMoment, FlatMomentOp, SliceRegionId,
     };
     use bloq_graph::{Action, Block, BlockGraph, BlockKind, CubeKind, GalleryItem, MeasureTarget};
     use bloq_ir::MomentKind;
@@ -660,13 +643,14 @@ mod tests {
 
     #[test]
     fn compile_graph_download_emits_stim_output() {
-        let output = compile_graph_downloads(
+        let output = compile_downloads(
             &single_cube_graph(),
             &CompileRequest {
                 code_distance: 3,
                 format: CompileOutputFormat::Stim,
                 prepare_t_with_mpps: false,
             },
+            &CompileProgress::new(EditorTabId::new(0), 0),
         )
         .expect("compile stim output");
 
@@ -678,13 +662,14 @@ mod tests {
     #[test]
     fn compile_graph_download_emits_parseable_ir_exchange_formats() {
         for format in [CompileOutputFormat::IrText, CompileOutputFormat::IrBinary] {
-            let output = compile_graph_downloads(
+            let output = compile_downloads(
                 &single_cube_graph(),
                 &CompileRequest {
                     code_distance: 3,
                     format,
                     prepare_t_with_mpps: false,
                 },
+                &CompileProgress::new(EditorTabId::new(0), 0),
             )
             .expect("compile IR output");
 
@@ -713,13 +698,14 @@ mod tests {
         // straight through as ideal noiseless boundaries — no fill required.
         let graph = GalleryItem::CNOT.build();
 
-        let output = compile_graph_downloads(
+        let output = compile_downloads(
             &graph,
             &CompileRequest {
                 code_distance: 3,
                 format: CompileOutputFormat::Stim,
                 prepare_t_with_mpps: false,
             },
+            &CompileProgress::new(EditorTabId::new(0), 0),
         )
         .expect("temporal open graph should compile");
 

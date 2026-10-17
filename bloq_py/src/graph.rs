@@ -10,7 +10,6 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use glam::IVec3;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyIterator, PyList};
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
@@ -20,7 +19,6 @@ use crate::errors;
 use crate::primitives::{
     DirectionLike, PyBasis, PyDirection, PyPauli, PyPauliString, PyUDirection,
 };
-use crate::primitives::{ivec2_from, ivec2_into, ivec3_from, ivec3_into};
 
 /// A position tuple as it crosses the Python boundary.
 type PosTuple = (i32, i32, i32);
@@ -109,14 +107,14 @@ fn gltf_face_selectors(
     }
     for (position, face) in blocks.unwrap_or_default() {
         selectors.push(bloq_graph::GltfFaceSelector::Block {
-            position: ivec3_from(position),
+            position: position.into(),
             face: face.try_into()?,
         });
     }
     for (u, v, face) in pipes.unwrap_or_default() {
         selectors.push(bloq_graph::GltfFaceSelector::Pipe {
-            u: ivec3_from(u),
-            v: ivec3_from(v),
+            u: u.into(),
+            v: v.into(),
             face: face.try_into()?,
         });
     }
@@ -316,7 +314,7 @@ impl PyBlockKind {
     fn walking(boundary: &str, movement: (i32, i32)) -> PyResult<Self> {
         let boundary = bloq_graph::WalkingBoundaryKind::from_str(&boundary.to_uppercase())
             .map_err(errors::invalid_argument)?;
-        bloq_graph::WalkingKind::new(boundary, ivec2_from(movement))
+        bloq_graph::WalkingKind::new(boundary, movement.into())
             .map(|k| bloq_graph::BlockKind::Walking(k).into())
             .map_err(errors::invalid_argument)
     }
@@ -332,7 +330,7 @@ impl PyBlockKind {
     ///     InvalidArgumentError: If `basis` or `movement` is invalid.
     #[staticmethod]
     fn patch_rotation(basis: BasisLike, movement: (i32, i32)) -> PyResult<Self> {
-        bloq_graph::PatchRotationKind::new(basis.try_into()?, ivec2_from(movement))
+        bloq_graph::PatchRotationKind::new(basis.try_into()?, movement.into())
             .map(|k| bloq_graph::BlockKind::PatchRotation(k).into())
             .map_err(errors::invalid_argument)
     }
@@ -481,8 +479,8 @@ impl PyBlockKind {
     #[getter]
     fn movement(&self) -> Option<(i32, i32)> {
         match self.0 {
-            bloq_graph::BlockKind::Walking(kind) => Some(ivec2_into(kind.movement())),
-            bloq_graph::BlockKind::PatchRotation(kind) => Some(ivec2_into(kind.movement())),
+            bloq_graph::BlockKind::Walking(kind) => Some(kind.movement().into()),
+            bloq_graph::BlockKind::PatchRotation(kind) => Some(kind.movement().into()),
             _ => None,
         }
     }
@@ -582,8 +580,7 @@ impl PyBlock {
         tag: Option<String>,
         role: &str,
     ) -> PyResult<Self> {
-        let mut block =
-            bloq_graph::Block::new(ivec3_from(pos), bloq_graph::BlockKind::try_from(kind)?);
+        let mut block = bloq_graph::Block::new(pos, bloq_graph::BlockKind::try_from(kind)?);
         let height: bloq_graph::CubeHeight = height.parse().map_err(errors::invalid_argument)?;
         if !height.is_default() {
             block = block
@@ -605,7 +602,7 @@ impl PyBlock {
     /// The block's `(x, y, z)` lattice position.
     #[getter]
     fn pos(&self) -> (i32, i32, i32) {
-        ivec3_into(self.0.pos())
+        self.0.pos().into()
     }
 
     /// The block's kind.
@@ -697,8 +694,7 @@ impl PyPipe {
         hadamard: bool,
         tag: Option<String>,
     ) -> PyResult<Self> {
-        let mut pipe =
-            bloq_graph::Pipe::new(ivec3_from(src), bloq_utils::Direction::try_from(direction)?);
+        let mut pipe = bloq_graph::Pipe::new(src, bloq_utils::Direction::try_from(direction)?);
         pipe.try_dst().map_err(errors::invalid_argument)?;
         if hadamard {
             pipe = pipe.with_hadamard();
@@ -712,13 +708,13 @@ impl PyPipe {
     /// The source block position `(x, y, z)`.
     #[getter]
     fn src(&self) -> (i32, i32, i32) {
-        ivec3_into(self.0.src())
+        self.0.src().into()
     }
 
     /// The destination block position `(x, y, z)`.
     #[getter]
     fn dst(&self) -> (i32, i32, i32) {
-        ivec3_into(self.0.dst())
+        self.0.dst().into()
     }
 
     /// The direction the pipe leaves its source block.
@@ -790,7 +786,7 @@ impl PyBranchArm {
             .map(|block| match block {
                 ArmBlockLike::Block(block) => Ok(block.0),
                 ArmBlockLike::Pair((position, kind)) => Ok(bloq_graph::Block::new(
-                    ivec3_from(position),
+                    position,
                     bloq_graph::BlockKind::try_from(kind)?,
                 )),
             })
@@ -910,7 +906,7 @@ impl PyStabilizer {
         self.0
             .port_stabilizer
             .iter()
-            .map(|(pos, p)| (ivec3_into(*pos), PyPauli::from(*p)))
+            .map(|(pos, p)| ((*pos).into(), PyPauli::from(*p)))
             .collect()
     }
 
@@ -920,7 +916,7 @@ impl PyStabilizer {
         self.0
             .interior_nodes
             .iter()
-            .map(|(pos, p)| (ivec3_into(*pos), PyPauli::from(*p)))
+            .map(|(pos, p)| ((*pos).into(), PyPauli::from(*p)))
             .collect()
     }
 
@@ -931,7 +927,7 @@ impl PyStabilizer {
         self.0
             .interior_edges
             .iter()
-            .map(|((u, v), p)| ((ivec3_into(*u), ivec3_into(*v)), PyPauli::from(*p)))
+            .map(|((u, v), p)| (((*u).into(), (*v).into()), PyPauli::from(*p)))
             .collect()
     }
 
@@ -1110,7 +1106,7 @@ impl PyBlockGraph {
                     for (name, position) in ports.iter() {
                         interface.quantum_ports.push(QuantumPort {
                             name: name.extract()?,
-                            position: ivec3_from(position.extract()?),
+                            position: position.extract::<(i32, i32, i32)>()?.into(),
                             direction,
                             resource_type: "data".into(),
                         });
@@ -1233,7 +1229,7 @@ impl PyBlockGraph {
             name,
             definition,
             rotation,
-            translation: ivec3_from(translation),
+            translation: translation.into(),
         });
         Ok(())
     }
@@ -1272,8 +1268,8 @@ impl PyBlockGraph {
             None => bloq_graph::ModuleRotation::IDENTITY,
         };
         self.0
-            .place_module_with(name, definition, translation.map(ivec3_from), rotation)
-            .map(|p| (p.x, p.y, p.z))
+            .place_module_with(name, definition, translation.map(Into::into), rotation)
+            .map(Into::into)
             .map_err(graph_err)
     }
 
@@ -1337,8 +1333,8 @@ impl PyBlockGraph {
         compact: bool,
     ) -> PyResult<PosTuple> {
         self.0
-            .translate_module(name, ivec3_from(offset), compact)
-            .map(|p| (p.x, p.y, p.z))
+            .translate_module(name, offset.into(), compact)
+            .map(Into::into)
             .map_err(graph_err)
     }
 
@@ -1360,7 +1356,7 @@ impl PyBlockGraph {
         let connection = match (source, target) {
             (ConnectionEndpoint::Block(block), ConnectionEndpoint::Port(input)) => {
                 QuantumConnection::Input {
-                    block: ivec3_from(block),
+                    block: block.into(),
                     input: instance_port(&input)?,
                     hadamard,
                 }
@@ -1368,7 +1364,7 @@ impl PyBlockGraph {
             (ConnectionEndpoint::Port(output), ConnectionEndpoint::Block(block)) => {
                 QuantumConnection::Output {
                     output: instance_port(&output)?,
-                    block: ivec3_from(block),
+                    block: block.into(),
                     hadamard,
                 }
             }
@@ -1621,7 +1617,7 @@ impl PyBlockGraph {
             .project_branches(
                 assignments
                     .into_iter()
-                    .map(|(target, value)| (ivec3_from(target), value)),
+                    .map(|(target, value)| (target.into(), value)),
             )
             .map(PyBlockGraph)
             .map_err(graph_err)
@@ -1787,7 +1783,7 @@ impl PyBlockGraph {
     fn add_block(&mut self, block: PyBlock) -> PyResult<(i32, i32, i32)> {
         self.0
             .try_add_block(block.0)
-            .map(ivec3_into)
+            .map(Into::into)
             .map_err(graph_err)
     }
 
@@ -1796,7 +1792,7 @@ impl PyBlockGraph {
     /// Args:
     ///     pos: The `(x, y, z)` lattice position.
     fn remove_block(&mut self, pos: (i32, i32, i32)) -> Option<PyBlock> {
-        self.0.remove_block(ivec3_from(pos)).map(Into::into)
+        self.0.remove_block(pos).map(Into::into)
     }
 
     /// Returns the block at `pos`, or `None` if absent.
@@ -1804,7 +1800,7 @@ impl PyBlockGraph {
     /// Args:
     ///     pos: The `(x, y, z)` lattice position.
     fn get_block(&self, pos: (i32, i32, i32)) -> Option<PyBlock> {
-        self.0.get_block(ivec3_from(pos)).cloned().map(Into::into)
+        self.0.get_block(pos).cloned().map(Into::into)
     }
 
     /// Returns the internal node ID for the block at `pos`, or `None`.
@@ -1812,7 +1808,7 @@ impl PyBlockGraph {
     /// Args:
     ///     pos: The `(x, y, z)` lattice position.
     fn get_block_id(&self, pos: (i32, i32, i32)) -> Option<u32> {
-        self.0.get_block_id(ivec3_from(pos))
+        self.0.get_block_id(pos)
     }
 
     /// Returns `True` when `block` can be placed without overlap.
@@ -1852,7 +1848,7 @@ impl PyBlockGraph {
     /// Args:
     ///     pos: The `(x, y, z)` lattice position.
     fn has_block_at(&self, pos: (i32, i32, i32)) -> bool {
-        self.0.has_block_at(ivec3_from(pos))
+        self.0.has_block_at(pos)
     }
 
     /// Replaces the kind of the block at `pos`.
@@ -1867,16 +1863,14 @@ impl PyBlockGraph {
     ///         incompatible.
     fn set_block_kind(&mut self, pos: (i32, i32, i32), kind: BlockKindLike) -> PyResult<()> {
         self.0
-            .set_block_kind(ivec3_from(pos), bloq_graph::BlockKind::try_from(kind)?)
+            .set_block_kind(pos, bloq_graph::BlockKind::try_from(kind)?)
             .map_err(graph_err)
     }
 
     /// Assigns a Port's `"auto"`, `"input"`, `"output"`, or `"multiplex"` role.
     fn set_port_role(&mut self, pos: (i32, i32, i32), role: &str) -> PyResult<()> {
         let role = bloq_graph::PortRole::from_str(role).map_err(errors::invalid_argument)?;
-        self.0
-            .set_port_role(ivec3_from(pos), role)
-            .map_err(graph_err)
+        self.0.set_port_role(pos, role).map_err(graph_err)
     }
 
     /// Replaces the tag of the block at `pos`.
@@ -1888,9 +1882,7 @@ impl PyBlockGraph {
     /// Raises:
     ///     BlockGraphError: If no block occupies `pos`.
     fn set_block_tag(&mut self, pos: (i32, i32, i32), tag: &str) -> PyResult<()> {
-        self.0
-            .set_block_tag(ivec3_from(pos), tag)
-            .map_err(graph_err)
+        self.0.set_block_tag(pos, tag).map_err(graph_err)
     }
 
     // --- pipe CRUD ------------------------------------------------------------
@@ -1910,9 +1902,7 @@ impl PyBlockGraph {
     ///     u: One endpoint position `(x, y, z)`.
     ///     v: The other endpoint position `(x, y, z)`.
     fn remove_pipe(&mut self, u: (i32, i32, i32), v: (i32, i32, i32)) -> Option<PyPipe> {
-        self.0
-            .remove_pipe(ivec3_from(u), ivec3_from(v))
-            .map(Into::into)
+        self.0.remove_pipe(u, v).map(Into::into)
     }
 
     /// Returns the pipe between `u` and `v`, or `None` if absent.
@@ -1921,10 +1911,7 @@ impl PyBlockGraph {
     ///     u: One endpoint position `(x, y, z)`.
     ///     v: The other endpoint position `(x, y, z)`.
     fn get_pipe(&self, u: (i32, i32, i32), v: (i32, i32, i32)) -> Option<PyPipe> {
-        self.0
-            .get_pipe(ivec3_from(u), ivec3_from(v))
-            .cloned()
-            .map(Into::into)
+        self.0.get_pipe(u, v).cloned().map(Into::into)
     }
 
     /// `True` if a pipe connects `u` and `v`.
@@ -1933,7 +1920,7 @@ impl PyBlockGraph {
     ///     u: One endpoint position `(x, y, z)`.
     ///     v: The other endpoint position `(x, y, z)`.
     fn has_pipe_between(&self, u: (i32, i32, i32), v: (i32, i32, i32)) -> bool {
-        self.0.has_pipe_between(ivec3_from(u), ivec3_from(v))
+        self.0.has_pipe_between(u, v)
     }
 
     /// Replaces the tag of the pipe between `u` and `v`.
@@ -1946,9 +1933,7 @@ impl PyBlockGraph {
     /// Raises:
     ///     BlockGraphError: If no pipe connects `u` and `v`.
     fn set_pipe_tag(&mut self, u: (i32, i32, i32), v: (i32, i32, i32), tag: &str) -> PyResult<()> {
-        self.0
-            .set_pipe_tag(ivec3_from(u), ivec3_from(v), tag)
-            .map_err(graph_err)
+        self.0.set_pipe_tag(u, v, tag).map_err(graph_err)
     }
 
     /// Sets whether the pipe between `u` and `v` carries a Hadamard.
@@ -1966,9 +1951,7 @@ impl PyBlockGraph {
         v: (i32, i32, i32),
         hadamard: bool,
     ) -> PyResult<()> {
-        self.0
-            .set_pipe_hadamard(ivec3_from(u), ivec3_from(v), hadamard)
-            .map_err(graph_err)
+        self.0.set_pipe_hadamard(u, v, hadamard).map_err(graph_err)
     }
 
     // --- iteration ------------------------------------------------------------
@@ -1985,13 +1968,13 @@ impl PyBlockGraph {
 
     /// Positions of this definition's local blocks, excluding child instances.
     fn positions(&self) -> Vec<(i32, i32, i32)> {
-        self.0.positions().map(ivec3_into).collect()
+        self.0.positions().map(Into::into).collect()
     }
 
     /// Local lattice cells reserved by blocks (multi-cell blocks contribute
     /// their full footprint).
     fn occupied_positions(&self) -> Vec<(i32, i32, i32)> {
-        self.0.occupied_positions().map(ivec3_into).collect()
+        self.0.occupied_positions().map(Into::into).collect()
     }
 
     /// All blocks directly connected to the block at `pos`.
@@ -2000,7 +1983,7 @@ impl PyBlockGraph {
     ///     pos: The `(x, y, z)` lattice position.
     fn neighbors(&self, pos: (i32, i32, i32)) -> Vec<PyBlock> {
         self.0
-            .neighbors(ivec3_from(pos))
+            .neighbors(pos)
             .into_iter()
             .cloned()
             .map(Into::into)
@@ -2012,7 +1995,7 @@ impl PyBlockGraph {
     /// Args:
     ///     pos: The `(x, y, z)` lattice position.
     fn degree(&self, pos: (i32, i32, i32)) -> usize {
-        self.0.degree(ivec3_from(pos))
+        self.0.degree(pos)
     }
 
     // --- counts and predicates --------------------------------------------------
@@ -2103,9 +2086,8 @@ impl PyBlockGraph {
     ///         coordinate range.
     ///     BlockGraphError: If the graph retains module structure.
     fn shift_positions(&self, offset: (i32, i32, i32)) -> PyResult<Self> {
-        let offset = ivec3_from(offset);
         self.0
-            .shift_positions(offset)
+            .shift_positions(offset.into())
             .map(Into::into)
             .map_err(graph_transform_err)
     }
@@ -2297,7 +2279,7 @@ impl PyBlockGraph {
     fn add_actions_from_text(&mut self, text: &str) -> PyResult<()> {
         // parse_actions resolves numeric block IDs through this map, mirroring
         // how ids are assigned in `.blog` files.
-        let id_to_pos: HashMap<u32, IVec3> = self
+        let id_to_pos: HashMap<_, _> = self
             .0
             .positions()
             .filter_map(|pos| self.0.get_block_id(pos).map(|id| (id, pos)))

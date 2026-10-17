@@ -32,7 +32,6 @@ bloq_ir.workspace = true
 bloq_stim.workspace = true
 bloq_utils.workspace = true
 bloq_vm.workspace = true
-glam.workspace = true
 # Maturin enables extension-module; standalone stub_gen must link libpython.
 pyo3 = { version = "0.29.3", features = ["abi3-py310"] }
 # Bound types need none of the optional NumPy/either/ordered-float features.

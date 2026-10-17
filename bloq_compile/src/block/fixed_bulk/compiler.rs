@@ -13,22 +13,35 @@ use super::rotation::compile_patch_rotation;
 use super::ybasis::compile_y;
 
 pub(crate) fn validate_fixed_bulk(signature: BlockSignature) -> Result<(), CompileError> {
-    // Every `BlockKind` is now compilable under the fixed-bulk convention
-    // (T landed last, U17e); the per-kind checks carry the real constraints.
-    // Exhaustive on purpose, mirroring `compile_fixed_bulk` below: a new kind must
-    // state whether it needs a signature check rather than silently skipping one.
-    match signature.kind {
-        BlockKind::Y => validate_y_signature(signature),
-        BlockKind::Measurement(_) => validate_measurement_signature(signature),
-        // A temporal port and a selective block both resolve against their
-        // single temporal neighbour's patch, so they take the leaf rules
-        // unchanged.
-        BlockKind::Port | BlockKind::Selective(_) => validate_leaf_signature(signature),
-        BlockKind::T => validate_t_signature(signature),
-        BlockKind::PatchRotation(_) => validate_patch_rotation_signature(signature),
-        // The signature carries no extra kind-dependent payload to check.
-        BlockKind::Cube(_) | BlockKind::Walking(_) => Ok(()),
+    let connectivity = signature.connectivity;
+    let missing_basis = signature.boundary_basis.is_none();
+    // Y reports a missing basis before checking connectivity; other leaves reverse that order.
+    if signature.kind == BlockKind::Y && missing_basis {
+        return Err(CompileError::MissingBoundaryBasis {
+            kind: signature.kind,
+        });
     }
+    let past = connectivity.has_pipe(Direction::ZMINUS);
+    let future = connectivity.has_pipe(Direction::ZPLUS);
+    let valid_temporal = match signature.kind {
+        BlockKind::Cube(_) | BlockKind::Walking(_) => return Ok(()),
+        BlockKind::PatchRotation(_) => true,
+        BlockKind::Y | BlockKind::Port | BlockKind::Selective(_) => past ^ future,
+        BlockKind::Measurement(_) => past && !future,
+        BlockKind::T => future && !past,
+    };
+    if !valid_temporal || connectivity.spatial_pipes().next().is_some() {
+        return Err(CompileError::InvalidConnectivity {
+            kind: signature.kind,
+            connectivity,
+        });
+    }
+    if missing_basis && !matches!(signature.kind, BlockKind::PatchRotation(_)) {
+        return Err(CompileError::MissingBoundaryBasis {
+            kind: signature.kind,
+        });
+    }
+    Ok(())
 }
 
 pub(crate) fn compile_fixed_bulk(
@@ -81,97 +94,6 @@ pub(crate) fn compile_fixed_bulk(
         BlockKind::T => unreachable!(
             "T blocks are compiled via compile_signature's T arm, not compile_fixed_bulk"
         ),
-    }
-}
-
-/// True when the connectivity has exactly one temporal pipe (`Z+` xor `Z-`) and
-/// no spatial pipes — the shape both Y and temporal-port blocks require.
-fn single_temporal_no_spatial(conn: crate::signature::Connectivity) -> bool {
-    let has_one_temporal_pipe = conn.has_pipe(Direction::ZPLUS) ^ conn.has_pipe(Direction::ZMINUS);
-    let has_spatial_pipe = conn.spatial_pipes().next().is_some();
-    has_one_temporal_pipe && !has_spatial_pipe
-}
-
-/// The shared leaf-block signature check — exactly one temporal pipe, no spatial
-/// pipe, and a known patch boundary basis. Connectivity is checked before the
-/// boundary basis; direction-specific callers add their own past/future check.
-fn validate_leaf_signature(signature: BlockSignature) -> Result<(), CompileError> {
-    if !single_temporal_no_spatial(signature.connectivity) {
-        return Err(CompileError::InvalidConnectivity {
-            kind: signature.kind,
-            connectivity: signature.connectivity,
-        });
-    }
-    if signature.boundary_basis.is_none() {
-        return Err(CompileError::MissingBoundaryBasis {
-            kind: signature.kind,
-        });
-    }
-    Ok(())
-}
-
-fn validate_y_signature(signature: BlockSignature) -> Result<(), CompileError> {
-    if signature.boundary_basis.is_none() {
-        return Err(CompileError::MissingBoundaryBasis {
-            kind: signature.kind,
-        });
-    }
-
-    if single_temporal_no_spatial(signature.connectivity) {
-        Ok(())
-    } else {
-        Err(CompileError::InvalidConnectivity {
-            kind: signature.kind,
-            connectivity: signature.connectivity,
-        })
-    }
-}
-
-fn validate_measurement_signature(signature: BlockSignature) -> Result<(), CompileError> {
-    if !signature.connectivity.has_pipe(Direction::ZMINUS) {
-        return Err(CompileError::InvalidConnectivity {
-            kind: signature.kind,
-            connectivity: signature.connectivity,
-        });
-    }
-    validate_leaf_signature(signature)
-}
-
-/// A T block escapes onto a patch whose orientation is inherited from its single
-/// temporal neighbour, so — like Y and Port — it needs exactly one
-/// temporal pipe, no spatial pipe, and a known patch boundary basis. The pipe
-/// must be `+Z`: a T block is future-directed (the graph validator also rejects
-/// a past pipe, but this signature check keeps the compiler self-contained).
-/// The spill side (`surgery_side`) is picked by `t_surgery_sides` before this
-/// runs, so a missing side never reaches here.
-fn validate_t_signature(signature: BlockSignature) -> Result<(), CompileError> {
-    // T is future-directed: the temporal pipe must be `+Z`. This extra
-    // constraint is checked before the shared leaf checks.
-    if !signature.connectivity.has_pipe(Direction::ZPLUS) {
-        return Err(CompileError::InvalidConnectivity {
-            kind: signature.kind,
-            connectivity: signature.connectivity,
-        });
-    }
-    validate_leaf_signature(signature)
-}
-
-/// A patch rotation connects through temporal pipes only. Temporal Hadamard
-/// flags need no check here: `template_connectivity` strips them before any
-/// signature is built (the realignment pipe node owns the X↔Z flip), and
-/// gateway keys are Hadamard-free either way.
-fn validate_patch_rotation_signature(signature: BlockSignature) -> Result<(), CompileError> {
-    let connectivity = signature.connectivity;
-    let unsupported = connectivity
-        .pipe_dirs()
-        .any(|dir| !matches!(dir, Direction::ZMINUS | Direction::ZPLUS));
-    if unsupported {
-        Err(CompileError::InvalidConnectivity {
-            kind: signature.kind,
-            connectivity,
-        })
-    } else {
-        Ok(())
     }
 }
 

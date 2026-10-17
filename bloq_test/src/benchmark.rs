@@ -143,9 +143,7 @@ pub struct CaseBenchSpec {
     pub fixture_id: &'static str,
     /// Canonical (human-readable) case name, e.g. `cube_line[base][rotate:Z:1]`.
     pub case_name: String,
-    /// Filesystem- and Criterion-safe slug of `case_name`. This slug is the
-    /// shared join key between benchmark IDs, profile output directories, and
-    /// the HTML report.
+    /// Filesystem- and Criterion-safe slug shared by benchmark IDs and profile paths.
     pub case_slug: String,
     /// The underlying test case (use [`case.build()`](TestCase::build) to obtain the graph).
     pub case: TestCase,

@@ -1,7 +1,7 @@
 //! Transactional module authoring. Every operation builds and validates a new
 //! block graph before the editor replaces its document or its preview.
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 
 use bloq_graph::{
     BitOutput, BitRef, BlockGraph, Expr, InstancePort, ModuleInstance, ModuleRotation,
@@ -11,10 +11,7 @@ use color_eyre::eyre::{self, ContextCompat, ensure};
 use glam::IVec3;
 
 mod connections;
-pub(crate) use connections::{
-    PortSnap, connected_instances, connection_seams, module_elements, module_instance_at,
-    module_snap_points, translate_module,
-};
+pub(crate) use connections::{PortSnap, module_elements, module_instance_at, module_snap_points};
 
 #[derive(Clone, Debug)]
 pub(crate) enum ModuleEdit {
@@ -82,7 +79,7 @@ pub(crate) fn edit_graph(program: &BlockGraph, edit: ModuleEdit) -> eyre::Result
         compact,
     } = edit
     {
-        return connections::connect_ports(program, output, input, hadamard, align, compact);
+        return Ok(connect_ports(program, output, input, hadamard, align, compact)?.program);
     }
     if let ModuleEdit::RemoveInstance(name) = &edit {
         let seam = connection_seams(program.root())
@@ -234,7 +231,7 @@ pub(crate) fn edit_graph(program: &BlockGraph, edit: ModuleEdit) -> eyre::Result
                 .checked_sub(min_x)
                 .and_then(|x| x.checked_add(3))
                 .wrap_err("No coordinate space to separate these instances")?;
-            connections::translate_group(root, &group, IVec3::new(shift, 0, 0))?;
+            translate_group(root, &group, IVec3::new(shift, 0, 0))?;
             for endpoint in seams.iter().flat_map(|seam| [&seam.output, &seam.input]) {
                 let instance = root
                     .instances
@@ -336,11 +333,6 @@ pub(crate) fn edit_graph(program: &BlockGraph, edit: ModuleEdit) -> eyre::Result
         "This edit would change local actions or branch geometry. Edit the owning definition or BLOG source instead"
     );
     Ok(BlockGraph::from_definitions(modules)?)
-}
-
-/// A definition opened as a self-contained executable tab, with only its dependencies.
-pub(crate) fn definition_graph(program: &BlockGraph, name: &str) -> eyre::Result<BlockGraph> {
-    Ok(program.extract_definition(name)?)
 }
 
 fn collect_definitions(
@@ -447,9 +439,12 @@ pub(crate) fn replace_leaf_body(
 }
 
 use bloq_graph::composition::{
-    bound_block, expose_port, exposed_port, prune_unused_input, remove_public_port,
+    bound_block, connect_ports, expose_port, exposed_port, prune_unused_input, remove_public_port,
+    translate_group,
 };
-pub(crate) use bloq_graph::composition::{exposed_ports, unique_name};
+pub(crate) use bloq_graph::composition::{
+    connected_instances, connection_seams, exposed_ports, translate_module, unique_name,
+};
 
 fn transform_instance(
     root: &mut BlockGraph,
@@ -643,8 +638,9 @@ pub(crate) mod tests {
                 if compact { 7 } else { 8 }
             );
             assert_eq!(
-                definition_graph(&program, "Memory").unwrap().to_blog_text(),
-                definition_graph(&original, "Memory")
+                program.extract_definition("Memory").unwrap().to_blog_text(),
+                original
+                    .extract_definition("Memory")
                     .unwrap()
                     .to_blog_text()
             );
@@ -801,7 +797,7 @@ pub(crate) mod tests {
         assert_eq!(parent.flatten().unwrap().block_count(), 10);
         // Reopening and applying a composite must not accumulate unused helpers.
         for _ in 0..3 {
-            let opened = definition_graph(&parent, "Pipeline").unwrap();
+            let opened = parent.extract_definition("Pipeline").unwrap();
             parent = edit_graph(
                 &parent,
                 ModuleEdit::Replace {

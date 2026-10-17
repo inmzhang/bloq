@@ -65,22 +65,19 @@ impl ShotRecord {
     }
 }
 
-/// How to resolve a circuit's qubit coordinates to engine indices: a coordinate
-/// layout plus a translation `offset` (a template instance's placement).
+/// Resolve global circuit coordinates to engine indices.
 pub(crate) struct LayoutCtx<'a> {
     pub(crate) coord_to_index: &'a FxHashMap<IVec2, u32>,
-    pub(crate) offset: IVec2,
     pub(crate) qubit_count: usize,
 }
 
 impl LayoutCtx<'_> {
-    /// Engine index of `coord + offset`.
+    /// Engine index of a global coordinate.
     pub(crate) fn index(&self, coord: IVec2) -> Result<usize, ExecError> {
-        let global = coord + self.offset;
         self.coord_to_index
-            .get(&global)
+            .get(&coord)
             .map(|&i| i as usize)
-            .ok_or(ExecError::UnknownCoord(global))
+            .ok_or(ExecError::UnknownCoord(coord))
     }
 }
 
@@ -424,7 +421,6 @@ impl CircuitExecutor {
         let qubit_count = coord_to_index.len();
         let layout = LayoutCtx {
             coord_to_index: &coord_to_index,
-            offset: IVec2::ZERO,
             qubit_count,
         };
         let body = circuit
@@ -593,7 +589,6 @@ mod tests {
         let coord_to_index: FxHashMap<IVec2, u32> = [(q, 0)].into_iter().collect();
         let layout = LayoutCtx {
             coord_to_index: &coord_to_index,
-            offset: IVec2::ZERO,
             qubit_count: 1,
         };
         let correction = Op::ConditionalPauli(vec![ConditionalCorrection {
@@ -659,7 +654,6 @@ mod tests {
         let coord_to_index = [(q0, 0), (q1, 1)].into_iter().collect();
         let layout = LayoutCtx {
             coord_to_index: &coord_to_index,
-            offset: IVec2::ZERO,
             qubit_count: 2,
         };
         let prepared = prepare_ops(

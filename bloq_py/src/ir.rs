@@ -57,7 +57,7 @@ use pyo3_stub_gen::derive::{
 };
 
 use crate::errors;
-use crate::primitives::{PyBasis, PyPauli, ivec2_into, ivec3_from, ivec3_into, py_bool};
+use crate::primitives::{PyBasis, PyPauli, py_bool};
 
 // ==============================================================================
 // Leaf pieces: pipes, frames, measurements
@@ -89,8 +89,8 @@ pub(crate) struct PyTemporalPipe {
 impl From<&TemporalPipeRef> for PyTemporalPipe {
     fn from(pipe: &TemporalPipeRef) -> Self {
         Self {
-            src: ivec3_into(pipe.src),
-            dst: ivec3_into(pipe.dst),
+            src: pipe.src.into(),
+            dst: pipe.dst.into(),
             hadamard: pipe.hadamard,
         }
     }
@@ -256,11 +256,11 @@ impl From<&LogicalOutput> for PyLogicalOutput {
     fn from(output: &LogicalOutput) -> Self {
         let terms = |map: &bloq_circuit::PauliMap| {
             map.iter()
-                .map(|(coord, pauli)| (ivec2_into(*coord), PyPauli::from(*pauli)))
+                .map(|(coord, pauli)| ((*coord).into(), PyPauli::from(*pauli)))
                 .collect()
         };
         Self {
-            port: ivec3_into(output.port),
+            port: output.port.into(),
             instance: output.instance.0,
             x: terms(&output.x),
             z: terms(&output.z),
@@ -642,15 +642,15 @@ impl From<InstanceProvenance> for PyInstanceProvenance {
         match provenance {
             InstanceProvenance::Source => Self::Source(),
             InstanceProvenance::Block { source } => Self::Block {
-                source: ivec3_into(source),
+                source: source.into(),
             },
             InstanceProvenance::Pipe { src, dst } => Self::Pipe {
-                src: ivec3_into(src),
-                dst: ivec3_into(dst),
+                src: src.into(),
+                dst: dst.into(),
             },
             InstanceProvenance::SpatialPortSubstitution { source, role, part } => {
                 Self::SpatialPortSubstitution {
-                    source: ivec3_into(source),
+                    source: source.into(),
                     role: role.as_str().to_owned(),
                     part: match part {
                         SpatialPortPart::Cube => "cube",
@@ -708,7 +708,7 @@ impl From<&TemplateInstance> for PyTemplateInstance {
         Self {
             id: instance.id.0,
             template_id: instance.template_id.0,
-            offset: ivec2_into(instance.offset),
+            offset: instance.offset.into(),
             provenance: instance.provenance.into(),
         }
     }
@@ -1036,7 +1036,7 @@ impl From<&InstanceBoundaryOperator> for PyInstanceBoundaryOperator {
             operator: op
                 .operator
                 .iter()
-                .map(|(coord, pauli)| (ivec2_into(*coord), PyPauli::from(*pauli)))
+                .map(|(coord, pauli)| ((*coord).into(), PyPauli::from(*pauli)))
                 .collect(),
         }
     }
@@ -1497,14 +1497,14 @@ impl From<&NodeProvenance> for PyNodeProvenance {
     fn from(provenance: &NodeProvenance) -> Self {
         match provenance {
             NodeProvenance::BlockComponent { members } => PyNodeProvenance::BlockComponent {
-                members: members.iter().map(|m| ivec3_into(m.pos)).collect(),
+                members: members.iter().map(|m| m.pos.into()).collect(),
             },
             NodeProvenance::TemporalPipe { pipe } => {
                 PyNodeProvenance::TemporalPipe { pipe: pipe.into() }
             }
             NodeProvenance::SpatialPortSubstitution { source, role } => {
                 PyNodeProvenance::SpatialPortSubstitution {
-                    source: ivec3_into(*source),
+                    source: (*source).into(),
                     role: role.as_str().to_owned(),
                 }
             }
@@ -1520,7 +1520,7 @@ impl From<&NodeProvenance> for PyNodeProvenance {
                 PyNodeProvenance::BranchSelector { name: name.clone() }
             }
             NodeProvenance::OutputFrame { port, basis } => PyNodeProvenance::OutputFrame {
-                port: ivec3_into(*port),
+                port: (*port).into(),
                 basis: (*basis).into(),
             },
             NodeProvenance::None => PyNodeProvenance::Missing(),
@@ -2845,7 +2845,7 @@ impl PyBloq {
             .output_frames()
             .into_iter()
             .map(|pair| PyFramePair {
-                port: ivec3_into(pair.port),
+                port: pair.port.into(),
                 x: pair.x.0,
                 z: pair.z.0,
             })
@@ -3035,7 +3035,7 @@ impl PyBloq {
             .map_err(errors::invalid_argument)?
             .iter()
             .copied()
-            .map(ivec2_into)
+            .map(Into::into)
             .collect())
     }
 
@@ -3057,7 +3057,7 @@ impl PyBloq {
             .node_qubits(node)
             .map_err(errors::invalid_argument)?
             .into_iter()
-            .map(ivec2_into)
+            .map(Into::into)
             .collect();
         coords.sort_unstable();
         Ok(coords)
@@ -3389,7 +3389,7 @@ impl PyBloq {
     ///     >>> program.node_by_block((0, 0, 0)) is not None
     ///     True
     fn node_by_block(&self, pos: (i32, i32, i32)) -> Option<u32> {
-        self.0.node_by_block(ivec3_from(pos)).map(|id| id.0)
+        self.0.node_by_block(pos.into()).map(|id| id.0)
     }
 
     /// The single top-level quantum node feeding `node`.
@@ -3681,7 +3681,7 @@ impl PyBloq {
             .into_iter()
             .map(|(template, offset)| bloq_ir::lowering::PaddingInstance {
                 template: bloq_ir::TemplateId(template),
-                offset: crate::primitives::ivec2_from(offset),
+                offset: offset.into(),
             })
             .collect();
         self.0
@@ -3851,13 +3851,12 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 mod tests {
     use bloq_circuit::{CoordCircuit, PauliBasis};
     use bloq_ir::lowering::{BloqTemplate, TemplateInstanceId};
-    use glam::ivec2;
 
     use super::*;
 
     fn overflowing_layout() -> PyBloq {
         let mut circuit = CoordCircuit::new();
-        circuit.measure(PauliBasis::Z, [ivec2(i32::MAX, 0)]);
+        circuit.measure(PauliBasis::Z, [(i32::MAX, 0).into()]);
 
         let mut bloq = bloq_ir::Bloq::new();
         let template_id = bloq.add_template(BloqTemplate::new(circuit));
@@ -3867,7 +3866,7 @@ mod tests {
             .push(TemplateInstance::new(
                 TemplateInstanceId(0),
                 template_id,
-                ivec2(1, 0),
+                (1, 0).into(),
             ));
         bloq.add_node(node);
         PyBloq(bloq)

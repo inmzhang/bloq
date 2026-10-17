@@ -18,7 +18,7 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::errors;
-use crate::primitives::{DirectionLike, PyDirection, PyPauliBasis, ivec3_from, ivec3_into};
+use crate::primitives::{DirectionLike, PyDirection, PyPauliBasis};
 
 type PosTuple = (i32, i32, i32);
 
@@ -57,7 +57,7 @@ impl From<MeasureTargetLike> for MeasureTarget {
     fn from(value: MeasureTargetLike) -> Self {
         match value {
             MeasureTargetLike::Target(t) => t.0,
-            MeasureTargetLike::Node(pos) => MeasureTarget::Node(ivec3_from(pos)),
+            MeasureTargetLike::Node(pos) => MeasureTarget::Node(pos.into()),
         }
     }
 }
@@ -101,7 +101,7 @@ impl TryFrom<FeedbackTargetLike> for FeedbackTarget {
             FeedbackTargetLike::Target(t) => Ok(t.0),
             FeedbackTargetLike::Pair((pauli, pos)) => Ok(FeedbackTarget {
                 pauli: pauli.try_into()?,
-                target: ivec3_from(pos),
+                target: pos.into(),
                 direction: None,
             }),
         }
@@ -274,7 +274,7 @@ impl PyMeasureTarget {
     ///     pos: The `(x, y, z)` block position to measure.
     #[staticmethod]
     fn node(pos: PosTuple) -> Self {
-        PyMeasureTarget(MeasureTarget::Node(ivec3_from(pos)))
+        PyMeasureTarget(MeasureTarget::Node(pos.into()))
     }
 
     /// Measurement of the pipe leaving `src` in `direction`.
@@ -288,7 +288,7 @@ impl PyMeasureTarget {
     #[staticmethod]
     fn edge(src: PosTuple, direction: DirectionLike) -> PyResult<Self> {
         Ok(PyMeasureTarget(MeasureTarget::Edge {
-            src: ivec3_from(src),
+            src: src.into(),
             dir: direction.try_into()?,
         }))
     }
@@ -297,8 +297,7 @@ impl PyMeasureTarget {
     #[getter]
     fn pos(&self) -> PosTuple {
         match self.0 {
-            MeasureTarget::Node(pos) => ivec3_into(pos),
-            MeasureTarget::Edge { src, .. } => ivec3_into(src),
+            MeasureTarget::Node(pos) | MeasureTarget::Edge { src: pos, .. } => pos.into(),
         }
     }
 
@@ -373,7 +372,7 @@ impl PyFeedbackTarget {
     ) -> PyResult<Self> {
         Ok(PyFeedbackTarget(FeedbackTarget {
             pauli: pauli.try_into()?,
-            target: ivec3_from(pos),
+            target: pos.into(),
             direction: direction.map(TryInto::try_into).transpose()?,
         }))
     }
@@ -387,7 +386,7 @@ impl PyFeedbackTarget {
     /// The target block position `(x, y, z)`.
     #[getter]
     fn pos(&self) -> PosTuple {
-        ivec3_into(self.0.target)
+        self.0.target.into()
     }
 
     /// The outgoing wire direction, or `None` for a node correction.
@@ -479,7 +478,7 @@ impl PyAction {
     #[staticmethod]
     fn resolve(target: PosTuple, condition: ExprLike) -> Self {
         PyAction(Action::Resolve {
-            target: ivec3_from(target),
+            target: target.into(),
             condition: condition.into(),
         })
     }
@@ -494,7 +493,7 @@ impl PyAction {
     #[staticmethod]
     fn branch(target: PosTuple, condition: ExprLike) -> Self {
         PyAction(Action::Branch {
-            target: ivec3_from(target),
+            target: target.into(),
             condition: condition.into(),
         })
     }
@@ -585,7 +584,7 @@ impl PyAction {
     #[getter]
     fn resolve_target(&self) -> Option<PosTuple> {
         match &self.0 {
-            Action::Resolve { target, .. } => Some(ivec3_into(*target)),
+            Action::Resolve { target, .. } => Some((*target).into()),
             _ => None,
         }
     }
@@ -594,7 +593,7 @@ impl PyAction {
     #[getter]
     fn branch_target(&self) -> Option<PosTuple> {
         match &self.0 {
-            Action::Branch { target, .. } => Some(ivec3_into(*target)),
+            Action::Branch { target, .. } => Some((*target).into()),
             _ => None,
         }
     }
@@ -620,7 +619,7 @@ impl PyAction {
     ///         coordinate range.
     fn with_shift(&self, offset: PosTuple) -> PyResult<Self> {
         self.0
-            .try_with_shift(ivec3_from(offset))
+            .try_with_shift(offset)
             .map(PyAction)
             .map_err(|error| {
                 errors::InvalidArgumentError::new_err(format!(

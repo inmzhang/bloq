@@ -135,7 +135,6 @@ pub(crate) struct StimEmitOptions {
     pub enable_clifford_proxy: bool,
     pub allow_non_clifford: bool,
     pub emit_postselection_tags: bool,
-    pub emit_qubit_coords: bool,
     pub qubit_offset: IVec2,
 }
 
@@ -145,7 +144,6 @@ impl Default for StimEmitOptions {
             enable_clifford_proxy: false,
             allow_non_clifford: false,
             emit_postselection_tags: true,
-            emit_qubit_coords: true,
             qubit_offset: IVec2::ZERO,
         }
     }
@@ -212,6 +210,14 @@ pub(crate) fn emit_standalone_stim(
     enable_clifford_proxy: bool,
 ) -> Result<(String, MeasurementFrame), CircuitError> {
     let mut output = String::new();
+    emit_qubit_coords_lines(
+        &mut output,
+        layout
+            .coord_index()
+            .iter()
+            .map(|(coord, qubit)| (*coord, *qubit))
+            .sorted_by_key(|&(_, qubit)| qubit),
+    );
     let mut frame = MeasurementFrame::default();
     let mut resolved_loop_detector_states = ResolvedLoopStates::default();
     let mut ctx = StimEmitContext {
@@ -228,7 +234,6 @@ pub(crate) fn emit_standalone_stim(
         &mut IdentityMeasurementMapper,
         StimEmitOptions {
             enable_clifford_proxy,
-            emit_qubit_coords: true,
             ..StimEmitOptions::default()
         },
     )?;
@@ -253,9 +258,6 @@ pub(crate) fn emit_stim_circuit<M: StimMeasurementMapper>(
         base_indent,
         needs_node_boundary_tick: false,
     };
-    if emitter.options.emit_qubit_coords {
-        emitter.emit_qubit_coords();
-    }
     emitter.emit_body(circuit.entry_body())?;
     emitter.emit_side_table_annotations(circuit.entry_body())?;
     Ok(emitter.needs_node_boundary_tick)
@@ -290,24 +292,6 @@ where
         if self.ctx.indent == self.base_indent {
             self.needs_node_boundary_tick = needs_node_boundary_tick;
         }
-    }
-
-    fn emit_qubit_coords(&mut self) {
-        // A qubit-coords line is a top-level instruction, so a following node
-        // needs a boundary tick. The flag is idempotent, so setting it once for
-        // the whole (non-empty) preamble matches the old per-line calls.
-        if self.ctx.layout.coord_index().is_empty() {
-            return;
-        }
-        self.note_instruction(true);
-        let coords = self
-            .ctx
-            .layout
-            .coord_index()
-            .iter()
-            .map(|(coord, qubit)| (*coord, *qubit))
-            .sorted_by_key(|&(_, qubit)| qubit);
-        emit_qubit_coords_lines(self.ctx.output, coords);
     }
 
     fn emit_body(&mut self, body: BodyId) -> Result<(), CircuitError> {

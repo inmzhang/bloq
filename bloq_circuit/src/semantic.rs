@@ -274,12 +274,7 @@ impl<M: Copy + Ord> DetectorParity<M> {
 
     /// Builds a parity from arbitrary terms, canonicalizing the result.
     pub fn from_terms(terms: impl IntoIterator<Item = DetectorTerm<M>>) -> Self {
-        let mut parity = Self {
-            terms: terms.into_iter().collect(),
-            sign: false,
-        };
-        parity.canonicalize();
-        parity
+        Self::from_term_buf(terms.into_iter().collect())
     }
 
     /// Like [`Self::from_terms`], but takes the term buffer by value so
@@ -362,7 +357,7 @@ impl<M: Copy + Ord> DetectorParity<M> {
                 DetectorTerm::LoopState(state) => DetectorTerm::LoopState(state),
             });
         }
-        Ok(DetectorParity::from_terms(terms).with_sign(self.sign))
+        Ok(DetectorParity::from_term_buf(terms).with_sign(self.sign))
     }
 
     fn canonicalize(&mut self) {

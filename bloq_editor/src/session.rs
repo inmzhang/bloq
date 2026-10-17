@@ -486,7 +486,7 @@ mod tests {
         tabs.set_active(child);
         // The active tab's stashed snapshot deliberately stays empty.
         let mut live = EditorTabSnapshot::default();
-        let leaf = crate::module_authoring::definition_graph(&program, "Memory").unwrap();
+        let leaf = program.extract_definition("Memory").unwrap();
         live.graph_state.graph = leaf.flatten().unwrap();
         live.graph_state.source_graph = Some(Arc::new(leaf.clone()));
         live.graph_state

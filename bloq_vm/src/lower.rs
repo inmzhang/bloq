@@ -1546,7 +1546,7 @@ impl LowerCx<'_, '_> {
             .iter()
             .flat_map(|alternative| alternative.stream.moments.iter())
             .flat_map(|moment| moment.operations.iter())
-            .flat_map(op_qubits)
+            .flat_map(QuantumOp::qubits)
             .collect::<BTreeSet<_>>();
         for qubit in &qubits {
             if let Some(previous) = last_qubit.get(qubit) {
@@ -2672,28 +2672,6 @@ fn gate1(gate: GateType, qubit: QubitId) -> Option<QuantumOp> {
             unreachable!("two-qubit gates are handled first")
         }
     })
-}
-
-fn op_qubits(op: &QuantumOp) -> Box<dyn Iterator<Item = QubitId> + '_> {
-    match op {
-        QuantumOp::Gate1 { qubit, .. }
-        | QuantumOp::Pauli { qubit, .. }
-        | QuantumOp::T { qubit, .. }
-        | QuantumOp::Reset { qubit, .. }
-        | QuantumOp::ConditionalPauli { qubit, .. } => Box::new(std::iter::once(*qubit)),
-        QuantumOp::Gate2 {
-            control, target, ..
-        } => Box::new([*control, *target].into_iter()),
-        QuantumOp::Measure { observable, .. } => {
-            Box::new(observable.terms.iter().map(|(qubit, _)| *qubit))
-        }
-        QuantumOp::Depolarize1 { qubits, .. } | QuantumOp::PauliError { qubits, .. } => {
-            Box::new(qubits.iter().copied())
-        }
-        QuantumOp::Depolarize2 { pairs, .. } => {
-            Box::new(pairs.iter().flat_map(|&(left, right)| [left, right]))
-        }
-    }
 }
 
 #[cfg(test)]

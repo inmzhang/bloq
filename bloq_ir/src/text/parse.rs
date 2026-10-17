@@ -760,12 +760,10 @@ fn parse_op(stmt: &Stmt<'_>) -> Result<Op> {
             reject_probability_argument(stmt, token, probability)?;
             let gate =
                 GateType::from_str(gate).map_err(|_| stmt.err(format!("unknown gate `{gate}`")))?;
-            let mut qubits = Vec::new();
-            while let Some(token) = stmt.peek() {
-                stmt.advance();
-                qubits.push(parse_coord2(stmt, token)?);
+            Op::Gate {
+                gate,
+                qubits: parse_qubit_targets(stmt)?,
             }
-            Op::Gate { gate, qubits }
         }
     };
     stmt.finish()?;
@@ -1179,8 +1177,11 @@ impl<'a> Parser<'a> {
             next = self.expect_stmt("a region body or `}`")?;
         }
 
+        next.expect("body")?;
+        next.expect("{")?;
+        next.finish()?;
         let region = RegionNode::RepeatUntilSuccess {
-            body: self.parse_body_block(&next, "body")?,
+            body: self.parse_level()?,
             restart_condition: expr,
             restart_source,
         };
@@ -1194,14 +1195,6 @@ impl<'a> Parser<'a> {
             kind: BloqNodeKind::Region(region),
             provenance,
         })
-    }
-
-    /// One region body block: `<name> { <level> }`.
-    fn parse_body_block(&mut self, stmt: &Stmt<'_>, name: &str) -> Result<SubGraph> {
-        stmt.expect(name)?;
-        stmt.expect("{")?;
-        stmt.finish()?;
-        self.parse_level()
     }
 }
 

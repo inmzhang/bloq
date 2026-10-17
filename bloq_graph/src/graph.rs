@@ -2857,7 +2857,7 @@ impl BlockGraph {
         text: &str,
         limits: crate::ModuleCertificationLimits,
     ) -> Result<Self, BlockGraphError> {
-        crate::parser::parse_graph_input(text, limits)
+        crate::parser::parse_blog_to_graph_with_limits(text, limits)
     }
 
     /// Loads BLOG as a block graph, resolving imports relative to each file.

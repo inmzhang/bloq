@@ -55,7 +55,7 @@ use bloq_ir::{
     Bloq, BloqNodeId, BloqNodeKind, BodySelector, ClassicalNode, LevelPath, NodeDetectorAddress,
     ObservableOutput, RegionNode, SubGraph,
 };
-use glam::{IVec2, IVec3};
+use glam::IVec3;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use super::circuit::ShotRecord;
@@ -1629,7 +1629,6 @@ impl Program {
             map,
             &super::circuit::LayoutCtx {
                 coord_to_index: &self.core.coord_index,
-                offset: IVec2::ZERO,
                 qubit_count: self.core.coord_index.len(),
             },
         )
@@ -2190,6 +2189,7 @@ mod tests {
     use bloq_ir::circuit::{CoordCircuit, GateType, Pauli as CircuitPauli, PauliBasis};
     use bloq_ir::lowering::{BloqTemplate, NodeRestart};
     use bloq_ir::{BloqEdge, BloqNode, ClassicalExpr, NodeDetector, TemplateDetector};
+    use glam::IVec2;
 
     #[test]
     fn early_cut_activation_uses_the_selected_observable_port() {

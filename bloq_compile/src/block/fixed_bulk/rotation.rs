@@ -300,7 +300,7 @@ fn horizontal_observable_measurements(
     patches: &RotationPatches,
 ) -> Vec<SelectedChunkMeasurements> {
     let g = layout.geometry;
-    let mixed_right = VariantSpec::for_layout(layout).mixed_side.is_right();
+    let mixed_right = MixedSide::for_layout(layout).is_right();
     let middle_line_end = if g.width % 4 == 1 {
         g.width / 2 + 1
     } else {
@@ -341,7 +341,7 @@ fn vertical_observable_measurements(
     patches: &RotationPatches,
 ) -> Vec<SelectedChunkMeasurements> {
     let g = layout.geometry;
-    let mixed_right = VariantSpec::for_layout(layout).mixed_side.is_right();
+    let mixed_right = MixedSide::for_layout(layout).is_right();
 
     vec![SelectedChunkMeasurements {
         chunk_index: ROTATED_INIT_CHUNK,
@@ -464,11 +464,6 @@ fn top_left_lattice_basis(layout: RotationLayout, offset: IVec2, width: i32, hei
     .expect("rectangular lattice has corners")
 }
 
-fn canonical_stage_patch(layout: RotationLayout, stage: RotationStage, offset: IVec2) -> Patch {
-    let spec = VariantSpec::for_layout(layout);
-    make_patch(stage, layout, offset, spec)
-}
-
 #[derive(Debug, Clone)]
 struct RotationPatches {
     input: Patch,
@@ -482,8 +477,8 @@ impl RotationPatches {
         let geometry = layout.geometry;
         Self {
             input: make_standard_patch(layout, offset, 0, layout.input_x_basis),
-            grown: canonical_stage_patch(layout, RotationStage::Grown, offset),
-            rotated: canonical_stage_patch(layout, RotationStage::Rotated, offset),
+            grown: make_patch(RotationStage::Grown, layout, offset),
+            rotated: make_patch(RotationStage::Rotated, layout, offset),
             output: make_standard_patch(
                 layout,
                 offset,
@@ -555,25 +550,22 @@ impl BoundaryPolicy {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct VariantSpec {
-    mixed_side: MixedSide,
+enum MixedSide {
+    Left,
+    Right,
 }
 
-impl VariantSpec {
+impl MixedSide {
     fn for_layout(layout: RotationLayout) -> Self {
-        // Canonical construction table before applying the movement transform.
-        //
-        // input X basis | movement | mixed side | grown extension | rotated extension
-        // X             | -X       | right      | left            | left
-        // X             | other    | left       | right           | right
-        // Z             | -X       | left       | right           | right
-        // Z             | other    | right      | left            | left
-        let mixed_side = match (layout.input_x_basis, layout.movement.to_array()) {
-            (Basis::X, [-1, 0]) => MixedSide::Right,
-            (Basis::X, _) | (Basis::Z, [-1, 0]) => MixedSide::Left,
-            (Basis::Z, _) => MixedSide::Right,
-        };
-        Self { mixed_side }
+        match (layout.input_x_basis, layout.movement.to_array()) {
+            (Basis::X, [-1, 0]) => Self::Right,
+            (Basis::X, _) | (Basis::Z, [-1, 0]) => Self::Left,
+            (Basis::Z, _) => Self::Right,
+        }
+    }
+
+    fn is_right(self) -> bool {
+        self == Self::Right
     }
 
     fn boundaries(
@@ -587,7 +579,7 @@ impl VariantSpec {
             RotationStage::Grown => input_x_basis,
             RotationStage::Rotated => opposite,
         };
-        match self.mixed_side {
+        match self {
             MixedSide::Left => BoundaryPolicy {
                 bottom: opposite,
                 top: input_x_basis,
@@ -610,7 +602,7 @@ impl VariantSpec {
     }
 
     fn schedule_rule(self, stage: RotationStage, geometry: RotationGeometry) -> ScheduleRule {
-        match (self.mixed_side, stage) {
+        match (self, stage) {
             (MixedSide::Left, RotationStage::Grown) => ScheduleRule::new(1, geometry.split_y),
             (MixedSide::Left, RotationStage::Rotated) => ScheduleRule::new(-1, geometry.split_y),
             (MixedSide::Right, RotationStage::Grown) => {
@@ -623,7 +615,7 @@ impl VariantSpec {
     }
 
     fn cx_order(self, stage: RotationStage, schedule: CXSchedule) -> [Corner; 4] {
-        match (self.mixed_side, stage, schedule) {
+        match (self, stage, schedule) {
             (MixedSide::Left, RotationStage::Grown, CXSchedule::Horizontal)
             | (MixedSide::Right, RotationStage::Rotated, CXSchedule::Horizontal) => {
                 [Corner::BR, Corner::BL, Corner::TR, Corner::TL]
@@ -641,18 +633,6 @@ impl VariantSpec {
                 [Corner::BL, Corner::TL, Corner::BR, Corner::TR]
             }
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum MixedSide {
-    Left,
-    Right,
-}
-
-impl MixedSide {
-    fn is_right(self) -> bool {
-        self == Self::Right
     }
 }
 
@@ -680,7 +660,7 @@ impl ScheduleRule {
     }
 
     fn uses_original_schedule(self, m: IVec2) -> bool {
-        data_y(m.y) <= self.diagonal_sign * data_x(m.x) + self.line_intercept
+        m.y / 2 <= self.diagonal_sign * (m.x / 2) + self.line_intercept
     }
 }
 
@@ -691,28 +671,16 @@ fn opposite_schedule(schedule: CXSchedule) -> CXSchedule {
     }
 }
 
-fn data_x(measure_x: i32) -> i32 {
-    measure_x / 2
-}
-
-fn data_y(measure_y: i32) -> i32 {
-    measure_y / 2
-}
-
 fn is_below_split_midline(measure_y: i32, split_y: i32) -> bool {
     measure_y < 2 * split_y + 1
 }
 
-fn make_patch(
-    stage: RotationStage,
-    layout: RotationLayout,
-    offset: IVec2,
-    spec: VariantSpec,
-) -> Patch {
+fn make_patch(stage: RotationStage, layout: RotationLayout, offset: IVec2) -> Patch {
     let geometry = layout.geometry;
     let rect = Rect::new(geometry.width, geometry.height);
-    let boundaries = spec.boundaries(layout.input_x_basis, stage, geometry);
-    let schedule_rule = spec.schedule_rule(stage, geometry);
+    let mixed_side = MixedSide::for_layout(layout);
+    let boundaries = mixed_side.boundaries(layout.input_x_basis, stage, geometry);
+    let schedule_rule = mixed_side.schedule_rule(stage, geometry);
 
     carve_patch(
         rect.data_qubits(),
@@ -728,11 +696,14 @@ fn make_patch(
             let global_m = layout.local_to_global(m, offset);
             let basis = checkerboard_basis(global_m);
             let schedule = schedule_rule.schedule(basis, m, layout.input_x_basis.flip());
-            let slots = spec.cx_order(stage, schedule).into_iter().map(|corner| {
-                let dq = m + corner.to_ivec2();
-                data.contains(&dq)
-                    .then_some(layout.local_to_global(dq, offset))
-            });
+            let slots = mixed_side
+                .cx_order(stage, schedule)
+                .into_iter()
+                .map(|corner| {
+                    let dq = m + corner.to_ivec2();
+                    data.contains(&dq)
+                        .then_some(layout.local_to_global(dq, offset))
+                });
             Tile::new(basis, global_m, slots)
         },
     )

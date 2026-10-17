@@ -150,6 +150,7 @@ impl QubitLayout {
         self.index.len()
     }
 
+    #[cfg(any(test, feature = "verify"))]
     pub(crate) fn coord_index(&self) -> &FxHashMap<IVec2, u32> {
         &self.index
     }
