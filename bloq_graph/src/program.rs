@@ -592,6 +592,30 @@ pub enum ModuleCertificationError {
     /// Leaf certification was requested for a definition with children.
     #[error("module '{0}' contains child instances")]
     NotLeaf(String),
+    /// A distance relation needs exactly one choice for each selective block.
+    #[error("module '{module}' needs {expected} Clifford distance pins, got {actual}")]
+    CliffordDistancePinCount {
+        /// Definition being certified.
+        module: String,
+        /// Number of selective blocks.
+        expected: usize,
+        /// Number of supplied pins.
+        actual: usize,
+    },
+    /// No source-outcome assignment reaches the complete requested pin tuple.
+    #[error("module '{module}' cannot reach the requested Clifford distance pins")]
+    CliffordDistanceUnreachablePins {
+        /// Definition being certified.
+        module: String,
+    },
+    /// Structural alternatives must be explicitly projected before this oracle.
+    #[error(
+        "module '{module}' has structural branches unsupported by the Clifford distance oracle"
+    )]
+    CliffordDistanceStructuralBranches {
+        /// Definition being certified.
+        module: String,
+    },
     /// A definition uses a feature unsupported by leaf certification.
     #[error("module '{module}' uses unsupported {feature}")]
     Unsupported {

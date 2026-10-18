@@ -27,6 +27,10 @@ impl StabilizerPhaseBasis {
             rows,
         }
     }
+
+    pub(crate) fn rows(&self) -> &[PhasedPauliString] {
+        &self.rows
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -334,15 +338,14 @@ impl FlowWitness {
     pub(crate) fn transformed(
         &self,
         orientation: crate::ModuleOrientation,
-        translation: IVec3,
+        transform: impl Fn(IVec3) -> Result<IVec3, crate::BlockGraphError>,
     ) -> Result<Self, crate::BlockGraphError> {
         let mut sources = self
             .sources
             .iter()
             .map(|source| {
                 let mut source = source.as_ref().clone();
-                source.position =
-                    orientation.try_transform_position(source.position, translation)?;
+                source.position = transform(source.position)?;
                 for (direction, _) in &mut source.edges {
                     *direction = orientation.rotate_direction(*direction);
                 }
@@ -1406,10 +1409,25 @@ impl EliminationRow for WitnessedRow {
 /// Folding a pivot must clear that component without reintroducing earlier ones.
 pub(crate) fn leading_pivot_elimination_from<R: EliminationRow>(
     rows: &mut [R],
-    mut solved: usize,
+    solved: usize,
     first: impl Fn(&R) -> Option<(usize, Pauli)>,
     predicate: impl Fn(&R, &(usize, Pauli)) -> bool,
 ) -> usize {
+    try_leading_pivot_elimination_from(rows, solved, first, predicate, || {
+        Ok::<(), std::convert::Infallible>(())
+    })
+    .unwrap_or_else(|never| match never {})
+}
+
+/// The same sparse elimination with cancellable checkpoints between row operations.
+pub(crate) fn try_leading_pivot_elimination_from<R: EliminationRow, E>(
+    rows: &mut [R],
+    mut solved: usize,
+    first: impl Fn(&R) -> Option<(usize, Pauli)>,
+    predicate: impl Fn(&R, &(usize, Pauli)) -> bool,
+    mut checkpoint: impl FnMut() -> Result<(), E>,
+) -> Result<usize, E> {
+    checkpoint()?;
     debug_assert!(solved <= rows.len());
     let mut leading: Vec<_> = rows.iter().map(&first).collect();
     let mut pending: BTreeSet<_> = leading
@@ -1422,6 +1440,7 @@ pub(crate) fn leading_pivot_elimination_from<R: EliminationRow>(
         .collect();
     // Empty columns have no candidate. Ties retain the original row order.
     while let Some((column, z_axis, pivot_index)) = pending.pop_first() {
+        checkpoint()?;
         let component = (column, if z_axis { Pauli::Z } else { Pauli::X });
         if pivot_index != solved
             && let Some((column, axis)) = leading[solved]
@@ -1437,6 +1456,7 @@ pub(crate) fn leading_pivot_elimination_from<R: EliminationRow>(
             .expect("pivot is in bounds");
         for row in before {
             if predicate(row, &component) {
+                checkpoint()?;
                 row.multiply_assign(pivot);
             }
         }
@@ -1446,6 +1466,7 @@ pub(crate) fn leading_pivot_elimination_from<R: EliminationRow>(
                 break;
             }
             pending.pop_first();
+            checkpoint()?;
             let row = &mut after[index - solved - 1];
             row.multiply_assign(pivot);
             leading[index] = first(row);
@@ -1456,7 +1477,7 @@ pub(crate) fn leading_pivot_elimination_from<R: EliminationRow>(
         }
         solved += 1;
     }
-    solved
+    Ok(solved)
 }
 
 pub(crate) fn signed_gaussian_elimination<R: EliminationRow, T>(

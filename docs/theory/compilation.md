@@ -220,6 +220,15 @@ and combined with spatial wall offsets. These references are distinct from
 the signed correlation certificate described in
 [Correlation Surfaces](correlation-surfaces.md#signs).
 
+Rust's `compile_clifford_proxy` preserves source generator selection through
+selective fills. `compile_clifford_distance` certifies the full guarded source,
+restricts its signed relation to jointly reachable pins, then selects fixed
+readouts; observable counts, indices and generator keys can differ. Both share
+physical templates and detector composition. Pins follow expanded `(z, x, y)`
+block order, and structural branches require explicit projection. These distance
+oracles replace T regions with perfect input ports and omit source feedback;
+check the original program with the logical or physical execution oracles.
+
 The source's classical behavior becomes IR nodes:
 
 | Source behavior | IR representation |

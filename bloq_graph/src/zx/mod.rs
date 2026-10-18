@@ -16,6 +16,7 @@ mod layer;
 mod modular;
 mod output_correction;
 mod readout;
+mod restriction;
 mod runtime_basis;
 mod stabilizer;
 mod symbolic_basis;

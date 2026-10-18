@@ -540,7 +540,13 @@ pub struct CompileContext {
 struct CliffordProxyPins {
     pins: Vec<bool>,
     purpose: CliffordProxyPurpose,
-    source_summary: Option<Arc<ModuleSummary>>,
+    source: CliffordProxySource,
+}
+
+#[derive(Debug)]
+enum CliffordProxySource {
+    Rows(Option<Arc<ModuleSummary>>),
+    Relation(Arc<ModuleSummary>),
 }
 
 /// Which consumer requested a pinned Clifford artifact.
@@ -608,6 +614,44 @@ pub fn compile_clifford_proxy(
     pins: &[bool],
 ) -> Result<CompileArtifacts, CompileError> {
     compile_proxy(config, graph, pins, CliffordProxyPurpose::Distance)
+}
+
+/// Compile a Clifford distance oracle from the complete signed source relation.
+///
+/// Certifies all source choices before restricting to jointly reachable pins
+/// in expanded `(z, x, y)` block order. Structural branches require projection.
+/// T regions become perfect input ports and source feedback is omitted.
+/// Public rows are selected after restriction, so observable counts, indices
+/// and generator keys can differ from [`compile_clifford_proxy`].
+///
+/// # Errors
+///
+/// Returns source-certification, pin, resource-limit or physical-compilation errors.
+///
+/// # Examples
+///
+/// ```
+/// use bloq_compile::{CompileConfig, compile_clifford_distance};
+/// use bloq_graph::GalleryItem;
+/// let proxy = compile_clifford_distance(
+///     CompileConfig::new(3), &GalleryItem::T.build(), &[false],
+/// )?;
+/// bloq_stim::emit_bloq_stim(&proxy.bloq).expect("distance oracle emits static Stim");
+/// # Ok::<(), bloq_compile::CompileError>(())
+/// ```
+pub fn compile_clifford_distance(
+    config: CompileConfig,
+    graph: &BlockGraph,
+    pins: &[bool],
+) -> Result<CompileArtifacts, CompileError> {
+    let mut context = proxy_context(config);
+    let summary = context.summarize(graph, config.certification_limits())?;
+    context.clifford_proxy = Some(CliffordProxyPins {
+        pins: pins.to_vec(),
+        purpose: CliffordProxyPurpose::Distance,
+        source: CliffordProxySource::Relation(summary),
+    });
+    context.compile(graph)
 }
 
 /// Compile one seeded random static Clifford proxy path.
@@ -730,23 +774,22 @@ fn compile_pinned_clifford_proxy(
             actual: pins.len(),
         });
     }
-    static CACHE: OnceLock<crate::SharedCompileCache> = OnceLock::new();
-    // Keep proxy templates separate from real compilations. Pinning only
-    // selects one arm of a cached selective template; T proxy ports use their
-    // ordinary Port signature below, so no cached entry is site-specific.
-    let mut ctx = CompileContext::with_shared_cache(
-        config,
-        CACHE.get_or_init(crate::SharedCompileCache::new),
-    );
+    let mut ctx = proxy_context(config);
     let source_summary = program
         .map(|program| ctx.summarize(program, config.certification_limits()))
         .transpose()?;
     ctx.clifford_proxy = Some(CliffordProxyPins {
         pins: pins.to_vec(),
         purpose,
-        source_summary,
+        source: CliffordProxySource::Rows(source_summary),
     });
     ctx.compile(graph)
+}
+
+fn proxy_context(config: CompileConfig) -> CompileContext {
+    static CACHE: OnceLock<crate::SharedCompileCache> = OnceLock::new();
+    // Both distance presentations reuse identical physical proxy templates.
+    CompileContext::with_shared_cache(config, CACHE.get_or_init(crate::SharedCompileCache::new))
 }
 
 /// Cache key for the unified signature→template map: a spatial block signature,
@@ -1011,7 +1054,31 @@ impl CompileContext {
             .clifford_proxy
             .as_ref()
             .expect("Clifford proxy context");
-        let module_summary = proxy.source_summary.as_deref();
+        let module_summary = match &proxy.source {
+            CliffordProxySource::Rows(summary) => summary.as_deref(),
+            CliffordProxySource::Relation(summary) => {
+                let (source_graph, stabilizers) =
+                    summary.materialize_clifford_distance_relation(&proxy.pins)?;
+                let (graph, spatial_ports) = crate::spatial_port::expand_spatial_port_topology(
+                    &source_graph,
+                    self.config.code_distance(),
+                )?;
+                let graph = graph.into_owned();
+                let signatures = select_link_signatures(
+                    self.config,
+                    &graph,
+                    &spatial_ports,
+                    #[cfg(test)]
+                    &self.flat_signature_builds,
+                )?;
+                return Ok(ProxyPreflight {
+                    graph,
+                    signatures,
+                    stabilizers,
+                    spatial_ports,
+                });
+            }
+        };
         let graph = graph.canonical_true_branch_view()?;
         graph.validate_source()?;
         reject_structural_proxy(&graph)?;
@@ -2037,12 +2104,106 @@ mod tests {
             clifford_proxy: Some(CliffordProxyPins {
                 pins: Vec::new(),
                 purpose: CliffordProxyPurpose::Distance,
-                source_summary: None,
+                source: CliffordProxySource::Rows(None),
             }),
             ..CompileContext::new(CompileConfig::default())
         };
         let resolved = ctx.proxy_stabilizers(&graph, &source).unwrap();
         assert_eq!(resolved.generators, source.generators);
+    }
+
+    #[test]
+    fn clifford_distance_checks_correlated_pins_and_limits() {
+        let graph = BlockGraph::from_blog_text(
+            "BLOG 1.0\n\n  0: Port [0,0,0]\n  1: XZ [0,0,1]\n  2: Port [2,0,0]\n  3: XZ [2,0,1]\n  4: ZXZ [4,0,0]\n  5: ZXZ [6,0,0]\n  [0,0,0] -> +Z\n  [2,0,0] -> +Z\n\n  a = measure 4\n  b = measure 5\n  resolve 1 if a ^ b\n  resolve 3 if a ^ b\n",
+        ).unwrap();
+        for pins in [[false, false], [true, true]] {
+            let result = compile_clifford_distance(CompileConfig::new(3), &graph, &pins)
+                .expect("joint controls admit both uniform choices");
+            result.bloq.validate().unwrap();
+            assert!(!result.bloq.has_conditional_membership());
+        }
+        for pins in [[false, true], [true, false]] {
+            assert!(matches!(
+                compile_clifford_distance(CompileConfig::new(3), &graph, &pins),
+                Err(CompileError::ModuleCertification(
+                    bloq_graph::ModuleCertificationError::CliffordDistanceUnreachablePins { .. }
+                ))
+            ));
+        }
+        assert!(matches!(
+            compile_clifford_distance(CompileConfig::new(3), &graph, &[false]),
+            Err(CompileError::ModuleCertification(
+                bloq_graph::ModuleCertificationError::CliffordDistancePinCount {
+                    expected: 2,
+                    actual: 1,
+                    ..
+                }
+            ))
+        ));
+        let limited = CompileConfig::new(3).with_certification_limits(
+            bloq_graph::ModuleCertificationLimits {
+                max_matrix_words: 0,
+                ..bloq_graph::ModuleCertificationLimits::DEFAULT
+            },
+        );
+        assert!(
+            compile_clifford_distance(limited, &graph, &[false, false])
+                .unwrap_err()
+                .is_resource_limited()
+        );
+    }
+
+    #[test]
+    fn clifford_distance_rejects_invalid_child_before_pinning() {
+        let graph = BlockGraph::from_text(
+            r#"BLOG 1.0
+module Child {
+    out q: data = 2
+    1: XZX [0,0,1]
+    2: Port [0,0,2] role=output
+    3: T [1,0,0]
+    4: XZX [1,0,1]
+    5: YX [1,0,2]
+    1 -> +Z
+    1 -> +X
+    3 -> +Z
+    5 -> -Z
+    mzz = measure 1 -> +X
+    resolve 5 if mzz
+}
+module main {
+    child: Child @ [0,0,0]
+    10: Z [0,0,2]
+    child.q -> 10
+}
+"#,
+        )
+        .unwrap();
+        for pin in [false, true] {
+            let error =
+                compile_clifford_distance(CompileConfig::new(3), &graph, &[pin]).unwrap_err();
+            assert!(
+                matches!(
+                    error,
+                    CompileError::ModuleCertification(
+                        bloq_graph::ModuleCertificationError::Graph { ref module, .. }
+                        | bloq_graph::ModuleCertificationError::Runtime { ref module, .. }
+                    ) if module == "Child"
+                ),
+                "{error:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn clifford_distance_requires_explicit_structural_projection() {
+        assert!(matches!(
+            compile_clifford_distance(CompileConfig::new(3), &structural_branch_graph(), &[],),
+            Err(CompileError::ModuleCertification(
+                bloq_graph::ModuleCertificationError::CliffordDistanceStructuralBranches { .. }
+            ))
+        ));
     }
 
     fn single_cube_runtime_graph() -> BlockGraph {
@@ -2512,7 +2673,7 @@ mod tests {
             clifford_proxy: Some(CliffordProxyPins {
                 pins: vec![false],
                 purpose: CliffordProxyPurpose::Detslice,
-                source_summary: None,
+                source: CliffordProxySource::Rows(None),
             }),
             ..CompileContext::new(CompileConfig::default())
         };
@@ -2544,7 +2705,7 @@ mod tests {
     }
 
     #[test]
-    fn compile_and_validate_normalizes_a_small_span_starting_at_i32_min() {
+    fn compilation_normalizes_a_small_span_starting_at_i32_min() {
         let port = ivec3(0, 0, i32::MIN);
         let cube = ivec3(0, 0, i32::MIN + 1);
         let mut graph = BlockGraph::new();
@@ -2555,6 +2716,11 @@ mod tests {
 
         ctx.compile_and_validate(&graph)
             .expect("the normalized z span is 0..=1");
+        compile_clifford_distance(CompileConfig::new(3), &graph, &[])
+            .expect("distance compilation normalizes the same span")
+            .bloq
+            .validate()
+            .unwrap();
     }
 
     #[test]

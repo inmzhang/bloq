@@ -1141,7 +1141,7 @@ impl BlockGraph {
 
     /// Single point of installation for the cached DAG, keeping
     /// `action_graph_error` in lockstep with `action_graph`.
-    fn install_action_graph(&mut self, dag: ActionDag, error: Option<BlockGraphError>) {
+    pub(crate) fn install_action_graph(&mut self, dag: ActionDag, error: Option<BlockGraphError>) {
         self.action_graph = dag;
         self.action_graph_error = error;
     }
@@ -3317,7 +3317,11 @@ fn oriented_block_kind(kind: BlockKind, orientation: crate::ModuleOrientation) -
     }
 }
 
-fn normalize_z_position(position: IVec3, min_z: i32, max_z: i32) -> Result<IVec3, BlockGraphError> {
+pub(crate) fn normalize_z_position(
+    position: IVec3,
+    min_z: i32,
+    max_z: i32,
+) -> Result<IVec3, BlockGraphError> {
     let z = i64::from(position.z) - i64::from(min_z);
     let z = i32::try_from(z)
         .map_err(|_| BlockGraphError::CoordinateNormalizationOverflow { min_z, max_z })?;

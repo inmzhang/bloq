@@ -1,5 +1,6 @@
 //! Reusable module certificates, summaries, and composed correlation supports.
 
+mod proxy;
 pub(crate) mod relations;
 
 use std::collections::HashMap;
@@ -379,6 +380,27 @@ impl ModuleSummary {
         orientation: ModuleOrientation,
         offset: IVec3,
     ) -> Result<StabilizerGenerators, ModuleCertificationError> {
+        let external_basis = self.materialize_certificate_rows(zx, orientation, |position| {
+            orientation.try_transform_position(position, offset)
+        })?;
+        zx.stabilizers_from_composed_basis(&external_basis, self.limits)
+            .map_err(crate::RuntimeBasisError::from)
+            .and_then(|stabilizers| {
+                // C0 / LIM-027: leaf certification alone does not establish
+                // closure after composition. Check the presented readouts,
+                // including selective fills, before using them for decoding.
+                stabilizers.validate_measurements_close_before_outputs_with_limits(self.limits)?;
+                Ok(stabilizers)
+            })
+            .map_err(|source| self.runtime_error(source))
+    }
+
+    fn materialize_certificate_rows(
+        &self,
+        zx: &ZXGraph,
+        orientation: ModuleOrientation,
+        transform: impl Fn(IVec3) -> Result<IVec3, crate::BlockGraphError>,
+    ) -> Result<Vec<PhasedPauliString>, ModuleCertificationError> {
         // PauliString holds two BitVecs, each rounded to a 512-bit block.
         let words = self
             .certificate_rows
@@ -393,8 +415,7 @@ impl ModuleSummary {
                 self.limits.max_matrix_words,
             ));
         }
-        let external_basis = self
-            .certificate_rows
+        self.certificate_rows
             .iter()
             .map(|row| {
                 let paulis = materialize_summary_row(
@@ -402,17 +423,16 @@ impl ModuleSummary {
                     &row.support,
                     &self.ports,
                     zx,
-                    orientation,
-                    offset,
+                    &transform,
                     &self.name,
                 )?;
-                let witness = row
-                    .witness
-                    .transformed(orientation, offset)
-                    .map_err(|source| ModuleCertificationError::Graph {
-                        module: self.name.clone(),
-                        source,
-                    })?;
+                let witness =
+                    row.witness
+                        .transformed(orientation, &transform)
+                        .map_err(|source| ModuleCertificationError::Graph {
+                            module: self.name.clone(),
+                            source,
+                        })?;
                 let witnessed =
                     zx.materialize_flow_witness(&witness, &paulis)
                         .ok_or_else(|| {
@@ -429,27 +449,21 @@ impl ModuleSummary {
                 }
                 Ok(witnessed)
             })
-            .collect::<Result<Vec<_>, ModuleCertificationError>>()?;
-        zx.stabilizers_from_composed_basis(&external_basis, self.limits)
-            .map_err(crate::RuntimeBasisError::from)
-            .and_then(|stabilizers| {
-                // C0 / LIM-027: leaf certification alone does not establish
-                // closure after composition. Check the presented readouts,
-                // including selective fills, before using them for decoding.
-                stabilizers.validate_measurements_close_before_outputs_with_limits(self.limits)?;
-                Ok(stabilizers)
-            })
-            .map_err(|source| match source {
-                crate::RuntimeBasisError::Stabilizer(crate::StabilizerError::ResourceLimited {
-                    phase,
-                    observed,
-                    limit,
-                }) => resource_limit(&self.name, phase, observed, limit),
-                source => ModuleCertificationError::Runtime {
-                    module: self.name.clone(),
-                    source,
-                },
-            })
+            .collect()
+    }
+
+    fn runtime_error(&self, source: crate::RuntimeBasisError) -> ModuleCertificationError {
+        match source {
+            crate::RuntimeBasisError::Stabilizer(crate::StabilizerError::ResourceLimited {
+                phase,
+                observed,
+                limit,
+            }) => resource_limit(&self.name, phase, observed, limit),
+            source => ModuleCertificationError::Runtime {
+                module: self.name.clone(),
+                source,
+            },
+        }
     }
 }
 
@@ -458,24 +472,23 @@ fn materialize_summary_row(
     support: &PositionedSupport,
     ports: &[QuantumPort],
     zx: &ZXGraph,
-    orientation: ModuleOrientation,
-    translation: IVec3,
+    transform: impl Fn(IVec3) -> Result<IVec3, crate::BlockGraphError>,
     module: &str,
 ) -> Result<PauliString, ModuleCertificationError> {
-    let mut support = support
-        .transformed(orientation, translation)
-        .map_err(|source| ModuleCertificationError::Graph {
-            module: module.to_string(),
-            source,
-        })?;
+    let mut support =
+        support
+            .transformed(&transform)
+            .map_err(|source| ModuleCertificationError::Graph {
+                module: module.to_string(),
+                source,
+            })?;
     for (column, port) in ports.iter().enumerate() {
         let pauli = boundary.get(column);
         if pauli == Pauli::I {
             continue;
         }
-        let position = orientation
-            .try_transform_position(port.position, translation)
-            .map_err(|source| ModuleCertificationError::Graph {
+        let position =
+            transform(port.position).map_err(|source| ModuleCertificationError::Graph {
                 module: module.to_string(),
                 source,
             })?;
@@ -550,10 +563,8 @@ impl PositionedSupport {
 
     fn transformed(
         &self,
-        orientation: ModuleOrientation,
-        translation: IVec3,
+        transform: impl Fn(IVec3) -> Result<IVec3, crate::BlockGraphError>,
     ) -> Result<Self, crate::BlockGraphError> {
-        let transform = |position| orientation.try_transform_position(position, translation);
         Ok(Self {
             nodes: self
                 .nodes
@@ -2093,8 +2104,7 @@ mod certificate_tests {
                     &row.support,
                     &summary.ports,
                     &zx,
-                    ModuleOrientation::IDENTITY,
-                    IVec3::ZERO,
+                    Ok,
                     summary.name(),
                 )
                 .unwrap();
@@ -2173,8 +2183,7 @@ mod certificate_tests {
                     &row.support,
                     &summary.ports,
                     &zx,
-                    ModuleOrientation::IDENTITY,
-                    offset,
+                    |position| checked_add_position(position, offset),
                     summary.name(),
                 )
                 .unwrap()
