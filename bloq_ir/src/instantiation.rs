@@ -229,10 +229,29 @@ impl NodeEmissionPlan {
 
 /// Options applied after a node's instances have been translated and, when
 /// needed, merged.
-#[derive(Debug, Clone, Copy, Default)]
+///
+/// Validation defaults to 4,000,000 predicate nodes and 128,000,000 work steps.
+/// Whole-program audits have a larger work allowance than standalone
+/// [`BooleanLimits`](bloq_utils::boolean::BooleanLimits) queries.
+#[derive(Debug, Clone, Copy)]
 pub struct InstantiationOptions<'a> {
     noise: Option<&'a NoiseModel>,
     boolean_limits: bloq_utils::boolean::BooleanLimits,
+}
+
+const DEFAULT_VALIDATION_BOOLEAN_LIMITS: bloq_utils::boolean::BooleanLimits =
+    bloq_utils::boolean::BooleanLimits {
+        max_steps: 128_000_000,
+        ..bloq_utils::boolean::BooleanLimits::DEFAULT
+    };
+
+impl Default for InstantiationOptions<'_> {
+    fn default() -> Self {
+        Self {
+            noise: None,
+            boolean_limits: DEFAULT_VALIDATION_BOOLEAN_LIMITS,
+        }
+    }
 }
 
 impl<'a> InstantiationOptions<'a> {
@@ -241,11 +260,12 @@ impl<'a> InstantiationOptions<'a> {
     pub const fn noisy(noise: &'a NoiseModel) -> Self {
         Self {
             noise: Some(noise),
-            boolean_limits: bloq_utils::boolean::BooleanLimits::DEFAULT,
+            boolean_limits: DEFAULT_VALIDATION_BOOLEAN_LIMITS,
         }
     }
 
     /// Bound cumulative validation work and live predicate decision nodes.
+    /// Both supplied allowances replace the defaults without adjustment.
     #[must_use]
     pub const fn with_boolean_limits(mut self, limits: bloq_utils::boolean::BooleanLimits) -> Self {
         self.boolean_limits = limits;
@@ -2025,6 +2045,39 @@ mod tests {
         BloqNode, BloqTemplate, BloqTemplatePool, CoordinateOverflowError,
         NodeTemplateInstanceMergeError, TemplateInstance, TemplateInstanceId,
     };
+
+    #[test]
+    fn instantiation_validation_defaults_preserve_explicit_limits() {
+        use bloq_utils::boolean::BooleanLimits;
+
+        let noise = NoiseModel::uniform_depolarizing(0.0);
+        let mut bloq = crate::Bloq::new();
+        bloq.add_node(BloqNode::classical(crate::ClassicalNode::Compute {
+            expr: crate::ClassicalExpr::Const(true),
+        }));
+        let expected = BooleanLimits {
+            max_nodes: BooleanLimits::DEFAULT.max_nodes,
+            max_steps: 128_000_000,
+        };
+        for options in [
+            InstantiationOptions::default(),
+            InstantiationOptions::noisy(&noise),
+        ] {
+            assert_eq!(options.boolean_limits(), expected);
+            bloq.validate_with_options(&options).unwrap();
+            let explicit = BooleanLimits {
+                max_nodes: 0,
+                max_steps: 0,
+            };
+            let limited = options.with_boolean_limits(explicit);
+            assert_eq!(limited.boolean_limits(), explicit);
+            assert!(matches!(
+                bloq.validate_with_options(&limited),
+                Err(crate::BloqValidationError::BooleanResource(error))
+                    if error.resource == "Boolean work steps" && error.limit == 0 && error.observed > 0
+            ));
+        }
+    }
 
     fn malformed_mpp_error(
         products: Vec<PauliMap>,

@@ -19,6 +19,7 @@ pub struct PredicateAnalysis<'a> {
     memo: FxMap<ValueRef, DecisionId>,
     variables: FxMap<ValueRef, usize>,
     inputs: FxMap<BloqNodeId, FxMap<u32, ValueRef>>,
+    aliases: FxMap<ValueRef, (ValueRef, bool)>,
     implications: FxMap<(Option<ValueRef>, ValueRef), bool>,
     overlaps: FxMap<(Option<ValueRef>, Option<ValueRef>), bool>,
 }
@@ -87,6 +88,7 @@ impl<'a> PredicateAnalysis<'a> {
             memo: FxMap::default(),
             variables: FxMap::default(),
             inputs: FxMap::default(),
+            aliases: FxMap::default(),
             implications: FxMap::default(),
             overlaps: FxMap::default(),
         }
@@ -171,6 +173,10 @@ impl<'a> PredicateAnalysis<'a> {
         if let Some(&result) = self.implications.get(&(left, right)) {
             return Ok(result);
         }
+        if self.proves_conjunct(left.as_slice(), right)? {
+            self.implications.insert((left, right), true);
+            return Ok(true);
+        }
         let source = self.guard(left)?;
         let target = self.guard(Some(right))?;
         let absent = self.diagram.negate(target)?;
@@ -188,6 +194,9 @@ impl<'a> PredicateAnalysis<'a> {
             return self.implies_values(left.first().copied(), right);
         }
         self.charge(left.len())?;
+        if self.proves_conjunct(left, right)? {
+            return Ok(true);
+        }
         let mut source = DECISION_TRUE;
         for &node in left {
             let value = self.guard(Some(node))?;
@@ -196,6 +205,155 @@ impl<'a> PredicateAnalysis<'a> {
         let target = self.guard(Some(right))?;
         let absent = self.diagram.negate(target)?;
         Ok(self.diagram.apply(BooleanOp::And, source, absent)? == DECISION_FALSE)
+    }
+
+    // Return the representative's truth when this value is true; compress shared paths.
+    fn normalize_alias(&mut self, mut value: ValueRef) -> Result<(ValueRef, bool), Error> {
+        let mut truth = true;
+        let mut path = FxMap::default();
+        let graph = self.graph;
+        'aliases: loop {
+            self.charge(1)?;
+            if let Some(&(canonical, positive)) = self.aliases.get(&value) {
+                truth = truth == positive;
+                value = canonical;
+                break;
+            }
+            if path.insert(value, truth).is_some() {
+                return Err(Error::InvalidMembership("cyclic predicate ancestry".into()));
+            }
+            let node = graph
+                .node(value.node)
+                .ok_or_else(|| Error::InvalidMembership(format!("unknown predicate {value:?}")))?;
+            if node.activation.is_some() || value.output != ObservableOutput::Corrected {
+                break;
+            }
+            let Some(ClassicalNode::Compute { expr }) = node.try_classical() else {
+                break;
+            };
+            let mut expr = expr;
+            let mut inverted = false;
+            let slot = loop {
+                self.charge(1)?;
+                match expr {
+                    ClassicalExpr::In(slot) => break *slot,
+                    ClassicalExpr::Not(inner) => {
+                        inverted = !inverted;
+                        expr = inner;
+                    }
+                    ClassicalExpr::Parity { inputs, constant } if inputs.len() == 1 => {
+                        inverted ^= *constant;
+                        break inputs[0];
+                    }
+                    _ => break 'aliases,
+                }
+            };
+            truth ^= inverted;
+            value = self.input(value.node, slot)?;
+        }
+        self.charge(path.len())?;
+        self.aliases.extend(
+            path.into_iter()
+                .map(|(alias, positive)| (alias, (value, truth == positive))),
+        );
+        Ok((value, truth))
+    }
+
+    // Each part records a truth forced by the source conjunction. This proves
+    // Boolean implication; full validation still checks every operand's dataflow.
+    fn proves_conjunct(&mut self, roots: &[ValueRef], target: ValueRef) -> Result<bool, Error> {
+        enum Part<'a> {
+            Value(ValueRef, bool),
+            Expr(BloqNodeId, &'a ClassicalExpr, bool),
+        }
+        if roots.is_empty() {
+            return Ok(false);
+        }
+        let (target, target_truth) = self.normalize_alias(target)?;
+        self.charge(roots.len())?;
+        let mut pending = roots
+            .iter()
+            .rev()
+            .copied()
+            .map(|value| Part::Value(value, true))
+            .collect::<Vec<_>>();
+        let mut seen = crate::FxSet::default();
+        let graph = self.graph;
+        while let Some(part) = pending.pop() {
+            self.charge(1)?;
+            match part {
+                Part::Value(value, truth) => {
+                    let (value, positive) = self.normalize_alias(value)?;
+                    let truth = truth == positive;
+                    let node = graph.node(value.node).ok_or_else(|| {
+                        Error::InvalidMembership(format!("unknown predicate {value:?}"))
+                    })?;
+                    if value == target && truth == target_truth {
+                        return Ok(true);
+                    }
+                    if !seen.insert((value, truth)) {
+                        continue;
+                    }
+                    // A false activated value need not have a false payload.
+                    if node.activation.is_some() && !truth {
+                        continue;
+                    }
+                    if value.output == ObservableOutput::Corrected
+                        && let Some(ClassicalNode::Compute { expr }) = node.try_classical()
+                    {
+                        pending.push(Part::Expr(value.node, expr, truth));
+                    }
+                    if let Some(slot) = node.activation {
+                        pending.push(Part::Value(self.input(value.node, slot)?, true));
+                    }
+                }
+                Part::Expr(node, ClassicalExpr::In(slot), truth) => {
+                    pending.push(Part::Value(self.input(node, *slot)?, truth));
+                }
+                Part::Expr(node, ClassicalExpr::Not(inner), truth) => {
+                    pending.push(Part::Expr(node, inner, !truth));
+                }
+                Part::Expr(node, ClassicalExpr::Parity { inputs, constant }, truth)
+                    if inputs.len() == 1 =>
+                {
+                    pending.push(Part::Value(self.input(node, inputs[0])?, truth ^ *constant));
+                }
+                Part::Expr(node, ClassicalExpr::And(operands), true) => {
+                    self.charge(operands.len())?;
+                    pending.extend(
+                        operands
+                            .iter()
+                            .rev()
+                            .map(|expr| Part::Expr(node, expr, true)),
+                    );
+                }
+                Part::Expr(node, ClassicalExpr::Or(operands), false) => {
+                    self.charge(operands.len())?;
+                    pending.extend(
+                        operands
+                            .iter()
+                            .rev()
+                            .map(|expr| Part::Expr(node, expr, false)),
+                    );
+                }
+                Part::Expr(node, ClassicalExpr::Select(operands), truth) => {
+                    self.charge(2)?;
+                    let [condition, when_false, when_true] = operands.as_ref();
+                    if matches!(when_true, ClassicalExpr::Const(bit) if *bit != truth) {
+                        pending.push(Part::Expr(node, when_false, truth));
+                        pending.push(Part::Expr(node, condition, false));
+                    } else if matches!(when_false, ClassicalExpr::Const(bit) if *bit != truth) {
+                        pending.push(Part::Expr(node, when_true, truth));
+                        pending.push(Part::Expr(node, condition, true));
+                    }
+                }
+                Part::Expr(_, ClassicalExpr::Const(bit), truth) if *bit != truth => {
+                    return Ok(true);
+                }
+                Part::Expr(_, _, _) => {}
+            }
+        }
+        Ok(false)
     }
 
     fn input(&mut self, node: BloqNodeId, slot: u32) -> Result<ValueRef, Error> {
@@ -765,6 +923,438 @@ mod tests {
     };
     use bloq_circuit::{CoordCircuit, GateType};
     use glam::ivec2;
+
+    fn input_node(graph: &mut SubGraph) -> BloqNodeId {
+        graph.add_node(BloqNode::classical(ClassicalNode::observable_fragment(
+            Vec::new(),
+            Vec::new(),
+        )))
+    }
+
+    fn compute_node(
+        graph: &mut SubGraph,
+        expr: ClassicalExpr,
+        inputs: &[BloqNodeId],
+    ) -> BloqNodeId {
+        let mut slots = std::collections::BTreeSet::new();
+        expr.for_each_input(&mut |slot| {
+            slots.insert(slot);
+        });
+        let node = graph.add_node(BloqNode::classical(ClassicalNode::Compute { expr }));
+        for slot in slots {
+            graph.add_edge(inputs[slot as usize], node, BloqEdge::value(slot));
+        }
+        node
+    }
+
+    #[test]
+    fn conjunct_implication_proves_aliases_and_activation_without_boolean_nodes() {
+        let mut graph = SubGraph::new();
+        let a = input_node(&mut graph);
+        let b = input_node(&mut graph);
+        let alias = compute_node(&mut graph, ClassicalExpr::In(0), &[a]);
+        let both = compute_node(
+            &mut graph,
+            ClassicalExpr::And(Box::new([ClassicalExpr::In(0), ClassicalExpr::In(1)])),
+            &[alias, b],
+        );
+        let mut activated = BloqNode::classical(ClassicalNode::Compute {
+            expr: ClassicalExpr::In(1),
+        });
+        activated.activation = Some(0);
+        let activated = graph.add_node(activated);
+        graph.add_edge(alias, activated, BloqEdge::value(0));
+        graph.add_edge(b, activated, BloqEdge::value(1));
+        let mut analysis = PredicateAnalysis::with_limits(
+            &graph,
+            BooleanLimits {
+                max_nodes: 0,
+                max_steps: 1_000,
+            },
+        );
+        for (source, target) in [(a, a), (both, alias), (both, a), (both, b), (activated, a)] {
+            assert!(analysis.implies(Some(source), target).unwrap());
+        }
+        assert!(
+            analysis
+                .implies_all_values(&[b.into(), both.into()], a.into())
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn conjunct_implication_agrees_with_all_input_assignments() {
+        let mut graph = SubGraph::new();
+        let a = input_node(&mut graph);
+        let b = input_node(&mut graph);
+        let c = input_node(&mut graph);
+        let alias = compute_node(&mut graph, ClassicalExpr::In(0), &[a]);
+        let formulas = [
+            ClassicalExpr::And(Box::new([ClassicalExpr::In(0), ClassicalExpr::In(1)])),
+            ClassicalExpr::Or(Box::new([ClassicalExpr::In(0), ClassicalExpr::In(1)])),
+            ClassicalExpr::Not(Box::new(ClassicalExpr::In(0))),
+            ClassicalExpr::Select(Box::new([
+                ClassicalExpr::In(0),
+                ClassicalExpr::In(1),
+                ClassicalExpr::In(2),
+            ])),
+            ClassicalExpr::Select(Box::new([
+                ClassicalExpr::In(0),
+                ClassicalExpr::Const(false),
+                ClassicalExpr::In(1),
+            ])),
+            ClassicalExpr::And(Box::new([
+                ClassicalExpr::Or(Box::new([ClassicalExpr::In(1), ClassicalExpr::In(2)])),
+                ClassicalExpr::In(0),
+            ])),
+            ClassicalExpr::Not(Box::new(ClassicalExpr::Or(Box::new([
+                ClassicalExpr::In(0),
+                ClassicalExpr::In(1),
+            ])))),
+            ClassicalExpr::Select(Box::new([
+                ClassicalExpr::In(0),
+                ClassicalExpr::In(1),
+                ClassicalExpr::Const(false),
+            ])),
+            ClassicalExpr::Not(Box::new(ClassicalExpr::Select(Box::new([
+                ClassicalExpr::In(0),
+                ClassicalExpr::Const(true),
+                ClassicalExpr::In(1),
+            ])))),
+            ClassicalExpr::Const(false),
+            ClassicalExpr::Const(true),
+            ClassicalExpr::Select(Box::new([
+                ClassicalExpr::In(0),
+                ClassicalExpr::Const(false),
+                ClassicalExpr::Const(false),
+            ])),
+        ];
+        let mut expressions = formulas
+            .into_iter()
+            .map(|expr| compute_node(&mut graph, expr, &[alias, b, c]))
+            .collect::<Vec<_>>();
+        let not_a = compute_node(&mut graph, ClassicalExpr::parity([0], true), &[alias]);
+        let mut activated = BloqNode::classical(ClassicalNode::Compute {
+            expr: ClassicalExpr::In(1),
+        });
+        activated.activation = Some(0);
+        let activated = graph.add_node(activated);
+        graph.add_edge(a, activated, BloqEdge::value(0));
+        graph.add_edge(b, activated, BloqEdge::value(1));
+        let negative_activated = compute_node(
+            &mut graph,
+            ClassicalExpr::Not(Box::new(ClassicalExpr::In(0))),
+            &[activated],
+        );
+        expressions.extend([activated, negative_activated]);
+        let order = graph.deterministic_emit_order().unwrap();
+        for &source in &expressions {
+            for target in [a, alias, b, c, not_a] {
+                let mut analysis = PredicateAnalysis::new(&graph);
+                let actual = analysis.implies(Some(source), target).unwrap();
+                let mut exhaustive = true;
+                for bits in 0..8 {
+                    let mut values = FxMap::default();
+                    for &id in &order {
+                        let mut value =
+                            if let Some(index) = [a, b, c].iter().position(|&raw| raw == id) {
+                                bits & (1 << index) != 0
+                            } else {
+                                let ClassicalNode::Compute { expr } =
+                                    graph[id].try_classical().unwrap()
+                                else {
+                                    unreachable!("only raw inputs and Compute nodes")
+                                };
+                                expr.eval(&mut |slot| {
+                                    let input =
+                                        graph.value_inputs(id).find(|input| input.slot == slot)?;
+                                    values.get(&input.producer).copied()
+                                })
+                                .unwrap()
+                            };
+                        if let Some(slot) = graph[id].activation {
+                            let input = graph
+                                .value_inputs(id)
+                                .find(|input| input.slot == slot)
+                                .unwrap();
+                            value &= values[&input.producer];
+                        }
+                        values.insert(id, value);
+                    }
+                    exhaustive &= !values[&source] || values[&target];
+                }
+                assert_eq!(
+                    actual, exhaustive,
+                    "finite valuations: {source:?} implies {target:?}"
+                );
+            }
+        }
+        assert!(
+            !PredicateAnalysis::new(&graph)
+                .implies(Some(negative_activated), not_a)
+                .unwrap()
+        );
+        // These unproved OR/NOT/Select cases retain the exact BDD fallback.
+        for &source in &expressions[1..4] {
+            let mut limited = PredicateAnalysis::with_limits(
+                &graph,
+                BooleanLimits {
+                    max_nodes: 0,
+                    max_steps: 1_000,
+                },
+            );
+            assert!(
+                matches!(limited.implies(Some(source), a), Err(Error::BooleanResource(error))
+                if error.resource == "Boolean nodes")
+            );
+        }
+    }
+
+    #[test]
+    fn conjunct_implication_charges_deep_shared_dataflow_work() {
+        let mut graph = SubGraph::new();
+        let raw = input_node(&mut graph);
+        let mut tail = raw;
+        for _ in 0..12_000 {
+            tail = compute_node(&mut graph, ClassicalExpr::In(0), &[tail]);
+        }
+        for (source, target) in [(tail, raw), (raw, tail)] {
+            let mut limited = PredicateAnalysis::with_limits(
+                &graph,
+                BooleanLimits {
+                    max_nodes: 0,
+                    max_steps: 100,
+                },
+            );
+            assert!(
+                matches!(limited.implies(Some(source), target), Err(Error::BooleanResource(error))
+                if error.resource == "Boolean work steps")
+            );
+        }
+        let mut enough = PredicateAnalysis::with_limits(
+            &graph,
+            BooleanLimits {
+                max_nodes: 0,
+                max_steps: 100_000,
+            },
+        );
+        assert!(enough.implies(Some(tail), raw).unwrap());
+        assert!(enough.implies(Some(raw), tail).unwrap());
+    }
+
+    #[test]
+    fn conjunct_implication_reuses_shared_signed_aliases_in_both_directions() {
+        let mut graph = SubGraph::new();
+        let raw = input_node(&mut graph);
+        let mut aliases = Vec::new();
+        let mut tail = raw;
+        for _ in 0..512 {
+            tail = compute_node(&mut graph, ClassicalExpr::parity([0], true), &[tail]);
+            aliases.push(tail);
+        }
+        let mut analysis = PredicateAnalysis::with_limits(
+            &graph,
+            BooleanLimits {
+                max_nodes: 0,
+                max_steps: 10_000,
+            },
+        );
+        for (index, &alias) in aliases.iter().enumerate().rev() {
+            let equivalent = if index % 2 == 0 { aliases[0] } else { raw };
+            assert!(analysis.implies(Some(alias), equivalent).unwrap());
+            assert!(analysis.implies(Some(equivalent), alias).unwrap());
+        }
+    }
+
+    #[test]
+    fn conjunct_implication_proves_signed_aliases_and_constant_select_arms() {
+        let mut graph = SubGraph::new();
+        let a = input_node(&mut graph);
+        let b = input_node(&mut graph);
+        let alias = compute_node(&mut graph, ClassicalExpr::In(0), &[a]);
+        let not_a = compute_node(&mut graph, ClassicalExpr::parity([0], true), &[alias]);
+        let not_not_a = compute_node(
+            &mut graph,
+            ClassicalExpr::Not(Box::new(ClassicalExpr::In(0))),
+            &[not_a],
+        );
+        let low = compute_node(
+            &mut graph,
+            ClassicalExpr::Select(Box::new([
+                ClassicalExpr::In(0),
+                ClassicalExpr::In(1),
+                ClassicalExpr::Const(false),
+            ])),
+            &[a, b],
+        );
+        let high = compute_node(
+            &mut graph,
+            ClassicalExpr::Select(Box::new([
+                ClassicalExpr::In(0),
+                ClassicalExpr::Const(false),
+                ClassicalExpr::In(1),
+            ])),
+            &[a, b],
+        );
+        let neither = compute_node(
+            &mut graph,
+            ClassicalExpr::Not(Box::new(ClassicalExpr::Or(Box::new([
+                ClassicalExpr::In(0),
+                ClassicalExpr::In(1),
+            ])))),
+            &[a, b],
+        );
+        let negative_low = compute_node(
+            &mut graph,
+            ClassicalExpr::Not(Box::new(ClassicalExpr::Select(Box::new([
+                ClassicalExpr::In(0),
+                ClassicalExpr::Const(true),
+                ClassicalExpr::In(1),
+            ])))),
+            &[a, b],
+        );
+        let opaque = compute_node(
+            &mut graph,
+            ClassicalExpr::Or(Box::new([ClassicalExpr::In(0), ClassicalExpr::In(1)])),
+            &[a, b],
+        );
+        let contains_opaque = compute_node(
+            &mut graph,
+            ClassicalExpr::And(Box::new([ClassicalExpr::In(0), ClassicalExpr::In(1)])),
+            &[opaque, a],
+        );
+        let opaque_not = compute_node(
+            &mut graph,
+            ClassicalExpr::Not(Box::new(ClassicalExpr::Or(Box::new([
+                ClassicalExpr::In(0),
+                ClassicalExpr::In(1),
+            ])))),
+            &[a, b],
+        );
+        let negated_opaque = compute_node(
+            &mut graph,
+            ClassicalExpr::Not(Box::new(ClassicalExpr::In(0))),
+            &[opaque_not],
+        );
+        assert!(
+            !PredicateAnalysis::new(&graph)
+                .implies(Some(negated_opaque), opaque_not)
+                .unwrap()
+        );
+        let mut analysis = PredicateAnalysis::with_limits(
+            &graph,
+            BooleanLimits {
+                max_nodes: 0,
+                max_steps: 2_000,
+            },
+        );
+        for (source, target) in [
+            (low, not_a),
+            (low, b),
+            (high, a),
+            (high, b),
+            (neither, not_a),
+            (negative_low, a),
+            (not_not_a, a),
+            (a, not_not_a),
+            (contains_opaque, opaque),
+            (opaque_not, opaque_not),
+        ] {
+            assert!(
+                analysis.implies(Some(source), target).unwrap(),
+                "{source:?} implies {target:?}"
+            );
+        }
+        assert!(
+            analysis
+                .implies_all_values(&[b.into(), low.into()], not_a.into())
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn conjunct_implication_keeps_corrected_and_flip_outputs_distinct() {
+        let mut graph = SubGraph::new();
+        let node = graph.add_node(BloqNode::classical(ClassicalNode::Observable {
+            index: Some(0),
+            measurements: Vec::new(),
+            operators: Vec::new(),
+        }));
+        let corrected = ValueRef::from(node);
+        let flip = ValueRef {
+            node,
+            output: ObservableOutput::Flip,
+        };
+        let mut analysis = PredicateAnalysis::new(&graph);
+        assert!(!analysis.implies_values(Some(corrected), flip).unwrap());
+        assert!(!analysis.implies_values(Some(flip), corrected).unwrap());
+        assert!(analysis.implies_values(Some(flip), flip).unwrap());
+    }
+
+    #[test]
+    fn conjunct_implication_keeps_full_validation_and_conditional_record_checks() {
+        let mut bloq = Bloq::new();
+        let a = input_node(bloq.top_mut());
+        let b = input_node(bloq.top_mut());
+        let condition = compute_node(
+            bloq.top_mut(),
+            ClassicalExpr::And(Box::new([ClassicalExpr::In(0), ClassicalExpr::In(1)])),
+            &[a, b],
+        );
+        let mut circuit = CoordCircuit::new();
+        circuit.measure(bloq_circuit::PauliBasis::Z, [ivec2(0, 0)]);
+        let template = bloq.add_template(BloqTemplate::new(circuit));
+        let mut owner = BloqNode::from_members(Vec::new());
+        owner
+            .expect_quantum_mut()
+            .instances
+            .push(TemplateInstance::new(
+                TemplateInstanceId(0),
+                template,
+                ivec2(0, 0),
+            ));
+        owner.expect_quantum_mut().guards.push(QuantumGuard {
+            input: 0,
+            instances: vec![TemplateInstanceId(0)],
+            ..Default::default()
+        });
+        let owner = bloq.add_node(owner);
+        bloq.add_edge(a, owner, BloqEdge::value(0));
+        let mut readout = BloqNode::classical(ClassicalNode::observable_fragment(
+            vec![crate::test_fixture::instance_measurement(0, 0)],
+            Vec::new(),
+        ));
+        readout.activation = Some(0);
+        let readout = bloq.add_node(readout);
+        bloq.add_edge(condition, readout, BloqEdge::value(0));
+        bloq.add_edge(owner, readout, BloqEdge::Order);
+        bloq.validate().unwrap();
+        let mut malformed = bloq.clone();
+        malformed.node_mut(condition).unwrap().kind = crate::BloqNodeKind::Classical(
+            ClassicalNode::Compute {
+                expr: ClassicalExpr::And(Box::new([ClassicalExpr::In(0), ClassicalExpr::In(99)])),
+            }
+            .into(),
+        );
+        assert!(matches!(malformed.validate(),
+            Err(BloqValidationError::MissingClassicalInput { node, slot: 99 }) if node == condition));
+        let mut cyclic = bloq.clone();
+        cyclic.add_edge(condition, condition, BloqEdge::value(2));
+        assert!(matches!(
+            cyclic.validate(),
+            Err(BloqValidationError::CyclicGraph)
+        ));
+        bloq.node_mut(condition).unwrap().kind = crate::BloqNodeKind::Classical(
+            ClassicalNode::Compute {
+                expr: ClassicalExpr::Or(Box::new([ClassicalExpr::In(0), ClassicalExpr::In(1)])),
+            }
+            .into(),
+        );
+        assert!(matches!(
+            bloq.validate(),
+            Err(BloqValidationError::ConditionalReferenceUnavailable { .. })
+        ));
+    }
 
     #[test]
     fn correlated_predicates_do_not_use_registry_allocation_order() {
