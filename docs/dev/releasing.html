@@ -2728,7 +2728,7 @@ jobs require <code class="docutils literal notranslate"><span class="pre">RELEAS
 a release or publishing manually. This variable does not gate local CLI uploads.</p>
 </div>
 <p>CI checks platform wheels and source installations for relevant PRs. The
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/be30ed8d2714bf3cdb45994df04f63a5a955abb5/.github/workflows/pypi.yml">PyPI workflow</a> uses the same checks for tag and
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/efe9d719cc45cde75da3817ce584e8e17d20b13e/.github/workflows/pypi.yml">PyPI workflow</a> uses the same checks for tag and
 manual builds. See <a class="reference internal" href="site-maintenance.html"><span class="std std-doc">website maintenance</span></a> for site previews
 and publication.
 Binary release builds use the checked-in Cargo lockfile. Security audits cover
@@ -2773,7 +2773,10 @@ inherited Cargo versions.</p>
 headings. Release-plz owns versions, release PRs, and retained release notes.
 Its supported changelog postprocessor invokes git-cliff over repository-wide
 history since the previous stable tag. The same notes appear in the file and
-release PR. <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">changelog</span></code> previews them without writing the file.</p>
+release PR. <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">changelog</span></code> previews them without writing the file.
+Release PRs refresh daily at 02:17 UTC (10:17 Asia/Shanghai), or on demand with
+<code class="docutils literal notranslate"><span class="pre">gh</span> <span class="pre">workflow</span> <span class="pre">run</span> <span class="pre">release-plz.yml</span> <span class="pre">--repo</span> <span class="pre">inmzhang/bloq</span> <span class="pre">--ref</span> <span class="pre">main</span></code>.
+Publication still runs separately when the reviewed release PR is merged.</p>
 <p>The configuration follows <a class="reference external" href="https://github.com/orhun/git-cliff/blob/v2.14.2/examples/scoped.toml">git-cliff’s scoped template</a>:
 Conventional Commit scopes group entries into Python API (<code class="docutils literal notranslate"><span class="pre">python</span></code> or <code class="docutils literal notranslate"><span class="pre">py</span></code>),
 Rust API and compiler (<code class="docutils literal notranslate"><span class="pre">rust</span></code>, <code class="docutils literal notranslate"><span class="pre">graph</span></code>, <code class="docutils literal notranslate"><span class="pre">compile</span></code>, <code class="docutils literal notranslate"><span class="pre">ir</span></code>, <code class="docutils literal notranslate"><span class="pre">stim</span></code>, <code class="docutils literal notranslate"><span class="pre">vm</span></code>), editor,
@@ -2826,7 +2829,7 @@ binaries can use <code class="docutils literal notranslate"><span class="pre">/r
 <code class="docutils literal notranslate"><span class="pre">bloq.__version__</span></code> retain that spelling; Python package metadata normalizes it to
 <code class="docutils literal notranslate"><span class="pre">0.1.2.dev0</span></code>. The suffix stays unchanged throughout the development cycle.</p>
 <p>After Rust, Python, and binary publication succeeds, the
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/be30ed8d2714bf3cdb45994df04f63a5a955abb5/.github/workflows/post-release.yml">post-release workflow</a> opens a PR for the
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/efe9d719cc45cde75da3817ce584e8e17d20b13e/.github/workflows/post-release.yml">post-release workflow</a> opens a PR for the
 next development version. Review its checks and merge it. The PR updates the
 shared version, exact internal requirements, and both Cargo lockfiles.
 Release-plz prepares the next stable version in a separate release PR.</p>
@@ -2851,8 +2854,10 @@ release.</p>
 <code class="docutils literal notranslate"><span class="pre">RELEASE_PUBLISH_ENABLED</span></code> false throughout; the build-only workflow still works.</p>
 <p>Finish the checks below against the reviewed release commit. Dispatch CI on
 <code class="docutils literal notranslate"><span class="pre">main</span></code> to run every suite, build all supported wheels, rebuild the source archive,
-and assemble the website without publishing:</p>
+and check documentation and web compilation. Dispatch the website workflow
+separately to assemble its preview without publishing:</p>
 <div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>gh<span class="w"> </span>workflow<span class="w"> </span>run<span class="w"> </span>ci.yml<span class="w"> </span>--repo<span class="w"> </span>inmzhang/bloq<span class="w"> </span>--ref<span class="w"> </span>main
+gh<span class="w"> </span>workflow<span class="w"> </span>run<span class="w"> </span>website.yml<span class="w"> </span>--repo<span class="w"> </span>inmzhang/bloq<span class="w"> </span>--ref<span class="w"> </span>main<span class="w"> </span>-f<span class="w"> </span><span class="nv">publish</span><span class="o">=</span><span class="nb">false</span>
 gh<span class="w"> </span>run<span class="w"> </span>list<span class="w"> </span>--repo<span class="w"> </span>inmzhang/bloq<span class="w"> </span>--workflow<span class="w"> </span>ci.yml
 </code></pre></div>
 </div>
@@ -2864,7 +2869,7 @@ release version in artifact metadata.</p>
 enabled, merging the PR publishes Rust crates and creates the version tag and
 GitHub release. The tag triggers Python publication; the GitHub release triggers
 binary uploads. Verify all uploads before announcing the release.</p>
-<p>If publication is interrupted, retry the failed jobs at the same commit and
+<p>If publication is interrupted, use <strong>Re-run failed jobs</strong> at the same commit and
 version. Do not move the tag or bump the version to retry an upload.</p>
 <h3 id="manual-cargo-publication">Manual Cargo publication<a class="headerlink" href="#manual-cargo-publication" title="Link to this heading">¶</a></h3>
 <p>Authenticate locally with <code class="docutils literal notranslate"><span class="pre">cargo</span> <span class="pre">login</span></code> or privately supply
@@ -3044,7 +3049,7 @@ workflows before announcing completion.</p>
 <td><p>Rerun failed jobs for the same tag</p></td>
 </tr>
 <tr class="row-even"><td><p>Missing CLI/editor assets</p></td>
-<td><p>Run the Binaries workflow manually with the existing release tag</p></td>
+<td><p>Rerun the failed platform job; dispatch Binaries with the existing tag only if there is no run to retry</p></td>
 </tr>
 <tr class="row-odd"><td><p>Future publication must stop</p></td>
 <td><p>Set the publishing variable to false; this does not undo uploads or stop an already-running job</p></td>
@@ -3053,6 +3058,11 @@ workflows before announcing completion.</p>
 </table>
 <p>Published versions are immutable. Do not bump versions or move/delete tags just
 to retry an incomplete run. Keep the website’s retained release snapshots intact.</p>
+<p>Use <strong>Re-run failed jobs</strong>, or the equivalent CLI command, to preserve successful
+platform builds and uploads:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>gh<span class="w"> </span>run<span class="w"> </span>rerun<span class="w"> </span>RUN_ID<span class="w"> </span>--failed<span class="w"> </span>--repo<span class="w"> </span>inmzhang/bloq
+</code></pre></div>
+</div>
 
 
 

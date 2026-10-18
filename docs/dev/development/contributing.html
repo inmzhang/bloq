@@ -2328,6 +2328,22 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="AI-assisted contributions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#model-identifier-retrieval" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Model identifier retrieval</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2502,6 +2518,22 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="AI-assisted contributions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#model-identifier-retrieval" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Model identifier retrieval</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2572,17 +2604,17 @@ area, including dependency-only fixes such as <code class="docutils literal notr
 commits remain visible under General. See <a class="reference internal" href="../releasing.html#changelog"><span class="std std-ref">changelog generation</span></a>.
 <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">changelog</span></code> previews generated notes without writing the file.</p>
 <h2 id="issues-and-pull-requests">Issues and pull requests<a class="headerlink" href="#issues-and-pull-requests" title="Link to this heading">¶</a></h2>
-<p>Use the <a class="reference external" href="https://github.com/inmzhang/bloq/blob/be30ed8d2714bf3cdb45994df04f63a5a955abb5/.github/ISSUE_TEMPLATE/bug_report.md">bug report</a>,
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/be30ed8d2714bf3cdb45994df04f63a5a955abb5/.github/ISSUE_TEMPLATE/feature_request.md">feature request</a>, or
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/be30ed8d2714bf3cdb45994df04f63a5a955abb5/.github/ISSUE_TEMPLATE/question.md">question</a> template when opening an issue.
-Pull requests use the <a class="reference external" href="https://github.com/inmzhang/bloq/blob/be30ed8d2714bf3cdb45994df04f63a5a955abb5/.github/pull_request_template.md">PR template</a>; describe
+<p>Use the <a class="reference external" href="https://github.com/inmzhang/bloq/blob/efe9d719cc45cde75da3817ce584e8e17d20b13e/.github/ISSUE_TEMPLATE/bug_report.md">bug report</a>,
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/efe9d719cc45cde75da3817ce584e8e17d20b13e/.github/ISSUE_TEMPLATE/feature_request.md">feature request</a>, or
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/efe9d719cc45cde75da3817ce584e8e17d20b13e/.github/ISSUE_TEMPLATE/question.md">question</a> template when opening an issue.
+Pull requests use the <a class="reference external" href="https://github.com/inmzhang/bloq/blob/efe9d719cc45cde75da3817ce584e8e17d20b13e/.github/pull_request_template.md">PR template</a>; describe
 the change and record the checks you ran. These templates are adapted from
 <a class="reference external" href="https://github.com/tqec/tqec/tree/main/.github/ISSUE_TEMPLATE">TQEC’s issue templates</a>
 and <a class="reference external" href="https://github.com/tqec/tqec/blob/main/.github/pull_request_template.md">PR template</a>.</p>
 <h2 id="contributor-agreement">Contributor agreement<a class="headerlink" href="#contributor-agreement" title="Link to this heading">¶</a></h2>
 <p>By submitting an issue or pull request, you confirm that you created the
 contribution or have the right to submit it, and license it under this project’s
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/be30ed8d2714bf3cdb45994df04f63a5a955abb5/LICENSE">Apache-2.0 license</a>. Check the contributor agreement in the template.</p>
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/efe9d719cc45cde75da3817ce584e8e17d20b13e/LICENSE">Apache-2.0 license</a>. Check the contributor agreement in the template.</p>
 <h2 id="ai-assisted-contributions">AI-assisted contributions<a class="headerlink" href="#ai-assisted-contributions" title="Link to this heading">¶</a></h2>
 <p>AI-assisted contributions are welcome. Review all generated code, documentation,
 issue text, and pull request text before submitting. You remain responsible for
@@ -2602,11 +2634,25 @@ disclosures. A family label such as <code class="docutils literal notranslate"><
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code>Assisted-by: Codex (gpt-6.1-sol)
 </code></pre></div>
 </div>
-<p>If the identifier is unavailable, state that explicitly instead of guessing.</p>
 <p>Keep the human contributor as the commit author; credit AI tools with
 <code class="docutils literal notranslate"><span class="pre">Assisted-by:</span></code>, rather than <code class="docutils literal notranslate"><span class="pre">Co-authored-by:</span></code>. Complete the AI contribution
 acknowledgement in the template. This policy is adapted from
 <a class="reference external" href="https://github.com/unitaryfoundation/clifft/blob/main/docs/development/contributing.md">Clifft’s contribution guidelines</a>.</p>
+<h3 id="model-identifier-retrieval">Model identifier retrieval<a class="headerlink" href="#model-identifier-retrieval" title="Link to this heading">¶</a></h3>
+<p>Before committing or publishing AI-assisted work, retrieve exact model identifiers
+from runtime metadata. Disclose each contributing model and role, and credit it
+in the relevant commits’ <code class="docutils literal notranslate"><span class="pre">Assisted-by:</span></code> trailers.</p>
+<p>For local Codex sessions:</p>
+<ol class="arabic simple">
+<li><p>Find the rollout JSONL matching <code class="docutils literal notranslate"><span class="pre">CODEX_THREAD_ID</span></code> under
+<code class="docutils literal notranslate"><span class="pre">${CODEX_HOME:-$HOME/.codex}/sessions/</span></code>.</p></li>
+<li><p>Read <code class="docutils literal notranslate"><span class="pre">payload.model</span></code> from contributing <code class="docutils literal notranslate"><span class="pre">turn_context</span></code> records; repeat for
+other contributing chats or agents. Copy identifiers verbatim.</p></li>
+</ol>
+<p>Use equivalent runtime metadata in other environments. Never infer identifiers
+from config defaults, model lists, family names, or examples. Do not publish logs.</p>
+<p>If retrieval fails or is ambiguous, prepare the changes and report the blocker
+before committing or publishing. Never guess or publish an “unavailable” fallback.</p>
 <h2 id="documentation-scope">Documentation scope<a class="headerlink" href="#documentation-scope" title="Link to this heading">¶</a></h2>
 <p>Document supported behavior, APIs, usage, and reproducible benchmarks.
 Keep investigation notes and experiment reports out of the public documentation.</p>
@@ -2618,6 +2664,8 @@ just<span class="w"> </span>py-test<span class="w">      </span><span class="c1"
 just<span class="w"> </span>py-lint<span class="w">      </span><span class="c1"># Ruff: package, tests, examples, and repository tools</span>
 just<span class="w"> </span>py-typecheck<span class="w"> </span><span class="c1"># mypy: Python package and generated native stubs</span>
 just<span class="w"> </span>ci-python<span class="w">    </span><span class="c1"># Python lint, types, tests, and docs, one extension build</span>
+just<span class="w"> </span>ci-site<span class="w">      </span><span class="c1"># Python docs and web editor compilation (requires the WASM target)</span>
+just<span class="w"> </span>doc-test<span class="w">     </span><span class="c1"># Rust examples embedded from the README and guides</span>
 just<span class="w"> </span>ci<span class="w">           </span><span class="c1"># all native CI suites, including MSRV and Python docs</span>
 </code></pre></div>
 </div>
@@ -2626,7 +2674,10 @@ Debug assertions and integer overflow checks remain enabled.</p>
 <p>PRs run quick checks automatically. Maintainers approve the full checks selected
 for the changed files; the required <code class="docutils literal notranslate"><span class="pre">CI</span></code> status passes when those checks succeed.
 Manual CI runs check every suite. For website publication, see
-<a class="reference internal" href="../site-maintenance.html#publish-a-reviewed-build"><span class="std std-ref">Website maintenance</span></a>.</p>
+<a class="reference internal" href="../site-maintenance.html#publish-a-reviewed-build"><span class="std std-ref">Website maintenance</span></a>.
+Full website assembly runs daily or on demand. CI uses a faster Windows smoke
+build without LTO; release binaries retain the production profile. Release-only
+recipes live in <code class="docutils literal notranslate"><span class="pre">tools/release.just</span></code>, so editing them does not select native builds.</p>
 <p>Use <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">test-full</span></code> for ignored or slow tests in release mode, and <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">fidelity</span></code>
 for both physical Choi suites. Graph-level logical checks use QuiZX;
 non-Clifford physical execution checks belong in <code class="docutils literal notranslate"><span class="pre">bloq_vm/tests</span></code>.
