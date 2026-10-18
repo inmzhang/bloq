@@ -25,6 +25,10 @@ Stim emits static Clifford block-graph compilations and selected Clifford
 proxies of non-Clifford graphs. It supports linear measurement parities and
 record-controlled Pauli corrections.
 
+Static Stim export rejects `Discard` effects, including the Bell postselection
+required by a past-connected input Port. Use the [VM](vm.md) for these programs.
+Future-connected output Ports use ideal Bell preparation and can emit to Stim.
+
 Compile and emit a gallery CNOT:
 
 ::::{md-tab-set}

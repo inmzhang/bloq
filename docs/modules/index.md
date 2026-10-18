@@ -52,10 +52,11 @@ or leave a definition:
 | `in q_in: data = 0` | Incoming logical state at Port block 0 |
 | `out q_out: data = 2` | Outgoing logical state at Port block 2 |
 
-The Port's role and connection determine which spacetime boundary it exposes.
-Temporal Ports expose the past or future boundary of a patch. Spatial Ports
-expose a side boundary. A multiplex Port also retains the stationary output
-described in [Blocks and Pipes](../graphs/concepts.md).
+The connection determines the patch face; the Port's role determines whether
+the interface is an input or output. Explicit temporal roles are independent
+of the past or future connection; `role=auto` infers the role from time.
+Spatial Ports require an explicit role. A multiplex Port also retains the
+stationary output described in [Blocks and Pipes](../graphs/concepts.md).
 
 The parent must connect **every quantum port of each child instance exactly
 once**. To expose a child port at the parent's interface, connect it to a parent

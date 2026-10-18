@@ -37,6 +37,13 @@ to `cnot.instructions.json` and the last shot's trace to `cnot.trace.json`.
 Each run starts a new shot. A discarded shot has no logical output. For an
 accepted shot, the X/Y/Z expectations include the output's Pauli frame correction.
 
+Reversed temporal Ports use [ideal Bell adapters](../circuit-constructions.md#temporal-port).
+A future-connected output retains a private qubit; a past-connected input
+arrives on a private qubit before its Bell measurement. Either negative Bell
+outcome discards the shot. Accepted states are normalized, and output frames
+include Bell preparation byproducts. These boundary operations remain ideal
+when circuit noise is enabled.
+
 :::{important}
 The default decoder is a stochastic policy model, not a syndrome decoder.
 Its acceptance and residual-accuracy settings help test control behavior.

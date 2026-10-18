@@ -173,27 +173,26 @@ checks a stabilizer parity without storing a logical qubit.
 
 ## Port
 
-A Port exposes an encoded input or output. Its simulator boundary measures
-patch stabilizers with ideal `MPP` operations while leaving the logical state
-open. Each Port has one pipe; it does not prepare the resource named by its
-interface.
+A Port exposes a logical input or output through an ideal simulator boundary.
+Each Port has one pipe; it does not prepare the resource named by its interface.
 
 ### Temporal Port
 
 A `role=auto` Port supplies an input through a `+Z` pipe and receives an output
 through a `−Z` pipe. Explicit input/output roles may reverse this convention.
-For ordinary orientations, the compiler measures
-patch stabilizers in one ideal MPP moment. This establishes or closes the
-syndrome boundary while preserving the encoded state.
+For ordinary orientations, the compiler measures patch stabilizers in one
+ideal MPP moment. This establishes or closes the syndrome boundary while
+preserving the encoded state.
 The stabilizer outcomes form boundary detectors; logical X and Z pass through
 without additional measurement terms.
 
 Reversed temporal roles use ideal simulation boundaries: a future-connected
 output prepares a Bell pair between the patch and a private output qubit;
 a past-connected input postselects a Bell measurement between the patch and
-a private input qubit. The simulator rejects shots with either Bell outcome
-negative and normalizes surviving states. Output frames retain Bell preparation
-byproducts and the boundary transpose signs.
+a private input qubit $q$. The simulator accepts only the positive outcomes of
+$X_L X_q$ and $Z_L Z_q$ and normalizes surviving states. Output frames retain
+Bell preparation byproducts and the boundary transpose signs. The private
+output remains live when later operations reuse the patch.
 
 ### Spatial Port
 

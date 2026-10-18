@@ -68,6 +68,11 @@ everything derived from it once:
 An **instance** places a template at a qubit offset and records its source
 block. Instances share circuit data and own separate measurement records.
 
+Reversed temporal Ports carry `InstanceProvenance::IdealPortAdapter`, marking
+their Bell preparation or measurement as an ideal simulation boundary. Their
+logical interface binds the private physical qubit. A Bell measurement's two
+outcomes feed a `Discard` node that rejects either negative outcome.
+
 | Record address | Example |
 | --- | --- |
 | Template-local measurement | `m2` |

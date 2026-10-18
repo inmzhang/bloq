@@ -151,8 +151,10 @@ Placement decides how each patch is realized physically:
   glides run together while preserving each patch's measurement records.
 - **Reservations.** T-resource spill cells are reserved against the union of
   all alternatives that can occupy them.
-- **Spatial Ports.** A spatial Port expands into an inferred cube and a
-  temporal Port, with explicit provenance for the substituted qubits.
+- **Ports.** A spatial Port expands into an inferred cube and a temporal
+  boundary. Reversed temporal roles use ideal Bell adapters. Shared boundary
+  planning reserves private input/output qubits against all reachable geometry;
+  the IR records which instances implement ideal boundaries.
 - **Coordinates.** A block at $(x,y)$ is placed at physical offset
   $(x,y)\cdot(2d+2)$. Coordinate overflow is a typed error.
 
