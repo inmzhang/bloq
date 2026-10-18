@@ -5479,6 +5479,8 @@ def clear_compile_cache() -> None:
     distance's templates resident. Call this between phases of such a run to
     give the memory back; the next `compile` simply refills the cache.
 
+    The separate compiler-owned cache used by Clifford proxies is unaffected.
+
     Compilations already in flight on other threads are unaffected.
 
     Examples:
