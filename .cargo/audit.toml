@@ -1,0 +1,10 @@
+[advisories]
+# bevy_egui 0.43.1/render requires bevy_image 0.20.0/zstd_rust (ruzstd 0.8.3).
+# Its only decoder call is in src/ktx2.rs; the entire module is cfg(ktx2).
+# Reviewed all editor targets and workspace features: ktx2 is disabled.
+# Reassess this exception before enabling ktx2 or changing these dependencies.
+# https://rustsec.org/advisories/RUSTSEC-2026-0344.html
+# shortcut: unreachable decoder remains in the lockfile; remove this exception
+# when a compatible Bevy release accepts fixed ruzstd >=0.9.1.
+# Upstream: https://github.com/bevyengine/bevy/issues/26206
+ignore = ["RUSTSEC-2026-0344"]
