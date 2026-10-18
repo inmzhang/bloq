@@ -622,7 +622,7 @@ pub(crate) fn validate_merge(
         }
         if singleton.insert((
             instance.template_id,
-            instance.provenance.is_spatial_port_substitution(),
+            instance.provenance.is_ideal_boundary(),
         )) {
             predicates.charge(costs[&instance.template_id])?;
             pair.expect_quantum_mut().instances = vec![*instance];
@@ -709,8 +709,8 @@ pub(crate) fn validate_merge(
                     left.template_id,
                     right.template_id,
                     offset,
-                    left.provenance.is_spatial_port_substitution(),
-                    right.provenance.is_spatial_port_substitution(),
+                    left.provenance.is_ideal_boundary(),
+                    right.provenance.is_ideal_boundary(),
                 )) {
                     continue;
                 }

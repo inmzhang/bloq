@@ -2,9 +2,10 @@ use strum::{Display, EnumString};
 
 /// Direction assigned to an open port.
 ///
-/// Temporal ports may stay [`Auto`](Self::Auto), because their direction is
-/// determined by time. Spatial ports must choose [`Input`](Self::Input),
-/// [`Output`](Self::Output), or [`Multiplex`](Self::Multiplex) explicitly.
+/// Temporal ports may infer their role from time with [`Auto`](Self::Auto), or
+/// choose [`Input`](Self::Input) or [`Output`](Self::Output) independently of time.
+/// Spatial ports must choose an explicit role; [`Multiplex`](Self::Multiplex)
+/// requires a spatial connection.
 #[derive(
     Debug,
     Default,

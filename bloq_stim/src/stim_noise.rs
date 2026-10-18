@@ -128,7 +128,7 @@ fn ideal_qubits(
             .templates()
             .get(instance.template_id)
             .expect("successful emission resolved every template instance");
-        let owned = if instance.provenance.is_spatial_port_substitution() {
+        let owned = if instance.provenance.is_ideal_boundary() {
             &mut derived
         } else {
             &mut source

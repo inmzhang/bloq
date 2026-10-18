@@ -61,7 +61,7 @@ pub(super) enum NodeLowering {
 pub(super) fn classify_nodes(
     plan: &LowerPlan,
     compiled: &CompiledTemplateMap,
-    spatial_port_templates: &CompiledTemplateMap,
+    port_templates: &CompiledTemplateMap,
     temporal_templates: &crate::FxMap<TemplatePlan, LoweringTemplateId>,
     wall_templates: &crate::FxMap<SpatialPipeRef, LoweringTemplateId>,
 ) -> Vec<NodeLowering> {
@@ -70,7 +70,7 @@ pub(super) fn classify_nodes(
         .map(|node| {
             if let NodeProvenance::SpatialPortSubstitution { source, .. } = &node.provenance {
                 let source = *source;
-                let template = spatial_port_templates[&source]
+                let template = port_templates[&source]
                     .template
                     .observable_template()
                     .expect("derived temporal Ports use fixed templates");

@@ -106,9 +106,11 @@ occupancy. Spatially connected cubes share a height; contradictory declarations
 fail. See [Blocks and Pipes](concepts.md) for connection rules.
 
 Port colors are six hexadecimal RGB digits without `#` and affect only the
-rendering. Temporal roles must agree with pipe geometry; spatial roles are
-explicit. Tags are nonempty and contain no whitespace, controls, `<`, or `>`;
-other Unicode characters are allowed. For example:
+rendering. Temporal Ports infer their role from pipe geometry with `role=auto`;
+explicit input/output roles can reverse it. Spatial roles are explicit, and
+`role=multiplex` requires a spatial pipe. Tags are nonempty and contain no
+whitespace, controls, `<`, or `>`; other Unicode characters are allowed.
+For example:
 
 ```blog
 0: Port [0, 0, 0] role=input color=7396ff <control_in>

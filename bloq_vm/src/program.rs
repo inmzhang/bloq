@@ -1715,6 +1715,13 @@ impl Program {
                 for map in &maps {
                     data.extend(map.iter().map(|(coordinate, _)| *coordinate));
                 }
+                data.extend(
+                    input
+                        .x
+                        .iter()
+                        .chain(input.z.iter())
+                        .map(|(coordinate, _)| *coordinate),
+                );
                 let mut data = data.into_iter().collect::<Vec<_>>();
                 data.sort_by_key(glam::IVec2::to_array);
                 let data_qubits = data

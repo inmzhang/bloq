@@ -5,73 +5,70 @@ use glam::{IVec2, IVec3};
 
 use crate::{CompileError, compile::block_xy_offset};
 
+/// One ideal boundary, with an optional spatial-to-temporal cube substitution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) struct SpatialPortExpansion {
+pub(crate) struct PortExpansion {
     pub(crate) source: IVec3,
     pub(crate) role: PortRole,
-    pub(crate) cube_kind: CubeKind,
-    pub(crate) height: CubeHeight,
-    /// Multiplex output in virtual-Port-local circuit coordinates.
-    pub(crate) output_qubit: Option<IVec2>,
+    pub(crate) cube: Option<(CubeKind, CubeHeight)>,
+    pub(crate) pipe_dir: Direction,
+    pub(crate) boundary_basis: Basis,
+    /// Private input/output in boundary-template-local circuit coordinates.
+    pub(crate) private_qubit: Option<IVec2>,
 }
 
-impl SpatialPortExpansion {
-    pub(crate) const fn is_input(self) -> bool {
-        self.role.has_input_boundary()
+impl PortExpansion {
+    pub(crate) const fn is_spatial(self) -> bool {
+        self.cube.is_some()
+    }
+
+    pub(crate) fn has_future_pipe(self) -> bool {
+        self.pipe_dir == Direction::ZPLUS
     }
 
     pub(crate) const fn cube_pipe_dir(self) -> Direction {
-        match self.role {
-            PortRole::Input | PortRole::Multiplex => Direction::ZMINUS,
-            PortRole::Output => Direction::ZPLUS,
-            PortRole::Auto => unreachable!(),
-        }
+        self.pipe_dir.negate()
     }
 
-    pub(crate) const fn port_pipe_dir(self) -> Direction {
-        self.cube_pipe_dir().negate()
-    }
-
-    pub(crate) const fn boundary_basis(self) -> Basis {
-        self.cube_kind.y()
+    pub(crate) fn needs_private_qubit(self) -> bool {
+        !self.is_spatial() || self.role == PortRole::Multiplex
     }
 }
 
-pub(crate) type SpatialPortExpansionMap = crate::FxMap<IVec3, SpatialPortExpansion>;
+pub(crate) type PortExpansionMap = crate::FxMap<IVec3, PortExpansion>;
 
-/// Replace authored spatial Ports with their compiler-only cube half. The
-/// positionless temporal Port half is added by `LowerPlan`.
-pub(crate) fn expand_spatial_port_topology(
+/// Plan ideal boundaries and replace spatial Ports with their cube half.
+/// `LowerPlan` adds the positionless temporal half of each spatial boundary.
+pub(crate) fn expand_port_topology(
     source: &BlockGraph,
     distance: u32,
-) -> Result<(Cow<'_, BlockGraph>, SpatialPortExpansionMap), CompileError> {
-    let mut expansions =
-        spatial_port_expansions(source, source.blocks().map(bloq_graph::Block::pos))?;
-    allocate_multiplex_outputs(source, distance, &mut expansions)?;
-    apply_spatial_port_expansions(source, expansions)
+) -> Result<(Cow<'_, BlockGraph>, PortExpansionMap), CompileError> {
+    let mut expansions = port_expansions(source, source.blocks().map(bloq_graph::Block::pos))?;
+    allocate_private_port_qubits(source, distance, &mut expansions)?;
+    apply_port_expansions(source, expansions)
 }
 
-/// Expand only complete local sites, using the output coordinates reserved
+/// Expand only complete local sites, using the private coordinates reserved
 /// against the full source's occupancy. Halo blocks remain lookup context.
-pub(crate) fn expand_spatial_port_context<'a>(
+pub(crate) fn expand_port_context<'a>(
     source: &'a BlockGraph,
     positions: &[IVec3],
-    global: &SpatialPortExpansionMap,
-) -> Result<(Cow<'a, BlockGraph>, SpatialPortExpansionMap), CompileError> {
-    let mut expansions = spatial_port_expansions(source, positions.iter().copied())?;
+    global: &PortExpansionMap,
+) -> Result<(Cow<'a, BlockGraph>, PortExpansionMap), CompileError> {
+    let mut expansions = port_expansions(source, positions.iter().copied())?;
     for expansion in expansions.values_mut() {
-        if expansion.role == PortRole::Multiplex {
-            expansion.output_qubit = global[&expansion.source].output_qubit;
+        if expansion.needs_private_qubit() {
+            expansion.private_qubit = global[&expansion.source].private_qubit;
         }
     }
-    apply_spatial_port_expansions(source, expansions)
+    apply_port_expansions(source, expansions)
 }
 
-fn spatial_port_expansions(
+fn port_expansions(
     source: &BlockGraph,
     positions: impl IntoIterator<Item = IVec3>,
-) -> Result<SpatialPortExpansionMap, CompileError> {
-    let mut expansions = SpatialPortExpansionMap::default();
+) -> Result<PortExpansionMap, CompileError> {
+    let mut expansions = PortExpansionMap::default();
     for position in positions {
         let block = source.get_block(position).expect("selected site exists");
         if !block.kind().is_port() {
@@ -81,9 +78,6 @@ fn spatial_port_expansions(
         let Some(pipe) = source.pipes_at(pos).next() else {
             continue;
         };
-        if !pipe.dir().is_spatial() {
-            continue;
-        }
         let neighbor = source
             .get_endpoint_block(if pipe.src() == pos {
                 pipe.dst()
@@ -92,6 +86,38 @@ fn spatial_port_expansions(
             })
             .expect("Port pipe has a neighbor");
         let role = block.port_role().expect("Port blocks expose a role");
+        if !pipe.dir().is_spatial() {
+            let pipe_dir = if neighbor.pos().z > pos.z {
+                Direction::ZPLUS
+            } else {
+                Direction::ZMINUS
+            };
+            let inferred = if pipe_dir == Direction::ZPLUS {
+                PortRole::Input
+            } else {
+                PortRole::Output
+            };
+            if role == PortRole::Auto || role == inferred {
+                continue;
+            }
+            let boundary_basis =
+                crate::signature::BlockSignature::temporal_neighbor_boundary_basis(block, source)
+                    .ok_or(CompileError::MissingBoundaryBasis {
+                    kind: BlockKind::Port,
+                })?;
+            expansions.insert(
+                pos,
+                PortExpansion {
+                    source: pos,
+                    role,
+                    cube: None,
+                    pipe_dir,
+                    boundary_basis,
+                    private_qubit: None,
+                },
+            );
+            continue;
+        }
         debug_assert_ne!(
             role,
             PortRole::Auto,
@@ -114,12 +140,17 @@ fn spatial_port_expansions(
             .ok_or(CompileError::SpatialPortCubeInferenceFailed { port: pos })?;
         expansions.insert(
             pos,
-            SpatialPortExpansion {
+            PortExpansion {
                 source: pos,
                 role,
-                cube_kind,
-                height: neighbor.height(),
-                output_qubit: None,
+                cube: Some((cube_kind, neighbor.height())),
+                pipe_dir: if role.has_input_boundary() {
+                    Direction::ZPLUS
+                } else {
+                    Direction::ZMINUS
+                },
+                boundary_basis: cube_kind.y(),
+                private_qubit: None,
             },
         );
     }
@@ -127,11 +158,11 @@ fn spatial_port_expansions(
     Ok(expansions)
 }
 
-fn apply_spatial_port_expansions(
+fn apply_port_expansions(
     source: &BlockGraph,
-    expansions: SpatialPortExpansionMap,
-) -> Result<(Cow<'_, BlockGraph>, SpatialPortExpansionMap), CompileError> {
-    if expansions.is_empty() {
+    expansions: PortExpansionMap,
+) -> Result<(Cow<'_, BlockGraph>, PortExpansionMap), CompileError> {
+    if !expansions.values().any(|port| port.is_spatial()) {
         return Ok((Cow::Borrowed(source), expansions));
     }
 
@@ -142,21 +173,23 @@ fn apply_spatial_port_expansions(
     let actions = graph.actions();
     graph.set_actions_lenient(Vec::new())?;
     for expansion in expansions.values() {
-        graph.set_block_kind(expansion.source, BlockKind::Cube(expansion.cube_kind))?;
-        graph.set_cube_height(expansion.source, expansion.height)?;
+        if let Some((kind, height)) = expansion.cube {
+            graph.set_block_kind(expansion.source, BlockKind::Cube(kind))?;
+            graph.set_cube_height(expansion.source, height)?;
+        }
     }
     graph.set_actions_lenient(actions)?;
     Ok((Cow::Owned(graph), expansions))
 }
 
-pub(crate) fn allocate_multiplex_outputs(
+pub(crate) fn allocate_private_port_qubits(
     source: &BlockGraph,
     distance: u32,
-    expansions: &mut SpatialPortExpansionMap,
+    expansions: &mut PortExpansionMap,
 ) -> Result<(), CompileError> {
     let mut ports = expansions
         .values()
-        .filter(|port| port.role == PortRole::Multiplex)
+        .filter(|port| port.needs_private_qubit())
         .map(|port| port.source)
         .collect::<Vec<_>>();
     if ports.is_empty() {
@@ -199,13 +232,17 @@ pub(crate) fn allocate_multiplex_outputs(
                 Some((candidate, block_xy_offset(delta, distance).ok()?))
             });
         let Some((cell, output)) = output else {
-            return Err(CompileError::MultiplexOutputCoordinateUnavailable { port });
+            return Err(if expansions[&port].role == PortRole::Multiplex {
+                CompileError::MultiplexOutputCoordinateUnavailable { port }
+            } else {
+                CompileError::PrivatePortCoordinateUnavailable { port }
+            });
         };
         occupied.insert(cell);
         expansions
             .get_mut(&port)
-            .expect("multiplex source came from expansion map")
-            .output_qubit = Some(output);
+            .expect("private boundary came from expansion map")
+            .private_qubit = Some(output);
     }
     Ok(())
 }
@@ -250,7 +287,7 @@ mod tests {
             .measurement;
         assert!(measurement.is_some());
 
-        let (expanded, ports) = expand_spatial_port_topology(&source, 3).unwrap();
+        let (expanded, ports) = expand_port_topology(&source, 3).unwrap();
         assert_eq!(ports.len(), 2);
         assert_eq!(expanded.actions(), source.actions());
         assert_eq!(
@@ -279,7 +316,7 @@ mod tests {
             ])
             .unwrap();
         assert!(degraded.action_graph_error().is_some());
-        let (expanded, _) = expand_spatial_port_topology(&degraded, 3).unwrap();
+        let (expanded, _) = expand_port_topology(&degraded, 3).unwrap();
         assert_eq!(expanded.actions(), degraded.actions());
         assert_eq!(
             expanded.action_graph().inputs().collect::<Vec<_>>(),

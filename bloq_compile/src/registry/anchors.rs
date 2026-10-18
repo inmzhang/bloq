@@ -374,13 +374,13 @@ mod tests {
                 .unwrap();
             for (guard, anchor) in anchors.cases(&mut topology, position, enabled).unwrap() {
                 let graph = topology.project(guard).unwrap();
-                let (graph, ports) =
-                    crate::spatial_port::expand_spatial_port_topology(&graph, 3).unwrap();
+                let (graph, ports) = crate::port::expand_port_topology(&graph, 3).unwrap();
                 let compiled = graph
                     .blocks()
                     .map(|block| {
                         let mut connectivity = BlockSignature::graph_connectivity(block, &graph);
-                        if let Some(port) = ports.get(&block.pos()) {
+                        if let Some(port) = ports.get(&block.pos()).filter(|port| port.is_spatial())
+                        {
                             connectivity = connectivity.with_pipe(port.cube_pipe_dir());
                         }
                         (

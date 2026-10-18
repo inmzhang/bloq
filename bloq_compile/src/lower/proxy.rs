@@ -46,7 +46,7 @@ pub(crate) fn lower_clifford_proxy(
         &bloq,
         input.graph,
         &placements.instances,
-        input.spatial_ports,
+        input.ports,
         input.layout.distance(),
     );
     drop((materialized, placements, node_map));
@@ -87,8 +87,8 @@ fn emit_frames(
     let context = LocalSurfaceContext {
         graph: input.graph,
         compiled: input.compiled,
-        spatial_ports: input.spatial_ports,
-        spatial_templates: input.spatial_port_templates,
+        ports: input.ports,
+        port_templates: input.port_templates,
         wall_templates: input.wall_templates,
         pipe_templates: &pipe_templates,
         pool: input.template_pool,

@@ -11,7 +11,7 @@ use super::observable::{
 use super::{ChunkSiteSource, SelectiveArmInstances, SpatialPipeRef};
 use crate::block::{LocalStabilizer, LoweringTemplateId, LoweringTemplatePool, ObservableGateway};
 use crate::compile::{CompiledTemplateMap, TemplateRef};
-use crate::spatial_port::SpatialPortExpansionMap;
+use crate::port::PortExpansionMap;
 use crate::{BlockLayout, CompileError, xor_toggle};
 
 /// A distant T escape owns these records even when it is outside local geometry.
@@ -33,8 +33,8 @@ pub(crate) struct BoundDynamicAnchor<'a> {
 pub(crate) struct LocalSurfaceContext<'a> {
     pub graph: &'a BlockGraph,
     pub compiled: &'a CompiledTemplateMap,
-    pub spatial_ports: &'a SpatialPortExpansionMap,
-    pub spatial_templates: &'a CompiledTemplateMap,
+    pub ports: &'a PortExpansionMap,
+    pub port_templates: &'a CompiledTemplateMap,
     pub wall_templates: &'a crate::FxMap<SpatialPipeRef, LoweringTemplateId>,
     pub pipe_templates: &'a crate::FxMap<bloq_ir::TemporalPipeRef, LoweringTemplateId>,
     pub pool: &'a LoweringTemplatePool,
@@ -60,7 +60,10 @@ impl LocalSurfaceContext<'_> {
         };
         let connectivity = compiled.graph_connectivity;
         if connectivity.is_isolated()
-            || (self.spatial_ports.contains_key(&position)
+            || (self
+                .ports
+                .get(&position)
+                .is_some_and(|port| port.is_spatial())
                 && surface.port_pauli(position) != Pauli::I)
         {
             return false;
@@ -124,7 +127,7 @@ impl LocalSurfaceContext<'_> {
             (position, if selected { when_true } else { when_false })
         });
         let mut insertions =
-            super::observable::resolve_observable_insertions_at_positions_with_spatial_ports(
+            super::observable::resolve_observable_insertions_at_positions_with_ports(
                 self.graph,
                 surface,
                 kind,
@@ -133,15 +136,15 @@ impl LocalSurfaceContext<'_> {
                 positions,
                 index,
                 true,
-                self.spatial_ports,
+                self.ports,
                 selected_template,
                 anchor,
             )?;
         insertions.extend(
             super::observable::resolve_spatial_port_observable_insertions(
                 surface,
-                self.spatial_ports,
-                self.spatial_templates,
+                self.ports,
+                self.port_templates,
                 self.pool,
                 positions,
                 index,
@@ -176,7 +179,10 @@ impl LocalSurfaceContext<'_> {
             index,
         )?;
         records.extend(pipe_records);
-        let sign = matches!(kind, StabilizerRowKind::Logical) && (wall_sign ^ pipe_sign);
+        let sign = matches!(kind, StabilizerRowKind::Logical)
+            && (wall_sign
+                ^ pipe_sign
+                ^ super::observable::port_transpose_sign(surface, self.ports, Some(positions)));
         Ok((crate::xor_toggled_sorted(records), includes, sign))
     }
 }
@@ -338,8 +344,8 @@ fn insertion_offset(
 mod tests {
     use super::*;
     use crate::compile::CompiledTemplateInfo;
+    use crate::port::PortExpansion;
     use crate::signature::Connectivity;
-    use crate::spatial_port::SpatialPortExpansion;
     use bloq_graph::{Block, BlockKind, CubeKind, PortRole, Stabilizer};
 
     #[test]
@@ -375,25 +381,26 @@ mod tests {
                     (Pauli::Z, Some(Pauli::I), Some(Pauli::X), false, true),
                     (Pauli::Z, None, None, true, false),
                 ] {
-                    let spatial_ports = if spatial {
-                        SpatialPortExpansionMap::from_iter([(
+                    let ports = if spatial {
+                        PortExpansionMap::from_iter([(
                             center,
-                            SpatialPortExpansion {
+                            PortExpansion {
                                 source: center,
                                 role: PortRole::Output,
-                                cube_kind: CubeKind::ZXZ,
-                                height: Default::default(),
-                                output_qubit: None,
+                                cube: Some((CubeKind::ZXZ, Default::default())),
+                                pipe_dir: Direction::ZMINUS,
+                                boundary_basis: CubeKind::ZXZ.y(),
+                                private_qubit: None,
                             },
                         )])
                     } else {
-                        SpatialPortExpansionMap::default()
+                        PortExpansionMap::default()
                     };
                     let context = LocalSurfaceContext {
                         graph: &graph,
                         compiled: &compiled,
-                        spatial_ports: &spatial_ports,
-                        spatial_templates: &Default::default(),
+                        ports: &ports,
+                        port_templates: &Default::default(),
                         wall_templates: &Default::default(),
                         pipe_templates: &Default::default(),
                         pool: &LoweringTemplatePool::default(),

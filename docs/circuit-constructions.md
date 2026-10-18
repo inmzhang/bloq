@@ -180,12 +180,20 @@ interface.
 
 ### Temporal Port
 
-A `+Z` pipe from the Port supplies an input to the next block; a `−Z` pipe
-receives the preceding block's output. In both cases, the compiler measures
+A `role=auto` Port supplies an input through a `+Z` pipe and receives an output
+through a `−Z` pipe. Explicit input/output roles may reverse this convention.
+For ordinary orientations, the compiler measures
 patch stabilizers in one ideal MPP moment. This establishes or closes the
 syndrome boundary while preserving the encoded state.
 The stabilizer outcomes form boundary detectors; logical X and Z pass through
 without additional measurement terms.
+
+Reversed temporal roles use ideal simulation boundaries: a future-connected
+output prepares a Bell pair between the patch and a private output qubit;
+a past-connected input postselects a Bell measurement between the patch and
+a private input qubit. The simulator rejects shots with either Bell outcome
+negative and normalizes surviving states. Output frames retain Bell preparation
+byproducts and the boundary transpose signs.
 
 ### Spatial Port
 

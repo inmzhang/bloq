@@ -14,8 +14,8 @@ mod config;
 mod error;
 mod lower;
 mod padding;
+mod port;
 mod signature;
-mod spatial_port;
 
 pub(crate) type FxMap<K, V> = rustc_hash::FxHashMap<K, V>;
 pub(crate) type FxSet<T> = rustc_hash::FxHashSet<T>;

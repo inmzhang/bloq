@@ -349,8 +349,8 @@ pub(super) fn lower(
                     let context = crate::lower::LocalSurfaceContext {
                         graph: &physical.geometry.graph,
                         compiled: &physical.compiled,
-                        spatial_ports: &physical.geometry.spatial_ports,
-                        spatial_templates: &physical.spatial_templates,
+                        ports: &physical.geometry.ports,
+                        port_templates: &physical.port_templates,
                         wall_templates: &physical.wall_templates,
                         pipe_templates: &physical.pipe_templates,
                         pool: &physical.pool,

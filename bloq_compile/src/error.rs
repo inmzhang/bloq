@@ -103,6 +103,12 @@ pub enum CompileError {
         /// Multiplex port position.
         port: IVec3,
     },
+    /// No unused coordinate is available for an ideal Bell boundary adapter.
+    #[error("cannot allocate a private physical qubit for ideal Port boundary at {port:?}")]
+    PrivatePortCoordinateUnavailable {
+        /// Port position.
+        port: IVec3,
+    },
     /// A spatial Hadamard wall endpoint is not a cube.
     #[error(
         "spatial Hadamard pipe endpoint {pos:?} is not a cube; the wall's extended stabilizers \

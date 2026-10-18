@@ -22,6 +22,7 @@ pub(crate) struct ExactChoi {
     inputs: Vec<IVec3>,
     outputs: Vec<IVec3>,
     expected: Vec<f64>,
+    postselected: bool,
 }
 
 impl ExactChoi {
@@ -64,7 +65,14 @@ impl ExactChoi {
             inputs: inputs.to_vec(),
             outputs: outputs.to_vec(),
             expected,
+            postselected: false,
         }
+    }
+
+    /// Bell caps intentionally retain only their positive-outcome branch.
+    pub(crate) fn postselected(mut self) -> Self {
+        self.postselected = true;
+        self
     }
 
     fn matches(
@@ -230,8 +238,15 @@ impl ExactChoi {
             },
         )
         .expect("physical Choi execution");
-        assert_eq!(scored, shots, "every noiseless Choi shot must be scored");
-        assert_eq!(report.discarded, 0);
+        assert_eq!(
+            scored,
+            shots - report.discarded,
+            "every surviving Choi shot must be scored"
+        );
+        assert!(scored > 0, "Choi check needs a surviving branch");
+        if !self.postselected {
+            assert_eq!(report.discarded, 0);
+        }
         report
     }
 }

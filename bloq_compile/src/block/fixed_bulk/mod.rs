@@ -33,7 +33,7 @@ use crate::block::{CompiledTemplate, LoweringTemplate};
 use crate::signature::{Connectivity, LayerSchedule};
 
 pub(crate) use compiler::{compile_fixed_bulk, validate_fixed_bulk};
-pub(crate) use port::compile_multiplex_port;
+pub(crate) use port::{compile_bell_port, compile_multiplex_port};
 pub(crate) use realignment::compile_realignment;
 pub(crate) use selective::{SelectiveTemplates, compile_measurement, compile_selective};
 pub(crate) use spatial_hadamard::{SpatialHadamardKey, WallSide, compile_spatial_hadamard};

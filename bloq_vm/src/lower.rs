@@ -342,6 +342,24 @@ fn materialize_terminal_holds(
         .collect::<FxHashMap<_, _>>();
     let mut targets = Vec::new();
     for output in bloq.logical_outputs() {
+        // Private ideal outputs never occupy a surface-code memory patch.
+        if bloq
+            .quantum_nodes()
+            .flat_map(|(_, node)| &node.instances)
+            .any(|instance| {
+                instance.id == output.instance
+                    && matches!(
+                        instance.provenance,
+                        bloq_ir::InstanceProvenance::IdealPortAdapter { .. }
+                            | bloq_ir::InstanceProvenance::SpatialPortSubstitution {
+                                role: bloq_ir::PortRole::Multiplex,
+                                ..
+                            }
+                    )
+            })
+        {
+            continue;
+        }
         let owner = bloq.levels().find_map(|(path, level)| {
             level.quantum_nodes().find_map(|(node, quantum)| {
                 quantum
@@ -739,7 +757,7 @@ impl LowerCx<'_, '_> {
                 .expect_quantum()
                 .instances
                 .iter()
-                .filter(|instance| instance.provenance.is_spatial_port_substitution())
+                .filter(|instance| instance.provenance.is_ideal_boundary())
                 .flat_map(|instance| {
                     self.bloq.templates()[instance.template_id]
                         .qubits()
@@ -924,9 +942,17 @@ impl LowerCx<'_, '_> {
                         Ok(product)
                     })
                     .collect::<Result<Vec<_>, LowerError>>()?;
+                let x = self.pauli_product(&input.x, IVec2::ZERO)?;
+                let z = self.pauli_product(&input.z, IVec2::ZERO)?;
                 let data_qubits = stabilizers
                     .iter()
                     .flat_map(|stabilizer| stabilizer.terms.iter().map(|(qubit, _)| *qubit))
+                    .chain(
+                        x.terms
+                            .iter()
+                            .chain(z.terms.iter())
+                            .map(|(qubit, _)| *qubit),
+                    )
                     .collect::<BTreeSet<_>>()
                     .into_iter()
                     .collect::<Vec<_>>()
@@ -936,8 +962,8 @@ impl LowerCx<'_, '_> {
                     task,
                     data_qubits,
                     stabilizers: stabilizers.into_boxed_slice(),
-                    x: self.pauli_product(&input.x, IVec2::ZERO)?,
-                    z: self.pauli_product(&input.z, IVec2::ZERO)?,
+                    x,
+                    z,
                 })
             })
             .collect()
@@ -1512,13 +1538,15 @@ impl LowerCx<'_, '_> {
                 })
             })
         });
-        let source = top_level_source.then_some(if owns_input {
-            SourceRole::LogicalInput
-        } else if prepares_y {
-            SourceRole::PreparedY
+        let source = if owns_input {
+            Some(SourceRole::LogicalInput)
         } else {
-            SourceRole::Clifford
-        });
+            top_level_source.then_some(if prepares_y {
+                SourceRole::PreparedY
+            } else {
+                SourceRole::Clifford
+            })
+        };
         let mut origin = self.quantum_origin(node, source);
         if matches!(node.provenance, NodeProvenance::MemoryPadding { .. }) {
             let pipes = level

@@ -24,8 +24,8 @@ pub enum InvalidBlockGraphError {
     /// A spatial port lacks an explicit input, output, or multiplex role.
     #[error("spatial Port at {0} must declare role=input, role=output, or role=multiplex")]
     SpatialPortRoleRequired(IVec3),
-    /// A temporal port's declared role disagrees with its pipe direction.
-    #[error("temporal Port at {pos} declares role {declared}, but its pipe makes it {inferred}")]
+    /// A temporal port declares a role requiring a spatial connection.
+    #[error("temporal Port at {pos} cannot use role {declared}; its inferred role is {inferred}")]
     TemporalPortRoleMismatch {
         /// Port position.
         pos: IVec3,
@@ -428,23 +428,21 @@ fn collect_block_constraint_errors(graph: &BlockGraph, errors: &mut Vec<BlockGra
                             InvalidBlockGraphError::SpatialPortRoleRequired(block.pos()).into(),
                         );
                     }
-                    if !has_spatial_pipe && role != crate::PortRole::Auto {
+                    if !has_spatial_pipe && role == crate::PortRole::Multiplex {
                         let inferred = if neighbors[0].z > block.pos().z {
                             crate::PortRole::Input
                         } else {
                             crate::PortRole::Output
                         };
-                        if role != inferred {
-                            errors.push(
-                                InvalidBlockGraphError::TemporalPortRoleMismatch {
-                                    pos: block.pos(),
-                                    declared: role,
-                                    inferred,
-                                }
-                                .into(),
-                            );
-                            continue;
-                        }
+                        errors.push(
+                            InvalidBlockGraphError::TemporalPortRoleMismatch {
+                                pos: block.pos(),
+                                declared: role,
+                                inferred,
+                            }
+                            .into(),
+                        );
+                        continue;
                     }
                 }
                 let spatial_allowed = block.kind == BlockKind::Port;
@@ -923,7 +921,7 @@ mod tests {
     }
 
     #[test]
-    fn spatial_ports_require_roles_and_temporal_roles_must_match_time() {
+    fn port_roles_are_independent_of_temporal_direction() {
         let mut spatial = BlockGraph::new();
         spatial.add_block(Block::new(IVec3::ZERO, BlockKind::Port));
         spatial.add_block(Block::new(IVec3::X, BlockKind::Cube(CubeKind::ZXZ)));
@@ -934,38 +932,41 @@ mod tests {
                 InvalidBlockGraphError::SpatialPortRoleRequired(IVec3::ZERO)
             ))
         ));
-        spatial
-            .set_port_role(IVec3::ZERO, crate::PortRole::Input)
-            .unwrap();
-        validate(&spatial).expect("directed spatial Port validates");
-        spatial
-            .set_port_role(IVec3::ZERO, crate::PortRole::Multiplex)
-            .unwrap();
-        validate(&spatial).expect("Multiplex spatial Port validates");
+        for role in [
+            crate::PortRole::Input,
+            crate::PortRole::Output,
+            crate::PortRole::Multiplex,
+        ] {
+            spatial.set_port_role(IVec3::ZERO, role).unwrap();
+            validate(&spatial).expect("directed spatial Port validates");
+        }
 
         let mut temporal = BlockGraph::new();
-        temporal.add_block(
-            Block::new(IVec3::ZERO, BlockKind::Port)
-                .with_port_role(crate::PortRole::Output)
-                .unwrap(),
-        );
+        temporal.add_block(Block::new(IVec3::ZERO, BlockKind::Port));
         temporal.add_block(Block::new(IVec3::Z, BlockKind::Cube(CubeKind::ZXZ)));
+        temporal.add_block(Block::new(2 * IVec3::Z, BlockKind::Port));
         temporal.add_pipe(Pipe::new(IVec3::ZERO, Direction::ZPLUS));
-        assert!(matches!(
-            validate(&temporal),
-            Err(BlockGraphError::Invalid(
-                InvalidBlockGraphError::TemporalPortRoleMismatch { .. }
-            ))
-        ));
-        temporal
-            .set_port_role(IVec3::ZERO, crate::PortRole::Multiplex)
-            .unwrap();
-        assert!(matches!(
-            validate(&temporal),
-            Err(BlockGraphError::Invalid(
-                InvalidBlockGraphError::TemporalPortRoleMismatch { .. }
-            ))
-        ));
+        temporal.add_pipe(Pipe::new(IVec3::Z, Direction::ZPLUS));
+        for port in [IVec3::ZERO, 2 * IVec3::Z] {
+            for role in [
+                crate::PortRole::Auto,
+                crate::PortRole::Input,
+                crate::PortRole::Output,
+            ] {
+                temporal.set_port_role(port, role).unwrap();
+                validate(&temporal).expect("either temporal direction accepts the declared role");
+            }
+            temporal
+                .set_port_role(port, crate::PortRole::Multiplex)
+                .unwrap();
+            assert!(matches!(
+                validate(&temporal),
+                Err(BlockGraphError::Invalid(
+                    InvalidBlockGraphError::TemporalPortRoleMismatch { .. }
+                ))
+            ));
+            temporal.set_port_role(port, crate::PortRole::Auto).unwrap();
+        }
     }
 
     #[test]

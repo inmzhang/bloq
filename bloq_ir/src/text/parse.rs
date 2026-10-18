@@ -989,6 +989,13 @@ impl<'a> Parser<'a> {
                             "block" => crate::InstanceProvenance::Block {
                                 source: parse_coord3(&stmt, stmt.next_token("source block")?)?,
                             },
+                            "ideal-port" => crate::InstanceProvenance::IdealPortAdapter {
+                                role: parse_port_role(&stmt)?,
+                                source: parse_coord3(
+                                    &stmt,
+                                    stmt.next_token("source temporal Port")?,
+                                )?,
+                            },
                             "pipe" => crate::InstanceProvenance::Pipe {
                                 src: parse_coord3(&stmt, stmt.next_token("pipe source")?)?,
                                 dst: parse_coord3(&stmt, stmt.next_token("pipe destination")?)?,

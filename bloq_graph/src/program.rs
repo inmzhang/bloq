@@ -2389,11 +2389,8 @@ fn port_direction(graph: &BlockGraph, position: IVec3) -> Result<PortDirection, 
     };
     match role {
         PortRole::Auto => Ok(inferred),
-        PortRole::Input if inferred == PortDirection::Input => Ok(inferred),
-        PortRole::Output if inferred == PortDirection::Output => Ok(inferred),
-        PortRole::Input | PortRole::Output => {
-            Err("explicit role disagrees with temporal pipe".to_string())
-        }
+        PortRole::Input => Ok(PortDirection::Input),
+        PortRole::Output => Ok(PortDirection::Output),
         PortRole::Multiplex => unreachable!("multiplex ports returned above"),
     }
 }
@@ -3394,13 +3391,32 @@ module main {
     }
 
     #[test]
-    fn explicit_temporal_port_role_must_match_geometry() {
-        let source = "BLOG 1.0\n\nmodule main {\n  in q: data = 0\n  0: Port [0,0,1] role=input <q>\n  1: ZXZ [0,0,0]\n  1 -> +Z\n}\n";
+    fn explicit_temporal_port_roles_override_geometry() {
+        let source = "BLOG 1.0\n\nmodule main {\n  in q: data = 2\n  out result: data = 0\n  0: Port [0,0,0] role=output\n  1: ZXZ [0,0,1]\n  2: Port [0,0,2] role=input\n  0 -> +Z\n  1 -> +Z\n}\n";
+        let program = parse_inline_graph(source).expect("temporal roles can bend both boundaries");
+        let written = program.to_blog_text();
+        assert_eq!(
+            parse_inline_graph(&written).unwrap().to_blog_text(),
+            written
+        );
 
-        assert!(matches!(
-            parse_inline_graph(source),
-            Err(ModuleError::InvalidModule { .. })
-        ));
+        let inferred = program
+            .materialize_root_graph()
+            .unwrap()
+            .with_inferred_interface()
+            .unwrap();
+        for (position, direction) in [
+            (IVec3::ZERO, PortDirection::Output),
+            (2 * IVec3::Z, PortDirection::Input),
+        ] {
+            assert!(
+                inferred
+                    .interface
+                    .quantum_ports
+                    .iter()
+                    .any(|port| { port.position == position && port.direction == direction })
+            );
+        }
     }
 
     #[test]

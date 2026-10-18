@@ -13,8 +13,8 @@ pub(crate) use compile::{
     CompiledTemplate, LoweringTemplate, LoweringTemplateId, LoweringTemplatePool,
 };
 pub(crate) use fixed_bulk::{
-    SelectiveTemplates, SpatialHadamardKey, WallSide, compile_fixed_bulk, compile_multiplex_port,
-    compile_realignment, compile_seam_padding_rounds, compile_selective, compile_spatial_hadamard,
-    validate_fixed_bulk,
+    SelectiveTemplates, SpatialHadamardKey, WallSide, compile_bell_port, compile_fixed_bulk,
+    compile_multiplex_port, compile_realignment, compile_seam_padding_rounds, compile_selective,
+    compile_spatial_hadamard, validate_fixed_bulk,
 };
 pub(crate) use gateway::{LocalStabilizer, ObservableGateway};

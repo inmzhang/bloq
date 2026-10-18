@@ -23,7 +23,7 @@ use crate::{
     BlockLayout, CompileError, add_resource,
     block::{LoweringTemplateId, LoweringTemplatePool},
     compile::CompiledTemplateMap,
-    spatial_port::SpatialPortExpansionMap,
+    port::PortExpansionMap,
 };
 
 /// Compiled geometry shared by placement, flow composition, and readout resolution.
@@ -32,8 +32,8 @@ pub(crate) struct PhysicalInput<'a> {
     pub graph: &'a BlockGraph,
     pub plan: &'a LowerPlan,
     pub compiled: &'a CompiledTemplateMap,
-    pub spatial_port_templates: &'a CompiledTemplateMap,
-    pub spatial_ports: &'a SpatialPortExpansionMap,
+    pub port_templates: &'a CompiledTemplateMap,
+    pub ports: &'a PortExpansionMap,
     pub temporal_templates: &'a crate::FxMap<TemplatePlan, LoweringTemplateId>,
     pub wall_templates: &'a crate::FxMap<SpatialPipeRef, LoweringTemplateId>,
     pub template_pool: &'a LoweringTemplatePool,
@@ -84,7 +84,7 @@ impl<'a> PlacedPlan<'a> {
         let classified = classify_nodes(
             input.plan,
             input.compiled,
-            input.spatial_port_templates,
+            input.port_templates,
             input.temporal_templates,
             input.wall_templates,
         );
@@ -285,7 +285,7 @@ impl<'a> PlacedPlan<'a> {
         let PhysicalInput {
             graph,
             plan,
-            spatial_ports,
+            ports,
             layout,
             ..
         } = self.input;
@@ -310,8 +310,10 @@ impl<'a> PlacedPlan<'a> {
                 template_id: remapper.remap(instance.instance.template),
                 offset: instance.instance.offset,
                 provenance: match instance.site_source {
-                    ChunkSiteSource::Block(source) if spatial_ports.contains_key(&source) => {
-                        let port = spatial_ports[&source];
+                    ChunkSiteSource::Block(source)
+                        if ports.get(&source).is_some_and(|port| port.is_spatial()) =>
+                    {
+                        let port = ports[&source];
                         bloq_ir::InstanceProvenance::SpatialPortSubstitution {
                             source,
                             role: port.role,
@@ -319,11 +321,17 @@ impl<'a> PlacedPlan<'a> {
                         }
                     }
                     ChunkSiteSource::SpatialPort(source) => {
-                        let port = spatial_ports[&source];
+                        let port = ports[&source];
                         bloq_ir::InstanceProvenance::SpatialPortSubstitution {
                             source,
                             role: port.role,
                             part: bloq_ir::SpatialPortPart::TemporalPort,
+                        }
+                    }
+                    ChunkSiteSource::Block(source) if ports.contains_key(&source) => {
+                        bloq_ir::InstanceProvenance::IdealPortAdapter {
+                            source,
+                            role: ports[&source].role,
                         }
                     }
                     ChunkSiteSource::Block(source) => bloq_ir::InstanceProvenance::Block { source },

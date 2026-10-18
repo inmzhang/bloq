@@ -329,6 +329,9 @@ fn write_node(f: &mut String, id: BloqNodeId, node: &BloqNode, depth: usize) -> 
                     crate::InstanceProvenance::Block { source } => {
                         write!(f, " from block {}", Coord3(source))?
                     }
+                    crate::InstanceProvenance::IdealPortAdapter { source, role } => {
+                        write!(f, " from ideal-port {} {}", role.as_str(), Coord3(source))?
+                    }
                     crate::InstanceProvenance::Pipe { src, dst } => {
                         write!(f, " from pipe {} {}", Coord3(src), Coord3(dst))?
                     }

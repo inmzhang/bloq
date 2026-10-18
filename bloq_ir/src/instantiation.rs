@@ -625,7 +625,7 @@ fn ideal_instance_qubits(instances: &[TemplateInstance], circuits: &[CoordCircui
     let mut derived = crate::FxSet::default();
     let mut source = crate::FxSet::default();
     for (instance, circuit) in instances.iter().zip(circuits) {
-        let target = if instance.provenance.is_spatial_port_substitution() {
+        let target = if instance.provenance.is_ideal_boundary() {
             &mut derived
         } else {
             &mut source

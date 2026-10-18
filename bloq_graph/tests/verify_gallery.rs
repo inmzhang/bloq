@@ -17,6 +17,40 @@ use quizx::tensor::{CompareTensors, TensorF, ToTensor};
 use rand::{RngExt, SeedableRng, rngs::StdRng};
 
 #[test]
+fn reversed_temporal_ports_preserve_y_tensor_transposes() {
+    let output = prepared_graph(
+        1,
+        &[("h", vec![0]), ("s", vec![0]), ("z", vec![0])],
+        &[BasisElem::Z0],
+    );
+    let mut input = circuit_graph(1, &[("s", vec![0]), ("h", vec![0])]);
+    input.plug_outputs(&[BasisElem::Z0]);
+    for (source, boundaries, expected) in [
+        (
+            "BLOG 1.0\n0: Port [0,0,0] role=output\n1: Y [0,0,1]\n0 -> +Z\n",
+            BoundaryOrder::new(vec![], vec![IVec3::ZERO]),
+            output,
+        ),
+        (
+            "BLOG 1.0\n0: Y [0,0,0]\n1: Port [0,0,1] role=input\n0 -> +Z\n",
+            BoundaryOrder::new(vec![IVec3::Z], vec![]),
+            input,
+        ),
+    ] {
+        let graph = BlockGraph::from_blog_text(source).unwrap();
+        let verifier = LogicalVerifier::new(&graph).unwrap();
+        assert_eq!(verifier.boundaries(), &boundaries);
+        assert_eq!(
+            verifier
+                .verify_branch(&expected, &BTreeMap::new())
+                .unwrap()
+                .status(),
+            BranchStatus::Verified,
+        );
+    }
+}
+
+#[test]
 fn hadamard_selective_cap_preserves_its_source_branch_sign() {
     let positive = prepared_graph(1, &[("h", vec![0]), ("s", vec![0])], &[BasisElem::Z0]);
     let negative = prepared_graph(

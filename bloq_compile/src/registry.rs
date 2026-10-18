@@ -230,7 +230,12 @@ fn compile_native(
                 .blocks()
                 .filter(|block| block.kind().is_port())
             {
-                let source = if family.reference.spatial_ports.contains_key(&port.pos()) {
+                let source = if family
+                    .reference
+                    .ports
+                    .get(&port.pos())
+                    .is_some_and(|port| port.is_spatial())
+                {
                     crate::lower::ChunkSiteSource::SpatialPort(port.pos())
                 } else {
                     crate::lower::ChunkSiteSource::Block(port.pos())
@@ -247,7 +252,7 @@ fn compile_native(
                 &assembly.bloq,
                 &family.reference.graph,
                 &instances,
-                &family.reference.spatial_ports,
+                &family.reference.ports,
                 distance,
             )
         };

@@ -1,6 +1,6 @@
 //! Temporal open-port block compilation.
 //!
-//! A `Port` is an ideal (noiseless) open temporal boundary that terminates a
+//! An ordinarily oriented `Port` is an ideal open temporal boundary that terminates a
 //! logical operator at a temporal face without closing it into an init/meas cube.
 //! It does two things:
 //!
@@ -27,8 +27,10 @@ use glam::IVec2;
 
 use crate::CompileError;
 use crate::block::fixed_bulk::observable::logical_line_operator;
-use crate::block::fixed_bulk::utils::{TileFlow, make_normal_surface_code_patch, tile_flow};
-use crate::block::gateway::{GatewayEntry, LocalStabilizer, ObservableGateway};
+use crate::block::fixed_bulk::utils::{
+    TileFlow, make_normal_surface_code_patch, sorted_unique_coords, tile_flow,
+};
+use crate::block::gateway::{ChunkMeasurements, GatewayEntry, LocalStabilizer, ObservableGateway};
 use crate::block::patch::Patch;
 use crate::block::{CompiledTemplate, LoweringTemplate};
 use crate::signature::Connectivity;
@@ -54,6 +56,67 @@ pub(crate) fn compile_port(
 
     let chunks = vec![ChunkOrLoop::Single(Box::new(chunk))];
     Ok(Arc::new(LoweringTemplate::from_chunks(chunks, gateway)?))
+}
+
+/// Ideal simulation cup/cap. Bell records come first so lowering can postselect
+/// the cap; cup records instead participate in the ordinary output frames.
+pub(crate) fn compile_bell_port(
+    boundary_basis: Basis,
+    connectivity: Connectivity,
+    distance: u32,
+    private_qubit: IVec2,
+) -> Result<CompiledTemplate, CompileError> {
+    let prepares = connectivity.has_pipe(Direction::ZPLUS);
+    let patch = make_normal_surface_code_patch(distance, boundary_basis);
+    let mut circuit = CoordCircuit::new();
+    if prepares {
+        circuit.do_gate(GateType::RZ, sorted_unique_coords(patch.data_set()))?;
+        circuit.do_gate(GateType::RX, [private_qubit])?;
+        circuit.tick();
+    }
+    let mut gateway = ObservableGateway::new();
+    for (basis, pauli) in [(Basis::X, Pauli::X), (Basis::Z, Pauli::Z)] {
+        let mut product = logical_line_operator(distance, basis, boundary_basis, pauli);
+        product.insert(private_qubit, pauli);
+        let measurement = circuit.measure_pauli_products([product.clone()])?[0];
+        let (operator_in, operator_out) = if prepares {
+            (PauliMap::empty(), product)
+        } else {
+            (product, PauliMap::empty())
+        };
+        gateway.insert(
+            LocalStabilizer::new(pauli, connectivity),
+            GatewayEntry {
+                measurements: vec![ChunkMeasurements {
+                    chunk_index: 0,
+                    measurements: vec![measurement],
+                }],
+                operator_in,
+                operator_out,
+            },
+        );
+    }
+    let measurements = circuit.measure_pauli_products(
+        patch
+            .tiles()
+            .iter()
+            .map(super::super::patch::Tile::pauli_map),
+    )?;
+    let direction = if prepares {
+        TileFlow::Create
+    } else {
+        TileFlow::Consume
+    };
+    let flows = patch
+        .tiles()
+        .iter()
+        .zip(measurements)
+        .map(|(tile, measurement)| tile_flow(tile, direction, [measurement]))
+        .collect();
+    Ok(Arc::new(LoweringTemplate::from_chunks(
+        vec![ChunkOrLoop::Single(Box::new(Chunk { circuit, flows }))],
+        gateway,
+    )?))
 }
 
 /// Compile the temporal-input half of a Multiplex spatial Port.

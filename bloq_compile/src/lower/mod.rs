@@ -4,18 +4,18 @@
 //! dataflow for selectives, feedback, and regions.
 
 use bloq_circuit::PauliMap;
-use bloq_graph::{Basis, BlockGraph, BlockKind, Pauli};
+use bloq_graph::{Basis, BlockGraph, BlockKind, Pauli, PortRole};
 use bloq_ir::{
-    Bloq, BloqValidationError, ClassicalNode, LogicalInput, LogicalOutput, NodeDetector,
-    TemplateId, TemporalPipeRef, WalkControl,
-    lowering::{NodeRestart, TemplateInstanceId},
+    Bloq, BloqEdge, BloqNode, BloqValidationError, ClassicalExpr, ClassicalNode, LogicalInput,
+    LogicalOutput, NodeDetector, TemplateId, TemporalPipeRef, WalkControl,
+    lowering::{InstanceMeasurement, NodeRestart, TemplateInstanceId},
 };
 use glam::{IVec2, IVec3};
 use petgraph::graph::NodeIndex;
 
 use crate::CompileError;
 use crate::block::{LoweringTemplateId, LoweringTemplatePool};
-use crate::spatial_port::SpatialPortExpansionMap;
+use crate::port::PortExpansionMap;
 
 mod classify;
 mod detector;
@@ -122,10 +122,12 @@ impl BloqLowerContext<'_> {
 /// Source cut ownership needed after physical/semantic assembly is released.
 /// Operator inference still runs on optimized IR; the expanded source graph,
 /// signature maps, readout plan, and Boolean caches are no longer needed then.
+type BoundPorts = crate::FxMap<TemplateInstanceId, (IVec3, Option<IVec2>)>;
+
 pub(crate) struct LogicalInterface {
-    inputs: crate::FxMap<TemplateInstanceId, IVec3>,
-    outputs: crate::FxMap<TemplateInstanceId, IVec3>,
-    multiplex: Vec<(IVec3, TemplateInstanceId, IVec2)>,
+    inputs: BoundPorts,
+    outputs: BoundPorts,
+    postselect: Vec<TemplateInstanceId>,
     distance: u32,
 }
 
@@ -134,76 +136,68 @@ impl LogicalInterface {
         bloq: &Bloq,
         graph: &BlockGraph,
         instance_by_site: &crate::FxMap<ChunkSiteSource, TemplateInstanceId>,
-        spatial_ports: &SpatialPortExpansionMap,
+        ports: &PortExpansionMap,
         distance: u32,
     ) -> Self {
-        let inputs = instance_by_site
-            .iter()
-            .filter_map(|(source, &instance)| match source {
-                ChunkSiteSource::SpatialPort(port)
-                    if spatial_ports[port].role.has_input_boundary() =>
-                {
-                    Some((instance, *port))
-                }
-                ChunkSiteSource::Block(port)
-                    if !spatial_ports.contains_key(port)
-                        && graph.get_block(*port).is_some_and(|block| {
-                            block.kind() == BlockKind::Port
-                                && match block.port_role().expect("Port blocks expose a role") {
-                                    bloq_graph::PortRole::Input
-                                    | bloq_graph::PortRole::Multiplex => true,
-                                    bloq_graph::PortRole::Output => false,
-                                    bloq_graph::PortRole::Auto => graph
-                                        .neighbor_positions(*port)
-                                        .iter()
-                                        .all(|neighbor| neighbor.z > port.z),
-                                }
-                        }) =>
-                {
-                    Some((instance, *port))
-                }
-                _ => None,
-            })
-            .collect();
-        let frame_ports: crate::FxSet<IVec3> = bloq
+        let frame_ports = bloq
             .output_frames()
             .into_iter()
             .map(|frame| frame.port)
-            .collect();
-        let outputs = instance_by_site
-            .iter()
-            .filter_map(|(source, &instance)| match source {
-                ChunkSiteSource::SpatialPort(port)
-                    if frame_ports.contains(port)
-                        && spatial_ports[port].role != bloq_graph::PortRole::Multiplex =>
+            .collect::<crate::FxSet<_>>();
+        let mut inputs = BoundPorts::default();
+        let mut outputs = BoundPorts::default();
+        let mut postselect = Vec::new();
+        for (&site, &instance) in instance_by_site {
+            let (position, expansion) = match site {
+                ChunkSiteSource::SpatialPort(position) => (position, Some(ports[&position])),
+                ChunkSiteSource::Block(position)
+                    if graph
+                        .get_block(position)
+                        .is_some_and(|block| block.kind() == BlockKind::Port) =>
                 {
-                    Some((instance, *port))
+                    (position, ports.get(&position).copied())
                 }
-                ChunkSiteSource::Block(port)
-                    if frame_ports.contains(port) && !spatial_ports.contains_key(port) =>
+                _ => continue,
+            };
+            let role = expansion.map(|port| port.role).unwrap_or_else(|| {
+                let role = graph
+                    .get_block(position)
+                    .expect("Port exists")
+                    .port_role()
+                    .expect("Port has role");
+                if role != PortRole::Auto {
+                    role
+                } else if graph
+                    .neighbor_positions(position)
+                    .iter()
+                    .all(|neighbor| neighbor.z > position.z)
                 {
-                    Some((instance, *port))
+                    PortRole::Input
+                } else {
+                    PortRole::Output
                 }
-                _ => None,
-            })
-            .collect();
-
-        let multiplex = spatial_ports
-            .values()
-            .filter(|port| port.role == bloq_graph::PortRole::Multiplex)
-            .map(|port| {
-                (
-                    port.source,
-                    instance_by_site[&ChunkSiteSource::SpatialPort(port.source)],
-                    port.output_qubit
-                        .expect("Multiplex expansions allocate an output qubit"),
-                )
-            })
-            .collect();
+            });
+            if role.has_input_boundary() {
+                let private = expansion
+                    .filter(|port| !port.is_spatial())
+                    .and_then(|port| port.private_qubit);
+                inputs.insert(instance, (position, private));
+                if private.is_some() {
+                    postselect.push(instance);
+                }
+            }
+            if role.has_output_boundary() && frame_ports.contains(&position) {
+                outputs.insert(
+                    instance,
+                    (position, expansion.and_then(|port| port.private_qubit)),
+                );
+            }
+        }
+        postselect.sort_unstable();
         Self {
             inputs,
             outputs,
-            multiplex,
+            postselect,
             distance,
         }
     }
@@ -214,17 +208,34 @@ pub(crate) fn finish_program(
     bloq: &mut Bloq,
     interface: LogicalInterface,
 ) -> Result<(), CompileError> {
+    // A Bell cap is the +XX,+ZZ branch, not a causal teleportation with feedback.
+    for instance in interface.postselect {
+        let owner = bloq
+            .quantum_nodes()
+            .find(|(_, node)| node.instances.iter().any(|item| item.id == instance))
+            .map(|(id, _)| id)
+            .expect("boundary instance has a quantum owner");
+        let discard = bloq.add_node(BloqNode::classical(ClassicalNode::Discard {
+            condition: ClassicalExpr::Or(Box::new([ClassicalExpr::In(0), ClassicalExpr::In(1)])),
+        }));
+        for measurement in 0..2 {
+            let bit = bloq.add_node(BloqNode::classical(ClassicalNode::observable_fragment(
+                vec![InstanceMeasurement {
+                    instance,
+                    measurement,
+                }],
+                Vec::new(),
+            )));
+            bloq.add_edge(owner, bit, BloqEdge::Order);
+            bloq.add_edge(bit, discard, BloqEdge::value(measurement));
+        }
+    }
     schedule::induce_occupancy_order_edges(bloq)?;
     bloq.optimize()
         .map_err(|_| BloqValidationError::CyclicGraph)?;
     let inputs = logical_inputs(bloq, interface.inputs, interface.distance)?;
     bloq.set_logical_inputs(inputs);
-    let outputs = logical_outputs(
-        bloq,
-        interface.outputs,
-        interface.multiplex,
-        interface.distance,
-    )?;
+    let outputs = logical_outputs(bloq, interface.outputs, interface.distance)?;
     bloq.set_logical_outputs(outputs);
     Ok(())
 }
@@ -236,22 +247,26 @@ pub(crate) fn finish_program(
 /// map; the executor must not reconstruct it from fused-node provenance.
 fn logical_inputs(
     bloq: &Bloq,
-    ports_by_instance: crate::FxMap<TemplateInstanceId, IVec3>,
+    ports_by_instance: BoundPorts,
     distance: u32,
 ) -> Result<Vec<LogicalInput>, CompileError> {
     let (placements, mut faces) = logical_faces(bloq, bloq_ir::BoundaryFace::Input);
 
     let mut inputs = Vec::new();
-    for (instance, port) in ports_by_instance {
+    for (instance, (port, private)) in ports_by_instance {
         let (template, offset) = placements[&instance];
-        let Some((x, z)) = boundary_operators(
-            &bloq.templates()[template],
-            faces.remove(&instance).unwrap_or_default(),
-            bloq_ir::BoundaryFace::Input,
-            offset,
-            distance,
-        )?
-        else {
+        let pair = if let Some(qubit) = private {
+            Some(private_boundary_pair(bloq, instance, port, qubit, offset)?)
+        } else {
+            boundary_operators(
+                &bloq.templates()[template],
+                faces.remove(&instance).unwrap_or_default(),
+                bloq_ir::BoundaryFace::Input,
+                offset,
+                distance,
+            )?
+        };
+        let Some((x, z)) = pair else {
             continue;
         };
 
@@ -270,23 +285,26 @@ fn logical_inputs(
 /// Compiler geometry stays here; consumers read only the resulting IR maps.
 fn logical_outputs(
     bloq: &Bloq,
-    ports_by_instance: crate::FxMap<TemplateInstanceId, IVec3>,
-    multiplex: Vec<(IVec3, TemplateInstanceId, IVec2)>,
+    ports_by_instance: BoundPorts,
     distance: u32,
 ) -> Result<Vec<LogicalOutput>, CompileError> {
     let (placements, mut faces) = logical_faces(bloq, bloq_ir::BoundaryFace::Output);
 
     let mut outputs = Vec::new();
-    for (instance, port) in ports_by_instance {
+    for (instance, (port, private)) in ports_by_instance {
         let (template, offset) = placements[&instance];
-        let Some((x, z)) = boundary_operators(
-            &bloq.templates()[template],
-            faces.remove(&instance).unwrap_or_default(),
-            bloq_ir::BoundaryFace::Output,
-            offset,
-            distance,
-        )?
-        else {
+        let pair = if let Some(qubit) = private {
+            Some(private_boundary_pair(bloq, instance, port, qubit, offset)?)
+        } else {
+            boundary_operators(
+                &bloq.templates()[template],
+                faces.remove(&instance).unwrap_or_default(),
+                bloq_ir::BoundaryFace::Output,
+                offset,
+                distance,
+            )?
+        };
+        let Some((x, z)) = pair else {
             continue;
         };
         outputs.push(LogicalOutput {
@@ -296,30 +314,34 @@ fn logical_outputs(
             z,
         });
     }
-    for (port, instance, output_qubit) in multiplex {
-        let qubit =
-            bloq_circuit::checked_translate_coordinate(output_qubit, placements[&instance].1)?;
-        for (_, node) in bloq.quantum_nodes() {
-            for other in &node.instances {
-                if other.id == instance {
-                    continue;
-                }
-                for local in bloq.templates()[other.template_id].qubits() {
-                    if bloq_circuit::checked_translate_coordinate(*local, other.offset)? == qubit {
-                        return Err(CompileError::MultiplexOutputCoordinateUnavailable { port });
-                    }
+    outputs.sort_by_key(|output| output.port.to_array());
+    Ok(outputs)
+}
+
+fn private_boundary_pair(
+    bloq: &Bloq,
+    instance: TemplateInstanceId,
+    port: IVec3,
+    qubit: IVec2,
+    offset: IVec2,
+) -> Result<(PauliMap, PauliMap), CompileError> {
+    let qubit = bloq_circuit::checked_translate_coordinate(qubit, offset)?;
+    for (_, node) in bloq.quantum_nodes() {
+        for other in &node.instances {
+            if other.id == instance {
+                continue;
+            }
+            for local in bloq.templates()[other.template_id].qubits() {
+                if bloq_circuit::checked_translate_coordinate(*local, other.offset)? == qubit {
+                    return Err(CompileError::PrivatePortCoordinateUnavailable { port });
                 }
             }
         }
-        outputs.push(LogicalOutput {
-            port,
-            instance,
-            x: PauliMap::from_unique_entries([(qubit, Pauli::X)]),
-            z: PauliMap::from_unique_entries([(qubit, Pauli::Z)]),
-        });
     }
-    outputs.sort_by_key(|output| output.port.to_array());
-    Ok(outputs)
+    Ok((
+        PauliMap::from_unique_entries([(qubit, Pauli::X)]),
+        PauliMap::from_unique_entries([(qubit, Pauli::Z)]),
+    ))
 }
 
 type LogicalFaces = crate::FxMap<TemplateInstanceId, (Option<PauliMap>, Option<PauliMap>)>;

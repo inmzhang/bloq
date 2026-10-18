@@ -362,9 +362,25 @@ pub enum InstanceProvenance {
         /// Realized substitution half.
         part: SpatialPortPart,
     },
+    /// Ideal simulation Bell preparation or postselected Bell measurement at a
+    /// temporal Port whose declared role reverses circuit time.
+    IdealPortAdapter {
+        /// Authored Port position.
+        source: IVec3,
+        /// Declared boundary role.
+        role: bloq_utils::PortRole,
+    },
 }
 
 impl InstanceProvenance {
+    /// Whether the compiler implements this instance as an ideal boundary.
+    #[must_use]
+    pub const fn is_ideal_boundary(self) -> bool {
+        matches!(
+            self,
+            Self::SpatialPortSubstitution { .. } | Self::IdealPortAdapter { .. }
+        )
+    }
     /// Whether this instance belongs to a spatial-port substitution.
     #[must_use]
     pub const fn is_spatial_port_substitution(self) -> bool {

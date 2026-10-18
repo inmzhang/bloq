@@ -635,6 +635,10 @@ pub(crate) enum PyInstanceProvenance {
         role: String,
         part: String,
     },
+    IdealPortAdapter {
+        source: (i32, i32, i32),
+        role: String,
+    },
 }
 
 impl From<InstanceProvenance> for PyInstanceProvenance {
@@ -647,6 +651,10 @@ impl From<InstanceProvenance> for PyInstanceProvenance {
             InstanceProvenance::Pipe { src, dst } => Self::Pipe {
                 src: src.into(),
                 dst: dst.into(),
+            },
+            InstanceProvenance::IdealPortAdapter { source, role } => Self::IdealPortAdapter {
+                source: source.into(),
+                role: role.as_str().to_owned(),
             },
             InstanceProvenance::SpatialPortSubstitution { source, role, part } => {
                 Self::SpatialPortSubstitution {
@@ -671,6 +679,9 @@ impl PyInstanceProvenance {
             Self::Source() => "InstanceProvenance.Source()".to_owned(),
             Self::Block { source } => format!("InstanceProvenance.Block(source={source:?})"),
             Self::Pipe { src, dst } => format!("InstanceProvenance.Pipe(src={src:?}, dst={dst:?})"),
+            Self::IdealPortAdapter { source, role } => {
+                format!("InstanceProvenance.IdealPortAdapter(source={source:?}, role={role:?})")
+            }
             Self::SpatialPortSubstitution { source, role, part } => format!(
                 "InstanceProvenance.SpatialPortSubstitution(source={source:?}, role={role:?}, part={part:?})"
             ),

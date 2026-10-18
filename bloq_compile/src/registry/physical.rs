@@ -16,8 +16,8 @@ use petgraph::unionfind::UnionFind;
 use crate::block::{LoweringTemplateId, LoweringTemplatePool};
 use crate::compile::{CompileContext, CompiledTemplateMap};
 use crate::lower::{LinkedPlanInput, LowerPlan, PhysicalInput, PlacedPlan, SpatialPipeRef};
+use crate::port::PortExpansionMap;
 use crate::signature::{LayerSchedule, LayerScheduleMap};
-use crate::spatial_port::SpatialPortExpansionMap;
 use crate::{BlockLayout, CompileError, check_resource};
 
 #[path = "anchors.rs"]
@@ -28,7 +28,7 @@ pub(super) use anchors::GuardedDynamicAnchors;
 /// physical gateways. It has no selector or readout semantics.
 pub(super) struct PhysicalGeometry {
     pub graph: Arc<BlockGraph>,
-    pub spatial_ports: SpatialPortExpansionMap,
+    pub ports: PortExpansionMap,
     /// Complete sites eligible for emission. Remaining blocks are lookup halo.
     positions: Vec<IVec3>,
 }
@@ -53,25 +53,19 @@ fn geometry(
             positions.push(center);
             positions.sort_unstable_by_key(glam::IVec3::to_array);
             positions.dedup();
-            let (graph, spatial_ports) = if Arc::ptr_eq(source, reference_source) {
+            let (graph, ports) = if Arc::ptr_eq(source, reference_source) {
                 // The source Arc can serve many local cases, including Ports.
                 // Expand it once globally, never clone it for each local Port.
                 let ports = positions
                     .iter()
                     .filter_map(|position| {
-                        reference
-                            .spatial_ports
-                            .get(position)
-                            .map(|port| (*position, *port))
+                        reference.ports.get(position).map(|port| (*position, *port))
                     })
                     .collect();
                 (Arc::clone(&reference.graph), ports)
             } else {
-                let (graph, ports) = crate::spatial_port::expand_spatial_port_context(
-                    source,
-                    &positions,
-                    &reference.spatial_ports,
-                )?;
+                let (graph, ports) =
+                    crate::port::expand_port_context(source, &positions, &reference.ports)?;
                 let graph = match graph {
                     std::borrow::Cow::Borrowed(_) => Arc::clone(source),
                     std::borrow::Cow::Owned(graph) => Arc::new(graph),
@@ -80,7 +74,7 @@ fn geometry(
             };
             entry.insert(Arc::new(PhysicalGeometry {
                 graph,
-                spatial_ports,
+                ports,
                 positions,
             }))
         }
@@ -109,13 +103,8 @@ fn reference_geometry(
     distance: u32,
 ) -> Result<(Arc<BlockGraph>, Arc<PhysicalGeometry>), CompileError> {
     let source = topology.project(ONE)?;
-    let (graph, mut spatial_ports) =
-        crate::spatial_port::expand_spatial_port_topology(&source, distance)?;
-    crate::spatial_port::allocate_multiplex_outputs(
-        &topology.source,
-        distance,
-        &mut spatial_ports,
-    )?;
+    let (graph, mut ports) = crate::port::expand_port_topology(&source, distance)?;
+    crate::port::allocate_private_port_qubits(&topology.source, distance, &mut ports)?;
     let graph = match graph {
         std::borrow::Cow::Borrowed(_) => Arc::clone(&source),
         std::borrow::Cow::Owned(graph) => Arc::new(graph),
@@ -126,7 +115,7 @@ fn reference_geometry(
         source,
         Arc::new(PhysicalGeometry {
             graph,
-            spatial_ports,
+            ports,
             positions,
         }),
     ))
@@ -228,7 +217,7 @@ impl ScheduledFamily {
 fn same_local_geometry(reference: &PhysicalGeometry, local: &PhysicalGeometry) -> bool {
     local.positions.iter().all(|&position| {
         local.graph.get_block(position) == reference.graph.get_block(position)
-            && local.spatial_ports.get(&position) == reference.spatial_ports.get(&position)
+            && local.ports.get(&position) == reference.ports.get(&position)
             && local.graph.pipes_at(position).count() == reference.graph.pipes_at(position).count()
             && local
                 .graph
@@ -240,7 +229,7 @@ fn same_local_geometry(reference: &PhysicalGeometry, local: &PhysicalGeometry) -
 pub(super) struct PhysicalProjection {
     pub geometry: Arc<PhysicalGeometry>,
     pub compiled: CompiledTemplateMap,
-    pub spatial_templates: CompiledTemplateMap,
+    pub port_templates: CompiledTemplateMap,
     pub pipe_templates: crate::FxMap<bloq_ir::TemporalPipeRef, LoweringTemplateId>,
     pub wall_templates: crate::FxMap<SpatialPipeRef, LoweringTemplateId>,
     pub pool: LoweringTemplatePool,
@@ -257,7 +246,7 @@ impl PhysicalProjection {
     ) -> Result<(Self, Bloq), CompileError> {
         let PhysicalGeometry {
             graph,
-            spatial_ports,
+            ports,
             positions,
         } = scheduled.geometry.as_ref();
         let graph = graph.as_ref();
@@ -276,7 +265,7 @@ impl PhysicalProjection {
                     .map(|signature| (position, signature))
                 })
                 .collect::<Result<crate::signature::BlockSignatureMap, _>>()?;
-            for port in spatial_ports.values() {
+            for port in ports.values().filter(|port| port.is_spatial()) {
                 let signature = signatures
                     .get_mut(&port.source)
                     .expect("expanded Port cube");
@@ -300,22 +289,27 @@ impl PhysicalProjection {
             crate::compile::select_module_link_templates_with_schedule(
                 context.config,
                 graph,
-                spatial_ports,
+                ports,
                 definitions,
                 &relocations,
                 schedules,
                 t_sides,
             )?
         };
-        for port in spatial_ports.values() {
+        for port in ports.values().filter(|port| port.is_spatial()) {
             let info = compiled
                 .get_mut(&port.source)
                 .expect("compiled geometry contains every expanded Port source");
             info.graph_connectivity = info.graph_connectivity.with_pipe(port.cube_pipe_dir());
         }
-        let input =
-            LinkedPlanInput::from_module_graph(graph, spatial_ports, positions.iter().copied());
-        let spatial_templates = context.compile_spatial_port_templates(spatial_ports)?;
+        let input = LinkedPlanInput::from_module_graph(graph, ports, positions.iter().copied());
+        let port_templates = context.compile_port_templates(ports)?;
+        for port in ports.values().filter(|port| !port.is_spatial()) {
+            compiled
+                .get_mut(&port.source)
+                .expect("temporal Port was compiled")
+                .template = port_templates[&port.source].template;
+        }
         let temporal_templates =
             context.compile_temporal_template_plans(input.temporal_templates())?;
         let wall_templates =
@@ -338,8 +332,8 @@ impl PhysicalProjection {
             graph,
             plan: &plan,
             compiled: &compiled,
-            spatial_port_templates: &spatial_templates,
-            spatial_ports,
+            port_templates: &port_templates,
+            ports,
             temporal_templates: &temporal_templates,
             wall_templates: &wall_templates,
             template_pool: &pool,
@@ -362,7 +356,7 @@ impl PhysicalProjection {
             Self {
                 geometry: Arc::clone(&scheduled.geometry),
                 compiled,
-                spatial_templates,
+                port_templates,
                 pipe_templates,
                 wall_templates,
                 pool,
@@ -430,9 +424,9 @@ impl ScheduleIncidence {
             .expect("local block exists after Port expansion");
         self.tall[index] |= block.kind().is_cube() && block.height_cells() > 1;
         if geometry
-            .spatial_ports
+            .ports
             .get(&position)
-            .is_some_and(|port| port.is_input())
+            .is_some_and(|port| port.is_spatial() && port.has_future_pipe())
             || graph.pipes_at(position).any(|pipe| {
                 !pipe.dir().is_spatial()
                     && [pipe.src(), pipe.dst()].into_iter().any(|endpoint| {
@@ -714,23 +708,20 @@ mod tests {
         let source = topology.project(ONE).unwrap();
         let family =
             ScheduledFamily::new(&mut topology, 3, ModuleCertificationLimits::DEFAULT).unwrap();
-        assert!(!family.reference.spatial_ports.is_empty());
+        assert!(!family.reference.ports.is_empty());
         let mut cache = crate::FxMap::default();
-        for &position in family.reference.spatial_ports.keys() {
+        for &position in family.reference.ports.keys() {
             let local =
                 geometry(&mut cache, &source, position, &source, &family.reference).unwrap();
             assert!(Arc::ptr_eq(&local.graph, &family.reference.graph));
             assert!(local.positions.len() <= 7);
             assert!(
                 local
-                    .spatial_ports
+                    .ports
                     .keys()
                     .all(|position| local.positions.contains(position))
             );
-            assert_eq!(
-                local.spatial_ports[&position],
-                family.reference.spatial_ports[&position]
-            );
+            assert_eq!(local.ports[&position], family.reference.ports[&position]);
             let repeated =
                 geometry(&mut cache, &source, position, &source, &family.reference).unwrap();
             assert!(Arc::ptr_eq(&local, &repeated));

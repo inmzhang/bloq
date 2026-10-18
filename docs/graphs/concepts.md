@@ -107,14 +107,16 @@ determine which interface it exposes.
 
 | Port role | Connection | Meaning |
 | --- | --- | --- |
-| Input | Temporal `+Z`, or spatial with `role=input` | Supply an incoming logical state |
-| Output | Temporal `-Z`, or spatial with `role=output` | Export the outgoing logical state |
+| Input | `role=input`, or temporal `+Z` with `role=auto` | Supply an incoming logical state |
+| Output | `role=output`, or temporal `-Z` with `role=auto` | Export the outgoing logical state |
 | Spatial | X or Y axis; explicit input/output role | Expose a side boundary of a single-cell cube |
 | Multiplex | Spatial; `role=multiplex` | Supply an incoming state and export a correlated output through a Z split.[^gidney25] |
 
-Temporal Ports infer their role with `role=auto`; explicit temporal roles must
-agree with the pipe direction. Suitable input and output Ports can be filled
-with preparation and measurement boundaries for a closed experiment.
+Temporal Ports infer their role with `role=auto`; explicit `role=input` and
+`role=output` apply independently of the pipe direction. Reversed temporal
+boundaries use ideal Bell adapters in simulation. Suitable input and output
+Ports can be filled with preparation and measurement boundaries for a closed
+experiment.
 
 A **multiplex Port** combines an input and its continuing output at one spatial
 boundary. It follows the **Z-port** calling convention: Z-split the incoming

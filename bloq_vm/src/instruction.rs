@@ -122,7 +122,7 @@ impl Program {
         self.tasks.iter().map(|task| &task.instruction)
     }
 
-    /// Independently released sources in dense task order.
+    /// Source releases and input arrivals in dense task order.
     #[must_use]
     pub fn sources(&self) -> Vec<SourceSchedule> {
         self.tasks
@@ -180,7 +180,7 @@ pub struct Task {
     pub label: String,
     /// Absolute earliest start time.
     pub release: f64,
-    /// Source role, present only on independently released roots.
+    /// External preparation role, including inputs arriving at a dependent task.
     pub source: Option<SourceRole>,
     /// All predecessors, including Bloq value, order, and quantum edges and
     /// sequencing added for physical qubit reuse.
@@ -197,7 +197,7 @@ pub struct Task {
     pub instruction: Instruction,
 }
 
-/// Why an independently released task exists.
+/// External preparation associated with a task.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SourceRole {
@@ -207,7 +207,7 @@ pub enum SourceRole {
     Clifford,
 }
 
-/// Stable schedule summary for one independently released source.
+/// Stable schedule summary for one external preparation.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SourceSchedule {
     pub task: TaskId,
