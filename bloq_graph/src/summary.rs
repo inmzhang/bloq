@@ -1267,6 +1267,13 @@ fn summarize_definition(
     {
         space.as_ref()
     } else {
+        // An unreachable all-true presentation needs a static, branchless space.
+        canonical.replace_local_body(
+            canonical
+                .local_body()
+                .project_branches_in_definition(targets.iter().map(|&target| (target, true)))
+                .map_err(graph_error)?,
+        );
         canonical_space = prepared
             .compose(
                 crate::GuardedTopology::new(&canonical, limits).map_err(graph_error)?,
@@ -1294,6 +1301,59 @@ fn summarize_definition(
     Ok(summary)
 }
 
+fn projection_values(
+    topology: &crate::GuardedTopology,
+    absent: &FxHashSet<IVec3>,
+) -> Result<Option<Vec<bool>>, bloq_utils::boolean::BooleanResourceError> {
+    if topology.branches.is_empty() {
+        return Ok(Some(vec![false; topology.variables.len()]));
+    }
+    let mut diagram = topology.diagram.clone();
+    diagram.charge(
+        topology
+            .variables
+            .len()
+            .saturating_add(topology.branches.len()),
+    )?;
+    let branch_values = topology
+        .branches
+        .iter()
+        .map(|(name, position, _)| (name.as_str(), !absent.contains(position)))
+        .collect::<HashMap<_, _>>();
+    // The branch-vector domain does not link each branch to its source outcomes.
+    let conditions = topology
+        .variables
+        .iter()
+        .filter_map(|variable| match variable {
+            crate::GuardedVariable::Branch { name, condition } => {
+                Some(if branch_values[name.as_str()] {
+                    Ok(*condition)
+                } else {
+                    diagram.negate(*condition)
+                })
+            }
+            crate::GuardedVariable::Outcome(_) => None,
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let Some(outcomes) = diagram.conjunction_witness(&conditions)? else {
+        return Ok(None);
+    };
+    let outcome = |index| outcomes.get(&index).copied().unwrap_or(false);
+    Ok(Some(
+        topology
+            .variables
+            .iter()
+            .enumerate()
+            .map(|(index, variable)| match variable {
+                crate::GuardedVariable::Branch { condition, .. } => {
+                    topology.diagram.evaluate(*condition, outcome)
+                }
+                crate::GuardedVariable::Outcome(_) => outcome(index),
+            })
+            .collect(),
+    ))
+}
+
 fn summarize_space_view(
     prepared: &Arc<PreparedModuleRelations>,
     module: &BlockGraph,
@@ -1309,21 +1369,10 @@ fn summarize_space_view(
     let body = source.fix_shadowed_faces();
     let zx = ZXGraph::from_block_graph_for_analysis(&body)
         .map_err(|source| graph_error(source.into()))?;
-    let branch_values = space
-        .topology
-        .branches
-        .iter()
-        .map(|(name, position, _)| (name.as_str(), !absent.contains(position)))
-        .collect::<HashMap<_, _>>();
-    let evaluate = |root| {
-        space
-            .topology
-            .diagram
-            .evaluate(root, |index| match &space.topology.variables[index] {
-                crate::GuardedVariable::Branch { name, .. } => branch_values[name.as_str()],
-                crate::GuardedVariable::Outcome(_) => false,
-            })
-    };
+    let values = projection_values(&space.topology, absent)
+        .map_err(|source| graph_error(source.into()))?
+        .ok_or_else(|| invalid(&module.name, "projection selects an unreachable branch"))?;
+    let evaluate = |root| space.topology.diagram.evaluate(root, |index| values[index]);
     let words = space
         .rows
         .iter()
@@ -1807,6 +1856,137 @@ fn invalid(module: &str, message: &str) -> ModuleCertificationError {
 mod certificate_tests {
     use super::*;
     use crate::{GalleryItem, StabilizerRowKind};
+
+    #[test]
+    fn projection_values_keep_shared_branch_and_selective_outcomes_consistent() {
+        for condition in ["enable", "!enable", "enable ^ toggle"] {
+            let program = BlockGraph::from_text(&format!(
+                r"BLOG 1.0
+module main {{
+  in enable
+  in toggle
+  in q_in: data = 0
+  out q_out: data = 1
+  in probe: data = 4
+  0: Port [0,0,0] role=input
+  1: Port [0,0,2] role=output
+  4: Port [3,0,0] role=input
+  5: XZX [3,0,1]
+  6: XZ [3,0,2]
+  4 -> +Z
+  5 -> +Z
+  branch b {{
+    false {{
+      2: XZX [0,0,1]
+      0 -H> +Z
+      [0,0,1] -H> +Z
+    }}
+    true {{
+      3: ZXZ [0,0,1]
+      0 -> +Z
+      [0,0,1] -> +Z
+    }}
+  }}
+  selected = {condition}
+  resolve b if selected
+  resolve 6 if selected
+}}"
+            ))
+            .unwrap();
+            let graph = program
+                .materialize_root_graph()
+                .unwrap()
+                .fix_shadowed_faces();
+            let topology =
+                crate::GuardedTopology::new(&graph, ModuleCertificationLimits::DEFAULT).unwrap();
+            let summary = program
+                .summarize_root(ModuleCertificationLimits::DEFAULT)
+                .unwrap();
+            for selected in [true, false] {
+                let absent = topology
+                    .branches
+                    .iter()
+                    .filter_map(|(_, position, _)| (!selected).then_some(*position))
+                    .collect();
+                let values = projection_values(&topology, &absent).unwrap().unwrap();
+                let evaluate = |root| topology.diagram.evaluate(root, |index| values[index]);
+                assert_eq!(evaluate(topology.branches[0].2), selected);
+                assert_eq!(evaluate(topology.resolves[0].1), selected, "{condition}");
+                let outcomes = topology
+                    .variables
+                    .iter()
+                    .zip(&values)
+                    .filter_map(|(variable, &value)| match variable {
+                        crate::GuardedVariable::Outcome(name) => Some((name.as_str(), value)),
+                        crate::GuardedVariable::Branch { .. } => None,
+                    })
+                    .collect::<HashMap<_, _>>();
+                assert_eq!(
+                    topology.evaluate_source(topology.branches[0].2, |name| outcomes[name]),
+                    selected,
+                    "{condition}"
+                );
+                let assignments = [(topology.branches[0].1, selected)];
+                let projected = graph
+                    .project_branches(assignments)
+                    .unwrap()
+                    .fix_shadowed_faces();
+                let zx = ZXGraph::try_from(&projected).unwrap();
+                let stabilizers = summary
+                    .materialize_projection_stabilizers(&zx, IVec3::ZERO, &assignments)
+                    .unwrap();
+                assert_eq!(
+                    stabilizers.generators,
+                    projected.analyze_actions().unwrap().1.generators
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn projection_values_solve_correlated_conditions_within_the_boolean_budget() {
+        let source = include_str!("../../docs/fixtures/conditional_cz_strip.blog")
+            .replace("resolve cz1 if enable1", "resolve cz1 if !enable0");
+        let program = BlockGraph::from_text(&source).unwrap();
+        let graph = program.root().local_body().fix_shadowed_faces();
+        let limits = ModuleCertificationLimits {
+            max_boolean_steps: 1_000_000,
+            ..ModuleCertificationLimits::DEFAULT
+        };
+        let mut topology = crate::GuardedTopology::new(&graph, limits).unwrap();
+        for mask in 0..8 {
+            let absent = topology
+                .branches
+                .iter()
+                .enumerate()
+                .filter_map(|(index, (_, position, _))| {
+                    (mask & (1 << index) == 0).then_some(*position)
+                })
+                .collect();
+            let values = projection_values(&topology, &absent).unwrap();
+            assert_eq!(values.is_some(), (mask & 1 != 0) != (mask & 2 != 0));
+            if let Some(values) = values {
+                for (index, (_, _, root)) in topology.branches.iter().enumerate() {
+                    assert_eq!(
+                        topology.diagram.evaluate(*root, |index| values[index]),
+                        mask & (1 << index) != 0
+                    );
+                }
+            }
+        }
+        // An unreachable all-true view still uses the existing static fallback.
+        program.summarize_root(limits).unwrap();
+        topology
+            .diagram
+            .charge(limits.max_boolean_steps - topology.diagram.steps())
+            .unwrap();
+        assert_eq!(
+            projection_values(&topology, &FxHashSet::default())
+                .unwrap_err()
+                .resource,
+            "Boolean work steps"
+        );
+    }
 
     #[test]
     fn flat_source_limit_counts_cube_height_before_geometry_work() {
