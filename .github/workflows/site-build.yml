@@ -6,9 +6,6 @@ on:
       publish:
         type: boolean
         default: false
-      test-python:
-        type: boolean
-        default: false
       release_tag:
         type: string
         default: ''
@@ -38,7 +35,9 @@ jobs:
           fetch-depth: 0
 
       - name: Install Rust and WebAssembly target
-        run: rustup toolchain install --target wasm32-unknown-unknown
+        run: |
+          rustup toolchain install
+          rustup target add wasm32-unknown-unknown
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -73,10 +72,6 @@ jobs:
             git archive FETCH_HEAD | tar -x -C target/site
           fi
 
-      - name: Check Python bindings
-        if: inputs.test-python
-        run: just py-typecheck py-test
-
       - name: Assemble website
         env:
           RELEASE_TAG: ${{ inputs.release_tag }}
@@ -105,7 +100,7 @@ jobs:
   publish:
     if: >-
       inputs.publish &&
-      ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch')
+      ((github.event_name == 'schedule' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch')
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15

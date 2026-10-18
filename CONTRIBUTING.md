@@ -64,12 +64,29 @@ disclosures. A family label such as `GPT-6` is not sufficient. For example:
 Assisted-by: Codex (gpt-6.1-sol)
 ```
 
-If the identifier is unavailable, state that explicitly instead of guessing.
-
 Keep the human contributor as the commit author; credit AI tools with
 `Assisted-by:`, rather than `Co-authored-by:`. Complete the AI contribution
 acknowledgement in the template. This policy is adapted from
 [Clifft's contribution guidelines](https://github.com/unitaryfoundation/clifft/blob/main/docs/development/contributing.md).
+
+### Model identifier retrieval
+
+Before committing or publishing AI-assisted work, retrieve exact model identifiers
+from runtime metadata. Disclose each contributing model and role, and credit it
+in the relevant commits' `Assisted-by:` trailers.
+
+For local Codex sessions:
+
+1. Find the rollout JSONL matching `CODEX_THREAD_ID` under
+   `${CODEX_HOME:-$HOME/.codex}/sessions/`.
+2. Read `payload.model` from contributing `turn_context` records; repeat for
+   other contributing chats or agents. Copy identifiers verbatim.
+
+Use equivalent runtime metadata in other environments. Never infer identifiers
+from config defaults, model lists, family names, or examples. Do not publish logs.
+
+If retrieval fails or is ambiguous, prepare the changes and report the blocker
+before committing or publishing. Never guess or publish an "unavailable" fallback.
 
 ## Documentation scope
 
@@ -86,6 +103,8 @@ just py-test      # Python bindings
 just py-lint      # Ruff: package, tests, examples, and repository tools
 just py-typecheck # mypy: Python package and generated native stubs
 just ci-python    # Python lint, types, tests, and docs, one extension build
+just ci-site      # Python docs and web editor compilation (requires the WASM target)
+just doc-test     # Rust examples embedded from the README and guides
 just ci           # all native CI suites, including MSRV and Python docs
 ```
 
@@ -96,6 +115,9 @@ PRs run quick checks automatically. Maintainers approve the full checks selected
 for the changed files; the required `CI` status passes when those checks succeed.
 Manual CI runs check every suite. For website publication, see
 [Website maintenance](docs/site-maintenance.md#publish-a-reviewed-build).
+Full website assembly runs daily or on demand. CI uses a faster Windows smoke
+build without LTO; release binaries retain the production profile. Release-only
+recipes live in `tools/release.just`, so editing them does not select native builds.
 
 Use `just test-full` for ignored or slow tests in release mode, and `just fidelity`
 for both physical Choi suites. Graph-level logical checks use QuiZX;

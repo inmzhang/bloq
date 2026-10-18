@@ -42,3 +42,5 @@ Select exactly one option. AI-assisted submissions must follow the
 
 AI assistance details (only if you selected Yes: tool, exact model identifier,
 and how it was used):
+
+<!-- Before publishing, follow CONTRIBUTING.md#model-identifier-retrieval. -->

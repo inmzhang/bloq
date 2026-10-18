@@ -27,6 +27,8 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.0
         with:
           python-version: '3.10'
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install
       - name: Remap native build paths
         if: runner.os != 'Linux'
         run: uv run --no-project python tools/release_build.py --github-env
@@ -35,11 +37,16 @@ jobs:
         with:
           command: build
           target: ${{ matrix.target }}
-          manylinux: auto
+          manylinux: '2014'
+          sccache: true
+          # Root installs are intentional; manylinux2014's NSS curl needs explicit TLS cipher names.
+          docker-options: >-
+            --env PIP_ROOT_USER_ACTION=ignore
+            --env RUSTUP_TLS_CIPHERSUITES=ecdhe_ecdsa_aes_128_gcm_sha_256,ecdhe_rsa_aes_128_gcm_sha_256
           before-script-linux: |
             release_flags=$(/opt/python/cp310-cp310/bin/python tools/release_build.py --shell)
             eval "$release_flags"
-          args: --release --locked --manifest-path bloq_py/Cargo.toml --out dist
+          args: --release --locked --manifest-path bloq_py/Cargo.toml --target-dir target --out dist
       - name: Smoke test installed wheel on minimum Python
         shell: bash
         run: |
@@ -86,8 +93,12 @@ jobs:
           PYTHON
       - name: Build source distribution
         run: uv build bloq_py --sdist --out-dir dist
+      - uses: mozilla-actions/sccache-action@v0.0.11
       - name: Build and smoke test from source distribution
         # Source installation also resolves the trimmed workspace lockfile.
+        env:
+          SCCACHE_GHA_ENABLED: 'true'
+          RUSTC_WRAPPER: sccache
         run: |
           BLOQ_EXPECTED_VERSION="$(cargo metadata --no-deps --locked --format-version 1 |
             python -c 'import json, sys; print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"] == "bloq_py"))')"

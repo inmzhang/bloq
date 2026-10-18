@@ -62,15 +62,21 @@ jobs:
         id: suites
         env:
           RUST_CHANGED: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.rust == 'true' }}
-          SITE_CHANGED: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || steps.filter.outputs.site == 'true' || steps.filter.outputs.python == 'true' }}
+          DOCS_CHANGED: ${{ steps.filter.outputs.doctests == 'true' }}
+          SITE_CHANGED: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.site == 'true' || steps.filter.outputs.python == 'true' }}
           PACKAGES_CHANGED: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.packages == 'true' }}
         run: |
-          suites=$(jq -cn --arg rust "$RUST_CHANGED" 'if $rust == "true" then ["ci-rust", "msrv"] else [] end')
+          suites='[]'
+          if [ "$RUST_CHANGED" = true ]; then
+            suites='["ci-rust","msrv"]'
+          elif [ "$DOCS_CHANGED" = true ]; then
+            suites='["doc-test"]'
+          fi
           {
             echo "checks=$suites"
             echo "site=$SITE_CHANGED"
             echo "packages=$PACKAGES_CHANGED"
-            if [ "$RUST_CHANGED" = true ] || [ "$SITE_CHANGED" = true ] || [ "$PACKAGES_CHANGED" = true ]; then
+            if [ "$suites" != '[]' ] || [ "$SITE_CHANGED" = true ] || [ "$PACKAGES_CHANGED" = true ]; then
               echo "heavy=true"
             else
               echo "heavy=false"
@@ -106,9 +112,19 @@ jobs:
       # Only linking the full native editor/test suite needs this extra space.
       - name: Free disk space
         if: matrix.recipe == 'ci-rust'
-        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+        # Stop once linking has 25 GiB of headroom; keep fallbacks for image changes.
+        run: |
+          for directory in /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL; do
+            if [ "$(df --output=avail . | tail -1)" -ge 26214400 ]; then
+              break
+            fi
+            sudo rm -rf "$directory"
+          done
+          df -h .
+          test "$(df --output=avail . | tail -1)" -ge 26214400
 
       - name: Install native editor dependencies
+        if: matrix.recipe != 'doc-test'
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends \
@@ -156,6 +172,10 @@ jobs:
       contains(needs.quick.outputs.checks, 'ci-rust')
     runs-on: windows-latest
     timeout-minutes: 45
+    # Smoke tests need linked binaries; release workflows retain production LTO.
+    env:
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.0
@@ -163,12 +183,11 @@ jobs:
           python-version: '3.12'
       - name: Install pinned Rust toolchain
         run: rustup toolchain install
+      - name: Remap native build paths
+        run: uv run --no-project python tools/release_build.py --github-env
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: bloq-windows-${{ runner.os }}-v1
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Remap native build paths
-        run: uv run --no-project python tools/release_build.py --github-env
       - name: Build CLI and editor
         run: cargo build --locked --release -p bloq-cli -p bloq_editor
       - name: Check CLI
@@ -183,14 +202,29 @@ jobs:
       !cancelled() && needs.quick.result == 'success' &&
       (needs.approve.result == 'success' || (github.event_name != 'pull_request' && needs.approve.result == 'skipped')) &&
       needs.quick.outputs.site == 'true'
-    permissions:
-      contents: write
-      pages: write
-      id-token: write
-    uses: ./.github/workflows/site-build.yml
-    with:
-      publish: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-      test-python: ${{ github.event_name == 'workflow_dispatch' || needs.quick.outputs.python == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust and WebAssembly target
+        run: |
+          rustup toolchain install
+          rustup target add wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: bloq-site-check-${{ runner.os }}-v1
+          cache-on-failure: true
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: just
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          python-version: '3.12'
+      - name: Check Python bindings
+        if: github.event_name == 'workflow_dispatch' || needs.quick.outputs.python == 'true'
+        run: just py-typecheck py-test
+      - name: Check documentation and web editor
+        run: just ci-site
 
   packages:
     name: Python packages

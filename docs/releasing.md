@@ -61,6 +61,9 @@ headings. Release-plz owns versions, release PRs, and retained release notes.
 Its supported changelog postprocessor invokes git-cliff over repository-wide
 history since the previous stable tag. The same notes appear in the file and
 release PR. `just changelog` previews them without writing the file.
+Release PRs refresh daily at 02:17 UTC (10:17 Asia/Shanghai), or on demand with
+`gh workflow run release-plz.yml --repo inmzhang/bloq --ref main`.
+Publication still runs separately when the reviewed release PR is merged.
 
 The configuration follows [git-cliff's scoped template](https://github.com/orhun/git-cliff/blob/v2.14.2/examples/scoped.toml):
 Conventional Commit scopes group entries into Python API (`python` or `py`),
@@ -143,10 +146,12 @@ Choose release-plz or [manual Cargo](#manual-cargo-publication) and
 
 Finish the checks below against the reviewed release commit. Dispatch CI on
 `main` to run every suite, build all supported wheels, rebuild the source archive,
-and assemble the website without publishing:
+and check documentation and web compilation. Dispatch the website workflow
+separately to assemble its preview without publishing:
 
 ```sh
 gh workflow run ci.yml --repo inmzhang/bloq --ref main
+gh workflow run website.yml --repo inmzhang/bloq --ref main -f publish=false
 gh run list --repo inmzhang/bloq --workflow ci.yml
 ```
 
@@ -161,7 +166,7 @@ enabled, merging the PR publishes Rust crates and creates the version tag and
 GitHub release. The tag triggers Python publication; the GitHub release triggers
 binary uploads. Verify all uploads before announcing the release.
 
-If publication is interrupted, retry the failed jobs at the same commit and
+If publication is interrupted, use **Re-run failed jobs** at the same commit and
 version. Do not move the tag or bump the version to retry an upload.
 
 ### Manual Cargo publication
@@ -348,8 +353,15 @@ workflows before announcing completion.
 | --- | --- |
 | Registry rate limit or interrupted crate publication | Follow the registry retry guidance and rerun the failed job at the same commit |
 | Python publication | Rerun failed jobs for the same tag |
-| Missing CLI/editor assets | Run the Binaries workflow manually with the existing release tag |
+| Missing CLI/editor assets | Rerun the failed platform job; dispatch Binaries with the existing tag only if there is no run to retry |
 | Future publication must stop | Set the publishing variable to false; this does not undo uploads or stop an already-running job |
 
 Published versions are immutable. Do not bump versions or move/delete tags just
 to retry an incomplete run. Keep the website's retained release snapshots intact.
+
+Use **Re-run failed jobs**, or the equivalent CLI command, to preserve successful
+platform builds and uploads:
+
+```sh
+gh run rerun RUN_ID --failed --repo inmzhang/bloq
+```
