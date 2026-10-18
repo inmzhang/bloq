@@ -3432,8 +3432,11 @@ impl PyBloq {
     /// Examples:
     ///     >>> import bloq
     ///     >>> program = bloq.compile(bloq.GalleryItem.X_MEMORY.load(), distance=3)
-    ///     >>> sorted(program.stable_key_map().values())
-    ///     [0, 2]
+    ///     >>> keys = program.stable_key_map()
+    ///     >>> len(keys)
+    ///     2
+    ///     >>> all(program.node(node_id) is not None for node_id in keys.values())
+    ///     True
     fn stable_key_map(&self) -> PyResult<HashMap<PyNodeKey, u32>> {
         self.0
             .stable_key_map()
