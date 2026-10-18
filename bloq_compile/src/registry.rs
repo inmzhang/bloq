@@ -235,7 +235,7 @@ fn compile_native(
             &mut boolean,
             distance,
             &mut family.anchors,
-            limits.max_witness_nodes,
+            context,
         )?;
         let interface = {
             // A local projection includes neighboring lookup/emission context.

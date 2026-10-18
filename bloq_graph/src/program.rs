@@ -452,11 +452,11 @@ impl ModuleCertificationLimits {
         max_expanded_instances: 1_000_000,
         max_occupied_cells: 4_000_000,
         max_local_columns: 1_000_000,
-        max_boolean_nodes: 4_000_000,
+        max_boolean_nodes: 8_000_000,
         max_boolean_steps: usize::MAX,
         max_matrix_words: 16_777_216,
         max_frontier_width: 4_096,
-        max_witness_nodes: 1_000_000,
+        max_witness_nodes: 4_000_000,
         max_normalization_states: 1_000_000,
         max_guarded_domain_size: 4_096,
     };
@@ -2851,7 +2851,8 @@ mod tests {
 
         let defaults = ModuleCertificationLimits::DEFAULT;
         assert_eq!(defaults.max_boolean_steps, usize::MAX);
-        assert_eq!(defaults.max_boolean_nodes, 4_000_000);
+        assert_eq!(defaults.max_boolean_nodes, 8_000_000);
+        assert_eq!(defaults.max_witness_nodes, 4_000_000);
         assert_eq!(BooleanLimits::DEFAULT.max_steps, 64_000_000);
         let mut diagram = BooleanDecisionDiagram::with_limits(defaults.boolean_limits());
         diagram.charge(512_000_001).unwrap();

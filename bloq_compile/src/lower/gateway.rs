@@ -1,6 +1,6 @@
 //! Bind a local correlation surface to physical records and boundary operators.
 
-use bloq_graph::{BlockGraph, Pauli, StabilizerRowKind, SurfaceSupport};
+use bloq_graph::{BlockGraph, Direction, Pauli, StabilizerRowKind, SurfaceSupport};
 use bloq_ir::lowering::{InstanceBoundaryOperator, InstanceMeasurement, TemplateInstanceId};
 use bloq_ir::{BoundaryFace, TemporalPipeRef};
 use glam::IVec3;
@@ -50,20 +50,36 @@ impl LocalSurfaceContext<'_> {
         position: IVec3,
         surface: &impl SurfaceSupport,
     ) -> bool {
+        // Any nonzero arm rules out an anchor, including arms that reconstruct
+        // an initially zero center. With no arms, only the source center remains.
+        if surface.node_pauli(position) == Pauli::I {
+            return false;
+        }
         let Some(compiled) = self.compiled.get(&position) else {
             return false;
         };
-        let flow = super::observable::build_local_flow_key(
-            self.graph,
-            position,
-            surface.node_pauli(position),
-            surface,
-            compiled.graph_connectivity,
-            self.spatial_ports
-                .get(&position)
-                .map(|port| port.cube_pipe_dir()),
-        );
-        super::observable::needs_dynamic_anchor(compiled.graph_connectivity, flow)
+        let connectivity = compiled.graph_connectivity;
+        if connectivity.is_isolated()
+            || (self.spatial_ports.contains_key(&position)
+                && surface.port_pauli(position) != Pauli::I)
+        {
+            return false;
+        }
+        Direction::iter()
+            .filter(|&direction| connectivity.has_pipe(direction))
+            .all(|direction| {
+                let Some((source, target)) =
+                    super::observable::incident_edge_positions(self.graph, position, direction)
+                else {
+                    return true;
+                };
+                // Forward support takes precedence even for Some(I). A reverse
+                // Hadamard flip does not affect whether the arm is identity.
+                surface
+                    .edge_pauli(source, target)
+                    .or_else(|| surface.edge_pauli(target, source))
+                    .is_none_or(|pauli| pauli == Pauli::I)
+            })
     }
 
     /// Bounded geometry must supply an anchor when `needs_dynamic_anchor` is
@@ -315,5 +331,92 @@ fn insertion_offset(
         // The wall template uses its negative-axis endpoint's coordinates.
         ChunkSiteSource::SpatialPipe(pipe) => layout.offset(pipe.src),
         ChunkSiteSource::SpatialPort(port) => layout.offset(port),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::compile::CompiledTemplateInfo;
+    use crate::signature::Connectivity;
+    use crate::spatial_port::SpatialPortExpansion;
+    use bloq_graph::{Block, BlockKind, CubeKind, PortRole, Stabilizer};
+
+    #[test]
+    fn dynamic_anchors_require_nonzero_centers_without_incident_support() {
+        let center = IVec3::ZERO;
+        for height in [1, 2] {
+            let neighbor = height * IVec3::Z;
+            let mut graph = BlockGraph::new();
+            graph.add_block(
+                Block::new(center, BlockKind::Cube(CubeKind::ZXZ))
+                    .with_height(format!("{height}d").parse().unwrap())
+                    .unwrap(),
+            );
+            graph.add_block(Block::new(neighbor, BlockKind::Cube(CubeKind::ZXZ)));
+            for connectivity in [
+                Connectivity::ISOLATED,
+                Connectivity::ISOLATED.with_pipe(Direction::ZPLUS),
+                Connectivity::ISOLATED.with_hadamard(Direction::ZPLUS),
+            ] {
+                let compiled = CompiledTemplateMap::from_iter([(
+                    center,
+                    CompiledTemplateInfo {
+                        graph_connectivity: connectivity,
+                        template: TemplateRef::Fixed(LoweringTemplateId(0)),
+                    },
+                )]);
+                for (pauli, forward, reverse, spatial, expected) in [
+                    (Pauli::I, None, None, false, false),
+                    (Pauli::Z, None, None, false, true),
+                    (Pauli::Z, Some(Pauli::X), None, false, false),
+                    (Pauli::Z, None, Some(Pauli::Y), false, false),
+                    (Pauli::Z, None, Some(Pauli::I), false, true),
+                    (Pauli::Z, Some(Pauli::I), Some(Pauli::X), false, true),
+                    (Pauli::Z, None, None, true, false),
+                ] {
+                    let spatial_ports = if spatial {
+                        SpatialPortExpansionMap::from_iter([(
+                            center,
+                            SpatialPortExpansion {
+                                source: center,
+                                role: PortRole::Output,
+                                cube_kind: CubeKind::ZXZ,
+                                height: Default::default(),
+                                output_qubit: None,
+                            },
+                        )])
+                    } else {
+                        SpatialPortExpansionMap::default()
+                    };
+                    let context = LocalSurfaceContext {
+                        graph: &graph,
+                        compiled: &compiled,
+                        spatial_ports: &spatial_ports,
+                        spatial_templates: &Default::default(),
+                        wall_templates: &Default::default(),
+                        pipe_templates: &Default::default(),
+                        pool: &LoweringTemplatePool::default(),
+                        instances: &Default::default(),
+                        selectives: &Default::default(),
+                        layout: BlockLayout::new(3),
+                    };
+                    let mut surface = Stabilizer::from_interior_nodes([(center, pauli)]);
+                    surface.port_stabilizer.insert(center, Pauli::Y);
+                    for (edge, support) in
+                        [((center, neighbor), forward), ((neighbor, center), reverse)]
+                    {
+                        if let Some(support) = support {
+                            surface.interior_edges.insert(edge, support);
+                        }
+                    }
+                    assert_eq!(
+                        context.needs_dynamic_anchor(center, &surface),
+                        expected && !connectivity.is_isolated()
+                    );
+                    assert!(!context.needs_dynamic_anchor(IVec3::X, &surface));
+                }
+            }
+        }
     }
 }

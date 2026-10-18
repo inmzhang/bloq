@@ -882,7 +882,7 @@ impl CompileContext {
         self
     }
 
-    fn check_cancellation(&self) -> Result<(), CompileError> {
+    pub(crate) fn check_cancellation(&self) -> Result<(), CompileError> {
         if let Some(token) = &self.cancellation {
             token.check()?;
         }
