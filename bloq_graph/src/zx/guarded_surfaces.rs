@@ -283,7 +283,7 @@ impl GuardedPivots {
 
 struct GuardedAvailability {
     pivots: GuardedPivots,
-    groups: HashMap<AvailabilityKey, Vec<usize>>,
+    groups: BTreeMap<AvailabilityKey, Vec<usize>>,
     active: BTreeSet<usize>,
     auxiliary_start: usize,
 }
@@ -295,7 +295,7 @@ impl GuardedAvailability {
         auxiliary_start: usize,
         diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
     ) -> Result<(Self, BooleanRowSpace), BooleanResourceError> {
-        let mut groups = HashMap::<_, Vec<_>>::new();
+        let mut groups = BTreeMap::<_, Vec<_>>::new();
         let mut columns = HashMap::<usize, Vec<_>>::new();
         diagram.charge(constraints.len())?;
         for (index, (key, terms)) in constraints.iter().enumerate() {
@@ -368,19 +368,8 @@ impl GuardedAvailability {
         diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
     ) -> Result<(), BooleanResourceError> {
         diagram.charge(self.groups.len())?;
-        let mut released = self
-            .groups
-            .keys()
-            .filter(|key| !pending.contains(key))
-            .copied()
-            .collect::<Vec<_>>();
-        released.sort_unstable();
-        for key in released {
-            for column in self
-                .groups
-                .remove(&key)
-                .expect("released keys come from the current groups")
-            {
+        for (_, columns) in self.groups.extract_if(.., |key, _| !pending.contains(key)) {
+            for column in columns {
                 self.active.remove(&column);
                 let row = self
                     .pivots
@@ -907,7 +896,6 @@ impl GuardedSurfaceSpace {
             }
             rows
         };
-        let mut filled = BTreeSet::new();
         self.topology.diagram.charge(self.columns.len())?;
         let mut columns_by_site = HashMap::<[i32; 3], Vec<usize>>::new();
         for (&column, &index) in &self.columns {
@@ -932,57 +920,107 @@ impl GuardedSurfaceSpace {
             })
             .collect::<BTreeSet<_>>();
         let mut availability: Option<GuardedAvailability> = None;
+        let mut available_values = None;
+        let mut pending_resolves = Vec::new();
+        let mut pending_sites = Vec::new();
+        let mut pending_feedbacks = Vec::new();
         let mut available_rows = BooleanRowSpace::default();
         let mut readout_pivots = GuardedPivots::default();
         while names.iter().any(|(name, _)| !known.contains(name)) {
-            let mut available_values = self.topology.availability(&known)?;
-            self.topology.diagram.charge(
-                self.topology
-                    .resolves
-                    .len()
-                    .saturating_add(self.local.len())
-                    .saturating_add(actions.len()),
-            )?;
-            let mut resolved = BTreeSet::new();
-            for &(position, root) in &self.topology.resolves {
+            if available_values.is_none() {
+                self.topology.diagram.charge(
+                    self.topology
+                        .resolves
+                        .len()
+                        .saturating_add(self.local.len())
+                        .saturating_add(actions.len()),
+                )?;
+                pending_resolves.extend(0..self.topology.resolves.len());
+                pending_sites.extend(
+                    self.local.iter().filter_map(|(&position, variants)| {
+                        (variants.len() > 1).then_some(position)
+                    }),
+                );
+                pending_feedbacks.extend(actions.iter().enumerate().filter_map(
+                    |(index, action)| {
+                        matches!(
+                            action,
+                            Action::Feedback {
+                                condition: Some(_),
+                                ..
+                            }
+                        )
+                        .then_some(index)
+                    },
+                ));
+                available_values = Some(self.topology.availability(&known)?);
+            }
+            let available_values = available_values.as_mut().expect("availability initialized");
+            self.topology
+                .refresh_availability(available_values, &known)?;
+            self.topology
+                .diagram
+                .charge(pending_resolves.len() + pending_sites.len() + pending_feedbacks.len())?;
+            let mut newly_resolved = BTreeSet::new();
+            let mut pending_count = 0;
+            for index in 0..pending_resolves.len() {
+                let ordinal = pending_resolves[index];
+                let (position, root) = self.topology.resolves[ordinal];
                 if available_values.available(root, &mut self.topology.diagram)? {
-                    resolved.insert(position.to_array());
+                    if !RECLAIM {
+                        newly_resolved.insert(position.to_array());
+                    }
+                } else {
+                    pending_resolves[pending_count] = ordinal;
+                    pending_count += 1;
                 }
             }
-            let mut unavailable = BTreeSet::new();
-            for (&position, variants) in &self.local {
-                // Different physical signatures are refined by lowering. This
-                // catches source topology requiring an unknown outcome.
-                if variants.len() > 1 {
-                    for variant in variants {
-                        if !available_values.available(variant.guard, &mut self.topology.diagram)? {
-                            unavailable.insert(position);
-                            break;
-                        }
+            pending_resolves.truncate(pending_count);
+            let mut pending_count = 0;
+            for index in 0..pending_sites.len() {
+                let position = pending_sites[index];
+                let mut ready = true;
+                for variant in &self.local[&position] {
+                    if !available_values.available(variant.guard, &mut self.topology.diagram)? {
+                        ready = false;
+                        break;
                     }
                 }
+                if !ready {
+                    pending_sites[pending_count] = position;
+                    pending_count += 1;
+                }
             }
-            unavailable.extend(self.topology.resolves.iter().filter_map(|(pos, _)| {
-                let position = pos.to_array();
-                (!resolved.contains(&position)).then_some(position)
-            }));
-            let mut feedback_absent = Vec::new();
-            for (ordinal, action) in actions.iter().enumerate() {
-                if let Action::Feedback {
+            pending_sites.truncate(pending_count);
+            let unavailable = pending_sites
+                .iter()
+                .copied()
+                .chain(
+                    pending_resolves
+                        .iter()
+                        .map(|&index| self.topology.resolves[index].0.to_array()),
+                )
+                .collect::<BTreeSet<_>>();
+            let mut pending_count = 0;
+            for index in 0..pending_feedbacks.len() {
+                let ordinal = pending_feedbacks[index];
+                let Action::Feedback {
                     condition: Some(condition),
                     ..
-                } = action
-                {
-                    let root = self.topology.condition(condition);
-                    if !available_values.available(root, &mut self.topology.diagram)? {
-                        feedback_absent.push(ordinal);
-                    }
+                } = &actions[ordinal]
+                else {
+                    unreachable!("pending feedbacks have a condition")
+                };
+                let root = self.topology.condition(condition);
+                if !available_values.available(root, &mut self.topology.diagram)? {
+                    pending_feedbacks[pending_count] = ordinal;
+                    pending_count += 1;
                 }
             }
+            pending_feedbacks.truncate(pending_count);
+            let feedback_absent = &pending_feedbacks;
             if !RECLAIM {
-                let newly_resolved = resolved.difference(&filled).copied().collect();
                 self.fill_selective(&mut causal_basis, &newly_resolved)?;
-                filled = resolved;
             }
             let pending = unavailable
                 .iter()
@@ -1014,7 +1052,7 @@ impl GuardedSurfaceSpace {
                         ));
                     }
                 }
-                for ordinal in feedback_absent {
+                for &ordinal in feedback_absent {
                     let Action::Feedback { targets, .. } = &actions[ordinal] else {
                         unreachable!("selector columns name selective nodes")
                     };
@@ -1059,6 +1097,10 @@ impl GuardedSurfaceSpace {
                 .iter()
                 .filter(|(name, _)| !known.contains(name))
                 .collect::<Vec<_>>();
+            let mut unknown_columns = vec![false; names.len()];
+            for (_, column) in &unknown {
+                unknown_columns[*column - physical_columns] = true;
+            }
             let relevant = if RECLAIM && FACTORED {
                 Some(self.named_component_rows(&available_rows, &unknown)?)
             } else {
@@ -1122,10 +1164,12 @@ impl GuardedSurfaceSpace {
                 } else {
                     self.named_row(&reduced, *wanted)?
                 };
+                let named =
+                    Self::named_terms(&row, physical_columns, physical_columns + names.len());
                 if row.active != ONE
-                    || unknown
-                        .iter()
-                        .any(|(other, column)| other != name && row.get(*column) != ZERO)
+                    || named.iter().any(|&(column, _)| {
+                        column != *wanted && unknown_columns[column - physical_columns]
+                    })
                 {
                     continue;
                 }
@@ -1139,12 +1183,10 @@ impl GuardedSurfaceSpace {
                 if !ready {
                     continue;
                 }
-                let folds = names
+                let folds = named
                     .iter()
-                    .filter(|(other, coordinate)| {
-                        known.contains(other) && row.get(*coordinate) != ZERO
-                    })
-                    .map(|(name, coordinate)| (name.clone(), row.get(*coordinate)))
+                    .filter(|&&(column, _)| !unknown_columns[column - physical_columns])
+                    .map(|&(column, bit)| (names[column - physical_columns].0.clone(), bit))
                     .collect();
                 let feedbacks = self.feedbacks::<RECLAIM>(&row, &actions, &feedback_columns)?;
                 candidates.push((
@@ -1162,9 +1204,6 @@ impl GuardedSurfaceSpace {
             // The final budget check may remap the diagram. Query images and
             // unselected local candidate rows cannot retain unlisted roots.
             drop((factored, reduced));
-            // Known outcomes change below, and the final budget check may
-            // collect decision nodes. Neither may retain this query's cache.
-            drop(available_values);
             if candidates.is_empty() {
                 return Err(StabilizerError::UnavailableControlParity {
                     mvar: unknown[0].0.clone(),
@@ -1172,6 +1211,10 @@ impl GuardedSurfaceSpace {
                 }
                 .into());
             }
+            available_values.learn(
+                candidates.iter().map(|(name, _)| name.as_str()),
+                &mut self.topology.diagram,
+            )?;
             let reclaim = RECLAIM && candidates.len() < unknown.len();
             let mut reclaimed = Vec::new();
             for (name, surface) in candidates {
@@ -1203,7 +1246,13 @@ impl GuardedSurfaceSpace {
                     ),
             )?;
         }
-        drop((causal_basis, availability, available_rows, readout_pivots));
+        drop((
+            causal_basis,
+            availability,
+            available_rows,
+            readout_pivots,
+            available_values,
+        ));
         let (input_nodes, resource_nodes) = authored_boundary_columns(&zx);
         let mut output_ports = zx.output_ports();
         if DEFER_WITNESSES {
@@ -1703,6 +1752,12 @@ impl GuardedSurfaceSpace {
         Ok(rows)
     }
 
+    fn named_terms(row: &BooleanRow, first: usize, end: usize) -> &[(usize, DecisionId)] {
+        let terms = row.terms();
+        &terms[terms.partition_point(|&(column, _)| column < first)
+            ..terms.partition_point(|&(column, _)| column < end)]
+    }
+
     /// Try a named-only reduction. Private tags record each source row's exact
     /// combination. An empty residual certifies that named projection is
     /// injective, so each full witness is the unique lift of its named row.
@@ -1719,28 +1774,21 @@ impl GuardedSurfaceSpace {
         if self.topology.domain != ONE {
             return Ok(None);
         }
-        self.topology.diagram.charge(source_ids.len())?;
+        self.topology
+            .diagram
+            .charge(source_ids.len() + first_tag - physical_columns)?;
+        let mut unknown_columns = vec![false; first_tag - physical_columns];
+        for (_, column) in unknown {
+            unknown_columns[*column - physical_columns] = true;
+        }
         let mut skeleton = Vec::with_capacity(source_ids.len());
         for &id in source_ids {
             let source = available.row(id).expect("selected row exists");
-            skeleton.push(BooleanRow::new(source.active));
-        }
-        for column in physical_columns..first_tag {
-            self.topology.diagram.charge(1)?;
-            for id in available.row_ids_with_column(column) {
-                let source = available.row(id).expect("indexed row exists");
-                self.topology.diagram.charge(
-                    2 + source_ids.len().max(1).ilog2() as usize
-                        + source.terms().len().max(1).ilog2() as usize,
-                )?;
-                if let Ok(position) = source_ids.binary_search(&id) {
-                    skeleton[position].set(column, source.get(column));
-                }
-            }
-        }
-        for (row, &id) in skeleton.iter_mut().zip(source_ids) {
-            self.topology.diagram.charge(1)?;
+            let terms = Self::named_terms(source, physical_columns, first_tag);
+            self.topology.diagram.charge(terms.len() + 1)?;
+            let mut row = BooleanRow::from_terms(source.active, terms.iter().copied());
             row.set(first_tag + id, ONE);
+            skeleton.push(row);
         }
         let mut remaining = BooleanRowSpace::new(skeleton, &mut self.topology.diagram)?;
         let mut named = BooleanRowSpace::default();
@@ -1755,18 +1803,21 @@ impl GuardedSurfaceSpace {
             return Ok(None);
         }
         let mut result = Vec::with_capacity(unknown.len());
-        for (name, wanted) in unknown {
+        for (_, wanted) in unknown {
             let row = self.named_row(&named, *wanted)?;
             if row.active != ONE
-                || unknown
+                || Self::named_terms(&row, physical_columns, first_tag)
                     .iter()
-                    .any(|(other, column)| other != name && row.get(*column) != ZERO)
+                    .any(|&(column, _)| {
+                        column != *wanted && unknown_columns[column - physical_columns]
+                    })
             {
                 result.push(None);
                 continue;
             }
+            let diagram = &mut self.topology.diagram;
             let mut full = BooleanRow::new(ONE);
-            self.topology.diagram.charge(row.terms().len())?;
+            diagram.charge(row.terms().len())?;
             for &(column, scale) in row.terms() {
                 if column >= first_tag {
                     full.xor_scaled(
@@ -1774,17 +1825,16 @@ impl GuardedSurfaceSpace {
                             .row(column - first_tag)
                             .expect("tagged row exists"),
                         scale,
-                        &mut self.topology.diagram,
+                        diagram,
                     )?;
                 }
             }
-            // A different raw named coefficient would invalidate an exact
-            // lift even when its source-domain function happens to agree.
-            for column in physical_columns..first_tag {
-                self.topology.diagram.charge(1)?;
-                if full.get(column) != row.get(column) {
-                    return Ok(None);
-                }
+            // Exact lifts must retain raw named coefficients, including off-domain values.
+            let full_named = Self::named_terms(&full, physical_columns, first_tag);
+            let expected_named = Self::named_terms(&row, physical_columns, first_tag);
+            diagram.charge(full_named.len() + expected_named.len())?;
+            if full_named != expected_named {
+                return Ok(None);
             }
             result.push(Some(full));
         }

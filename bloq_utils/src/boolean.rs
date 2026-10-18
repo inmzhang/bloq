@@ -1,6 +1,7 @@
 //! Reduced ordered Boolean decision diagrams shared by graph and IR guards.
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, BinaryHeap};
+use std::hash::{Hash, Hasher};
 
 /// A commutative binary operation over Boolean decision functions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -74,16 +75,121 @@ pub struct BooleanResourceError {
 
 // Caches may forget results; exhaustion must never change Boolean semantics.
 const MAX_CACHE_ENTRIES: usize = 262_144;
+type ComputedKey = (BooleanOp, DecisionId, DecisionId);
+
+#[derive(Clone, Copy)]
+struct ComputedEntry {
+    left: DecisionId,
+    right: DecisionId,
+    result: DecisionId,
+    operator: BooleanOp,
+}
+
+impl ComputedEntry {
+    const EMPTY: Self = Self {
+        left: DecisionId(usize::MAX),
+        right: DECISION_FALSE,
+        result: DECISION_FALSE,
+        operator: BooleanOp::Xor,
+    };
+
+    fn key(self) -> ComputedKey {
+        (self.operator, self.left, self.right)
+    }
+}
+
+#[derive(Clone, Default)]
+struct ComputedTable {
+    entries: Vec<ComputedEntry>,
+}
+
+impl std::fmt::Debug for ComputedTable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ComputedTable")
+            .field("entries", &self.entries.len())
+            .finish()
+    }
+}
+
+impl ComputedTable {
+    fn slot((operator, left, right): ComputedKey, mask: usize) -> usize {
+        let mut hash = rustc_hash::FxHasher::default();
+        (operator as u8, left.0, right.0).hash(&mut hash);
+        hash.finish() as usize & mask
+    }
+
+    fn get(&self, key: ComputedKey) -> Option<DecisionId> {
+        let mask = self.entries.len().checked_sub(1)?;
+        let entry = self.entries[Self::slot(key, mask)];
+        (entry.key() == key).then_some(entry.result)
+    }
+
+    fn store(&mut self, entry: ComputedEntry) {
+        let slot = Self::slot(entry.key(), self.entries.len() - 1);
+        self.entries[slot] = entry;
+    }
+
+    fn insert(&mut self, key: ComputedKey, result: DecisionId, nodes: usize) {
+        let capacity = nodes
+            .saturating_mul(2)
+            .clamp(1 << 16, MAX_CACHE_ENTRIES)
+            .next_power_of_two();
+        if capacity > self.entries.len() {
+            let old = std::mem::replace(&mut self.entries, vec![ComputedEntry::EMPTY; capacity]);
+            for entry in old {
+                if entry.left != ComputedEntry::EMPTY.left {
+                    self.store(entry);
+                }
+            }
+        }
+        self.store(ComputedEntry {
+            operator: key.0,
+            left: key.1,
+            right: key.2,
+            result,
+        });
+    }
+
+    fn remap(&mut self, mapping: &[DecisionId]) {
+        let capacity = self.entries.len();
+        let old = std::mem::replace(&mut self.entries, vec![ComputedEntry::EMPTY; capacity]);
+        let survives = |id: DecisionId| id.0 < 2 || mapping[id.0] != DECISION_FALSE;
+        for entry in old {
+            if entry.left != ComputedEntry::EMPTY.left
+                && [entry.left, entry.right, entry.result]
+                    .into_iter()
+                    .all(survives)
+            {
+                self.store(ComputedEntry {
+                    operator: entry.operator,
+                    left: mapping[entry.left.0],
+                    right: mapping[entry.right.0],
+                    result: mapping[entry.result.0],
+                });
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+enum ApplyTask {
+    Visit(DecisionId, DecisionId),
+    Finish(ComputedKey, usize),
+}
 
 /// Reduced ordered Boolean decision diagram with bounded construction work.
 #[derive(Debug, Clone, Default)]
 pub struct BooleanDecisionDiagram {
     nodes: Vec<DecisionNode>,
     unique: FxHashMap<DecisionNode, DecisionId>,
-    apply_cache: FxHashMap<(BooleanOp, DecisionId, DecisionId), DecisionId>,
+    apply_cache: ComputedTable,
+    apply_tasks: Vec<ApplyTask>,
+    apply_results: Vec<DecisionId>,
+    negate_tasks: Vec<(DecisionId, bool)>,
     not_cache: Vec<DecisionId>,
     limits: BooleanLimits,
     steps: usize,
+    generation: u64,
     row_witnesses: Option<RowWitnessTape>,
 }
 
@@ -104,6 +210,12 @@ impl BooleanDecisionDiagram {
     /// Returns cumulative charged work.
     pub fn steps(&self) -> usize {
         self.steps
+    }
+
+    /// Per-arena collection counter for invalidating decision-id caches.
+    /// Every collection advances it, even if no nodes are removed.
+    pub fn generation(&self) -> u64 {
+        self.generation
     }
 
     /// Charge before traversal or allocation. Collection and cloning preserve
@@ -128,7 +240,8 @@ impl BooleanDecisionDiagram {
     }
 
     /// Rebuild the diagram from all live roots, removing dead intermediate
-    /// functions and operation caches. Variable indices do not change.
+    /// functions and retaining cache entries whose operands and results survive.
+    /// Variable indices do not change.
     ///
     /// Every surviving `DecisionId` must be passed here: ids are renumbered,
     /// and any unlisted external ids become invalid. Collect only at a boundary
@@ -137,6 +250,7 @@ impl BooleanDecisionDiagram {
         &mut self,
         roots: impl IntoIterator<Item = &'a mut DecisionId>,
     ) -> usize {
+        self.generation = self.generation.wrapping_add(1);
         let mut roots = roots.into_iter().collect::<Vec<_>>();
         if let Some(tape) = &mut self.row_witnesses {
             roots.extend(tape.decisions_mut());
@@ -158,7 +272,6 @@ impl BooleanDecisionDiagram {
         let retained = live.iter().filter(|&&live| live).count();
         let removed = self.nodes.len() - retained;
         if removed == 0 {
-            self.apply_cache = FxHashMap::default();
             return 0;
         }
         let mut mapping = vec![DECISION_FALSE; self.nodes.len() + 2];
@@ -169,6 +282,7 @@ impl BooleanDecisionDiagram {
             not_cache: vec![DECISION_FALSE; retained],
             limits: self.limits,
             steps: self.steps,
+            generation: self.generation,
             ..Self::default()
         };
         // A node is allocated after its children. Retaining this order also
@@ -203,6 +317,11 @@ impl BooleanDecisionDiagram {
             *root = mapping[root.0];
         }
         compact.row_witnesses = self.row_witnesses.take();
+        compact.apply_cache = std::mem::take(&mut self.apply_cache);
+        compact.apply_cache.remap(&mapping);
+        compact.apply_tasks = std::mem::take(&mut self.apply_tasks);
+        compact.apply_results = std::mem::take(&mut self.apply_results);
+        compact.negate_tasks = std::mem::take(&mut self.negate_tasks);
         *self = compact;
         removed
     }
@@ -493,30 +612,36 @@ impl BooleanDecisionDiagram {
             return Ok(result);
         }
         self.charge(1)?;
-        let mut pending = vec![(root, false)];
-        while let Some((root, finish)) = pending.pop() {
-            if self.cached_complement(root).is_some() {
-                continue;
+        let mut pending = std::mem::take(&mut self.negate_tasks);
+        pending.push((root, false));
+        let result = (|| {
+            while let Some((root, finish)) = pending.pop() {
+                if self.cached_complement(root).is_some() {
+                    continue;
+                }
+                let node = self.node(root).expect("nonterminal decision has a node");
+                if finish {
+                    let low = self
+                        .cached_complement(node.low)
+                        .expect("visited child is negated");
+                    let high = self
+                        .cached_complement(node.high)
+                        .expect("visited child is negated");
+                    let negated = self.make_node(node.variable, low, high)?;
+                    self.not_cache[root.0 - 2] = negated;
+                    self.not_cache[negated.0 - 2] = root;
+                } else {
+                    self.charge(1)?;
+                    pending.push((root, true));
+                    pending.push((node.high, false));
+                    pending.push((node.low, false));
+                }
             }
-            let node = self.node(root).expect("nonterminal decision has a node");
-            if finish {
-                let low = self
-                    .cached_complement(node.low)
-                    .expect("visited child is negated");
-                let high = self
-                    .cached_complement(node.high)
-                    .expect("visited child is negated");
-                let negated = self.make_node(node.variable, low, high)?;
-                self.not_cache[root.0 - 2] = negated;
-                self.not_cache[negated.0 - 2] = root;
-            } else {
-                self.charge(1)?;
-                pending.push((root, true));
-                pending.push((node.high, false));
-                pending.push((node.low, false));
-            }
-        }
-        Ok(self.cached_complement(root).expect("root is negated"))
+            Ok(self.cached_complement(root).expect("root is negated"))
+        })();
+        pending.clear();
+        self.negate_tasks = pending;
+        result
     }
 
     /// Fold constants before visiting decision pairs. All operators commute.
@@ -566,54 +691,55 @@ impl BooleanDecisionDiagram {
         left: DecisionId,
         right: DecisionId,
     ) -> Result<DecisionId, BooleanResourceError> {
-        if let Some(&result) = self.apply_cache.get(&(operator, left, right)) {
+        if let Some(result) = self.apply_cache.get((operator, left, right)) {
             return Ok(result);
         }
         self.charge(1)?;
-        enum Task {
-            Visit(DecisionId, DecisionId),
-            Finish((BooleanOp, DecisionId, DecisionId), usize),
-        }
-        let mut pending = vec![Task::Visit(left, right)];
-        let mut results = Vec::new();
-        while let Some(task) = pending.pop() {
-            match task {
-                Task::Visit(mut left, mut right) => {
-                    if left > right {
-                        std::mem::swap(&mut left, &mut right);
+        let mut pending = std::mem::take(&mut self.apply_tasks);
+        let mut results = std::mem::take(&mut self.apply_results);
+        pending.push(ApplyTask::Visit(left, right));
+        let result = (|| {
+            while let Some(task) = pending.pop() {
+                match task {
+                    ApplyTask::Visit(mut left, mut right) => {
+                        if left > right {
+                            std::mem::swap(&mut left, &mut right);
+                        }
+                        if let Some(value) = self.simple_apply(operator, left, right)? {
+                            results.push(value);
+                            continue;
+                        }
+                        let key = (operator, left, right);
+                        if let Some(value) = self.apply_cache.get(key) {
+                            results.push(value);
+                            continue;
+                        }
+                        self.charge(1)?;
+                        let a = self.node(left).expect("terminal cases were simplified");
+                        let b = self.node(right).expect("terminal cases were simplified");
+                        let variable = a.variable.min(b.variable);
+                        let (al, ah) = Self::branches(a, left, variable);
+                        let (bl, bh) = Self::branches(b, right, variable);
+                        pending.push(ApplyTask::Finish(key, variable));
+                        pending.push(ApplyTask::Visit(ah, bh));
+                        pending.push(ApplyTask::Visit(al, bl));
                     }
-                    if let Some(value) = self.simple_apply(operator, left, right)? {
-                        results.push(value);
-                        continue;
+                    ApplyTask::Finish(key, variable) => {
+                        let high = results.pop().expect("visited child has a result");
+                        let low = results.pop().expect("visited child has a result");
+                        let result = self.make_node(variable, low, high)?;
+                        self.apply_cache.insert(key, result, self.nodes.len());
+                        results.push(result);
                     }
-                    let key = (operator, left, right);
-                    if let Some(&value) = self.apply_cache.get(&key) {
-                        results.push(value);
-                        continue;
-                    }
-                    self.charge(1)?;
-                    let a = self.node(left).expect("terminal cases were simplified");
-                    let b = self.node(right).expect("terminal cases were simplified");
-                    let variable = a.variable.min(b.variable);
-                    let (al, ah) = Self::branches(a, left, variable);
-                    let (bl, bh) = Self::branches(b, right, variable);
-                    pending.push(Task::Finish(key, variable));
-                    pending.push(Task::Visit(ah, bh));
-                    pending.push(Task::Visit(al, bl));
-                }
-                Task::Finish(key, variable) => {
-                    let high = results.pop().expect("visited child has a result");
-                    let low = results.pop().expect("visited child has a result");
-                    let result = self.make_node(variable, low, high)?;
-                    if self.apply_cache.len() == MAX_CACHE_ENTRIES {
-                        self.apply_cache.clear();
-                    }
-                    self.apply_cache.insert(key, result);
-                    results.push(result);
                 }
             }
-        }
-        Ok(results.pop().expect("root has a result"))
+            Ok(results.pop().expect("root has a result"))
+        })();
+        pending.clear();
+        results.clear();
+        self.apply_tasks = pending;
+        self.apply_results = results;
+        result
     }
 
     /// Enumerate at most `limit` distinct output tuples, charging residual
@@ -710,6 +836,17 @@ struct RowWitnessNode {
     columns: (usize, usize),
 }
 
+#[derive(Debug, Clone, Default)]
+struct WitnessExpansionScratch {
+    weights: Vec<DecisionId>,
+    stamps: Vec<u32>,
+    epoch: u32,
+    pending: BinaryHeap<usize>,
+    coefficients: Vec<DecisionId>,
+    column_stamps: Vec<u32>,
+    touched: Vec<usize>,
+}
+
 #[derive(Debug, Clone)]
 struct RowWitnessTape {
     explicit_columns: FxHashSet<usize>,
@@ -717,6 +854,7 @@ struct RowWitnessTape {
     ops: Vec<RowWitnessNode>,
     limit: usize,
     roots: usize,
+    expansion: WitnessExpansionScratch,
 }
 
 impl RowWitnessTape {
@@ -774,16 +912,14 @@ impl RowWitnessTape {
         })
     }
 
-    fn reconstruct(
+    fn reconstruct_columns(
         &self,
         root: usize,
-        requested: Option<&[usize]>,
+        requested: &[usize],
         diagram: &mut BooleanDecisionDiagram,
     ) -> Result<Vec<(usize, DecisionId)>, BooleanResourceError> {
         diagram.charge(1)?;
         let extended = self.explicit_columns.len() != self.initial_explicit_columns;
-        // ponytail: queries replay ancestry independently; batch fixed roots if
-        // overlapping query histories dominate after planner migration.
         // Parents are newer than children. Coalesce every path's scale before
         // visiting a shared child; never materialize intermediate witness rows.
         let mut pending = BTreeMap::from([(root, DECISION_TRUE)]);
@@ -794,43 +930,28 @@ impl RowWitnessTape {
                 continue;
             }
             let node = &self.ops[id];
-            let requested = if let Some(columns) = requested {
-                diagram.charge(2 * (columns.len().max(1).ilog2() as usize + 1))?;
-                let first = columns.partition_point(|&column| column < node.columns.0);
-                let last = columns.partition_point(|&column| column <= node.columns.1);
-                if first == last {
-                    continue;
-                }
-                Some(&columns[first..last])
-            } else {
-                None
-            };
+            diagram.charge(2 * (requested.len().max(1).ilog2() as usize + 1))?;
+            let first = requested.partition_point(|&column| column < node.columns.0);
+            let last = requested.partition_point(|&column| column <= node.columns.1);
+            if first == last {
+                continue;
+            }
+            let requested = &requested[first..last];
             match &node.op {
                 RowWitnessOp::Leaf(terms) => {
-                    let mut accumulate = |column, value, diagram: &mut BooleanDecisionDiagram| {
+                    diagram.charge(
+                        requested
+                            .len()
+                            .saturating_mul(terms.len().ilog2() as usize + 1),
+                    )?;
+                    for &column in requested {
                         if extended && self.explicit_columns.contains(&column) {
-                            return Ok(());
+                            continue;
                         }
-                        let value = diagram.apply(BooleanOp::And, weight, value)?;
-                        let previous = result.entry(column).or_insert(DECISION_FALSE);
-                        *previous = diagram.apply(BooleanOp::Xor, *previous, value)?;
-                        Ok::<_, BooleanResourceError>(())
-                    };
-                    if let Some(columns) = requested {
-                        diagram.charge(
-                            columns
-                                .len()
-                                .saturating_mul(terms.len().ilog2() as usize + 1),
-                        )?;
-                        for &column in columns {
-                            if let Ok(index) = terms.binary_search_by_key(&column, |term| term.0) {
-                                accumulate(column, terms[index].1, diagram)?;
-                            }
-                        }
-                    } else {
-                        diagram.charge(terms.len())?;
-                        for &(column, value) in terms {
-                            accumulate(column, value, diagram)?;
+                        if let Ok(index) = terms.binary_search_by_key(&column, |term| term.0) {
+                            let value = diagram.apply(BooleanOp::And, weight, terms[index].1)?;
+                            let previous = result.entry(column).or_insert(DECISION_FALSE);
+                            *previous = diagram.apply(BooleanOp::Xor, *previous, value)?;
                         }
                     }
                 }
@@ -869,6 +990,136 @@ impl RowWitnessTape {
         )?;
         terms.sort_unstable_by_key(|&(column, _)| column);
         Ok(terms)
+    }
+
+    fn reconstruct_all(
+        &mut self,
+        root: usize,
+        diagram: &mut BooleanDecisionDiagram,
+    ) -> Result<Vec<(usize, DecisionId)>, BooleanResourceError> {
+        let extended = self.explicit_columns.len() != self.initial_explicit_columns;
+        // Sparse coordinate domains must not allocate up to their largest column.
+        let dense = self.ops[root]
+            .columns
+            .1
+            .checked_add(1)
+            .is_some_and(|width| width <= self.roots);
+        let scratch = &mut self.expansion;
+        let result = (|| {
+            diagram.charge(1)?;
+            if scratch.weights.len() <= root {
+                diagram.charge((root + 1 - scratch.weights.len()).saturating_mul(2))?;
+                scratch.weights.resize(root + 1, DECISION_FALSE);
+                scratch.stamps.resize(root + 1, 0);
+            }
+            let mut epoch = scratch.epoch.wrapping_add(1);
+            if epoch == 0 {
+                diagram.charge(
+                    scratch
+                        .stamps
+                        .len()
+                        .saturating_add(scratch.column_stamps.len()),
+                )?;
+                scratch.stamps.fill(0);
+                scratch.column_stamps.fill(0);
+                epoch = 1;
+            }
+            scratch.epoch = epoch;
+            scratch.stamps[root] = epoch;
+            scratch.weights[root] = DECISION_TRUE;
+            scratch.pending.push(root);
+            let mut sparse = FxHashMap::<usize, DecisionId>::default();
+            while let Some(id) = scratch.pending.pop() {
+                diagram.charge(1)?;
+                let weight = scratch.weights[id];
+                if weight == DECISION_FALSE {
+                    continue;
+                }
+                match &self.ops[id].op {
+                    RowWitnessOp::Leaf(terms) => {
+                        diagram.charge(terms.len())?;
+                        for &(column, value) in terms {
+                            if extended && self.explicit_columns.contains(&column) {
+                                continue;
+                            }
+                            let value = diagram.apply(BooleanOp::And, weight, value)?;
+                            let previous = if dense {
+                                if scratch.coefficients.len() <= column {
+                                    diagram.charge(
+                                        (column + 1 - scratch.coefficients.len()).saturating_mul(2),
+                                    )?;
+                                    scratch.coefficients.resize(column + 1, DECISION_FALSE);
+                                    scratch.column_stamps.resize(column + 1, 0);
+                                }
+                                if scratch.column_stamps[column] != epoch {
+                                    scratch.column_stamps[column] = epoch;
+                                    scratch.coefficients[column] = DECISION_FALSE;
+                                    scratch.touched.push(column);
+                                }
+                                &mut scratch.coefficients[column]
+                            } else {
+                                sparse.entry(column).or_insert(DECISION_FALSE)
+                            };
+                            *previous = diagram.apply(BooleanOp::Xor, *previous, value)?;
+                        }
+                    }
+                    RowWitnessOp::Xor {
+                        left,
+                        right,
+                        factor,
+                    } => {
+                        let scaled = diagram.apply(BooleanOp::And, weight, *factor)?;
+                        for (child, value) in left
+                            .map(|id| (id, weight))
+                            .into_iter()
+                            .chain(std::iter::once((*right, scaled)))
+                        {
+                            if value == DECISION_FALSE {
+                                continue;
+                            }
+                            diagram.charge(1)?;
+                            if scratch.stamps[child] != epoch {
+                                scratch.stamps[child] = epoch;
+                                scratch.weights[child] = DECISION_FALSE;
+                                scratch.pending.push(child);
+                            }
+                            scratch.weights[child] =
+                                diagram.apply(BooleanOp::Xor, scratch.weights[child], value)?;
+                        }
+                    }
+                }
+            }
+            let count = if dense {
+                scratch.touched.len()
+            } else {
+                sparse.len()
+            };
+            diagram.charge(count)?;
+            let mut terms = Vec::with_capacity(count);
+            if dense {
+                terms.extend(scratch.touched.iter().filter_map(|&column| {
+                    let value = scratch.coefficients[column];
+                    (value != DECISION_FALSE).then_some((column, value))
+                }));
+            } else {
+                terms.extend(
+                    sparse
+                        .into_iter()
+                        .filter(|&(_, value)| value != DECISION_FALSE),
+                );
+            }
+            diagram.charge(
+                terms
+                    .len()
+                    .saturating_mul(terms.len().max(1).ilog2() as usize + 1),
+            )?;
+            terms.sort_unstable_by_key(|&(column, _)| column);
+            Ok(terms)
+        })();
+        // Every replay advances the stamps; stale scratch handles are never GC roots.
+        scratch.pending.clear();
+        scratch.touched.clear();
+        result
     }
 
     /// Propagate each requested coordinate through shared transfer uses once.
@@ -1050,6 +1301,7 @@ impl BooleanDecisionDiagram {
             ops: Vec::new(),
             limit: max_operations,
             roots: 0,
+            expansion: WitnessExpansionScratch::default(),
         });
         Ok(())
     }
@@ -1256,7 +1508,7 @@ impl BooleanRow {
             .row_witnesses
             .take()
             .expect("deferred row has an owned witness tape");
-        let passive = tape.reconstruct(root, Some(&requested), diagram);
+        let passive = tape.reconstruct_columns(root, &requested, diagram);
         diagram.row_witnesses = Some(tape);
         let passive = passive?;
         diagram.charge(
@@ -1355,11 +1607,11 @@ impl BooleanRow {
             self.witness = RowWitness::Explicit;
             return Ok(());
         };
-        let tape = diagram
+        let mut tape = diagram
             .row_witnesses
             .take()
             .expect("row witness tape started");
-        let expanded = tape.reconstruct(root, None, diagram);
+        let expanded = tape.reconstruct_all(root, diagram);
         diagram.row_witnesses = Some(tape);
         let passive = expanded?;
         diagram.charge(self.bits.len().saturating_add(passive.len()))?;
@@ -2467,6 +2719,42 @@ mod tests {
     }
 
     #[test]
+    fn dense_witness_replay_preserves_raw_rows_across_wrap_errors_and_collection() {
+        for high in [1, usize::MAX] {
+            let mut diagram = BooleanDecisionDiagram::default();
+            diagram
+                .make_node(99, DECISION_FALSE, DECISION_TRUE)
+                .unwrap();
+            let a = diagram.make_node(0, DECISION_FALSE, DECISION_TRUE).unwrap();
+            let b = diagram.make_node(1, DECISION_FALSE, DECISION_TRUE).unwrap();
+            let mut row = BooleanRow::from_terms(DECISION_FALSE, [(0, a), (high, b)]);
+            let mut other = BooleanRow::from_terms(DECISION_TRUE, [(0, b), (high, DECISION_TRUE)]);
+            let mut expected = row.clone();
+            expected.xor_scaled(&other, a, &mut diagram).unwrap();
+            diagram.start_witness_tape([], 100).unwrap();
+            row.defer_coefficients(&mut diagram).unwrap();
+            other.defer_coefficients(&mut diagram).unwrap();
+            row.xor_scaled(&other, a, &mut diagram).unwrap();
+            let mut warm = row.clone();
+            warm.expand_coefficients(&mut diagram).unwrap();
+            assert_eq!(warm.terms(), expected.terms());
+            diagram.row_witnesses.as_mut().unwrap().expansion.epoch = u32::MAX;
+            let mut wrapped = row.clone();
+            wrapped.expand_coefficients(&mut diagram).unwrap();
+            assert_eq!(wrapped.terms(), expected.terms());
+            diagram.limits.max_steps = diagram.steps() + 3;
+            let error = row.expand_coefficients(&mut diagram).unwrap_err();
+            assert_eq!(error.resource, "Boolean work steps");
+            drop((warm, wrapped, other));
+            diagram.collect_garbage(row.decisions_mut().chain(expected.decisions_mut()));
+            diagram.limits.max_steps = usize::MAX;
+            row.expand_coefficients(&mut diagram).unwrap();
+            assert_eq!(row.active, DECISION_FALSE);
+            assert_eq!(row.terms(), expected.terms());
+        }
+    }
+
+    #[test]
     fn composed_queries_prune_disjoint_history_and_restore_tape_on_exhaustion() {
         let mut diagram = BooleanDecisionDiagram::default();
         diagram.start_witness_tape([], 4096).unwrap();
@@ -2932,6 +3220,155 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn computed_table_collisions_preserve_every_three_variable_function() {
+        fn function(
+            diagram: &mut BooleanDecisionDiagram,
+            variable: usize,
+            truth: u8,
+        ) -> DecisionId {
+            if variable == 3 {
+                return if truth & 1 == 0 {
+                    DECISION_FALSE
+                } else {
+                    DECISION_TRUE
+                };
+            }
+            let low = function(diagram, variable + 1, truth);
+            let high = function(diagram, variable + 1, truth >> (1 << (2 - variable)));
+            diagram.make_node(variable, low, high).unwrap()
+        }
+
+        let mut diagram = BooleanDecisionDiagram::default();
+        let functions = (0..=u8::MAX)
+            .map(|truth| function(&mut diagram, 0, truth))
+            .collect::<Vec<_>>();
+        for (truth, &root) in functions.iter().enumerate() {
+            for assignment in 0..8 {
+                assert_eq!(
+                    diagram.evaluate(root, |variable| assignment & (1 << (2 - variable)) != 0),
+                    truth & (1 << assignment) != 0,
+                );
+            }
+        }
+        let mut nontrivial_keys = 0;
+        for (a, &left) in functions.iter().enumerate() {
+            for (b, &right) in functions.iter().enumerate().skip(a + 1) {
+                for (operator, truth) in [
+                    (BooleanOp::Xor, a ^ b),
+                    (BooleanOp::And, a & b),
+                    (BooleanOp::Or, a | b),
+                ] {
+                    assert_eq!(
+                        diagram.apply(operator, left, right).unwrap(),
+                        functions[truth]
+                    );
+                    nontrivial_keys += usize::from(left.0 >= 2 && right.0 >= 2);
+                }
+            }
+        }
+        assert!(nontrivial_keys > diagram.apply_cache.entries.len());
+    }
+
+    #[test]
+    fn computed_table_remapping_drops_dead_operands_and_results() {
+        let mut table = ComputedTable::default();
+        for (operator, left, right, result) in [
+            (BooleanOp::And, 3, 4, 6),
+            (BooleanOp::And, 2, 4, 4),
+            (BooleanOp::Or, 3, 5, 6),
+            (BooleanOp::Xor, 3, 4, 5),
+            (BooleanOp::Xor, 3, 3, 0),
+        ] {
+            table.insert(
+                (operator, DecisionId(left), DecisionId(right)),
+                DecisionId(result),
+                5,
+            );
+        }
+        table.remap(&[0, 1, 0, 2, 3, 0, 4].map(DecisionId));
+        assert_eq!(
+            table.get((BooleanOp::And, DecisionId(2), DecisionId(3))),
+            Some(DecisionId(4)),
+        );
+        assert_eq!(
+            table.get((BooleanOp::Xor, DecisionId(2), DecisionId(2))),
+            Some(DECISION_FALSE),
+        );
+        for key in [
+            (BooleanOp::And, DECISION_FALSE, DecisionId(3)),
+            (BooleanOp::Or, DecisionId(2), DECISION_FALSE),
+            (BooleanOp::Xor, DecisionId(2), DecisionId(3)),
+        ] {
+            assert_eq!(table.get(key), None);
+        }
+    }
+
+    #[test]
+    fn boolean_stacks_can_be_reused_after_exhaustion_and_collection() {
+        for negate in [false, true] {
+            let mut diagram = BooleanDecisionDiagram::default();
+            let variables = (0..4)
+                .map(|variable| {
+                    diagram
+                        .make_node(variable, DECISION_FALSE, DECISION_TRUE)
+                        .unwrap()
+                })
+                .collect::<Vec<_>>();
+            let mut roots = [
+                diagram
+                    .apply(BooleanOp::And, variables[0], variables[2])
+                    .unwrap(),
+                diagram
+                    .apply(BooleanOp::Or, variables[1], variables[3])
+                    .unwrap(),
+            ];
+            diagram.limits.max_steps = diagram.steps() + 2;
+            let error = if negate {
+                diagram.negate(roots[0])
+            } else {
+                diagram.apply(BooleanOp::And, roots[0], roots[1])
+            }
+            .unwrap_err();
+            assert_eq!(error.resource, "Boolean work steps");
+            diagram.collect_garbage(&mut roots);
+            diagram.limits.max_steps = usize::MAX;
+            let result = if negate {
+                diagram.negate(roots[0])
+            } else {
+                diagram.apply(BooleanOp::And, roots[0], roots[1])
+            }
+            .unwrap();
+            for assignment in 0..16 {
+                let value = |bit| assignment & (1 << bit) != 0;
+                let left = value(0) && value(2);
+                assert_eq!(
+                    diagram.evaluate(result, value),
+                    if negate {
+                        !left
+                    } else {
+                        left && (value(1) || value(3))
+                    },
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn collection_advances_the_handle_generation_even_without_removing_nodes() {
+        let mut diagram = BooleanDecisionDiagram::default();
+        let mut root = diagram.make_node(0, DECISION_FALSE, DECISION_TRUE).unwrap();
+        let before = diagram.generation();
+        assert_eq!(diagram.collect_garbage([&mut root]), 0);
+        assert_ne!(diagram.generation(), before);
+        let before = diagram.generation();
+        diagram.make_node(1, DECISION_FALSE, DECISION_TRUE).unwrap();
+        assert_eq!(diagram.collect_garbage([&mut root]), 1);
+        assert_ne!(diagram.generation(), before);
+        assert!(diagram.evaluate(root, |_| true));
+        assert!(!diagram.evaluate(root, |_| false));
     }
 
     #[test]
