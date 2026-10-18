@@ -52,6 +52,18 @@ pub struct GuardedSurfaceSpace {
     surfaces: Vec<GuardedSurface>,
     limits: ModuleCertificationLimits,
     module_sites: BTreeMap<[i32; 3], usize>,
+    next_readout_collection: usize,
+}
+
+// Reclamation stays finite when callers raise or disable the witness quota.
+const READOUT_COLLECTION_TARGET: usize = 1_000_000;
+
+fn next_readout_collection(retained: usize, limit: usize) -> usize {
+    let growth = (READOUT_COLLECTION_TARGET / 4).max(retained / 4);
+    retained
+        .saturating_add(growth)
+        .max(READOUT_COLLECTION_TARGET)
+        .min(limit)
 }
 
 #[doc(hidden)]
@@ -84,6 +96,92 @@ pub struct GuardedSurface {
 enum AvailabilityKey {
     Site([i32; 3]),
     Feedback(usize),
+}
+
+struct ModuleScope<'a> {
+    parent: Option<usize>,
+    depth: usize,
+    path: &'a str,
+    children: BTreeMap<&'a str, usize>,
+}
+
+struct ModuleScopes<'a> {
+    nodes: Vec<ModuleScope<'a>>,
+}
+
+impl<'a> ModuleScopes<'a> {
+    fn new() -> Self {
+        Self {
+            nodes: vec![ModuleScope {
+                parent: None,
+                depth: 0,
+                path: "",
+                children: BTreeMap::new(),
+            }],
+        }
+    }
+
+    fn insert(&mut self, path: &'a str) -> usize {
+        let mut owner = 0;
+        if path.is_empty() {
+            return owner;
+        }
+        let mut end = 0;
+        for component in path.split("__") {
+            end += component.len();
+            owner = if let Some(&child) = self.nodes[owner].children.get(component) {
+                child
+            } else {
+                let child = self.nodes.len();
+                let depth = self.nodes[owner].depth + 1;
+                self.nodes.push(ModuleScope {
+                    parent: Some(owner),
+                    depth,
+                    path: &path[..end],
+                    children: BTreeMap::new(),
+                });
+                self.nodes[owner].children.insert(component, child);
+                child
+            };
+            end += 2;
+        }
+        owner
+    }
+
+    fn common_ancestor(&self, mut left: usize, mut right: usize) -> usize {
+        if left == 0 || right == 0 {
+            return 0;
+        }
+        while self.nodes[left].depth > self.nodes[right].depth {
+            left = self.nodes[left]
+                .parent
+                .expect("non-root scope has a parent");
+        }
+        while self.nodes[right].depth > self.nodes[left].depth {
+            right = self.nodes[right]
+                .parent
+                .expect("non-root scope has a parent");
+        }
+        while left != right {
+            left = self.nodes[left]
+                .parent
+                .expect("distinct peers are non-root");
+            right = self.nodes[right]
+                .parent
+                .expect("distinct peers are non-root");
+        }
+        left
+    }
+
+    fn lexical_order(&self) -> Vec<usize> {
+        let mut order = Vec::with_capacity(self.nodes.len());
+        let mut pending = vec![0];
+        while let Some(scope) = pending.pop() {
+            order.push(scope);
+            pending.extend(self.nodes[scope].children.values().rev().copied());
+        }
+        order
+    }
 }
 
 #[derive(Default)]
@@ -366,21 +464,26 @@ impl GuardedSurfaceSpace {
         limits: ModuleCertificationLimits,
         relations: &HashMap<String, Arc<crate::summary::relations::ModuleRelations>>,
     ) -> Result<Self, BlockGraphError> {
-        type Scope = Vec<String>;
-        let scope = |position: [i32; 3]| -> Scope {
-            sites
-                .get(&IVec3::from_array(position))
-                .filter(|site| !site.instance_path.is_empty())
-                .map(|site| site.instance_path.split("__").map(str::to_owned).collect())
-                .unwrap_or_default()
-        };
+        // Intern components once, including empty ancestors. Numeric parents
+        // avoid cloning and comparing every shared prefix during composition.
+        let mut scopes = ModuleScopes::new();
+        let owners = topology
+            .sites
+            .keys()
+            .map(|&position| {
+                let path = sites
+                    .get(&IVec3::from_array(position))
+                    .map_or("", |site| site.instance_path.as_str());
+                (position, scopes.insert(path))
+            })
+            .collect::<BTreeMap<_, _>>();
         // A source block has at most six incident directions. Most compilations
         // fit the limit even under this allocation-free global upper bound.
         let upper_bound = topology.sites.values().fold(0usize, |sum, variants| {
             sum.saturating_add(variants.len().saturating_mul(6).saturating_add(1))
         });
         if upper_bound > limits.max_local_columns {
-            let mut dimensions = BTreeMap::<Scope, usize>::new();
+            let mut dimensions = vec![0usize; scopes.nodes.len()];
             for (&position, variants) in &topology.sites {
                 let neighbors = variants
                     .iter()
@@ -392,7 +495,7 @@ impl GuardedSurfaceSpace {
                             .map(|block| block.pos().to_array())
                     })
                     .collect::<BTreeSet<_>>();
-                let observed = dimensions.entry(scope(position)).or_default();
+                let observed = &mut dimensions[owners[&position]];
                 *observed += neighbors.len()
                     + usize::from(variants.iter().any(|variant| {
                         variant
@@ -413,21 +516,21 @@ impl GuardedSurfaceSpace {
         // Keep authored instance boundaries after consuming the local ZX views.
         // Instance ids are local to this source plan; they never identify equal
         // physical owners in different instances.
-        let mut modules = BTreeMap::new();
+        let mut modules = HashMap::new();
         let module_sites = topology
             .sites
             .keys()
             .map(|&position| {
                 let next = modules.len();
-                (position, *modules.entry(scope(position)).or_insert(next))
+                (position, *modules.entry(owners[&position]).or_insert(next))
             })
             .collect();
         let mut columns = BTreeMap::new();
-        let mut groups = BTreeMap::<Scope, Vec<BooleanRow>>::new();
-        let mut seams = BTreeMap::<Scope, BTreeMap<([i32; 3], [i32; 3]), DecisionId>>::new();
+        let mut groups = vec![Vec::<BooleanRow>::new(); scopes.nodes.len()];
+        let mut seams = vec![BTreeMap::new(); scopes.nodes.len()];
         let mut local = BTreeMap::new();
         for (&position, variants) in &topology.sites {
-            let owner = scope(position);
+            let owner = owners[&position];
             let mut tensors = BTreeMap::<Vec<(usize, DecisionId)>, DecisionId>::new();
             let mut local_variants = Vec::new();
             let mut local_keys = HashMap::new();
@@ -473,18 +576,8 @@ impl GuardedSurfaceSpace {
                     if position >= other {
                         continue;
                     }
-                    let other_owner = scope(other);
-                    let parent = owner
-                        .iter()
-                        .zip(&other_owner)
-                        .take_while(|(a, b)| a == b)
-                        .map(|(part, _)| part.clone())
-                        .collect::<Scope>();
-                    let hadamard = seams
-                        .entry(parent)
-                        .or_default()
-                        .entry((position, other))
-                        .or_insert(ZERO);
+                    let parent = scopes.common_ancestor(owner, owners[&other]);
+                    let hadamard = seams[parent].entry((position, other)).or_insert(ZERO);
                     if zx.edge_by_id(edge_id).hadamard {
                         *hadamard =
                             topology
@@ -524,7 +617,7 @@ impl GuardedSurfaceSpace {
                 let next = columns.len();
                 columns.entry(SurfaceColumn::Node(position)).or_insert(next);
             }
-            groups.entry(owner).or_default().extend(
+            groups[owner].extend(
                 tensors
                     .into_iter()
                     .map(|(bits, active)| BooleanRow::from_terms(active, bits)),
@@ -563,40 +656,33 @@ impl GuardedSurfaceSpace {
             remap[*old] = new;
             *old = new;
         }
-        for row in groups.values_mut().flatten() {
-            let count = row.terms().len();
-            topology
-                .diagram
-                .charge(count.saturating_mul(count.max(1).ilog2() as usize + 1))?;
-            let active = row.active;
-            let mut terms = std::mem::take(row).into_terms();
-            for (column, _) in &mut terms {
-                *column = 2 * remap[*column / 2] + *column % 2;
-            }
-            terms.sort_unstable_by_key(|&(column, _)| column);
-            *row = BooleanRow::from_terms(active, terms);
-        }
-        // Include parent scopes with only child instances and no local blocks.
-        for mut owner in groups.keys().cloned().collect::<Vec<_>>() {
-            while owner.pop().is_some() {
-                groups.entry(owner.clone()).or_default();
+        let mut scope_order = scopes.lexical_order();
+        for &scope in &scope_order {
+            for row in &mut groups[scope] {
+                let count = row.terms().len();
+                topology
+                    .diagram
+                    .charge(count.saturating_mul(count.max(1).ilog2() as usize + 1))?;
+                let active = row.active;
+                let mut terms = std::mem::take(row).into_terms();
+                for (column, _) in &mut terms {
+                    *column = 2 * remap[*column / 2] + *column % 2;
+                }
+                terms.sort_unstable_by_key(|&(column, _)| column);
+                *row = BooleanRow::from_terms(active, terms);
             }
         }
-        groups.entry(Vec::new()).or_default();
-        let mut scopes = groups.keys().cloned().collect::<Vec<_>>();
-        scopes.sort_by(|left, right| right.len().cmp(&left.len()).then(left.cmp(right)));
+        // Stable sorting retains component-wise lexical order among peers.
+        // Whole path strings differ here: "a__z" sorts after "a0__z".
+        scope_order.sort_by_key(|&scope| std::cmp::Reverse(scopes.nodes[scope].depth));
         let mut column_rank = vec![0; columns.len()];
         for (rank, &column) in columns.values().enumerate() {
             column_rank[column] = rank;
         }
         let mut root = Vec::new();
-        for mut owner in scopes {
-            let rows = groups
-                .remove(&owner)
-                .expect("scope order contains each existing owner once");
-            let mut edges = seams
-                .remove(&owner)
-                .unwrap_or_default()
+        for owner in scope_order {
+            let rows = std::mem::take(&mut groups[owner]);
+            let mut edges = std::mem::take(&mut seams[owner])
                 .into_iter()
                 .collect::<Vec<_>>();
             // Close lower layers first, as in the ordinary module projector.
@@ -609,18 +695,14 @@ impl GuardedSurfaceSpace {
                     (lhs, rhs, hadamard)
                 })
                 .collect::<Vec<_>>();
-            let path = owner.join("__");
-            let cache = relations.get(&path);
+            let cache = relations.get(scopes.nodes[owner].path);
             let rows = if let Some(cache) = cache {
                 cache.reduce(rows, seams, &column_rank, &mut topology.diagram, limits)?
             } else {
                 crate::summary::relations::close_seams(rows, &seams, &mut topology.diagram, limits)?
             };
-            if owner.pop().is_some() {
-                groups
-                    .get_mut(&owner)
-                    .expect("parent scope exists")
-                    .extend(rows);
+            if let Some(parent) = scopes.nodes[owner].parent {
+                groups[parent].extend(rows);
             } else {
                 root = rows;
             }
@@ -633,6 +715,7 @@ impl GuardedSurfaceSpace {
             surfaces: Vec::new(),
             limits,
             module_sites,
+            next_readout_collection: next_readout_collection(0, limits.max_witness_nodes),
         })
     }
 
@@ -1372,6 +1455,11 @@ impl GuardedSurfaceSpace {
                     .flat_map(BooleanRow::decisions_mut),
             )?;
         }
+        let output_columns = if RECLAIM {
+            self.index_output_axes(&output_axes)?
+        } else {
+            BTreeMap::new()
+        };
         let mut output_rows = output_rows.into_iter();
         for (index, &(port, axis, active)) in output_axes.iter().enumerate() {
             let row = if active {
@@ -1381,37 +1469,11 @@ impl GuardedSurfaceSpace {
             } else {
                 BooleanRow::new(ZERO)
             };
-            let mut folds = Vec::new();
-            if RECLAIM && active {
-                self.topology
-                    .diagram
-                    .charge(output_axes.len() - index - 1)?;
-                for &(later, axis, active) in &output_axes[index + 1..] {
-                    if !active {
-                        continue;
-                    }
-                    let terms = self.component_terms(
-                        SurfaceColumn::Node(later.to_array()),
-                        [Pauli::X, Pauli::Z][axis],
-                    );
-                    let value = Self::linear_value(&row, &terms, &mut self.topology.diagram)?;
-                    let guard = self
-                        .topology
-                        .diagram
-                        .apply(BooleanOp::And, row.active, value)?;
-                    if guard != ZERO {
-                        folds.push((
-                            later,
-                            if axis == 0 {
-                                PauliBasis::Z
-                            } else {
-                                PauliBasis::X
-                            },
-                            guard,
-                        ));
-                    }
-                }
-            }
+            let folds = if RECLAIM && active {
+                self.output_folds(&row, index, &output_axes, &output_columns)?
+            } else {
+                Vec::new()
+            };
             let feedbacks = self.feedbacks::<RECLAIM>(&row, &actions, &feedback_columns)?;
             self.surfaces.push(GuardedSurface {
                 kind: GuardedSurfaceKind::OutputFrame {
@@ -1427,6 +1489,7 @@ impl GuardedSurfaceSpace {
                 row,
             });
         }
+        drop(output_columns);
         let input_columns = inputs
             .iter()
             .flat_map(|&(column, axis)| {
@@ -1938,7 +2001,8 @@ impl GuardedSurfaceSpace {
         &mut self,
         pending: impl IntoIterator<Item = &'a mut DecisionId>,
     ) -> Result<(), BlockGraphError> {
-        if self.topology.diagram.nodes().len() > self.limits.max_witness_nodes {
+        let allocated = self.topology.diagram.nodes().len();
+        if allocated > self.next_readout_collection || allocated > self.limits.max_witness_nodes {
             self.collect_readout_roots(pending)?;
         }
         self.check_budget()
@@ -2000,6 +2064,10 @@ impl GuardedSurfaceSpace {
             .map(|local| &mut local.guard);
         self.topology
             .collect_garbage(coefficients.chain(surfaces).chain(local));
+        self.next_readout_collection = next_readout_collection(
+            self.topology.diagram.nodes().len(),
+            self.limits.max_witness_nodes,
+        );
         Ok(())
     }
 
@@ -2074,6 +2142,7 @@ impl GuardedSurfaceSpace {
         row.get(2 * index + usize::from(axis == Pauli::Z))
     }
 
+    #[cfg(test)]
     fn linear_value(
         row: &BooleanRow,
         terms: &[(usize, DecisionId)],
@@ -2084,6 +2153,113 @@ impl GuardedSurfaceSpace {
             let term = diagram.apply(BooleanOp::And, weight, row.get(column))?;
             diagram.apply(BooleanOp::Xor, value, term)
         })
+    }
+
+    fn index_output_axes(
+        &mut self,
+        outputs: &[(IVec3, usize, bool)],
+    ) -> Result<BTreeMap<usize, Vec<(usize, DecisionId)>>, BooleanResourceError> {
+        self.topology.diagram.charge(outputs.len())?;
+        let mut columns = BTreeMap::<usize, Vec<(usize, DecisionId)>>::new();
+        for (index, &(port, axis, active)) in outputs.iter().enumerate() {
+            if !active {
+                continue;
+            }
+            self.topology
+                .diagram
+                .charge(self.local[&port.to_array()].len())?;
+            let terms = self.component_terms(
+                SurfaceColumn::Node(port.to_array()),
+                [Pauli::X, Pauli::Z][axis],
+            );
+            self.topology.diagram.charge(terms.len())?;
+            for (column, weight) in terms {
+                if weight != ZERO {
+                    columns.entry(column).or_default().push((index, weight));
+                }
+            }
+        }
+        Ok(columns)
+    }
+
+    fn output_folds(
+        &mut self,
+        row: &BooleanRow,
+        index: usize,
+        outputs: &[(IVec3, usize, bool)],
+        columns: &BTreeMap<usize, Vec<(usize, DecisionId)>>,
+    ) -> Result<Vec<(IVec3, PauliBasis, DecisionId)>, BooleanResourceError> {
+        if index + 1 == outputs.len() {
+            return Ok(Vec::new());
+        }
+        // Probe the smaller support, keeping column order on either path.
+        let scan_row = row.terms().len() <= columns.len();
+        let probes = if scan_row {
+            row.terms().len()
+        } else {
+            columns.len()
+        };
+        let width = row.terms().len().max(columns.len()).max(1);
+        self.topology
+            .diagram
+            .charge(probes.saturating_mul(width.ilog2() as usize + 1))?;
+        let mut values = BTreeMap::new();
+        let mut accumulate = |coefficient, candidates: &[(usize, DecisionId)]| {
+            self.topology.diagram.charge(candidates.len())?;
+            for &(later, weight) in candidates {
+                if later <= index {
+                    continue;
+                }
+                let term = self
+                    .topology
+                    .diagram
+                    .apply(BooleanOp::And, weight, coefficient)?;
+                if term == ZERO {
+                    continue;
+                }
+                self.topology
+                    .diagram
+                    .charge(values.len().max(1).ilog2() as usize + 1)?;
+                let value = values.entry(later).or_insert(ZERO);
+                *value = self.topology.diagram.apply(BooleanOp::Xor, *value, term)?;
+            }
+            Ok::<_, BooleanResourceError>(())
+        };
+        if scan_row {
+            for &(column, coefficient) in row.terms() {
+                if let Some(candidates) = columns.get(&column) {
+                    accumulate(coefficient, candidates)?;
+                }
+            }
+        } else {
+            for (&column, candidates) in columns {
+                let coefficient = row.get(column);
+                if coefficient != ZERO {
+                    accumulate(coefficient, candidates)?;
+                }
+            }
+        }
+        self.topology.diagram.charge(values.len())?;
+        let mut folds = Vec::new();
+        for (later, value) in values {
+            let guard = self
+                .topology
+                .diagram
+                .apply(BooleanOp::And, row.active, value)?;
+            if guard != ZERO {
+                let (port, axis, _) = outputs[later];
+                folds.push((
+                    port,
+                    if axis == 0 {
+                        PauliBasis::Z
+                    } else {
+                        PauliBasis::X
+                    },
+                    guard,
+                ));
+            }
+        }
+        Ok(folds)
     }
 
     fn fill_selective(
@@ -2403,6 +2579,99 @@ pub(super) fn materialize_row(
 mod tests {
     use super::*;
 
+    #[test]
+    fn gc_policy_graph_remaps_pending_roots_and_keeps_explicit_quota_checks() {
+        for limit in [2 * READOUT_COLLECTION_TARGET, usize::MAX] {
+            let limits = ModuleCertificationLimits {
+                max_witness_nodes: limit,
+                ..ModuleCertificationLimits::DEFAULT
+            };
+            let mut space = GuardedSurfaceSpace::new(
+                GuardedTopology::new(&crate::BlockGraph::new(), limits).unwrap(),
+                &HashMap::new(),
+                limits,
+            )
+            .unwrap();
+            space.topology.diagram.make_node(9, ZERO, ONE).unwrap();
+            let live = space.topology.diagram.make_node(0, ZERO, ONE).unwrap();
+            let mut pending = BooleanRow::from_terms(live, [(0, live)]);
+            space.next_readout_collection = 0;
+            space.check_readout_budget([&mut pending]).unwrap();
+            assert_eq!(space.topology.diagram.nodes().len(), 1);
+            assert_ne!(pending.active, live, "the dead predecessor is removed");
+            assert_eq!(pending.get(0), pending.active);
+            for value in [false, true] {
+                assert_eq!(
+                    space.topology.diagram.evaluate(pending.active, |_| value),
+                    value
+                );
+            }
+            let spent = space.topology.diagram.steps();
+            space.check_readout_budget([&mut pending]).unwrap();
+            assert_eq!(
+                space.topology.diagram.steps(),
+                spent,
+                "unchanged live data does not recollect"
+            );
+
+            space.limits.max_witness_nodes = 0;
+            assert!(matches!(
+                space.check_readout_budget([&mut pending]),
+                Err(BlockGraphError::Stabilizer(
+                    StabilizerError::ResourceLimited {
+                        phase: "guarded readout coefficients",
+                        observed: 1,
+                        limit: 0,
+                    }
+                ))
+            ));
+        }
+    }
+
+    #[test]
+    fn gc_policy_graph_failed_collection_preserves_schedule_and_roots() {
+        let limits = ModuleCertificationLimits::DEFAULT;
+        let mut space = GuardedSurfaceSpace::new(
+            GuardedTopology::new(&crate::BlockGraph::new(), limits).unwrap(),
+            &HashMap::new(),
+            limits,
+        )
+        .unwrap();
+        space.topology.diagram.make_node(9, ZERO, ONE).unwrap();
+        let live = space.topology.diagram.make_node(0, ZERO, ONE).unwrap();
+        let mut pending = BooleanRow::from_terms(live, [(0, live)]);
+        let remaining = space.topology.diagram.limits().max_steps - space.topology.diagram.steps();
+        space.topology.diagram.charge(remaining).unwrap();
+        space.next_readout_collection = 0;
+        assert!(space.check_readout_budget([&mut pending]).is_err());
+        assert_eq!(space.next_readout_collection, 0);
+        assert_eq!(space.topology.diagram.nodes().len(), 2);
+        assert_eq!(pending.active, live);
+        assert_eq!(pending.get(0), live);
+    }
+
+    #[test]
+    fn module_scopes_preserve_component_order_and_seam_ancestry() {
+        let mut scopes = ModuleScopes::new();
+        let right = scopes.insert("a0__z");
+        let left = scopes.insert("a__z");
+        let sibling = scopes.insert("a__b__leaf");
+        let parent = scopes.common_ancestor(left, sibling);
+        assert_eq!(scopes.nodes[parent].path, "a");
+        assert_eq!(scopes.common_ancestor(left, right), 0);
+        assert_eq!(scopes.common_ancestor(left, left), left);
+        assert_eq!(scopes.insert("a__z"), left);
+        let mut order = scopes.lexical_order();
+        order.sort_by_key(|&scope| std::cmp::Reverse(scopes.nodes[scope].depth));
+        assert_eq!(
+            order
+                .iter()
+                .map(|&scope| scopes.nodes[scope].path)
+                .collect::<Vec<_>>(),
+            ["a__b__leaf", "a__b", "a__z", "a0__z", "a", "a0", ""],
+        );
+    }
+
     #[track_caller]
     pub(super) fn assert_same_raw_plan(
         actual: &GuardedSurfaceSpace,
@@ -2612,6 +2881,14 @@ mod tests {
                 .build()
                 .materialize_root_graph()
                 .expect("gallery flat projection"),
+            crate::GalleryItem::CZSpatialH
+                .build()
+                .materialize_root_graph()
+                .expect("gallery flat projection"),
+            crate::GalleryItem::CZTemporalH
+                .build()
+                .materialize_root_graph()
+                .expect("gallery flat projection"),
             crate::GalleryItem::ThreeBitAdder
                 .build()
                 .materialize_root_graph()
@@ -2637,7 +2914,127 @@ mod tests {
             let mut taped = build();
             taped.plan_causal_readouts::<true, true>().unwrap();
             assert_same_raw_plan(&taped, &expanded);
+            assert_output_folds_match_dense(&mut taped);
         }
+    }
+
+    fn assert_output_folds_match_dense(space: &mut GuardedSurfaceSpace) {
+        let frames = space
+            .surfaces
+            .iter()
+            .filter_map(|surface| {
+                let GuardedSurfaceKind::OutputFrame { port, basis, folds } = &surface.kind else {
+                    return None;
+                };
+                Some((
+                    *port,
+                    usize::from(*basis == PauliBasis::X),
+                    surface.row.clone(),
+                    folds.clone(),
+                ))
+            })
+            .collect::<Vec<_>>();
+        let outputs = frames
+            .iter()
+            .map(|(port, axis, row, _)| (*port, *axis, row.active != ZERO))
+            .collect::<Vec<_>>();
+        for (index, (_, _, row, actual)) in frames.iter().enumerate() {
+            let mut expected = Vec::new();
+            for &(port, axis, active) in &outputs[index + 1..] {
+                if !active {
+                    continue;
+                }
+                let terms = space.component_terms(
+                    SurfaceColumn::Node(port.to_array()),
+                    [Pauli::X, Pauli::Z][axis],
+                );
+                let value =
+                    GuardedSurfaceSpace::linear_value(row, &terms, &mut space.topology.diagram)
+                        .unwrap();
+                let guard = space
+                    .topology
+                    .diagram
+                    .apply(BooleanOp::And, row.active, value)
+                    .unwrap();
+                if guard != ZERO {
+                    expected.push((
+                        port,
+                        if axis == 0 {
+                            PauliBasis::Z
+                        } else {
+                            PauliBasis::X
+                        },
+                        guard,
+                    ));
+                }
+            }
+            assert_eq!(*actual, expected, "output fold order and Boolean guards");
+        }
+    }
+
+    #[test]
+    fn independent_outputs_have_no_cross_folds() {
+        let mut graph = crate::BlockGraph::new();
+        for x in 0..32 {
+            for (z, kind) in [
+                (0, crate::BlockKind::Port),
+                (1, crate::BlockKind::Cube(crate::CubeKind::ZXZ)),
+                (2, crate::BlockKind::Port),
+            ] {
+                graph.add_block(crate::Block::new(IVec3::new(x, 0, z), kind));
+            }
+            for z in 0..2 {
+                graph.add_pipe(crate::Pipe::new(
+                    IVec3::new(x, 0, z),
+                    crate::Direction::ZPLUS,
+                ));
+            }
+        }
+        let limits = ModuleCertificationLimits::DEFAULT;
+        let mut space = GuardedSurfaceSpace::new(
+            GuardedTopology::new(&graph, limits).unwrap(),
+            &HashMap::new(),
+            limits,
+        )
+        .unwrap();
+        space.plan_causal_readouts::<true, true>().unwrap();
+        assert_output_folds_match_dense(&mut space);
+        let mut outputs = Vec::new();
+        for surface in &space.surfaces {
+            if let GuardedSurfaceKind::OutputFrame { port, basis, folds } = &surface.kind {
+                assert!(
+                    folds.is_empty(),
+                    "independent wires have no cross-output fold"
+                );
+                outputs.push((
+                    *port,
+                    usize::from(*basis == PauliBasis::X),
+                    surface.row.active != ZERO,
+                ));
+            }
+        }
+        assert_eq!(outputs.len(), 64);
+    }
+
+    #[test]
+    fn output_folds_probe_only_the_smaller_support() {
+        let limits = ModuleCertificationLimits {
+            max_boolean_steps: 100,
+            ..ModuleCertificationLimits::DEFAULT
+        };
+        let mut space = GuardedSurfaceSpace::new(
+            GuardedTopology::new(&crate::BlockGraph::new(), limits).unwrap(),
+            &HashMap::new(),
+            limits,
+        )
+        .unwrap();
+        let row = BooleanRow::from_terms(ONE, (0..4096).map(|column| (column, ONE)));
+        let outputs = [(IVec3::ZERO, 0, true), (IVec3::Z, 0, true)];
+        let columns = BTreeMap::from([(0, vec![(1, ONE)])]);
+        assert_eq!(
+            space.output_folds(&row, 0, &outputs, &columns).unwrap(),
+            [(IVec3::Z, PauliBasis::Z, ONE)]
+        );
     }
 
     fn expand_output_folds(
@@ -3777,14 +4174,15 @@ module main {
         ] {
             let graph = graph.fix_shadowed_faces();
             let limits = ModuleCertificationLimits::DEFAULT;
-            let mut plan = GuardedSurfaceSpace::new(
+            let mut space = GuardedSurfaceSpace::new(
                 GuardedTopology::new(&graph, limits).unwrap(),
                 &HashMap::new(),
                 limits,
             )
-            .unwrap()
-            .plan_readouts()
             .unwrap();
+            space.plan_causal_readouts::<true, true>().unwrap();
+            assert_output_folds_match_dense(&mut space);
+            let mut plan = space.into_readout_plan().unwrap();
             for outcome in [false, true] {
                 let selected = graph
                     .project_branches_deferred(plan.topology.branches.iter().map(
