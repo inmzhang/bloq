@@ -4,11 +4,11 @@ use std::sync::Arc;
 
 use petgraph::Direction;
 use petgraph::stable_graph::{EdgeIndex, NodeIndex, StableDiGraph};
-use petgraph::visit::{EdgeIndexable, EdgeRef, NodeIndexable};
+use petgraph::visit::{EdgeIndexable, EdgeRef, IntoEdgeReferences, NodeIndexable};
 
 use crate::{
     Bloq, BloqEdge, BloqNode, BloqNodeId, BloqNodeKind, ClassicalExpr, ClassicalNode,
-    CycleDetected, InstanceBoundaryOperator, SubGraph, ValueRole,
+    CycleDetected, SubGraph, ValueRole,
 };
 
 impl Bloq {
@@ -83,23 +83,17 @@ impl SubGraph {
                 BloqNodeKind::Classical(data)
                     if matches!(data.as_ref(),
                         ClassicalNode::Compute { expr } | ClassicalNode::Discard { condition: expr }
-                        if expr.needs_affine_compaction())
-                        || matches!(data.as_ref(), ClassicalNode::Observable { .. }) =>
+                        if expr.needs_affine_compaction()) =>
                 {
                     Some(Arc::make_mut(data))
                 }
                 _ => None,
             };
-            match classical {
-                Some(
-                    ClassicalNode::Compute { expr } | ClassicalNode::Discard { condition: expr },
-                ) => {
-                    expr.compact_affine();
-                }
-                Some(ClassicalNode::Observable { operators, .. }) => {
-                    canonicalize_operators(operators);
-                }
-                _ => {}
+            if let Some(
+                ClassicalNode::Compute { expr } | ClassicalNode::Discard { condition: expr },
+            ) = classical
+            {
+                expr.compact_affine();
             }
             if let BloqNodeKind::Region(region) = &mut node.kind {
                 let crate::RegionNode::RepeatUntilSuccess {
@@ -179,8 +173,9 @@ impl SubGraph {
         recipes.rewrite(self);
     }
 
-    /// Inline leaf recipes into compatible consumers, or merge siblings with
-    /// identical activation and composition uses. Preserve occurrences and owners.
+    /// Inline measurement leaves into compatible consumers, or merge siblings
+    /// with identical activation and composition uses. Boundary products retain
+    /// their packet order: even X*Z*X and X*X*Z have different signs.
     fn fuse_local_observable_fragments(&mut self, pinned: &crate::FxSet<BloqNodeId>) {
         let activation = |level: &Self, id| {
             level[id].activation.map(|slot| {
@@ -199,7 +194,8 @@ impl SubGraph {
                 if pinned.contains(&source)
                     || !matches!(
                         node.try_classical(),
-                        Some(ClassicalNode::Observable { index: None, .. })
+                        Some(ClassicalNode::Observable { index: None, operators, .. })
+                            if operators.is_empty()
                     )
                     || self.data_inputs(source).next().is_some()
                 {
@@ -259,11 +255,7 @@ impl SubGraph {
         let mut removed = crate::FxSet::default();
         let mut rewired = Vec::new();
         for (source, targets) in candidates {
-            let Some(ClassicalNode::Observable {
-                measurements,
-                operators,
-                ..
-            }) = self
+            let Some(ClassicalNode::Observable { measurements, .. }) = self
                 .node_mut(source)
                 .expect("candidate remains live")
                 .try_classical_mut()
@@ -271,7 +263,6 @@ impl SubGraph {
                 unreachable!()
             };
             let local_measurements = std::mem::take(measurements);
-            let local_operators = std::mem::take(operators);
             for target in targets {
                 for edge in self
                     .incoming(source)
@@ -285,11 +276,7 @@ impl SubGraph {
                         ));
                     }
                 }
-                let Some(ClassicalNode::Observable {
-                    measurements,
-                    operators,
-                    ..
-                }) = self
+                let Some(ClassicalNode::Observable { measurements, .. }) = self
                     .node_mut(target)
                     .expect("consumer remains live")
                     .try_classical_mut()
@@ -297,18 +284,17 @@ impl SubGraph {
                     unreachable!()
                 };
                 measurements.extend_from_slice(&local_measurements);
-                operators.extend_from_slice(&local_operators);
             }
             removed.insert(NodeIndex::new(source.0 as usize));
         }
         let graph = self.graph_mut();
-        let retained = detach_retained_edges(graph, |_, source, target| {
+        retain_edges_preserving_adjacency(graph, |_, source, target| {
             !removed.contains(&source) && !removed.contains(&target)
         });
         for &node in &removed {
             graph.remove_node(node);
         }
-        for (source, target, edge) in retained.chain(rewired) {
+        for (source, target, edge) in rewired {
             graph.add_edge(source, target, edge);
         }
     }
@@ -363,10 +349,9 @@ impl SubGraph {
                 }
             }
         }
-        let graph = self.graph_mut();
-        for edge in redundant {
-            graph.remove_edge(edge);
-        }
+        retain_edges_preserving_adjacency(self.graph_mut(), |edge, _, _| {
+            !redundant.contains(&edge)
+        });
     }
 
     /// Contract single-use compute forests, then rebuild adjacency once.
@@ -508,7 +493,7 @@ impl SubGraph {
                 BloqNodeKind::Classical(ClassicalNode::Compute { expr }.into());
         }
         let graph = self.graph_mut();
-        let retained = detach_retained_edges(graph, |edge, source, target| {
+        retain_edges_preserving_adjacency(graph, |edge, source, target| {
             !parents.contains_key(&source)
                 && !parents.contains_key(&target)
                 && !replaced_inputs.contains(&edge)
@@ -516,7 +501,7 @@ impl SubGraph {
         for &node in parents.keys() {
             graph.remove_node(node);
         }
-        for (source, target, edge) in retained.chain(rewired) {
+        for (source, target, edge) in rewired {
             graph.add_edge(source, target, edge);
         }
     }
@@ -706,11 +691,7 @@ impl ReadoutRecipes {
                 emitted[id] = Some(graph.add_node(BloqNode::classical(ClassicalNode::fragment())));
             }
         }
-        for (source, target, edge) in
-            detach_retained_edges(graph, |edge, _, _| !removed.contains(&edge))
-        {
-            graph.add_edge(source, target, edge);
-        }
+        retain_edges_preserving_adjacency(graph, |edge, _, _| !removed.contains(&edge));
         for (id, (children, _)) in self.pairs.iter().enumerate() {
             if let Some(target) = emitted[id] {
                 self.wire(graph, target, children, &emitted);
@@ -759,6 +740,46 @@ fn share_definition(
         *data = Arc::clone(shared);
     } else {
         definitions.insert(Arc::clone(data));
+    }
+}
+
+/// Batch the usual descending-index adjacency without changing either order.
+/// Reused slots can break that order; those graphs retain individual deletion
+/// and its degree-dependent cost.
+fn retain_edges_preserving_adjacency<F>(
+    graph: &mut StableDiGraph<BloqNode, BloqEdge>,
+    mut retain: F,
+) where
+    F: FnMut(EdgeIndex, NodeIndex, NodeIndex) -> bool,
+{
+    let removed = graph
+        .edge_references()
+        .filter_map(|edge| (!retain(edge.id(), edge.source(), edge.target())).then_some(edge.id()))
+        .collect::<crate::FxSet<_>>();
+    if removed.is_empty() {
+        return;
+    }
+    let ordered = graph.node_indices().all(|node| {
+        [Direction::Incoming, Direction::Outgoing]
+            .into_iter()
+            .all(|direction| {
+                graph
+                    .edges_directed(node, direction)
+                    .map(|edge| edge.id())
+                    .filter(|edge| !removed.contains(edge))
+                    .is_sorted_by(|left, right| left > right)
+            })
+    });
+    if ordered {
+        for (source, target, edge) in
+            detach_retained_edges(graph, |edge, _, _| !removed.contains(&edge))
+        {
+            graph.add_edge(source, target, edge);
+        }
+    } else {
+        for edge in removed {
+            graph.remove_edge(edge);
+        }
     }
 }
 
@@ -819,20 +840,6 @@ where
         })
 }
 
-/// Canonicalize boundary bindings while preserving multiplicity.
-fn canonicalize_operators(operators: &mut [InstanceBoundaryOperator]) {
-    operators.sort_by_cached_key(|op| {
-        (
-            op.instance.0,
-            op.face as u8,
-            op.operator
-                .iter()
-                .map(|(coord, pauli)| (coord.x, coord.y, *pauli as u8))
-                .collect::<Vec<_>>(),
-        )
-    });
-}
-
 /// Read a Compute expression for regression checks.
 #[cfg(test)]
 fn compute_expr(kind: &BloqNodeKind) -> ClassicalExpr {
@@ -845,8 +852,7 @@ fn compute_expr(kind: &BloqNodeKind) -> ClassicalExpr {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{InstanceMeasurement, TemplateInstanceId};
-    use petgraph::visit::IntoEdgeReferences;
+    use crate::{InstanceBoundaryOperator, InstanceMeasurement, TemplateInstanceId};
 
     fn expanded_readout_inputs(
         bloq: &Bloq,
@@ -1013,6 +1019,104 @@ mod tests {
             assert!(bloq.edge_count() <= edges);
             if expected_recipes == 0 {
                 assert_eq!(bloq.to_binary(), before);
+            }
+        }
+    }
+
+    #[test]
+    fn optimization_preserves_indexed_boundary_packet_order() {
+        for operators in [
+            "i0 output X(0,0), i0 output Z(0,0), i0 output X(0,0)",
+            "i0 output Z(0,0), i0 output X(0,0), i0 output Z(0,0)",
+        ] {
+            let mut program = Bloq::from_text(&format!(
+                "BLOQIR 1\ntemplate t0 {{\ncircuit {{\nR (0,0)\n}}\n}}\ngraph {{\nn0 quantum {{\ninstance i0 t0 @ (0,0)\n}}\nn1 observable 0 operators {operators}\nn0 -> n1 order\n}}"
+            )).unwrap();
+            program.validate().unwrap();
+            let expected = program[BloqNodeId(1)]
+                .try_classical()
+                .unwrap()
+                .operators()
+                .to_vec();
+            program.optimize().unwrap();
+            program.optimize().unwrap();
+            for actual in [
+                program.clone(),
+                Bloq::from_binary(&program.to_binary()).unwrap(),
+                Bloq::from_text(&program.to_text()).unwrap(),
+            ] {
+                actual.validate().unwrap();
+                // XZX=-Z and ZXZ=-X; sorting either vector loses that sign.
+                assert_eq!(
+                    actual[BloqNodeId(1)].try_classical().unwrap().operators(),
+                    expected
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn repeated_optimization_preserves_shared_signed_boundary_order() {
+        for activated in [false, true] {
+            let when = if activated { " when v8" } else { "" };
+            let guards = if activated {
+                "n7 -> n1 value 8 flip\nn7 -> n2 value 8 flip\nn7 -> n3 value 8 flip"
+            } else {
+                ""
+            };
+            let mut program = Bloq::from_text(&format!(
+                "BLOQIR 1\ntemplate t0 {{\ncircuit {{\nR (0,0)\n}}\n}}\ngraph {{
+n0 quantum {{\ninstance i0 t0 @ (0,0)\n}}
+n1 observable fragment operators i0 output X(0,0){when}
+n2 observable fragment operators i0 output Z(0,0){when}
+n3 observable fragment operators i0 output X(0,0){when}
+n4 observable 0
+n5 observable 1
+n6 observable 2
+n7 observable 3
+n0 -> n1 order
+n0 -> n2 order
+n0 -> n3 order
+n1 -> n4 compose 0
+n2 -> n4 compose 1
+n3 -> n4 compose 2
+n1 -> n5 compose 0
+n2 -> n5 compose 1
+n3 -> n5 compose 2
+n1 -> n6 compose 0
+n2 -> n6 compose 1
+n3 -> n6 compose 2
+{guards}
+}}"
+            ))
+            .unwrap();
+            program.validate().unwrap();
+            let before = program.clone();
+            program.optimize().unwrap();
+            let once = program.to_text();
+            program.optimize().unwrap();
+            assert_eq!(program.to_text(), once, "optimization is idempotent");
+            for actual in [
+                program.clone(),
+                Bloq::from_binary(&program.to_binary()).unwrap(),
+                Bloq::from_text(&program.to_text()).unwrap(),
+            ] {
+                actual.validate().unwrap();
+                for target in [4, 5, 6].map(BloqNodeId) {
+                    // Adjacency multiplies X*Z*X = -Z. Fusing and sorting
+                    // these operands into X*X*Z would produce +Z instead.
+                    assert_eq!(
+                        expanded_readout_inputs(&actual, target, false),
+                        expanded_readout_inputs(&before, target, false)
+                    );
+                    for selected in [false, true] {
+                        let assignment = crate::ClassicalAssignment::Uniform(selected);
+                        assert_eq!(
+                            actual.resolve_classical(target, assignment),
+                            before.resolve_classical(target, assignment)
+                        );
+                    }
+                }
             }
         }
     }
@@ -1222,9 +1326,7 @@ mod tests {
         }
         let hole = graph.add_edge(index(nodes[3]), index(nodes[2]), BloqEdge::Order);
         graph.remove_edge(hole);
-        for (source, target, edge) in detach_retained_edges(graph, |id, _, _| id != skipped) {
-            graph.add_edge(source, target, edge);
-        }
+        retain_edges_preserving_adjacency(graph, |id, _, _| id != skipped);
         assert_eq!(graph.edge_bound(), expected.len());
         assert_eq!(
             graph
@@ -1768,6 +1870,189 @@ graph {
         );
     }
 
+    fn assert_same_ordered_graph(
+        actual: &StableDiGraph<BloqNode, BloqEdge>,
+        expected: &StableDiGraph<BloqNode, BloqEdge>,
+    ) {
+        assert_eq!(actual.edge_count(), expected.edge_count());
+        assert_eq!(
+            actual.node_indices().collect::<Vec<_>>(),
+            expected.node_indices().collect::<Vec<_>>()
+        );
+        for node in expected.node_indices() {
+            assert_eq!(actual[node].try_classical(), expected[node].try_classical());
+            for direction in [Direction::Incoming, Direction::Outgoing] {
+                let edges = |graph: &StableDiGraph<BloqNode, BloqEdge>| {
+                    graph
+                        .edges_directed(node, direction)
+                        .map(|edge| (edge.source(), edge.target(), edge.weight().clone()))
+                        .collect::<Vec<_>>()
+                };
+                assert_eq!(edges(actual), edges(expected), "{node:?} {direction:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn batch_edge_removal_matches_individual_removal_with_reused_slots() {
+        let mut empty = StableDiGraph::default();
+        retain_edges_preserving_adjacency(&mut empty, |_, _, _| true);
+        assert_eq!(empty.node_count(), 0);
+        for reuse_target in [None, Some(1), Some(4)] {
+            let mut graph = StableDiGraph::default();
+            let nodes = (0..5)
+                .map(|index| graph.add_node(BloqNode::classical(ClassicalNode::observable(index))))
+                .collect::<Vec<_>>();
+            graph.remove_node(nodes[3]);
+            let hole = graph.add_edge(nodes[4], nodes[4], BloqEdge::Order);
+            // Include parallel edges, both directions, self-loops, and a node hole.
+            for (source, target, edge) in [
+                (0, 1, BloqEdge::Order),
+                (0, 1, BloqEdge::compose(0)),
+                (1, 1, BloqEdge::Order),
+                (2, 0, BloqEdge::Order),
+                (0, 2, BloqEdge::value(1)),
+                (4, 2, BloqEdge::Order),
+                (0, 1, BloqEdge::Order),
+                (2, 2, BloqEdge::compose(2)),
+            ] {
+                graph.add_edge(nodes[source], nodes[target], edge);
+            }
+            if let Some(target) = reuse_target {
+                graph.remove_edge(hole);
+                // Target 4 has no other retained incoming edge: only its
+                // source's outgoing order exposes the reused-slot mismatch.
+                let reused = graph.add_edge(nodes[0], nodes[target], BloqEdge::compose(3));
+                assert_eq!(reused, hole);
+            }
+            let orders = graph
+                .edge_references()
+                .filter(|edge| matches!(edge.weight(), BloqEdge::Order))
+                .map(|edge| edge.id())
+                .collect::<Vec<_>>();
+            // Every subset includes the empty and all-Order removal cases.
+            for mask in 0..(1usize << orders.len()) {
+                let removed = orders
+                    .iter()
+                    .enumerate()
+                    .filter(|(bit, _)| mask & (1usize << *bit) != 0)
+                    .map(|(_, &edge)| edge)
+                    .collect::<crate::FxSet<_>>();
+                let mut expected = graph.clone();
+                for &edge in &removed {
+                    expected.remove_edge(edge);
+                }
+                let mut actual = graph.clone();
+                retain_edges_preserving_adjacency(&mut actual, |edge, _, _| {
+                    !removed.contains(&edge)
+                });
+                assert_same_ordered_graph(&actual, &expected);
+            }
+        }
+    }
+
+    #[test]
+    fn optimization_preserves_signed_compose_order_during_unrelated_fusion() {
+        use bloq_circuit::{Pauli, PauliMap};
+
+        let product = |program: &Bloq, observable| {
+            let mut paulis = PauliMap::empty();
+            let mut phase = 0;
+            for (leaf, _) in expanded_readout_inputs(program, observable, false) {
+                for operator in program[leaf].try_classical().unwrap().operators() {
+                    phase = (phase + paulis.product_phase(&operator.operator)) % 4;
+                    paulis = &paulis ^ &operator.operator;
+                }
+            }
+            (paulis, phase)
+        };
+        for compute in [false, true] {
+            for reused in [false, true] {
+                let mut program = Bloq::from_text(
+                    "BLOQIR 1\ntemplate t0 {\ncircuit {\nR (0,0)\nM (0,0):m0\n}\n}\ngraph {\n\
+                 n0 quantum {\ninstance i0 t0 @ (0,0)\n}\n\
+                 n1 quantum {\ninstance i1 t0 @ (2,0)\n}\n\
+                 n2 observable fragment operators i0 output X(0,0)\n\
+                 n3 observable fragment operators i0 output Z(0,0)\n\
+                 n4 observable fragment operators i0 output X(0,0)\n\
+                 n5 observable 0\n\
+                 n0 -> n2 order\nn0 -> n3 order\nn0 -> n4 order\n}",
+                )
+                .unwrap();
+                let index = NodeIndex::new;
+                let graph = program.top_mut().graph_mut();
+                let hole = graph.add_edge(index(1), index(0), BloqEdge::Order);
+                graph.add_edge(index(2), index(5), BloqEdge::compose(0));
+                graph.add_edge(index(3), index(5), BloqEdge::compose(1));
+                if reused {
+                    graph.remove_edge(hole);
+                }
+                graph.add_edge(index(4), index(5), BloqEdge::compose(2));
+                if !reused {
+                    graph.remove_edge(hole);
+                }
+                graph.add_edge(index(0), index(1), BloqEdge::quantum(Vec::new()));
+                for _ in 0..2 {
+                    graph.add_edge(index(0), index(5), BloqEdge::Order);
+                }
+                graph.add_edge(index(1), index(5), BloqEdge::Order);
+                let removed = program.add_node(BloqNode::classical(if compute {
+                    ClassicalNode::Compute {
+                        expr: ClassicalExpr::Const(true),
+                    }
+                } else {
+                    ClassicalNode::observable_fragment(
+                        vec![crate::test_fixture::instance_measurement(0, 0)],
+                        Vec::new(),
+                    )
+                }));
+                let consumer = program.add_node(BloqNode::classical(if compute {
+                    ClassicalNode::Compute {
+                        expr: ClassicalExpr::In(0),
+                    }
+                } else {
+                    ClassicalNode::observable(1)
+                }));
+                program.add_edge(
+                    removed,
+                    consumer,
+                    if compute {
+                        BloqEdge::value(0)
+                    } else {
+                        BloqEdge::compose(0)
+                    },
+                );
+                if !compute {
+                    program.add_edge(BloqNodeId(0), removed, BloqEdge::Order);
+                }
+                program.validate().unwrap();
+                let observable = BloqNodeId(5);
+                let expected_product: (PauliMap, u8) =
+                    ([(glam::IVec2::ZERO, Pauli::Z)].into_iter().collect(), 2);
+                assert_eq!(product(&program, observable), expected_product, "XZX = -Z");
+                let before = program.clone();
+                program.optimize().unwrap();
+                assert!(program.node(removed).is_none(), "unrelated fusion ran");
+                assert!(!program.incoming(observable).any(|edge| {
+                    edge.source == BloqNodeId(0) && matches!(edge.edge, BloqEdge::Order)
+                }));
+                assert_eq!(
+                    expanded_readout_inputs(&program, observable, false),
+                    expanded_readout_inputs(&before, observable, false),
+                );
+                assert_eq!(product(&program, observable), expected_product);
+                for selected in [false, true] {
+                    let assignment = crate::ClassicalAssignment::Uniform(selected);
+                    assert_eq!(
+                        program.resolve_classical(observable, assignment),
+                        before.resolve_classical(observable, assignment)
+                    );
+                }
+                program.validate().unwrap();
+            }
+        }
+    }
+
     #[test]
     fn observable_order_frontier_keeps_incomparable_and_guarded_contributors() {
         let mut program = Bloq::new();
@@ -1820,54 +2105,78 @@ graph {
     }
 
     #[test]
-    fn shared_observable_leaves_inline_measurements_and_owned_boundaries() {
+    fn observable_fusion_preserves_measurements_and_ordered_boundary_packets() {
         for payload in [
             "measurements i0:m0*i0:m0*i1:m1",
             "operators i0 input X(0,0), i1 input X(2,0)",
+            "operators i0 input X(0,0), i0 input Z(0,0), i0 input X(0,0)",
             "measurements i0:m0*i0:m0*i1:m1 operators i0 input X(0,0), i1 input X(2,0)",
         ] {
-            let mut program = Bloq::from_text(&format!(
-                "BLOQIR 1\ntemplate t0 {{\ncircuit {{\nR (0,0)\nM (0,0):m0\nM (0,0):m1\n}}\n}}\ngraph {{\nn0 quantum {{\ninstance i0 t0 @ (0,0)\ninstance i1 t0 @ (2,0)\n}}\nn1 observable fragment {payload}\nn2 observable 0\nn3 observable 1\nn0 -> n1 order\nn1 -> n2 compose 0\nn1 -> n2 compose 1\nn1 -> n3 compose 0\n}}"
-            ))
-            .unwrap();
-            program.validate().unwrap();
-            let before = program.clone();
-            let leaf = before[BloqNodeId(1)].try_classical().unwrap();
-            program.optimize().unwrap();
-            assert!(program.node(BloqNodeId(1)).is_none());
-            for optimized in [
-                program.clone(),
-                Bloq::from_binary(&program.to_binary()).unwrap(),
-                Bloq::from_text(&program.to_text()).unwrap(),
-            ] {
-                optimized.validate().unwrap();
-                for (target, copies) in [(BloqNodeId(2), 2), (BloqNodeId(3), 1)] {
-                    let actual = optimized[target].try_classical().unwrap();
-                    assert_eq!(actual.measurements(), leaf.measurements().repeat(copies));
-                    let mut operators = (0..copies)
-                        .flat_map(|_| leaf.operators().iter().cloned())
-                        .collect::<Vec<_>>();
-                    canonicalize_operators(&mut operators);
-                    assert_eq!(actual.operators(), operators);
-                    assert_eq!(
-                        optimized
-                            .resolve_classical(target, crate::ClassicalAssignment::Uniform(false)),
-                        before
-                            .resolve_classical(target, crate::ClassicalAssignment::Uniform(false))
-                    );
-                    assert_eq!(
-                        optimized.measurement_dependencies(
-                            target,
-                            crate::ClassicalAssignment::Uniform(false)
-                        ),
-                        before.measurement_dependencies(
-                            target,
-                            crate::ClassicalAssignment::Uniform(false)
-                        )
-                    );
-                    assert!(optimized.incoming(target).any(|edge| {
-                        edge.source == BloqNodeId(0) && matches!(edge.edge, BloqEdge::Order)
-                    }));
+            for activated in [false, true] {
+                let when = if activated {
+                    [" when v7", " when v8", " when v9", " when v10", " when v11"]
+                } else {
+                    [""; 5]
+                };
+                let guards = if activated {
+                    "n6 -> n1 value 7 flip\nn6 -> n2 value 8 flip\nn6 -> n3 value 9 flip\nn6 -> n4 value 10 flip\nn6 -> n5 value 11 flip"
+                } else {
+                    ""
+                };
+                let mut program = Bloq::from_text(&format!(
+                    "BLOQIR 1\ntemplate t0 {{\ncircuit {{\nR (0,0)\nM (0,0):m0\nM (0,0):m1\n}}\n}}\ngraph {{\nn0 quantum {{\ninstance i0 t0 @ (0,0)\ninstance i1 t0 @ (2,0)\n}}\nn1 observable fragment {payload}{}\nn2 observable fragment{}\nn3 observable fragment{}\nn4 observable 0{}\nn5 observable 1{}\nn6 observable 2\nn0 -> n1 order\nn1 -> n2 compose 0\nn2 -> n3 compose 0\nn3 -> n4 compose 0\nn3 -> n4 compose 1\nn3 -> n5 compose 0\n{guards}\n}}",
+                    when[0], when[1], when[2], when[3], when[4],
+                ))
+                .unwrap();
+                program.validate().unwrap();
+                let before = program.clone();
+                let leaf = before[BloqNodeId(1)].try_classical().unwrap();
+                program.optimize().unwrap();
+                if leaf.operators().is_empty() {
+                    for removed in [1, 2, 3] {
+                        assert!(program.node(BloqNodeId(removed)).is_none());
+                    }
+                }
+                for mut optimized in [
+                    program.clone(),
+                    Bloq::from_binary(&program.to_binary()).unwrap(),
+                    Bloq::from_text(&program.to_text()).unwrap(),
+                ] {
+                    optimized.validate().unwrap();
+                    if !leaf.operators().is_empty() {
+                        let shared = optimized[BloqNodeId(1)].try_classical().unwrap();
+                        assert_eq!(shared.measurements(), leaf.measurements());
+                        assert_eq!(shared.operators(), leaf.operators());
+                    }
+                    for (target, copies) in [(BloqNodeId(4), 2), (BloqNodeId(5), 1)] {
+                        if leaf.operators().is_empty() {
+                            assert_eq!(
+                                optimized[target].try_classical().unwrap().measurements(),
+                                leaf.measurements().repeat(copies)
+                            );
+                            assert!(expanded_readout_inputs(&optimized, target, true).is_empty());
+                        } else {
+                            assert_eq!(
+                                expanded_readout_inputs(&optimized, target, true),
+                                vec![(BloqNodeId(1), ValueRole::Data); copies]
+                            );
+                        }
+                        assert!(optimized.has_path(BloqNodeId(0), target));
+                        for selected in [false, true] {
+                            let assignment = crate::ClassicalAssignment::Uniform(selected);
+                            assert_eq!(
+                                optimized.resolve_classical(target, assignment),
+                                before.resolve_classical(target, assignment),
+                            );
+                            assert_eq!(
+                                optimized.measurement_dependencies(target, assignment),
+                                before.measurement_dependencies(target, assignment),
+                            );
+                        }
+                    }
+                    let text = optimized.to_text();
+                    optimized.optimize().unwrap();
+                    assert_eq!(optimized.to_text(), text, "optimization is idempotent");
                 }
             }
         }
@@ -1915,18 +2224,21 @@ graph {
   }
   n2 observable 0
   n3 observable fragment measurements i0:m0*i0:m0 when v4
-  n4 observable fragment measurements i1:m0 operators i1 input X(2,0) when v9
+  n4 observable fragment measurements i1:m0 when v9
   n5 observable fragment operators i0 input Z(0,0) when v0
   n6 observable fragment when v0
+  n7 observable fragment operators i1 input X(2,0) when v9
   n10 observable 1
   n11 observable 2
   n0 -> n3 order
   n1 -> n4 order
+  n1 -> n7 order
   n0 -> n5 order
   n2 -> n3 value 4 flip
   n2 -> n4 value 9 flip
   n2 -> n5 value 0 flip
   n2 -> n6 value 0
+  n2 -> n7 value 9 flip
   n3 -> n10 compose 0
   n3 -> n10 compose 1
   n3 -> n11 compose 0
@@ -1935,6 +2247,9 @@ graph {
   n4 -> n11 compose 1
   n5 -> n10 compose 4
   n6 -> n10 compose 5
+  n7 -> n10 compose 6
+  n7 -> n10 compose 7
+  n7 -> n11 compose 2
 }",
         )
         .unwrap();
@@ -1952,7 +2267,15 @@ graph {
         );
         let merged = program[BloqNodeId(3)].try_classical().unwrap();
         assert_eq!(merged.measurements().len(), 3, "retain duplicate terms");
-        assert_eq!(merged.operators().len(), 1);
+        assert!(merged.operators().is_empty());
+        assert_eq!(
+            program[BloqNodeId(7)]
+                .try_classical()
+                .unwrap()
+                .operators()
+                .len(),
+            1
+        );
         assert_eq!(program[BloqNodeId(3)].activation, Some(4));
         for source in [BloqNodeId(0), BloqNodeId(1)] {
             assert!(program.has_path(source, BloqNodeId(3)));

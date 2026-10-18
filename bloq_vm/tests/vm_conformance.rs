@@ -234,6 +234,61 @@ fn shared_readout_recipe_preserves_binding_and_activation() {
 }
 
 #[test]
+fn optimized_shared_output_packets_preserve_multiplicity_and_phase() {
+    let mut circuit = CoordCircuit::new();
+    circuit.do_gate(GateType::X, [IVec2::ZERO]).unwrap();
+    let mut bloq = Bloq::new();
+    let template = bloq.add_template(BloqTemplate::new(circuit));
+    let quantum = bloq.add_node(quantum_node(template, 0));
+    let packet = bloq.add_node(BloqNode::classical(ClassicalNode::observable_fragment(
+        Vec::new(),
+        [bloq_ir::circuit::Pauli::X, bloq_ir::circuit::Pauli::Z]
+            .into_iter()
+            .map(|pauli| InstanceBoundaryOperator {
+                instance: TemplateInstanceId(0),
+                face: BoundaryFace::Output,
+                operator: [(IVec2::ZERO, pauli)].into_iter().collect(),
+            })
+            .collect(),
+    )));
+    bloq.add_edge(quantum, packet, BloqEdge::Order);
+    for (index, copies) in [(0, 2), (1, 4)] {
+        let observable = bloq.add_node(BloqNode::classical(ClassicalNode::observable(index)));
+        for slot in 0..copies {
+            bloq.add_edge(packet, observable, BloqEdge::compose(slot));
+        }
+    }
+    bloq.validate().unwrap();
+    let mut optimized = bloq.clone();
+    optimized.optimize().unwrap();
+    optimized.validate().unwrap();
+
+    for program in [&bloq, &optimized] {
+        // Each packet retains its ordered product: (XZ)^2 = -I, (XZ)^4 = I.
+        let physical = run_bloq(program, 4, 7).unwrap();
+        assert_eq!(
+            physical
+                .observables
+                .iter()
+                .map(|observable| observable.per_shot.clone())
+                .collect::<Vec<_>>(),
+            [vec![true; 4], vec![false; 4]],
+        );
+        let dynamic = run_dynamic(program);
+        let mut values = dynamic
+            .observables
+            .iter()
+            .map(|observable| (observable.index, observable.raw, observable.value))
+            .collect::<Vec<_>>();
+        values.sort_unstable_by_key(|&(index, _, _)| index);
+        assert_eq!(
+            values,
+            [(0, Some(false), Some(true)), (1, Some(false), Some(false))],
+        );
+    }
+}
+
+#[test]
 fn deep_shared_binding_recipes_keep_multiplicity_and_phase() {
     let mut program = Program {
         qubit_count: 1,
