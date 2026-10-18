@@ -211,8 +211,8 @@ impl PyCompileContext {
 /// signatures run concurrently, while simultaneous cold misses for one signature
 /// may duplicate work before keeping one result.
 ///
-/// `compile_clifford_proxy` deliberately does not use it: proxy compilation
-/// rewrites templates per site and must keep a private cache.
+/// Clifford proxies use a separate compiler-owned template cache; clearing this
+/// cache affects only ordinary `compile` calls.
 ///
 /// The cache is never evicted, so it grows with every distinct distance,
 /// convention, and block signature the process compiles — a distance sweep
@@ -226,6 +226,8 @@ static COMPILE_CACHE: std::sync::OnceLock<SharedCompileCache> = std::sync::OnceL
 /// that compiles at many code distances — a distance sweep, say — keeps every
 /// distance's templates resident. Call this between phases of such a run to
 /// give the memory back; the next `compile` simply refills the cache.
+///
+/// The separate compiler-owned cache used by Clifford proxies is unaffected.
 ///
 /// Compilations already in flight on other threads are unaffected.
 ///
@@ -349,9 +351,7 @@ fn compile_clifford_proxy(
     limits: Option<HashMap<String, Option<usize>>>,
 ) -> PyResult<PyBloq> {
     let config = resolve_config(distance, prepare_t_with_mpps, limits)?;
-    // Private cache by construction (`compile_clifford_proxy` owns its
-    // context), but still worth running off the GIL: distance sweeps call this
-    // in a loop.
+    // Release the GIL during compilation; distance sweeps call this in a loop.
     let source = &graph.0;
     let artifacts = py
         .detach(move || bloq_compile::compile_clifford_proxy(config, source, &pins))

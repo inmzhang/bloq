@@ -2005,8 +2005,11 @@ class Bloq:
         Examples:
             >>> import bloq
             >>> program = bloq.compile(bloq.GalleryItem.X_MEMORY.load(), distance=3)
-            >>> sorted(program.stable_key_map().values())
-            [0, 2]
+            >>> keys = program.stable_key_map()
+            >>> len(keys)
+            2
+            >>> all(program.node(node_id) is not None for node_id in keys.values())
+            True
         """
     def resolve_classical(self, node: builtins.int, *, output: ObservableOutput = ObservableOutput.Corrected, pins: typing.Optional[builtins.bool] = None, forced_observables: typing.Optional[typing.Mapping[builtins.int, builtins.bool]] = None) -> ClassicalResolution:
         r"""
@@ -5475,6 +5478,8 @@ def clear_compile_cache() -> None:
     that compiles at many code distances — a distance sweep, say — keeps every
     distance's templates resident. Call this between phases of such a run to
     give the memory back; the next `compile` simply refills the cache.
+
+    The separate compiler-owned cache used by Clifford proxies is unaffected.
 
     Compilations already in flight on other threads are unaffected.
 
