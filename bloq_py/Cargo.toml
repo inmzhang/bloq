@@ -38,4 +38,5 @@ pyo3 = { version = "0.29.3", features = ["abi3-py310"] }
 pyo3-stub-gen = { version = "0.23.1", default-features = false, features = ["infer_signature"] }
 rand.workspace = true
 rustc-hash.workspace = true
+serde_json.workspace = true
 stim.workspace = true

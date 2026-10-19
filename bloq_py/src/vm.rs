@@ -1,4 +1,4 @@
-//! Thin Python surface for lowering Bloq IR once and running dynamic VM shots.
+//! Python surface for noiseless physical checks and dynamic VM shots.
 
 use std::collections::BTreeMap;
 
@@ -14,6 +14,141 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyfunction, gen_stub_pyme
 use crate::compile::{probability, uniform_noise};
 use crate::errors::{self, invalid_argument};
 use crate::ir::PyBloq;
+
+fn noiseless_payload(
+    program: &bloq_ir::Bloq,
+    shots: usize,
+    seed: u64,
+    input_state: LogicalInputState,
+    include_signature: bool,
+) -> Result<serde_json::Value, bloq_vm::ExecError> {
+    let mut samples = Vec::new();
+    let report = bloq_vm::run_bloq_with_io_and_captured_outputs(
+        program,
+        shots,
+        seed,
+        |sim, context| {
+            if input_state == LogicalInputState::Zero {
+                for input in context.inputs {
+                    sim.h(input.qubit);
+                }
+            }
+            Ok(())
+        },
+        |sim, context| {
+            let outputs = context.output_logicals()?;
+            let corrected = outputs
+                .iter()
+                .map(|output| {
+                    let frame = context
+                        .frames
+                        .iter()
+                        .find(|frame| frame.port == output.port)
+                        .and_then(|frame| frame.x.zip(frame.z))
+                        .ok_or(bloq_vm::ExecError::MalformedGraph(
+                            "noiseless output frame is unavailable",
+                        ))?;
+                    Ok((output, frame))
+                })
+                .collect::<Result<Vec<_>, bloq_vm::ExecError>>()?;
+            let bloch = corrected
+                .iter()
+                .map(|(output, frame)| bloq_vm::verify::logical_bloch(sim, output, *frame))
+                .collect::<Result<Vec<_>, _>>()?;
+            let signature = include_signature
+                .then(|| bloq_vm::verify::logical_signature(sim, &corrected))
+                .transpose()?;
+            samples.push(serde_json::json!({
+                "shot": context.shot,
+                "logical_bloch": bloch,
+                "logical_signature": signature,
+                "captured_output_ports": context.saved_outputs.iter()
+                    .map(|output| output.port.to_array()).collect::<Vec<_>>(),
+                "named_selectors": context.named_branch_selectors,
+            }));
+            Ok(())
+        },
+    )?;
+    Ok(serde_json::json!({
+        "execution": "noiseless",
+        "ideal_boundary_capture": true,
+        "input_state": match input_state {
+            LogicalInputState::Plus => "plus", LogicalInputState::Zero => "zero",
+        },
+        "shots": report.shots,
+        "discarded": report.discarded,
+        "peak_rank": report.max_rank,
+        "all_detectors_constant": report.all_detectors_constant(),
+        "detectors": report.detectors.iter().map(|detector| serde_json::json!({
+            "constant": detector.constant, "value": detector.value, "per_shot": detector.per_shot,
+        })).collect::<Vec<_>>(),
+        "output_ports": program.logical_outputs().iter()
+            .map(|output| output.port.to_array()).collect::<Vec<_>>(),
+        "samples": samples,
+    }))
+}
+
+/// Execute compiled physical circuits without added noise or hardware timing.
+///
+/// Native retry regions and adaptive controls execute normally. External input
+/// states and output capture are ideal boundaries. Capturing an output before
+/// its physical patch is reused preserves joint output coherence on a private
+/// simulator qubit. This function does not replace T circuits with proxies.
+///
+/// Args:
+///     program: Compiled Bloq IR, including any native T retry circuits.
+///     shots: Positive number of physical shots.
+///     seed: Root simulator seed.
+///     input_state: State of every external input, ``"plus"`` or ``"zero"``.
+///     include_signature: Include all joint Pauli expectations for at most six
+///         logical outputs. This makes ``4**n - 1`` exact expectation reads.
+///
+/// Returns:
+///     A JSON-ready dictionary with ``shots``, ``discarded``, ``peak_rank``,
+///     ``output_ports``, ``detectors``, ``all_detectors_constant``, and accepted
+///     ``samples``. Each sample contains corrected ``logical_bloch`` vectors,
+///     ``captured_output_ports``, ``named_selectors``, and an optional
+///     ``logical_signature``. Output order matches ``program.logical_outputs()``.
+///     Signature index ``k - 1`` is Pauli word ``k`` in base four, with output
+///     zero as the least-significant digit and digits ``I, X, Y, Z``.
+///     Discarded shots have no sample. Detector constancy concerns applicable
+///     accepted shots; an empty detector history is vacuously constant.
+///     Checks spanning ideal input replacement are omitted, because their
+///     earlier syndrome records describe the state before replacement.
+///
+/// Raises:
+///     InvalidArgumentError: For zero shots, an invalid input state, or a
+///         requested signature with more than six outputs.
+///     RuntimeError: If physical execution or logical readout fails.
+#[gen_stub_pyfunction(module = "bloq._core")]
+#[pyfunction]
+#[gen_stub(override_return_type(type_repr = "dict[str, object]"))]
+#[pyo3(signature = (program, *, shots=1, seed=0, input_state="plus", include_signature=false))]
+fn run_noiseless(
+    py: Python<'_>,
+    program: PyRef<'_, PyBloq>,
+    shots: usize,
+    seed: u64,
+    input_state: &str,
+    include_signature: bool,
+) -> PyResult<Py<PyAny>> {
+    if shots == 0 {
+        return Err(invalid_argument("shots must be positive"));
+    }
+    let input_state = parse_input_state(input_state)?;
+    if include_signature && program.0.logical_outputs().len() > 6 {
+        return Err(invalid_argument(
+            "joint Pauli signatures are limited to six logical outputs",
+        ));
+    }
+    let source = &program.0;
+    let payload = py
+        .detach(move || noiseless_payload(source, shots, seed, input_state, include_signature))
+        .map_err(|error| errors::RuntimeError::new_err(error.to_string()))?;
+    let json = serde_json::to_string(&payload)
+        .map_err(|error| errors::RuntimeError::new_err(error.to_string()))?;
+    Ok(py.import("json")?.call_method1("loads", (json,))?.unbind())
+}
 
 const MIN_GATE_DURATION: f64 = 1e-9;
 
@@ -397,6 +532,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyVmProgram>()?;
     m.add_class::<PyVmRunResult>()?;
     m.add_function(wrap_pyfunction!(lower_vm, m)?)?;
+    m.add_function(wrap_pyfunction!(run_noiseless, m)?)?;
     Ok(())
 }
 

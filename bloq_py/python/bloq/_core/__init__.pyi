@@ -127,6 +127,7 @@ __all__ = [
     "is_valid_distance",
     "lower_vm",
     "remap_stim_circuit",
+    "run_noiseless",
     "stim_to_clifft_text",
     "to_zx_graph",
 ]
@@ -5898,6 +5899,42 @@ def remap_stim_circuit(text: builtins.str, qubit_map: typing.Mapping[builtins.in
 
     Raises:
         InvalidArgumentError: If Stim text or a requested mapping is invalid.
+    """
+
+def run_noiseless(program: Bloq, *, shots: builtins.int = 1, seed: builtins.int = 0, input_state: builtins.str = 'plus', include_signature: builtins.bool = False) -> dict[str, object]:
+    r"""
+    Execute compiled physical circuits without added noise or hardware timing.
+
+    Native retry regions and adaptive controls execute normally. External input
+    states and output capture are ideal boundaries. Capturing an output before
+    its physical patch is reused preserves joint output coherence on a private
+    simulator qubit. This function does not replace T circuits with proxies.
+
+    Args:
+        program: Compiled Bloq IR, including any native T retry circuits.
+        shots: Positive number of physical shots.
+        seed: Root simulator seed.
+        input_state: State of every external input, ``"plus"`` or ``"zero"``.
+        include_signature: Include all joint Pauli expectations for at most six
+            logical outputs. This makes ``4**n - 1`` exact expectation reads.
+
+    Returns:
+        A JSON-ready dictionary with ``shots``, ``discarded``, ``peak_rank``,
+        ``output_ports``, ``detectors``, ``all_detectors_constant``, and accepted
+        ``samples``. Each sample contains corrected ``logical_bloch`` vectors,
+        ``captured_output_ports``, ``named_selectors``, and an optional
+        ``logical_signature``. Output order matches ``program.logical_outputs()``.
+        Signature index ``k - 1`` is Pauli word ``k`` in base four, with output
+        zero as the least-significant digit and digits ``I, X, Y, Z``.
+        Discarded shots have no sample. Detector constancy concerns applicable
+        accepted shots; an empty detector history is vacuously constant.
+        Checks spanning ideal input replacement are omitted, because their
+        earlier syndrome records describe the state before replacement.
+
+    Raises:
+        InvalidArgumentError: For zero shots, an invalid input state, or a
+            requested signature with more than six outputs.
+        RuntimeError: If physical execution or logical readout fails.
     """
 
 def stim_to_clifft_text(text: builtins.str) -> builtins.str:

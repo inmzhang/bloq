@@ -435,6 +435,14 @@ whole program. See :doc:`emission <../backends/emission>` for backend restrictio
 VM verification
 ---------------
 
+``run_noiseless`` executes native physical circuits and retry regions with
+ideal input preparation and output-boundary capture. It returns corrected
+logical marginals and optional joint Pauli signatures, including outputs whose
+physical patches are reused later. It has no hardware timing or noise model.
+Explicit noise already present in the supplied IR still executes.
+
+.. autofunction:: bloq.run_noiseless
+
 ``lower_vm`` prepares a reusable ``VmProgram``; each ``run`` executes a dynamic
 shot with its own seed and runtime limits. Check ``VmRunResult.discarded`` before
 requesting corrected logical Bloch vectors, because a discarded shot has no

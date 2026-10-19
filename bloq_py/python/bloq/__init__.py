@@ -3,9 +3,9 @@
 Thin facade over the Rust extension module `bloq._core`. The typical
 pipeline: build or load a `BlockGraph` (e.g. via the `GalleryItem` enum or
 `BlockGraph.from_text`), `compile` it to a `Bloq` program, then either
-`emit_stim` for sampling with the PyPI `stim` package or `lower_vm` for a
-dynamic hardware run. Advanced circuit, template, and node inspection types
-live in `bloq.ir`.
+`emit_stim` for sampling with the PyPI `stim` package, `run_noiseless` for
+physical verification, or `lower_vm` for a dynamic hardware run. Advanced
+circuit, template, and node inspection types live in `bloq.ir`.
 
 Examples:
     >>> import bloq
@@ -76,6 +76,7 @@ from bloq._core import (
     is_valid_distance,
     lower_vm,
     remap_stim_circuit,
+    run_noiseless,
     stim_to_clifft_text,
     to_zx_graph,
 )
@@ -148,6 +149,7 @@ __all__ = [
     "is_valid_distance",
     "lower_vm",
     "remap_stim_circuit",
+    "run_noiseless",
     "stim_to_clifft_text",
     "to_zx_graph",
 ]
