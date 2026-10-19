@@ -93,7 +93,7 @@ pub use lower::{DEFAULT_MAX_QUANTUM_VARIANTS, LowerError, LoweringConfig, Source
 pub use program::{
     DEFAULT_RUS_ATTEMPT_CAP, InputSeed, OutputLogical, PreparationContext, SavedOutput,
     ShotContext, ShotFrame, run_bloq, run_bloq_with_captured_outputs, run_bloq_with_hook,
-    run_bloq_with_io,
+    run_bloq_with_io, run_bloq_with_io_and_captured_outputs,
 };
 pub use runtime::{
     ExecutionArtifact, LogicalInputState, RunMetadata, RunResult, RuntimeConfig, RuntimeError,

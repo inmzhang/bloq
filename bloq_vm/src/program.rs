@@ -117,6 +117,23 @@ enum RunMode {
     Plain,
     PrepareInputs,
     CaptureOutputs,
+    PrepareInputsAndCaptureOutputs,
+}
+
+impl RunMode {
+    fn prepares_inputs(self) -> bool {
+        matches!(
+            self,
+            Self::PrepareInputs | Self::PrepareInputsAndCaptureOutputs
+        )
+    }
+
+    fn captures_outputs(self) -> bool {
+        matches!(
+            self,
+            Self::CaptureOutputs | Self::PrepareInputsAndCaptureOutputs
+        )
+    }
 }
 
 /// Shot-independent data needed to validate terminal folds and build reports.
@@ -455,6 +472,42 @@ pub struct ShotContext<'a> {
     pub qubit_count: usize,
 }
 
+impl ShotContext<'_> {
+    /// Logical output operators on this shot's live or captured qubits.
+    ///
+    /// The order and ports match [`Self::outputs`]. Apply the corresponding
+    /// [`Self::frames`] when reading the corrected logical state.
+    ///
+    /// # Errors
+    /// Returns [`ExecError::MalformedGraph`] if an output was consumed without
+    /// preserving its state through boundary capture.
+    pub fn output_logicals(&self) -> Result<Vec<OutputLogical>, ExecError> {
+        self.outputs
+            .iter()
+            .map(|output| {
+                if let Some(saved) = self
+                    .saved_outputs
+                    .iter()
+                    .find(|saved| saved.port == output.port)
+                {
+                    Ok(OutputLogical {
+                        port: output.port,
+                        logical_x: PauliString::single(self.qubit_count, saved.qubit, Pauli::X),
+                        logical_z: PauliString::single(self.qubit_count, saved.qubit, Pauli::Z),
+                        consumed: false,
+                    })
+                } else if output.consumed {
+                    Err(ExecError::MalformedGraph(
+                        "logical output was consumed without boundary capture",
+                    ))
+                } else {
+                    Ok(output.clone())
+                }
+            })
+            .collect()
+    }
+}
+
 /// Verify a whole [`Bloq`] program over a seeded shot batch.
 ///
 /// The program is flattened, then `shots` shots run on a shared simulator with
@@ -544,8 +597,10 @@ where
 /// hook reads those ancillas through [`ShotContext::saved_outputs`], allowing a
 /// joint-state oracle to include outputs no longer live at program termination.
 ///
-/// As with any mutating hook, only the record-based detector portion of the
-/// returned report remains meaningful.
+/// A shot that captures an output is omitted from the returned logical
+/// observable histories: their original physical boundary operators are no
+/// longer live. Record-based detectors and evaluated frame bits remain in the
+/// report. Shots without captured outputs retain their usual observables.
 ///
 /// # Errors
 /// See [`ExecError`]; also propagates any error the `hook` returns.
@@ -564,6 +619,38 @@ where
         seed,
         RunMode::CaptureOutputs,
         &mut |_, _| Ok(()),
+        &mut hook,
+    )
+}
+
+/// [`run_bloq_with_io`] while preserving reused outputs on private ancillas.
+///
+/// Input seeds start in `|+>` and are prepared and injected as in
+/// [`run_bloq_with_io`]. The output hook reads captured logical qubits through
+/// [`ShotContext::saved_outputs`], applying their terminal Pauli frames as usual.
+/// Shots with captured outputs are omitted from logical observable histories,
+/// while record-based detectors and evaluated frame bits remain in the report,
+/// as in [`run_bloq_with_captured_outputs`].
+///
+/// # Errors
+/// See [`ExecError`]; also propagates errors returned by either hook.
+pub fn run_bloq_with_io_and_captured_outputs<P, F>(
+    bloq: &Bloq,
+    shots: usize,
+    seed: u64,
+    mut prepare: P,
+    mut hook: F,
+) -> Result<VerifyReport, ExecError>
+where
+    P: FnMut(&mut Simulator, &PreparationContext<'_>) -> Result<(), ExecError>,
+    F: FnMut(&mut Simulator, &ShotContext<'_>) -> Result<(), ExecError>,
+{
+    run_bloq_internal(
+        bloq,
+        shots,
+        seed,
+        RunMode::PrepareInputsAndCaptureOutputs,
+        &mut prepare,
         &mut hook,
     )
 }
@@ -594,8 +681,7 @@ where
     let mut max_rank = 0usize;
     let mut branch_selectors: Vec<bool> = Vec::new();
     for shot in 0..shots {
-        let mut completed =
-            program.execute_shot(shot, seed, matches!(mode, RunMode::PrepareInputs), prepare)?;
+        let mut completed = program.execute_shot(shot, seed, mode.prepares_inputs(), prepare)?;
         max_rank = max_rank.max(completed.state.peak_rank);
         branch_selectors.extend(completed.state.branch_choices.iter().copied());
         if completed.state.discarded {
@@ -677,14 +763,18 @@ where
             let value = xor_records(parity, scope, &completed.state)?;
             out.push(value);
         }
-        for (node_id, out) in layout.observable_nodes.iter().zip(&mut observable_shots) {
-            if let Some(value) = program.observable_value(
-                *node_id,
-                &completed.top_values,
-                &completed.top_bindings,
-                &mut completed.state,
-            )? {
-                out.push(value);
+        // Capture changes the boundary operators, so their original physical
+        // representatives cannot supply this shot's terminal observables.
+        if completed.state.saved_outputs.iter().all(Option::is_none) {
+            for (node_id, out) in layout.observable_nodes.iter().zip(&mut observable_shots) {
+                if let Some(value) = program.observable_value(
+                    *node_id,
+                    &completed.top_values,
+                    &completed.top_bindings,
+                    &mut completed.state,
+                )? {
+                    out.push(value);
+                }
             }
         }
         for (i, frame) in layout.frames.iter().enumerate() {
@@ -732,10 +822,10 @@ impl Program {
             output_cuts,
             early_output_captures: Vec::new(),
         };
-        if matches!(mode, RunMode::PrepareInputs) {
+        if mode.prepares_inputs() {
             program.inputs = program.input_patches()?;
         }
-        if matches!(mode, RunMode::CaptureOutputs) {
+        if mode.captures_outputs() {
             program.early_output_captures = program.plan_early_output_captures()?;
         }
         if program.early_output_captures.is_empty() {
@@ -1438,12 +1528,27 @@ impl Program {
                 continue;
             }
             let qubit = state.sim.num_qubits();
-            let operators = capture
+            let widened;
+            let operators = if let Some(operators) = capture
                 .operators
                 .get(qubit.saturating_sub(self.core.coord_index.len()))
-                .ok_or(ExecError::MalformedGraph(
-                    "early-output capture has no prepared width",
+            {
+                operators
+            } else {
+                // Prepared inputs and caller-owned reference ancillas may
+                // precede the captured output's private qubit.
+                let base = capture.operators.first().ok_or(ExecError::MalformedGraph(
+                    "early-output capture has no prepared operators",
                 ))?;
+                let width = qubit + 1;
+                widened = EarlyOutputPaulis {
+                    logical_x: super::circuit::widen_pauli(&base.logical_x, width),
+                    logical_z: super::circuit::widen_pauli(&base.logical_z, width),
+                    ancilla_x: PauliString::single(width, qubit, Pauli::X),
+                    ancilla_z: PauliString::single(width, qubit, Pauli::Z),
+                };
+                &widened
+            };
             state.sim.reset(qubit)?;
             state
                 .sim
@@ -3005,6 +3110,243 @@ graph {
     }
 
     #[test]
+    fn captured_outputs_leave_terminal_observables_unavailable() {
+        for reuse in [false, true] {
+            let mut bloq = Bloq::new();
+            let template = one_qubit_template(&mut bloq, GateType::H);
+            let first = bloq.add_node(quantum_node(template, 0, IVec2::ZERO));
+            let template = one_qubit_template(&mut bloq, GateType::RZ);
+            let coord = if reuse { IVec2::ZERO } else { IVec2::X };
+            let second = bloq.add_node(quantum_node(template, 1, coord));
+            bloq.add_edge(first, second, BloqEdge::Order);
+            let mut outputs = Vec::new();
+            for (instance, coord) in [(0, IVec2::ZERO), (1, coord)] {
+                let port = IVec3::new(0, 0, instance as i32);
+                outputs.push(bloq_ir::LogicalOutput {
+                    port,
+                    instance: TemplateInstanceId(instance),
+                    x: [(coord, CircuitPauli::X)].into_iter().collect(),
+                    z: [(coord, CircuitPauli::Z)].into_iter().collect(),
+                });
+                for basis in [bloq_ir::Basis::X, bloq_ir::Basis::Z] {
+                    bloq.add_node(
+                        BloqNode::classical(ClassicalNode::Compute {
+                            expr: ClassicalExpr::Const(false),
+                        })
+                        .with_provenance(bloq_ir::NodeProvenance::OutputFrame { port, basis }),
+                    );
+                }
+            }
+            bloq.set_logical_outputs(outputs);
+            // Across the two cuts this is X(first) Z(second). Reusing the
+            // original coordinates after capture would instead multiply XZ.
+            let fragment = bloq.add_node(BloqNode::classical(ClassicalNode::observable_fragment(
+                Vec::new(),
+                [
+                    (0, IVec2::ZERO, CircuitPauli::X),
+                    (1, coord, CircuitPauli::Z),
+                ]
+                .into_iter()
+                .map(|(instance, coord, pauli)| InstanceBoundaryOperator {
+                    instance: TemplateInstanceId(instance),
+                    face: BoundaryFace::Output,
+                    operator: [(coord, pauli)].into_iter().collect(),
+                })
+                .collect(),
+            )));
+            let observable = bloq.add_node(BloqNode::classical(ClassicalNode::observable(0)));
+            bloq.add_edge(second, fragment, BloqEdge::Order);
+            bloq.add_edge(fragment, observable, BloqEdge::compose(0));
+            assert_eq!(
+                run_bloq(&bloq, 4, 0).unwrap().observables[0].per_shot,
+                [false; 4]
+            );
+
+            for prepare_inputs in [false, true] {
+                let hook = |sim: &mut Simulator, context: &ShotContext<'_>| {
+                    assert_eq!(context.saved_outputs.len(), usize::from(reuse));
+                    let outputs = context.output_logicals()?;
+                    assert_eq!(sim.peek_observable_expectation(&outputs[0].logical_x)?, 1.0);
+                    assert_eq!(sim.peek_observable_expectation(&outputs[1].logical_z)?, 1.0);
+                    Ok(())
+                };
+                let report = if prepare_inputs {
+                    run_bloq_with_io_and_captured_outputs(&bloq, 4, 0, |_, _| Ok(()), hook)
+                } else {
+                    run_bloq_with_captured_outputs(&bloq, 4, 0, hook)
+                }
+                .unwrap();
+                assert_eq!(
+                    report.observables[0].per_shot,
+                    if reuse { Vec::new() } else { vec![false; 4] },
+                );
+                for frame in report.frame_pairs {
+                    assert_eq!(frame.x_bits, [Some(false); 4]);
+                    assert_eq!(frame.z_bits, [Some(false); 4]);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn prepared_inputs_and_capture_preserve_entanglement_with_extra_ancillas() {
+        use std::cell::Cell;
+
+        use bloq_compile::{CompileConfig, CompileContext};
+        use bloq_graph::BlockGraph;
+
+        use crate::verify::{logical_signature, signatures_match};
+
+        let graph = BlockGraph::from_blog_text(
+            "BLOG 1.0
+            0: Port [0,0,0] role=input
+            1: ZXZ [0,0,1]
+            2: Port [0,0,2] role=output
+            0 -> +Z
+            1 -> +Z",
+        )
+        .unwrap();
+        let mut bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
+            .compile(&graph)
+            .unwrap()
+            .bloq;
+        let output = bloq.logical_outputs()[0].clone();
+        let owner = bloq
+            .quantum_nodes()
+            .find_map(|(id, quantum)| {
+                quantum
+                    .instances
+                    .iter()
+                    .any(|instance| instance.id == output.instance)
+                    .then_some(id)
+            })
+            .unwrap();
+        let mut reset = CoordCircuit::new();
+        reset
+            .do_gate(
+                GateType::RZ,
+                output
+                    .x
+                    .iter()
+                    .chain(output.z.iter())
+                    .map(|(&qubit, _)| qubit)
+                    .collect::<FxHashSet<_>>(),
+            )
+            .unwrap();
+        let template = bloq.add_template(BloqTemplate::new(reset));
+        let instance = bloq
+            .quantum_nodes()
+            .flat_map(|(_, quantum)| quantum.instances.iter())
+            .map(|instance| instance.id.0)
+            .max()
+            .unwrap()
+            + 1;
+        let reuse = bloq.add_node(quantum_node(template, instance, IVec2::ZERO));
+        bloq.add_edge(owner, reuse, BloqEdge::Order);
+        // Capture saves the output before its patch is reused. Order the frame
+        // decodes after that reuse explicitly instead of relying on node ids.
+        let decodes = bloq
+            .top()
+            .nodes()
+            .filter_map(|(id, node)| {
+                matches!(
+                    node.try_classical(),
+                    Some(ClassicalNode::Observable { index: Some(_), .. })
+                )
+                .then_some(id)
+            })
+            .collect::<Vec<_>>();
+        for decode in decodes {
+            bloq.add_edge(reuse, decode, BloqEdge::Order);
+        }
+        let mut live_output = output.clone();
+        live_output.instance = TemplateInstanceId(instance);
+        live_output.port = IVec3::new(0, 0, 3);
+        bloq.set_logical_outputs(vec![output.clone(), live_output.clone()]);
+        for basis in [bloq_ir::Basis::X, bloq_ir::Basis::Z] {
+            bloq.add_node(
+                BloqNode::classical(ClassicalNode::Compute {
+                    expr: ClassicalExpr::Const(false),
+                })
+                .with_provenance(bloq_ir::NodeProvenance::OutputFrame {
+                    port: live_output.port,
+                    basis,
+                }),
+            );
+        }
+        bloq.validate().unwrap();
+
+        let physical = |qubit, width| OutputLogical {
+            port: IVec3::ZERO,
+            logical_x: PauliString::single(width, qubit, Pauli::X),
+            logical_z: PauliString::single(width, qubit, Pauli::Z),
+            consumed: false,
+        };
+        for magic in [false, true] {
+            let mut ideal = Simulator::with_seed(3, 0);
+            if magic {
+                ideal.h(0);
+                ideal.cx(0, 2).unwrap();
+                ideal.t(0).unwrap();
+            }
+            let logicals = (0..3).map(|qubit| physical(qubit, 3)).collect::<Vec<_>>();
+            let expected = logical_signature(
+                &ideal,
+                &logicals
+                    .iter()
+                    .map(|output| (output, (false, false)))
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap();
+            let reference = Cell::new(0usize);
+            let report = run_bloq_with_io_and_captured_outputs(
+                &bloq,
+                8,
+                17,
+                |sim, context| {
+                    let input = context.inputs[0].qubit;
+                    reference.set(sim.num_qubits());
+                    if magic {
+                        sim.cx(input, reference.get())?;
+                        sim.t(input)?;
+                    } else {
+                        sim.h(input);
+                        sim.reset(reference.get())?;
+                    }
+                    // Caller-owned qubits force capture beyond its prepared-width cache.
+                    sim.reset(sim.num_qubits())?;
+                    Ok(())
+                },
+                |sim, context| {
+                    assert_eq!(context.saved_outputs.len(), 1);
+                    assert!(context.saved_outputs[0].qubit > reference.get() + 1);
+                    let outputs = context.output_logicals()?;
+                    let mut ordered = Vec::new();
+                    for port in [output.port, live_output.port] {
+                        let output = outputs.iter().find(|output| output.port == port).unwrap();
+                        let frame = context
+                            .frames
+                            .iter()
+                            .find(|frame| frame.port == port)
+                            .unwrap();
+                        ordered.push((output, (frame.x.unwrap(), frame.z.unwrap())));
+                    }
+                    let reference = physical(reference.get(), sim.num_qubits());
+                    ordered.push((&reference, (false, false)));
+                    assert!(signatures_match(
+                        &logical_signature(sim, &ordered)?,
+                        &expected,
+                    ));
+                    Ok(())
+                },
+            )
+            .unwrap();
+            assert_eq!(report.discarded, 0);
+            assert!(report.all_detectors_constant());
+        }
+    }
+
+    #[test]
     fn spatial_input_replacement_keeps_wall_checks_on_their_own_side_of_the_cut() {
         use bloq_compile::{CompileConfig, CompileContext};
         use bloq_graph::BlockGraph;
@@ -3233,12 +3575,39 @@ graph {
         for result in [
             run_bloq(&bloq, 1, 0),
             run_bloq_with_captured_outputs(&bloq, 1, 0, |_, _| Ok(())),
+            run_bloq_with_io_and_captured_outputs(&bloq, 1, 0, |_, _| Ok(()), |_, _| Ok(())),
         ] {
             assert!(matches!(
                 result,
                 Err(ExecError::IncompatibleEarlyOutputReads { .. })
             ));
         }
+    }
+
+    #[test]
+    fn output_logicals_reject_consumed_uncaptured_state() {
+        let outputs = [OutputLogical {
+            port: IVec3::ZERO,
+            logical_x: PauliString::single(1, 0, Pauli::X),
+            logical_z: PauliString::single(1, 0, Pauli::Z),
+            consumed: true,
+        }];
+        let context = ShotContext {
+            shot: 0,
+            record: &ShotRecord::default(),
+            branch_selectors: &[],
+            named_branch_selectors: &[],
+            outputs: &outputs,
+            frames: &[],
+            saved_outputs: &[],
+            qubit_count: 1,
+        };
+        assert!(matches!(
+            context.output_logicals(),
+            Err(ExecError::MalformedGraph(
+                "logical output was consumed without boundary capture"
+            ))
+        ));
     }
 
     #[test]
