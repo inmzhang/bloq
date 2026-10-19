@@ -44,10 +44,10 @@ fn main() {
         let preparation_ms = if mode == "module_relations" {
             prepared = Some(
                 authored
-                    .prepare_module_relations(
+                    .prepare_module_relations_with_cache(
                         limits,
                         bloq_graph::default_module_jobs(),
-                        &Default::default(),
+                        |_| None,
                     )
                     .expect("prepared module relations"),
             );

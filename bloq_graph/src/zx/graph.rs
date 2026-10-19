@@ -1322,12 +1322,40 @@ fn measurement_observable_for_node_kind(kind: NodeKind) -> Option<MeasurementObs
     }
 }
 
+/// Validates one selective fill and records the boundary spider it fills with.
+pub(super) fn insert_selective_fill(
+    port_map: &mut HashMap<IVec3, NodeKind>,
+    pos: IVec3,
+    kind: crate::SelectiveKind,
+    chosen: PauliBasis,
+) -> Result<(), super::RuntimeBasisError> {
+    if ![kind.pauli_if_true(), kind.pauli_if_false()].contains(&chosen) {
+        return Err(super::RuntimeBasisError::InvalidSelectiveBasis { pos, kind, chosen });
+    }
+    if port_map.insert(pos, filled_node_kind(chosen)).is_some() {
+        return Err(super::RuntimeBasisError::DuplicateSelective(pos));
+    }
+    Ok(())
+}
+
 /// The boundary spider a chosen measurement basis fills a selective node with.
 pub(super) fn filled_node_kind(chosen: PauliBasis) -> NodeKind {
     match chosen {
         PauliBasis::X => NodeKind::Z,
         PauliBasis::Y => NodeKind::Y,
         PauliBasis::Z => NodeKind::X,
+    }
+}
+
+impl ZXGraph {
+    /// Demotes prepared T resources to ports. Both have the same local flow
+    /// rows and cross-center behavior, so a signed phase basis survives.
+    pub(super) fn demote_t_nodes_to_ports(&mut self) {
+        for node in &mut self.nodes {
+            if node.kind == NodeKind::T {
+                node.kind = NodeKind::Port;
+            }
+        }
     }
 }
 

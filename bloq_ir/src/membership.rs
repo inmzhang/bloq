@@ -925,10 +925,7 @@ mod tests {
     use glam::ivec2;
 
     fn input_node(graph: &mut SubGraph) -> BloqNodeId {
-        graph.add_node(BloqNode::classical(ClassicalNode::observable_fragment(
-            Vec::new(),
-            Vec::new(),
-        )))
+        graph.add_node(BloqNode::classical(ClassicalNode::fragment()))
     }
 
     fn compute_node(

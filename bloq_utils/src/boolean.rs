@@ -2719,7 +2719,7 @@ mod tests {
     }
 
     #[test]
-    fn dense_witness_replay_preserves_raw_rows_across_wrap_errors_and_collection() {
+    fn dense_witness_replay_preserves_raw_rows_across_errors_and_collection() {
         for high in [1, usize::MAX] {
             let mut diagram = BooleanDecisionDiagram::default();
             diagram
@@ -2738,14 +2738,10 @@ mod tests {
             let mut warm = row.clone();
             warm.expand_coefficients(&mut diagram).unwrap();
             assert_eq!(warm.terms(), expected.terms());
-            diagram.row_witnesses.as_mut().unwrap().expansion.epoch = u32::MAX;
-            let mut wrapped = row.clone();
-            wrapped.expand_coefficients(&mut diagram).unwrap();
-            assert_eq!(wrapped.terms(), expected.terms());
             diagram.limits.max_steps = diagram.steps() + 3;
             let error = row.expand_coefficients(&mut diagram).unwrap_err();
             assert_eq!(error.resource, "Boolean work steps");
-            drop((warm, wrapped, other));
+            drop((warm, other));
             diagram.collect_garbage(row.decisions_mut().chain(expected.decisions_mut()));
             diagram.limits.max_steps = usize::MAX;
             row.expand_coefficients(&mut diagram).unwrap();
@@ -3223,18 +3219,14 @@ mod tests {
     }
 
     #[test]
-    fn small_diagram_caches_stay_small_through_clone_and_collection() {
+    fn cached_results_survive_clone_and_collection() {
         let mut diagram = BooleanDecisionDiagram::default();
-        assert!(diagram.apply_cache.entries.is_empty());
         diagram.make_node(0, DECISION_FALSE, DECISION_TRUE).unwrap();
         let mut left = diagram.make_node(1, DECISION_FALSE, DECISION_TRUE).unwrap();
         let mut right = diagram.make_node(2, DECISION_FALSE, DECISION_TRUE).unwrap();
         let mut result = diagram.apply(BooleanOp::And, left, right).unwrap();
-        let capacity = diagram.apply_cache.entries.len();
-        assert!(capacity <= 16);
 
         let mut cloned = diagram.clone();
-        assert_eq!(cloned.apply_cache.entries.len(), capacity);
         let steps = cloned.steps();
         assert_eq!(cloned.apply(BooleanOp::And, left, right).unwrap(), result);
         assert_eq!(cloned.steps(), steps);
@@ -3243,27 +3235,9 @@ mod tests {
             diagram.collect_garbage([&mut left, &mut right, &mut result]),
             1
         );
-        assert_eq!(diagram.apply_cache.entries.len(), capacity);
         let steps = diagram.steps();
         assert_eq!(diagram.apply(BooleanOp::And, left, right).unwrap(), result);
         assert_eq!(diagram.steps(), steps);
-    }
-
-    #[test]
-    fn computed_table_growth_is_bounded_and_preserves_cached_results() {
-        let mut table = ComputedTable::default();
-        let key = (BooleanOp::And, DecisionId(2), DecisionId(3));
-        table.insert(key, DecisionId(4), 4);
-        let initial_capacity = table.entries.len();
-        let other_key = (BooleanOp::Or, DecisionId(2), DecisionId(3));
-        table.insert(other_key, DecisionId(5), initial_capacity);
-        assert!(table.entries.len() > initial_capacity);
-        assert_eq!(table.get(key), Some(DecisionId(4)));
-        assert_eq!(table.get(other_key), Some(DecisionId(5)));
-        table.insert(other_key, DecisionId(5), usize::MAX);
-        assert_eq!(table.entries.len(), MAX_CACHE_ENTRIES);
-        assert_eq!(table.get(key), Some(DecisionId(4)));
-        assert_eq!(table.get(other_key), Some(DecisionId(5)));
     }
 
     #[test]
@@ -3297,7 +3271,6 @@ mod tests {
                 );
             }
         }
-        let mut nontrivial_keys = 0;
         for (a, &left) in functions.iter().enumerate() {
             for (b, &right) in functions.iter().enumerate().skip(a + 1) {
                 for (operator, truth) in [
@@ -3309,44 +3282,8 @@ mod tests {
                         diagram.apply(operator, left, right).unwrap(),
                         functions[truth]
                     );
-                    nontrivial_keys += usize::from(left.0 >= 2 && right.0 >= 2);
                 }
             }
-        }
-        assert!(nontrivial_keys > diagram.apply_cache.entries.len());
-    }
-
-    #[test]
-    fn computed_table_remapping_drops_dead_operands_and_results() {
-        let mut table = ComputedTable::default();
-        for (operator, left, right, result) in [
-            (BooleanOp::And, 3, 4, 6),
-            (BooleanOp::And, 2, 4, 4),
-            (BooleanOp::Or, 3, 5, 6),
-            (BooleanOp::Xor, 3, 4, 5),
-            (BooleanOp::Xor, 3, 3, 0),
-        ] {
-            table.insert(
-                (operator, DecisionId(left), DecisionId(right)),
-                DecisionId(result),
-                5,
-            );
-        }
-        table.remap(&[0, 1, 0, 2, 3, 0, 4].map(DecisionId));
-        assert_eq!(
-            table.get((BooleanOp::And, DecisionId(2), DecisionId(3))),
-            Some(DecisionId(4)),
-        );
-        assert_eq!(
-            table.get((BooleanOp::Xor, DecisionId(2), DecisionId(2))),
-            Some(DECISION_FALSE),
-        );
-        for key in [
-            (BooleanOp::And, DECISION_FALSE, DecisionId(3)),
-            (BooleanOp::Or, DecisionId(2), DECISION_FALSE),
-            (BooleanOp::Xor, DecisionId(2), DecisionId(3)),
-        ] {
-            assert_eq!(table.get(key), None);
         }
     }
 

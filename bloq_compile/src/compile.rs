@@ -1079,20 +1079,7 @@ impl CompileContext {
                     &source_graph,
                     self.config.code_distance(),
                 )?;
-                let graph = graph.into_owned();
-                let signatures = select_link_signatures(
-                    self.config,
-                    &graph,
-                    &spatial_ports,
-                    #[cfg(test)]
-                    &self.flat_signature_builds,
-                )?;
-                return Ok(ProxyPreflight {
-                    graph,
-                    signatures,
-                    stabilizers,
-                    spatial_ports,
-                });
+                return self.proxy_preflight(graph.into_owned(), stabilizers, spatial_ports);
             }
         };
         let graph = graph.canonical_true_branch_view()?;
@@ -1129,6 +1116,15 @@ impl CompileContext {
             graph
         };
         let stabilizers = self.proxy_stabilizers(&graph, &stabilizers)?;
+        self.proxy_preflight(graph, stabilizers, spatial_ports)
+    }
+
+    fn proxy_preflight(
+        &self,
+        graph: BlockGraph,
+        stabilizers: StabilizerGenerators,
+        spatial_ports: SpatialPortExpansionMap,
+    ) -> Result<ProxyPreflight, CompileError> {
         let signatures = select_link_signatures(
             self.config,
             &graph,
@@ -1196,6 +1192,10 @@ impl CompileContext {
                 )
             })
             .collect::<std::collections::HashMap<_, _>>();
+        let prepared_by_name = prepared_definitions
+            .iter()
+            .map(|definition| (definition.name(), definition))
+            .collect::<crate::FxMap<_, _>>();
         let seam_faces = program.module_public_seam_faces();
         let orientations_by_name = program.definition_orientations();
         let mut names = definition_keys.keys().cloned().collect::<Vec<_>>();
@@ -1217,7 +1217,7 @@ impl CompileContext {
         }
         let compile_one = |name: &String| -> Result<CompiledDefinitionVariants, CompileError> {
             self.check_cancellation()?;
-            let definition = summary.definition(name).expect("prepared definition");
+            let definition = prepared_by_name[name.as_str()];
             let linked = definition.linked();
             let mut variants = crate::FxMap::default();
             for &orientation in &orientations_by_name[name] {
@@ -1239,13 +1239,7 @@ impl CompileContext {
                 if name != BlockGraph::ENTRY_MODULE
                     && orientation != bloq_graph::ModuleOrientation::IDENTITY
                 {
-                    registry::certify_definition(
-                        name,
-                        &oriented_graph,
-                        &oriented_sites,
-                        self.config.certification_limits(),
-                        definition,
-                    )?;
+                    definition.certify_interface(&oriented_graph, &oriented_sites)?;
                 }
                 let graph = oriented_graph.canonical_true_branch_view()?;
                 let graph = graph.fix_shadowed_faces();
@@ -4630,10 +4624,14 @@ module main {{
             .prepare_relations(&shared, default_module_jobs())
             .unwrap();
         assert!(!Arc::ptr_eq(&first_relations, &second_relations));
-        assert!(std::ptr::eq(
-            first_relations.definition("Cap").unwrap(),
-            second_relations.definition("Cap").unwrap(),
-        ));
+        let cap = |relations: &Arc<bloq_graph::PreparedModuleRelations>| {
+            relations
+                .definitions()
+                .into_iter()
+                .find(|definition| definition.name() == "Cap")
+                .unwrap()
+        };
+        assert!(Arc::ptr_eq(&cap(&first_relations), &cap(&second_relations)));
         let selector_names =
             [ivec3(0, 0, 2), ivec3(3, 0, 2)].map(bloq_graph::selective_selector_name);
         let choices = |a, b| {

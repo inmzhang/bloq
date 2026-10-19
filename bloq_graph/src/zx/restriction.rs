@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use glam::IVec3;
 
-use super::graph::filled_node_kind;
+use super::graph::insert_selective_fill;
 use super::modular::{StabilizerPhaseBasis, try_leading_pivot_elimination_from};
 use super::stabilizer::SearchBudget;
 use super::{NodeKind, RuntimeBasisError, StabilizerError, ZXGraph};
@@ -49,12 +49,7 @@ impl ZXGraph {
             let NodeKind::Selective(kind) = node.kind else {
                 return Err(RuntimeBasisError::UnknownSelective(pos));
             };
-            if ![kind.pauli_if_true(), kind.pauli_if_false()].contains(&chosen) {
-                return Err(RuntimeBasisError::InvalidSelectiveBasis { pos, kind, chosen });
-            }
-            if port_map.insert(pos, filled_node_kind(chosen)).is_some() {
-                return Err(RuntimeBasisError::DuplicateSelective(pos));
-            }
+            insert_selective_fill(&mut port_map, pos, kind, chosen)?;
             // Boundary YY has sign -1. An effect Y cap also has sign -1;
             // a preparation Y cap has sign +1. Hadamard signs cancel here.
             let cap_phase = if chosen == PauliBasis::Y
@@ -120,12 +115,7 @@ impl ZXGraph {
         rows.truncate(rank);
 
         let mut zx_graph = self.fill_ports(&port_map)?;
-        // Prepared T resources and ports have identical local Clifford rows.
-        for node in &mut zx_graph.nodes {
-            if node.kind == NodeKind::T {
-                node.kind = NodeKind::Port;
-            }
-        }
+        zx_graph.demote_t_nodes_to_ports();
         zx_graph.stabilizer_phase_basis.take();
         checkpoint()?;
         let basis = Arc::new(StabilizerPhaseBasis::new(rows));
@@ -144,6 +134,7 @@ mod tests {
 
     use super::*;
     use crate::zx::graph::CsrAdjacency;
+    use crate::zx::graph::filled_node_kind;
     use crate::{ActionDag, PauliString, SelectiveKind, ZXEdge, ZXNode};
 
     fn chain(kinds: [SelectiveKind; 2], spider: NodeKind, hadamards: usize) -> ZXGraph {

@@ -599,13 +599,9 @@ pub(super) fn lower(
             if guard == ZERO {
                 continue;
             }
-            let predicate = if guard == ONE {
-                None
-            } else {
-                boolean.values.get(&guard).copied()
-            };
-            let mut key = (operator.clone(), predicate);
-            let node = if (guard == ONE || predicate.is_some())
+            let predicate = emitted_predicate(boolean, guard);
+            let mut key = (operator, predicate.flatten());
+            let node = if predicate.is_some()
                 && let Some(&node) = includes.get(&key)
             {
                 node
@@ -615,9 +611,10 @@ pub(super) fn lower(
                     boolean,
                     &plan.topology,
                     guard,
-                    ClassicalNode::observable_fragment(vec![], vec![operator.clone()]),
+                    ClassicalNode::observable_fragment(vec![], vec![key.0.clone()]),
                 );
-                key.1 = (guard != ONE).then(|| boolean.values[&guard]);
+                key.1 = emitted_predicate(boolean, guard).expect("guard was emitted");
+                let operator = &key.0;
                 if operator.face == bloq_ir::BoundaryFace::Output {
                     assembly.bloq.add_edge(
                         assembly.owners[&operator.instance],
@@ -894,17 +891,11 @@ fn emit_accumulates(
 ) -> Result<Vec<(Input, ValueRole)>, CompileError> {
     let mut values = Vec::new();
     for (packet, guard) in normalize_packets(packets, topology)? {
-        let predicate = if guard == ONE {
-            None
-        } else {
-            boolean.values.get(&guard).copied()
-        };
-        let mut key = (packet, predicate);
+        let predicate = emitted_predicate(boolean, guard);
+        let mut key = (packet, predicate.flatten());
         // An unseen guard cannot hit. Charge the payload and request its guard
         // at the original cache miss, before any later query can emit guards.
-        let cached = (guard == ONE || predicate.is_some())
-            .then(|| accumulates.get(&key).copied())
-            .flatten();
+        let cached = predicate.and_then(|_| accumulates.get(&key).copied());
         let node = if let Some(node) = cached {
             node
         } else {
@@ -912,13 +903,22 @@ fn emit_accumulates(
             let owner = assembly.owners[&key.0.instance()];
             let node =
                 emission.measurement(assembly, boolean, topology, guard, &key.0.records, owner)?;
-            key.1 = (guard != ONE).then(|| boolean.values[&guard]);
+            key.1 = emitted_predicate(boolean, guard).expect("guard was emitted");
             accumulates.insert(key, node);
             node
         };
         values.push((node, ValueRole::Data));
     }
     Ok(values)
+}
+
+/// Cache predicate for an already emitted guard; `None` means it cannot hit yet.
+fn emitted_predicate(boolean: &BooleanProgram, guard: DecisionId) -> Option<Option<BloqNodeId>> {
+    if guard == ONE {
+        Some(None)
+    } else {
+        boolean.values.get(&guard).copied().map(Some)
+    }
 }
 
 fn emit_guarded_value(
@@ -948,42 +948,6 @@ mod tests {
     use bloq_graph::{BlockGraph, GuardedTopology, GuardedVariable, ModuleCertificationLimits};
     use bloq_ir::lowering::{BloqTemplate, TemplateInstance};
     use glam::ivec2;
-
-    #[test]
-    fn gc_policy_physical_preserves_legacy_thresholds_and_bounds_headroom() {
-        for limit in [
-            0,
-            1,
-            3,
-            4,
-            512,
-            READOUT_COLLECTION_TARGET - 1,
-            READOUT_COLLECTION_TARGET,
-        ] {
-            for retained in [0, limit / 2, limit.saturating_sub(1), limit] {
-                let legacy = retained
-                    .saturating_add(limit.saturating_sub(retained) / 4)
-                    .max((limit / 4).max(1));
-                assert_eq!(next_readout_collection(retained, limit), legacy);
-            }
-        }
-        for limit in [2 * READOUT_COLLECTION_TARGET, usize::MAX] {
-            assert_eq!(
-                next_readout_collection(0, limit),
-                READOUT_COLLECTION_TARGET / 4
-            );
-            assert_eq!(
-                next_readout_collection(READOUT_COLLECTION_TARGET, limit),
-                READOUT_COLLECTION_TARGET * 5 / 4,
-            );
-            for retained in [READOUT_COLLECTION_TARGET, limit / 2, limit - 1, limit] {
-                let next = next_readout_collection(retained, limit);
-                assert!(next >= retained && next <= limit);
-                assert!(next - retained <= (READOUT_COLLECTION_TARGET / 4).max(retained / 4));
-            }
-        }
-        assert_eq!(next_readout_collection(usize::MAX, usize::MAX), usize::MAX);
-    }
 
     #[test]
     fn unindexed_observable_folds_remain_boolean() {

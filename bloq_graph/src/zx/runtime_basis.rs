@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use glam::IVec3;
 use thiserror::Error;
 
-use super::graph::filled_node_kind;
+use super::graph::insert_selective_fill;
 use super::output_correction::{OutputCorrectionRow, pivot_output_correction_rows};
 use super::stabilizer::{
     CoeffVec, DeadlineProjection, SelectiveConstraint, StabilizerBasis,
@@ -170,13 +170,7 @@ impl RuntimeStabilizerBasis {
     /// Demotes every [`T`](NodeKind::T) node to a plain [`Port`](NodeKind::Port).
     /// Used when selective filling treats prepared T states as open inputs.
     pub fn with_t_nodes_as_ports(mut self) -> Self {
-        // T and Port have the same local flow rows and cross-center behavior,
-        // so their signed phase basis survives this relabeling.
-        for node in &mut self.zx_graph.nodes {
-            if node.kind == NodeKind::T {
-                node.kind = NodeKind::Port;
-            }
-        }
+        self.zx_graph.demote_t_nodes_to_ports();
         self
     }
 
@@ -191,12 +185,7 @@ impl RuntimeStabilizerBasis {
                 .get(&pos)
                 .copied()
                 .ok_or(RuntimeBasisError::UnknownSelective(pos))?;
-            if ![kind.pauli_if_true(), kind.pauli_if_false()].contains(&chosen) {
-                return Err(RuntimeBasisError::InvalidSelectiveBasis { pos, kind, chosen });
-            }
-            if port_map.insert(pos, filled_node_kind(chosen)).is_some() {
-                return Err(RuntimeBasisError::DuplicateSelective(pos));
-            }
+            insert_selective_fill(&mut port_map, pos, kind, chosen)?;
         }
         Ok(port_map)
     }

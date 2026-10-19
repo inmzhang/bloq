@@ -1,7 +1,7 @@
 #![cfg(test)]
 //! Production planning preserves complete supports while reusing definition relations.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::fmt::Write;
 use std::num::NonZeroUsize;
 
@@ -144,7 +144,7 @@ fn assert_same_plan(actual: &mut GuardedReadoutPlan, expected: &mut GuardedReado
 fn compare(program: &BlockGraph) -> GuardedReadoutPlan {
     let limits = ModuleCertificationLimits::DEFAULT;
     let relations = program
-        .prepare_module_relations(limits, NonZeroUsize::MIN, &HashMap::new())
+        .prepare_module_relations_with_cache(limits, NonZeroUsize::MIN, |_| None)
         .expect("fixture definition relations are preparable");
     let linked = flatten_module_definition(program, program.root(), "")
         .expect("fixture module instances can be linked");
@@ -380,7 +380,7 @@ fn warmed_relations_reuse_internal_elimination_after_translation() {
     let limits = ModuleCertificationLimits::DEFAULT;
     let program = repeated_wire(6);
     let relations = program
-        .prepare_module_relations(limits, NonZeroUsize::new(1).unwrap(), &HashMap::new())
+        .prepare_module_relations_with_cache(limits, NonZeroUsize::new(1).unwrap(), |_| None)
         .unwrap();
     let linked = flatten_module_definition(&program, program.root(), "").unwrap();
     let graph = linked.graph.fix_shadowed_faces();
@@ -426,10 +426,9 @@ fn warmed_relations_reuse_internal_elimination_after_translation() {
 fn public_summary_and_prepared_relation_plan_the_same_complete_supports() {
     let limits = ModuleCertificationLimits::DEFAULT;
     let program = repeated_wire(2);
-    let relations = program
-        .prepare_module_relations(limits, NonZeroUsize::new(1).unwrap(), &HashMap::new())
+    let (relations, summary) = program
+        .prepare_module_summary_with_cache(limits, NonZeroUsize::new(1).unwrap(), |_| None)
         .unwrap();
-    let summary = relations.summarize().unwrap();
     let linked = flatten_module_definition(&program, program.root(), "").unwrap();
     let graph = linked.graph.fix_shadowed_faces();
     let topology = GuardedTopology::new(&graph, limits).unwrap();

@@ -72,6 +72,25 @@ impl PreparedModuleRelations {
         crate::GuardedSurfaceSpace::with_relations(topology, sites, self.limits, self.relations())
     }
 
+    /// Checks that `graph`, an orientation of this definition, closes its
+    /// readouts before outputs (C0) using this definition's relations.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if composition, readout planning, or a limit fails.
+    #[doc(hidden)]
+    pub fn certify_interface(
+        &self,
+        graph: &BlockGraph,
+        sites: &HashMap<IVec3, crate::MaterializedModuleSite>,
+    ) -> Result<(), ModuleCertificationError> {
+        crate::GuardedTopology::new(graph, self.limits)
+            .and_then(|topology| self.compose(topology, sites))
+            .and_then(crate::GuardedSurfaceSpace::plan_readouts)
+            .map(drop)
+            .map_err(|source| certification_error(&self.name, source))
+    }
+
     fn relations(&self) -> &HashMap<String, Arc<relations::ModuleRelations>> {
         self.relations.get_or_init(|| self.collect_relations())
     }
@@ -132,22 +151,6 @@ impl PreparedModuleRelations {
         &self.implementation_key
     }
 
-    /// Finds a definition summary already built as part of this root summary.
-    #[doc(hidden)]
-    pub fn definition(&self, name: &str) -> Option<&PreparedModuleRelations> {
-        let mut pending = vec![self];
-        let mut seen = FxHashSet::default();
-        while let Some(summary) = pending.pop() {
-            if summary.name == name {
-                return Some(summary);
-            }
-            if seen.insert(summary.name.as_str()) {
-                pending.extend(summary.dependencies.values().map(Arc::as_ref));
-            }
-        }
-        None
-    }
-
     /// Returns this summary and each reachable definition exactly once.
     #[doc(hidden)]
     pub fn definitions(self: &Arc<Self>) -> Vec<Arc<Self>> {
@@ -161,27 +164,6 @@ impl PreparedModuleRelations {
             }
         }
         definitions
-    }
-
-    /// Build the public signed presentation from these same correlation relations.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if presentation or configured certification limits fail.
-    pub fn summarize(self: &Arc<Self>) -> Result<Arc<ModuleSummary>, ModuleCertificationError> {
-        self.summarize_with_jobs(default_module_jobs())
-    }
-
-    /// Present signed summaries using the supplied worker budget.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if presentation or configured certification limits fail.
-    pub fn summarize_with_jobs(
-        self: &Arc<Self>,
-        jobs: NonZeroUsize,
-    ) -> Result<Arc<ModuleSummary>, ModuleCertificationError> {
-        summarize_prepared(self, jobs, false)
     }
 }
 
@@ -205,7 +187,7 @@ pub struct ModuleSummary {
 #[derive(Debug, Clone)]
 struct ModuleProjection {
     targets: Vec<IVec3>,
-    space: Arc<crate::GuardedSurfaceSpace>,
+    space: crate::GuardedSurfaceSpace,
 }
 
 impl ModuleSummary {
@@ -354,7 +336,7 @@ impl ModuleSummary {
                 crate::GuardedVariable::Outcome(_) => false,
             },
         ) {
-            projection.space.as_ref()
+            &projection.space
         } else {
             selected_space = self
                 .compose(
@@ -683,28 +665,14 @@ impl BlockGraph {
         limits: ModuleCertificationLimits,
         jobs: NonZeroUsize,
     ) -> Result<Arc<ModuleSummary>, ModuleCertificationError> {
+        self.validate_for_preparation(limits)?;
         self.prepare_module_summary_with_cache(limits, jobs, |_| None)
             .map(|(_, summary)| summary)
     }
 
     /// Prepare reusable factored relations without constructing dense signed presentations.
-    /// Reused definitions are keyed by exact implementation text and must use the same limits.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if validation, child certification, or a resource limit fails.
-    #[doc(hidden)]
-    pub fn prepare_module_relations(
-        &self,
-        limits: ModuleCertificationLimits,
-        jobs: NonZeroUsize,
-        reused: &HashMap<String, Arc<PreparedModuleRelations>>,
-    ) -> Result<Arc<PreparedModuleRelations>, ModuleCertificationError> {
-        self.prepare_module_relations_with_cache(limits, jobs, |key| reused.get(key).cloned())
-    }
-
-    /// Prepare validated relations, consulting a shared cache by exact implementation key.
-    /// The lookup runs only after validation and may run concurrently for independent definitions.
+    /// Source is validated before `cached` is consulted by exact implementation key;
+    /// reused definitions must use the same limits. Lookups may run concurrently.
     ///
     /// # Errors
     ///
@@ -716,16 +684,33 @@ impl BlockGraph {
         jobs: NonZeroUsize,
         cached: impl Fn(&str) -> Option<Arc<PreparedModuleRelations>> + Sync,
     ) -> Result<Arc<PreparedModuleRelations>, ModuleCertificationError> {
-        self.prepare_relations(limits, jobs, &cached, true)
+        self.validate_for_preparation(limits)?;
+        self.prepare_validated_module_relations(limits, jobs, cached)
     }
 
-    /// Prepare relations and their signed presentation, reusing composed spaces
-    /// for child-interface certification. Branch projections retain their space
-    /// and certify a temporary clone.
+    /// [`Self::prepare_module_relations_with_cache`] for source that already passed
+    /// [`Self::validate_with_limits`] under the same limits.
     ///
     /// # Errors
     ///
-    /// Returns an error if validation, certification, or presentation fails.
+    /// Returns an error if child certification or a resource limit fails.
+    #[doc(hidden)]
+    pub fn prepare_validated_module_relations(
+        &self,
+        limits: ModuleCertificationLimits,
+        jobs: NonZeroUsize,
+        cached: impl Fn(&str) -> Option<Arc<PreparedModuleRelations>> + Sync,
+    ) -> Result<Arc<PreparedModuleRelations>, ModuleCertificationError> {
+        self.prepare_relations(limits, jobs, &cached, true)
+    }
+
+    /// Prepare relations and their signed presentation, reusing each composed
+    /// space for child-interface certification. Source must already have
+    /// passed [`Self::validate_for_preparation`] under the same limits.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if certification or presentation fails.
     #[doc(hidden)]
     pub fn prepare_module_summary_with_cache(
         &self,
@@ -734,8 +719,39 @@ impl BlockGraph {
         cached: impl Fn(&str) -> Option<Arc<PreparedModuleRelations>> + Sync,
     ) -> Result<(Arc<PreparedModuleRelations>, Arc<ModuleSummary>), ModuleCertificationError> {
         let prepared = self.prepare_relations(limits, jobs, &cached, false)?;
-        let summary = summarize_prepared(&prepared, jobs, true)?;
+        let summary = summarize_prepared(&prepared, jobs)?;
         Ok((prepared, summary))
+    }
+
+    /// Validates source, or a plain graph's local body, before preparation.
+    /// Malformed source must not reach cache keys or preparation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if validation or a resource limit fails.
+    #[doc(hidden)]
+    pub fn validate_for_preparation(
+        &self,
+        limits: ModuleCertificationLimits,
+    ) -> Result<(), ModuleCertificationError> {
+        if self.has_module_structure() {
+            self.validate_with_limits(limits)
+                .map_err(|error| self.module_source_error(error))
+        } else {
+            self.validate_resource_limits(limits)
+                .and_then(|()| self.validate_source())
+                .map_err(|source| ModuleCertificationError::Graph {
+                    module: self.name.clone(),
+                    source,
+                })
+        }
+    }
+
+    fn module_source_error(&self, error: ModuleError) -> ModuleCertificationError {
+        ModuleCertificationError::Graph {
+            module: self.name.clone(),
+            source: crate::BlockGraphError::ModuleSource(Arc::new(error)),
+        }
     }
 
     fn prepare_relations(
@@ -746,31 +762,19 @@ impl BlockGraph {
         certify: bool,
     ) -> Result<Arc<PreparedModuleRelations>, ModuleCertificationError> {
         let inferred;
-        let source = if self.has_module_structure() {
+        let program = if self.has_module_structure() {
             self
         } else {
-            self.validate_resource_limits(limits)
-                .and_then(|()| self.validate_source())
-                .map_err(|source| ModuleCertificationError::Graph {
-                    module: self.name.clone(),
-                    source,
-                })?;
             inferred = self
                 .clone_local_definition()
                 .with_inferred_interface()
-                .map_err(|error| ModuleCertificationError::Graph {
-                    module: self.name.clone(),
-                    source: crate::BlockGraphError::ModuleSource(Arc::new(error)),
-                })?;
+                .map_err(|error| self.module_source_error(error))?;
+            inferred
+                .validate_with_limits(limits)
+                .map_err(|error| self.module_source_error(error))?;
             &inferred
         };
-        source
-            .validate_with_limits(limits)
-            .map_err(|error| ModuleCertificationError::Graph {
-                module: self.name.clone(),
-                source: crate::BlockGraphError::ModuleSource(Arc::new(error)),
-            })?;
-        prepare_validated_program(source, limits, jobs, cached, certify)
+        prepare_validated_program(program, limits, jobs, cached, certify)
     }
 
     /// Physical endpoints of direct child-to-child pipes in declaration order.
@@ -1240,14 +1244,7 @@ fn prepare_validated_program(
             });
             // A parent consuming outputs must not conceal an invalid child interface.
             if certify && module.name != program.root().name {
-                summary
-                    .compose(
-                        crate::GuardedTopology::new(&summary.linked.graph, limits)
-                            .map_err(graph_error)?,
-                        &summary.linked.sites,
-                    )
-                    .and_then(crate::GuardedSurfaceSpace::plan_readouts)
-                    .map_err(graph_error)?;
+                summary.certify_interface(&summary.linked.graph, &summary.linked.sites)?;
                 summary.interface_certified.get_or_init(|| ());
             }
             Ok(summary)
@@ -1262,7 +1259,6 @@ fn prepare_validated_program(
 fn summarize_prepared(
     prepared: &Arc<PreparedModuleRelations>,
     jobs: NonZeroUsize,
-    certify: bool,
 ) -> Result<Arc<ModuleSummary>, ModuleCertificationError> {
     let mut pending = vec![(Arc::clone(prepared), false)];
     let mut seen = FxHashSet::default();
@@ -1293,11 +1289,10 @@ fn summarize_prepared(
     let mut summaries = HashMap::new();
     for level in levels {
         let results = map_jobs(&level, jobs, |definition| {
-            summarize_definition(
-                definition,
-                &summaries,
-                certify && definition.name != prepared.name,
-            )
+            // A parent consuming outputs must not conceal an invalid child interface.
+            let certify =
+                definition.name != prepared.name && definition.interface_certified.get().is_none();
+            summarize_definition(definition, &summaries, certify)
         });
         for (definition, summary) in level.iter().zip(results) {
             summaries.insert(definition.name.clone(), Arc::new(summary?));
@@ -1314,26 +1309,25 @@ fn summarize_definition(
     let module = &prepared.definition;
     let definition = &prepared.linked.graph;
     let limits = prepared.limits;
-    let certify = certify && prepared.interface_certified.get().is_none();
     let graph_error = |source| ModuleCertificationError::Graph {
         module: module.name.clone(),
         source,
     };
-    let composition_error = |source| {
-        if certify {
-            certification_error(&module.name, source)
-        } else {
-            graph_error(source)
-        }
-    };
-    let space = Arc::new(
-        prepared
-            .compose(
-                crate::GuardedTopology::new(definition, limits).map_err(composition_error)?,
-                &prepared.linked.sites,
-            )
-            .map_err(composition_error)?,
-    );
+    let composition_error = |source| certification_error(&module.name, source);
+    let mut space = prepared
+        .compose(
+            crate::GuardedTopology::new(definition, limits).map_err(composition_error)?,
+            &prepared.linked.sites,
+        )
+        .map_err(composition_error)?;
+    if certify {
+        // Planning consumes its space; presentation keeps only the relation rows.
+        let view = space.relation_view();
+        std::mem::replace(&mut space, view)
+            .plan_readouts()
+            .map_err(composition_error)?;
+        prepared.interface_certified.get_or_init(|| ());
+    }
     let targets = definition
         .branch_regions()
         .map_err(graph_error)?
@@ -1352,7 +1346,7 @@ fn summarize_definition(
         .diagram
         .evaluate(space.topology.domain, |_| true)
     {
-        space.as_ref()
+        &space
     } else {
         // An unreachable all-true presentation needs a static, branchless space.
         canonical.replace_local_body(
@@ -1382,22 +1376,13 @@ fn summarize_definition(
         .keys()
         .map(|name| (name.clone(), Arc::clone(&summaries[name])))
         .collect();
-    if certify {
-        if targets.is_empty() {
-            Arc::try_unwrap(space)
-                .expect("branchless presentation does not retain its correlation space")
-                .plan_readouts()
-                .map_err(composition_error)?;
-        } else {
+    if !targets.is_empty() {
+        // Certification already reduced the space to its relation view.
+        let space = if certify {
             space
-                .as_ref()
-                .clone()
-                .plan_readouts()
-                .map_err(composition_error)?;
-            summary.projection = Some(Box::new(ModuleProjection { targets, space }));
-        }
-        prepared.interface_certified.get_or_init(|| ());
-    } else if !targets.is_empty() {
+        } else {
+            space.relation_view()
+        };
         summary.projection = Some(Box::new(ModuleProjection { targets, space }));
     }
     Ok(summary)
@@ -2492,25 +2477,6 @@ module main {{
     }
 
     #[test]
-    fn summary_preparation_reuses_the_space_needed_for_child_certification() {
-        let program = GalleryItem::PhaseGradientK4.build();
-        let limits = ModuleCertificationLimits::DEFAULT;
-        let separate = program
-            .prepare_module_relations(limits, NonZeroUsize::MIN, &HashMap::new())
-            .unwrap();
-        let expected = separate.summarize_with_jobs(NonZeroUsize::MIN).unwrap();
-        let (fused, actual) = program
-            .prepare_module_summary_with_cache(limits, NonZeroUsize::MIN, |_| None)
-            .unwrap();
-        assert_eq!(
-            actual.boundary_rows().collect::<Vec<_>>(),
-            expected.boundary_rows().collect::<Vec<_>>()
-        );
-        assert_eq!(fused.relation_work().0, separate.relation_work().0);
-        assert!(fused.relation_work().1 < separate.relation_work().1);
-    }
-
-    #[test]
     fn preparation_validates_before_consulting_shared_definition_cache() {
         let mut program = crate::parse_inline_graph(
             "BLOG 1.0\nmodule Child {\n0: ZXZ [0,0,0]\n}\n\
@@ -2556,7 +2522,7 @@ module main {{
         let limits = ModuleCertificationLimits::DEFAULT;
         let valid = program("resolve 5 if enable");
         let cached = valid
-            .prepare_module_relations(limits, NonZeroUsize::MIN, &HashMap::new())
+            .prepare_module_relations_with_cache(limits, NonZeroUsize::MIN, |_| None)
             .unwrap();
         let child = cached
             .definitions()
@@ -2567,7 +2533,9 @@ module main {{
         let key = invalid.module_definition_cache_keys()["Child"].clone();
         let reused = HashMap::from([(key, child)]);
         assert!(matches!(
-            invalid.prepare_module_relations(limits, NonZeroUsize::MIN, &reused),
+            invalid.prepare_module_relations_with_cache(limits, NonZeroUsize::MIN, |key| {
+                reused.get(key).cloned()
+            }),
             Err(ModuleCertificationError::Graph { module, .. }) if module == "Child"
         ));
         assert!(matches!(

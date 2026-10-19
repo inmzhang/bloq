@@ -101,22 +101,7 @@ impl ModuleSummaryCache {
         limits: ModuleCertificationLimits,
         jobs: Option<NonZeroUsize>,
     ) -> Result<Arc<ModuleSummary>, ModuleCertificationError> {
-        if program.has_module_structure() {
-            program.validate_with_limits(limits).map_err(|error| {
-                ModuleCertificationError::Graph {
-                    module: program.name.clone(),
-                    source: bloq_graph::BlockGraphError::ModuleSource(Arc::new(error)),
-                }
-            })?;
-        } else {
-            program
-                .validate_resource_limits(limits)
-                .and_then(|()| program.validate_source())
-                .map_err(|source| ModuleCertificationError::Graph {
-                    module: program.name.clone(),
-                    source,
-                })?;
-        }
+        program.validate_for_preparation(limits)?;
         let key = (program.to_blog_text(), limits);
         if let Some(summary) = lock(&self.entries).get(&key) {
             return Ok(Arc::clone(summary));
@@ -132,16 +117,15 @@ impl ModuleSummaryCache {
         ))
     }
 
-    /// Graph preparation validates source before consulting the definition cache.
+    /// Prepares source that already passed `validate_with_limits` under `limits`.
     pub(crate) fn prepare_validated(
         &self,
         program: &BlockGraph,
         limits: ModuleCertificationLimits,
         jobs: NonZeroUsize,
     ) -> Result<Arc<PreparedModuleRelations>, ModuleCertificationError> {
-        let prepared = program.prepare_module_relations_with_cache(limits, jobs, |key| {
-            self.definition(key, limits)
-        })?;
+        let prepared = program
+            .prepare_validated_module_relations(limits, jobs, |key| self.definition(key, limits))?;
         self.retain_definitions(&prepared, limits);
         Ok(prepared)
     }

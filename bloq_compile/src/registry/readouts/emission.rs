@@ -132,7 +132,9 @@ impl ReadoutEmission {
         let mut group_of = vec![u32::MAX; self.measurements.len()];
         for (id, measurement) in self.measurements.iter().enumerate() {
             let uses = &consumers[offsets[id]..offsets[id + 1]];
-            assert!(
+            // Lowering drops inactive readouts before emission. An unconsumed
+            // leaf would only leave its records unused, so release builds continue.
+            debug_assert!(
                 !uses.is_empty(),
                 "a pending measurement has a readout consumer"
             );

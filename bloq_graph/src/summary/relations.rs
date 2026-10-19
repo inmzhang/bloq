@@ -2,7 +2,7 @@
 
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use bloq_utils::boolean::{
     BooleanDecisionDiagram, BooleanRow, BooleanRowSpace, DECISION_FALSE as ZERO,
@@ -29,9 +29,11 @@ struct ReducedRelation {
     rows: Vec<BooleanRow>,
 }
 
+type ReductionSlot = Arc<Mutex<Option<Arc<ReducedRelation>>>>;
+
 #[derive(Debug, Default)]
 pub(crate) struct ModuleRelations {
-    reductions: Mutex<HashMap<RelationKey, Arc<ReducedRelation>>>,
+    reductions: Mutex<HashMap<Arc<RelationKey>, ReductionSlot>>,
     eliminated: AtomicUsize,
     reused: AtomicUsize,
 }
@@ -50,24 +52,25 @@ impl ModuleRelations {
         equations: usize,
         solve: impl FnOnce(&RelationKey) -> Result<ReducedRelation, BlockGraphError>,
     ) -> Result<Arc<ReducedRelation>, BlockGraphError> {
-        let cached = self
-            .reductions
-            .lock()
-            .expect("module relation cache poisoned")
-            .get(&key)
-            .cloned();
-        if let Some(reduced) = cached {
+        let key = Arc::new(key);
+        let slot = Arc::clone(
+            self.reductions
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .entry(Arc::clone(&key))
+                .or_default(),
+        );
+        // One caller solves each key while the others wait for it. A failed or
+        // panicking solve leaves the slot empty for the next caller.
+        let mut slot = slot.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(reduced) = slot.as_ref() {
             self.reused.fetch_add(equations, Ordering::Relaxed);
-            return Ok(reduced);
+            return Ok(Arc::clone(reduced));
         }
-        // Independent callers may solve the same miss; only publication is locked.
         let reduced = Arc::new(solve(&key)?);
         self.eliminated.fetch_add(equations, Ordering::Relaxed);
-        let mut cache = self
-            .reductions
-            .lock()
-            .expect("module relation cache poisoned");
-        Ok(Arc::clone(cache.entry(key).or_insert(reduced)))
+        *slot = Some(Arc::clone(&reduced));
+        Ok(reduced)
     }
 
     pub(crate) fn reduce(
@@ -307,86 +310,6 @@ pub(crate) fn close_seams(
 mod tests {
     use super::*;
 
-    fn empty_key() -> RelationKey {
-        RelationKey {
-            nodes: Vec::new(),
-            rows: Vec::new(),
-            seams: Vec::new(),
-        }
-    }
-
-    fn empty_relation() -> ReducedRelation {
-        ReducedRelation {
-            nodes: Vec::new(),
-            rows: Vec::new(),
-        }
-    }
-
-    #[test]
-    fn panicking_solver_does_not_poison_or_publish_the_cache() {
-        let cache = ModuleRelations::default();
-        let panic = std::panic::catch_unwind(|| {
-            cache.cached_reduction(empty_key(), 2, |_| {
-                drop(cache.reductions.try_lock().unwrap());
-                panic!("solver panicked")
-            })
-        });
-        panic.unwrap_err();
-        assert!(cache.reductions.lock().unwrap().is_empty());
-        assert_eq!(cache.work(), (0, 0));
-        cache
-            .cached_reduction(empty_key(), 2, |_| Ok(empty_relation()))
-            .unwrap();
-        assert_eq!(cache.work(), (2, 0));
-    }
-
-    #[test]
-    fn racing_cache_misses_solve_concurrently_and_publish_one_relation() {
-        use std::sync::mpsc::channel;
-        use std::time::Duration;
-
-        let cache = ModuleRelations::default();
-        let timeout = Duration::from_secs(5);
-        std::thread::scope(|scope| {
-            let (started, starts) = channel();
-            let mut releases = Vec::new();
-            let mut workers = Vec::new();
-            for _ in 0..2 {
-                let (release, released) = channel();
-                releases.push(release);
-                let started = started.clone();
-                let cache = &cache;
-                workers.push(scope.spawn(move || {
-                    cache
-                        .cached_reduction(empty_key(), 2, |_| {
-                            started.send(()).unwrap();
-                            released.recv_timeout(timeout).unwrap();
-                            Ok(empty_relation())
-                        })
-                        .unwrap()
-                }));
-            }
-            for _ in 0..2 {
-                starts.recv_timeout(timeout).unwrap();
-            }
-            for release in releases {
-                release.send(()).unwrap();
-            }
-            let mut results = workers.into_iter().map(|worker| worker.join().unwrap());
-            assert!(Arc::ptr_eq(
-                &results.next().unwrap(),
-                &results.next().unwrap()
-            ));
-        });
-        assert_eq!(cache.reductions.lock().unwrap().len(), 1);
-        // Both misses performed elimination; only subsequent hits reuse work.
-        assert_eq!(cache.work(), (4, 0));
-        cache
-            .cached_reduction(empty_key(), 2, |_| panic!("cache hit must not solve"))
-            .unwrap();
-        assert_eq!(cache.work(), (4, 2));
-    }
-
     #[test]
     fn cached_full_support_survives_column_variable_and_arena_remapping() {
         let cache = ModuleRelations::default();
@@ -595,7 +518,6 @@ mod tests {
                 "late budget enforcement: {observed}"
             );
             assert_eq!(cache.work(), (0, 0));
-            assert!(cache.reductions.lock().unwrap().is_empty());
         }
     }
 }

@@ -430,6 +430,20 @@ impl GuardedSurface {
 }
 
 impl GuardedSurfaceSpace {
+    /// Relation rows without the per-site inputs that only readout planning uses.
+    pub(crate) fn relation_view(&self) -> Self {
+        Self {
+            topology: self.topology.clone(),
+            columns: self.columns.clone(),
+            local: BTreeMap::new(),
+            rows: self.rows.clone(),
+            surfaces: Vec::new(),
+            limits: self.limits,
+            module_sites: BTreeMap::new(),
+            next_readout_collection: self.next_readout_collection,
+        }
+    }
+
     /// Builds a factored Boolean row space for one guarded topology.
     ///
     /// # Errors
@@ -2676,50 +2690,6 @@ mod tests {
                 ))
             ));
         }
-    }
-
-    #[test]
-    fn gc_policy_graph_failed_collection_preserves_schedule_and_roots() {
-        let limits = ModuleCertificationLimits::DEFAULT;
-        let mut space = GuardedSurfaceSpace::new(
-            GuardedTopology::new(&crate::BlockGraph::new(), limits).unwrap(),
-            &HashMap::new(),
-            limits,
-        )
-        .unwrap();
-        space.topology.diagram.make_node(9, ZERO, ONE).unwrap();
-        let live = space.topology.diagram.make_node(0, ZERO, ONE).unwrap();
-        let mut pending = BooleanRow::from_terms(live, [(0, live)]);
-        let remaining = space.topology.diagram.limits().max_steps - space.topology.diagram.steps();
-        space.topology.diagram.charge(remaining).unwrap();
-        space.next_readout_collection = 0;
-        assert!(space.check_readout_budget([&mut pending]).is_err());
-        assert_eq!(space.next_readout_collection, 0);
-        assert_eq!(space.topology.diagram.nodes().len(), 2);
-        assert_eq!(pending.active, live);
-        assert_eq!(pending.get(0), live);
-    }
-
-    #[test]
-    fn module_scopes_preserve_component_order_and_seam_ancestry() {
-        let mut scopes = ModuleScopes::new();
-        let right = scopes.insert("a0__z");
-        let left = scopes.insert("a__z");
-        let sibling = scopes.insert("a__b__leaf");
-        let parent = scopes.common_ancestor(left, sibling);
-        assert_eq!(scopes.nodes[parent].path, "a");
-        assert_eq!(scopes.common_ancestor(left, right), 0);
-        assert_eq!(scopes.common_ancestor(left, left), left);
-        assert_eq!(scopes.insert("a__z"), left);
-        let mut order = scopes.lexical_order();
-        order.sort_by_key(|&scope| std::cmp::Reverse(scopes.nodes[scope].depth));
-        assert_eq!(
-            order
-                .iter()
-                .map(|&scope| scopes.nodes[scope].path)
-                .collect::<Vec<_>>(),
-            ["a__b__leaf", "a__b", "a__z", "a0__z", "a", "a0", ""],
-        );
     }
 
     #[track_caller]

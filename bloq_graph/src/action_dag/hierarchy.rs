@@ -4,26 +4,21 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use super::{ActionDag, ActionOwner};
-use crate::{
-    BlockGraph, BlockGraphError, GuardedTopology, ModuleCertificationError,
-    ModuleCertificationLimits,
-};
+use crate::{BlockGraph, BlockGraphError, GuardedTopology, ModuleCertificationLimits};
 
 pub(crate) fn analyze(
     source: &BlockGraph,
     limits: ModuleCertificationLimits,
 ) -> Result<ActionDag, BlockGraphError> {
-    // Preparation validates source and certifies each child's interface before a parent
-    // can consume its outputs, and retains the same relations used below.
+    // Validate declarations and charge expanded sizes before linking addresses.
+    source
+        .validate_with_limits(limits)
+        .map_err(|error| BlockGraphError::ModuleSource(Arc::new(error)))?;
+    // Preparation certifies each child's interface before a parent can consume
+    // its outputs, and retains the same relations used below.
     let summary = source
-        .prepare_module_relations(limits, crate::default_module_jobs(), &Default::default())
-        .map_err(|error| match error {
-            ModuleCertificationError::Graph {
-                source: source @ BlockGraphError::ModuleSource(_),
-                ..
-            } => source,
-            error => BlockGraphError::ModuleMaterialization(Arc::new(error)),
-        })?;
+        .prepare_validated_module_relations(limits, crate::default_module_jobs(), |_| None)
+        .map_err(|error| BlockGraphError::ModuleMaterialization(Arc::new(error)))?;
     let linked = summary.linked();
     let topology = GuardedTopology::new(&linked.graph, limits)?;
     let mut plan = summary.compose(topology, &linked.sites)?.plan_readouts()?;

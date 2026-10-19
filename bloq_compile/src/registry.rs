@@ -107,38 +107,6 @@ pub(super) fn compile_hierarchy(
     )
 }
 
-pub(super) fn certify_definition(
-    name: &str,
-    graph: &BlockGraph,
-    sites: &std::collections::HashMap<IVec3, MaterializedModuleSite>,
-    limits: bloq_graph::ModuleCertificationLimits,
-    summary: &PreparedModuleRelations,
-) -> Result<(), CompileError> {
-    GuardedTopology::new(graph, limits)
-        .and_then(|topology| summary.compose(topology, sites))
-        .and_then(|space| space.plan_readouts().map(drop))
-        .map_err(|source| match source {
-            bloq_graph::BlockGraphError::Stabilizer(
-                bloq_graph::StabilizerError::ResourceLimited {
-                    phase,
-                    observed,
-                    limit,
-                },
-            ) => bloq_graph::ModuleCertificationError::ResourceLimited {
-                module: name.to_owned(),
-                phase,
-                observed,
-                limit,
-            }
-            .into(),
-            source => bloq_graph::ModuleCertificationError::Graph {
-                module: name.to_owned(),
-                source,
-            }
-            .into(),
-        })
-}
-
 fn compile_native(
     context: &CompileContext,
     source: &BlockGraph,
