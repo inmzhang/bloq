@@ -677,6 +677,55 @@ impl GuardedTopology {
                 .count()
     }
 
+    /// Solve one complete variable assignment that selects every branch arm
+    /// except `absent`. Returns `None` when that arm selection is unreachable.
+    pub(crate) fn branch_selection_values(
+        &self,
+        absent: &rustc_hash::FxHashSet<IVec3>,
+    ) -> Result<Option<Vec<bool>>, BooleanResourceError> {
+        if self.branches.is_empty() {
+            return Ok(Some(vec![false; self.variables.len()]));
+        }
+        let mut diagram = self.diagram.clone();
+        diagram.charge(self.variables.len().saturating_add(self.branches.len()))?;
+        let branch_values = self
+            .branches
+            .iter()
+            .map(|(name, position, _)| (name.as_str(), !absent.contains(position)))
+            .collect::<HashMap<_, _>>();
+        // The branch-vector domain does not link each branch to its source outcomes.
+        let conditions = self
+            .variables
+            .iter()
+            .filter_map(|variable| match variable {
+                GuardedVariable::Branch { name, condition } => {
+                    Some(if branch_values[name.as_str()] {
+                        Ok(*condition)
+                    } else {
+                        diagram.negate(*condition)
+                    })
+                }
+                GuardedVariable::Outcome(_) => None,
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let Some(outcomes) = diagram.conjunction_witness(&conditions)? else {
+            return Ok(None);
+        };
+        let outcome = |index| outcomes.get(&index).copied().unwrap_or(false);
+        Ok(Some(
+            self.variables
+                .iter()
+                .enumerate()
+                .map(|(index, variable)| match variable {
+                    GuardedVariable::Branch { condition, .. } => {
+                        self.diagram.evaluate(*condition, outcome)
+                    }
+                    GuardedVariable::Outcome(_) => outcome(index),
+                })
+                .collect(),
+        ))
+    }
+
     /// Collect only while no external stage retains unlisted decision ids.
     pub(crate) fn collect_garbage<'a>(
         &'a mut self,
@@ -1242,6 +1291,123 @@ impl GuardedTopology {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn branch_selection_values_keep_shared_branch_and_selective_outcomes_consistent() {
+        for condition in ["enable", "!enable", "enable ^ toggle"] {
+            let program = crate::BlockGraph::from_text(&format!(
+                r"BLOG 1.0
+module main {{
+  in enable
+  in toggle
+  in q_in: data = 0
+  out q_out: data = 1
+  in probe: data = 4
+  0: Port [0,0,0] role=input
+  1: Port [0,0,2] role=output
+  4: Port [3,0,0] role=input
+  5: XZX [3,0,1]
+  6: XZ [3,0,2]
+  4 -> +Z
+  5 -> +Z
+  branch b {{
+    false {{
+      2: XZX [0,0,1]
+      0 -H> +Z
+      [0,0,1] -H> +Z
+    }}
+    true {{
+      3: ZXZ [0,0,1]
+      0 -> +Z
+      [0,0,1] -> +Z
+    }}
+  }}
+  selected = {condition}
+  resolve b if selected
+  resolve 6 if selected
+}}"
+            ))
+            .unwrap();
+            let graph = program
+                .materialize_root_graph()
+                .unwrap()
+                .fix_shadowed_faces();
+            let topology =
+                crate::GuardedTopology::new(&graph, crate::ModuleCertificationLimits::DEFAULT)
+                    .unwrap();
+            for selected in [true, false] {
+                let absent = topology
+                    .branches
+                    .iter()
+                    .filter_map(|(_, position, _)| (!selected).then_some(*position))
+                    .collect();
+                let values = topology.branch_selection_values(&absent).unwrap().unwrap();
+                let evaluate = |root| topology.diagram.evaluate(root, |index| values[index]);
+                assert_eq!(evaluate(topology.branches[0].2), selected);
+                assert_eq!(evaluate(topology.resolves[0].1), selected, "{condition}");
+                let outcomes = topology
+                    .variables
+                    .iter()
+                    .zip(&values)
+                    .filter_map(|(variable, &value)| match variable {
+                        crate::GuardedVariable::Outcome(name) => Some((name.as_str(), value)),
+                        crate::GuardedVariable::Branch { .. } => None,
+                    })
+                    .collect::<std::collections::HashMap<_, _>>();
+                assert_eq!(
+                    topology.evaluate_source(topology.branches[0].2, |name| outcomes[name]),
+                    selected,
+                    "{condition}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn branch_selection_values_solve_correlated_conditions_within_the_boolean_budget() {
+        let source = include_str!("../../docs/fixtures/conditional_cz_strip.blog")
+            .replace("resolve cz1 if enable1", "resolve cz1 if !enable0");
+        let program = crate::BlockGraph::from_text(&source).unwrap();
+        let graph = program.root().local_body().fix_shadowed_faces();
+        let limits = crate::ModuleCertificationLimits {
+            max_boolean_steps: 1_000_000,
+            ..crate::ModuleCertificationLimits::DEFAULT
+        };
+        let mut topology = crate::GuardedTopology::new(&graph, limits).unwrap();
+        for mask in 0..8 {
+            let absent = topology
+                .branches
+                .iter()
+                .enumerate()
+                .filter_map(|(index, (_, position, _))| {
+                    (mask & (1 << index) == 0).then_some(*position)
+                })
+                .collect();
+            let values = topology.branch_selection_values(&absent).unwrap();
+            assert_eq!(values.is_some(), (mask & 1 != 0) != (mask & 2 != 0));
+            if let Some(values) = values {
+                for (index, (_, _, root)) in topology.branches.iter().enumerate() {
+                    assert_eq!(
+                        topology.diagram.evaluate(*root, |index| values[index]),
+                        mask & (1 << index) != 0
+                    );
+                }
+            }
+        }
+        // An unreachable all-true view still uses the existing static fallback.
+        program.summarize_root(limits).unwrap();
+        topology
+            .diagram
+            .charge(limits.max_boolean_steps - topology.diagram.steps())
+            .unwrap();
+        assert_eq!(
+            topology
+                .branch_selection_values(&rustc_hash::FxHashSet::default())
+                .unwrap_err()
+                .resource,
+            "Boolean work steps"
+        );
+    }
+
     #[test]
     fn selector_image_counter_overflow_is_a_resource_failure() {
         let mut visited = usize::MAX - 1;

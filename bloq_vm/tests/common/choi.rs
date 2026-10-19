@@ -206,15 +206,14 @@ pub(crate) fn assert_channel_with_seed(
             .project_branches_deferred(assignments.iter().copied())
             .expect("observed source branch projects");
         let zx = ZXGraph::try_from(&projected).expect("selected source branch has a ZX graph");
-        let generators = if let Some(summary) = &summary {
-            summary
-                .materialize_projection_stabilizers(&zx, offset, &assignments)
-                .expect("selected module source has a stabilizer certificate")
-        } else {
-            // Flat instruments need no composed certificate, whose cached
-            // local arm variants need not list this joint branch selection.
-            zx.stabilizers()
-                .expect("selected source has a stabilizer certificate")
+        let generators = match &summary {
+            // The composed certificate presents the canonical all-true arms.
+            Some(summary) if assignments.iter().all(|&(_, shown)| shown) => summary
+                .materialize_stabilizers(&zx, offset)
+                .expect("module source has a stabilizer certificate"),
+            _ => zx
+                .stabilizers()
+                .expect("selected source has a stabilizer certificate"),
         };
         let basis = RuntimeStabilizerBasis::for_source_readouts(&generators)
             .expect("source certificate has a runtime basis");

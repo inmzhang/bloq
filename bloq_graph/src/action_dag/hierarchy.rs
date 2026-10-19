@@ -4,12 +4,17 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use super::{ActionDag, ActionOwner};
-use crate::{BlockGraph, BlockGraphError, GuardedTopology, ModuleCertificationLimits};
+use crate::{
+    BlockGraph, BlockGraphError, GuardedReadoutPlan, GuardedTopology, ModuleCertificationLimits,
+    PreparedModuleRelations,
+};
 
-pub(crate) fn analyze(
+/// Plans causal readouts over the hierarchy's composed definition relations,
+/// keeping the prepared relations for their linked action scopes.
+pub(crate) fn plan_readouts(
     source: &BlockGraph,
     limits: ModuleCertificationLimits,
-) -> Result<ActionDag, BlockGraphError> {
+) -> Result<(Arc<PreparedModuleRelations>, GuardedReadoutPlan), BlockGraphError> {
     // Validate declarations and charge expanded sizes before linking addresses.
     source
         .validate_with_limits(limits)
@@ -21,7 +26,16 @@ pub(crate) fn analyze(
         .map_err(|error| BlockGraphError::ModuleMaterialization(Arc::new(error)))?;
     let linked = summary.linked();
     let topology = GuardedTopology::new(&linked.graph, limits)?;
-    let mut plan = summary.compose(topology, &linked.sites)?.plan_readouts()?;
+    let plan = summary.compose(topology, &linked.sites)?.plan_readouts()?;
+    Ok((summary, plan))
+}
+
+pub(crate) fn analyze(
+    source: &BlockGraph,
+    limits: ModuleCertificationLimits,
+) -> Result<ActionDag, BlockGraphError> {
+    let (summary, mut plan) = plan_readouts(source, limits)?;
+    let linked = summary.linked();
     let mut dag = plan
         .topology
         .source

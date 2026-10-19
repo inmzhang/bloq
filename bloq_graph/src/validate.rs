@@ -233,6 +233,9 @@ pub enum InvalidActionError {
     /// A requested branch projection omits a branch value.
     #[error("branch target {0} has no projection value")]
     MissingBranchValue(IVec3),
+    /// A requested branch-arm selection has no reachable source outcomes.
+    #[error("requested branch arm selection is unreachable")]
+    UnreachableBranchSelection,
     /// A requested branch projection names an unknown branch.
     #[error("projection value names unknown branch target {0}")]
     UnknownBranchValue(IVec3),

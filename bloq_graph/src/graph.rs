@@ -541,12 +541,78 @@ impl BlockGraph {
             let (analyzed, _) = self.clone().analyze_actions_with_limits(limits)?;
             return Ok(analyzed.action_graph);
         }
-        let topology = crate::GuardedTopology::new(self, limits)?;
-        let mut plan = crate::GuardedSurfaceSpace::new(topology, &Default::default(), limits)?
-            .plan_readouts()?;
+        let mut plan = self.plan_correlation_readouts(limits)?;
         let mut dag = self.build_action_graph(&self.actions())?;
         dag.attach_guarded_dependencies(plan.action_dependencies()?)?;
         Ok(dag)
+    }
+
+    /// Plans causal readouts over this source's correlation relation. A flat
+    /// source is one definition; a hierarchy composes its definition relations.
+    fn plan_correlation_readouts(
+        &self,
+        limits: crate::ModuleCertificationLimits,
+    ) -> Result<crate::GuardedReadoutPlan, BlockGraphError> {
+        if self.has_module_structure() {
+            return crate::action_dag::hierarchy::plan_readouts(self, limits).map(|(_, plan)| plan);
+        }
+        let topology = crate::GuardedTopology::new(self, limits)?;
+        crate::GuardedSurfaceSpace::new(topology, &Default::default(), limits)?.plan_readouts()
+    }
+
+    /// Correlation surfaces of one displayed branch selection, from the same
+    /// causal readout plan used by compilation and action analysis.
+    ///
+    /// Named readouts are measurement rows; output frames and closed logical
+    /// surfaces are logical rows. `assignments` selects structural branch arms
+    /// as in [`Self::project_branches_deferred`]; omitted branches show their
+    /// true arm. The surfaces are positioned in [`Self::flatten`] coordinates.
+    ///
+    /// ```
+    /// use bloq_graph::{GalleryItem, ModuleCertificationLimits};
+    ///
+    /// let adder = GalleryItem::ThreeBitAdder.build();
+    /// let surfaces = adder.planned_surfaces(&[], ModuleCertificationLimits::DEFAULT)?;
+    /// assert!(
+    ///     surfaces
+    ///         .iter()
+    ///         .any(|row| row.measurement_name() == Some("bit0_uma__m_ikprime"))
+    /// );
+    /// # Ok::<(), bloq_graph::BlockGraphError>(())
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for invalid sources, an unreachable arm selection,
+    /// unavailable readouts, or exhausted analysis budgets.
+    pub fn planned_surfaces(
+        &self,
+        assignments: &[(IVec3, bool)],
+        limits: crate::ModuleCertificationLimits,
+    ) -> Result<Vec<StabilizerGenerator>, BlockGraphError> {
+        let plan = self.plan_correlation_readouts(limits)?;
+        let source = &plan.topology.source;
+        let absent = assignments
+            .iter()
+            .filter(|(_, present)| !present)
+            .map(|&(target, _)| target)
+            .collect();
+        let values = plan
+            .topology
+            .branch_selection_values(&absent)?
+            .ok_or(crate::InvalidActionError::UnreachableBranchSelection)?;
+        let shown = if source.branch_definitions().is_empty() {
+            source.clone()
+        } else {
+            source.project_branches_deferred(
+                source
+                    .branch_definitions()
+                    .iter()
+                    .map(|branch| (branch.target, !absent.contains(&branch.target))),
+            )?
+        };
+        let zx = ZXGraph::from_block_graph_for_analysis(&shown)?;
+        Ok(plan.materialize_surfaces(&zx, &values))
     }
 
     /// Returns the actions in source order.

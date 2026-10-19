@@ -22,7 +22,6 @@ use crate::systems::camera::reset_camera_to_graph;
 use crate::systems::ui::zx_viewer::simplified_zx_graph_with_cancellation;
 use crate::systems::ui::zx_viewer::{SimplifiedZxView, ZxViewKey};
 use crate::systems::ui::{UiIntent, UiIntentBuffer};
-use crate::utils::displayed_branch_projection;
 use bevy::prelude::*;
 use bevy::tasks::futures_lite::future;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
@@ -659,11 +658,8 @@ pub(crate) fn schedule_stabilizers_job(
     let revision = graph_state.revision;
     let pool = AsyncComputeTaskPool::get();
     jobs.stabilizers = Some(pool.spawn(async move {
-        let result = match module {
-            Some(program) => displayed_module_stabilizers(&program, &graph),
-            None => displayed_stabilizers(graph).map_err(eyre::Error::from),
-        }
-        .wrap_err("compute stabilizers");
+        let source = module.as_deref().unwrap_or(&graph);
+        let result = displayed_surfaces(source, &graph).wrap_err("compute stabilizers");
         StabilizersJobResult {
             tab_id,
             revision,
@@ -674,27 +670,18 @@ pub(crate) fn schedule_stabilizers_job(
     notifications.record_info("Started stabilizer computation");
 }
 
-fn displayed_stabilizers(graph: BlockGraph) -> Result<Vec<StabilizerGenerator>, BlockGraphError> {
-    let graph = displayed_branch_projection(&graph)?;
-    Ok(graph.stabilizers()?.generators)
-}
-
-/// Reuse certified module surfaces in the preview's coordinates.
-fn displayed_module_stabilizers(
-    program: &bloq_graph::BlockGraph,
+/// Plans the shown branch arms of `graph` from its authored `source`, which is
+/// the graph itself unless it was materialized from modules.
+fn displayed_surfaces(
+    source: &BlockGraph,
     graph: &BlockGraph,
-) -> eyre::Result<Vec<StabilizerGenerator>> {
+) -> Result<Vec<StabilizerGenerator>, BlockGraphError> {
     let assignments = graph
         .branch_definitions()
         .iter()
         .map(|branch| (branch.target, branch.shown_true()))
         .collect::<Vec<_>>();
-    let graph = displayed_branch_projection(graph)?;
-    let zx = bloq_graph::ZXGraph::try_from(&graph)?;
-    let summary = program.summarize_root(bloq_graph::ModuleCertificationLimits::DEFAULT)?;
-    Ok(summary
-        .materialize_projection_stabilizers(&zx, IVec3::ZERO, &assignments)?
-        .generators)
+    source.planned_surfaces(&assignments, bloq_graph::ModuleCertificationLimits::DEFAULT)
 }
 
 /// Validates without computing action metadata twice.
@@ -2546,22 +2533,29 @@ mod tests {
         };
         assert!(state.is_composed());
         let generators = run_stabilizers_job_for_state(state);
-        let readout = generators
+        let measured = graph
+            .actions()
+            .into_iter()
+            .filter_map(|action| match action {
+                bloq_graph::Action::Measure { name, .. } => Some(name),
+                _ => None,
+            })
+            .collect::<std::collections::BTreeSet<_>>();
+        let shown = generators
             .iter()
-            .find(|row| row.measurement_name() == Some("bit0_uma__m_ikprime"))
-            .unwrap()
-            .readout_plan()
-            .expect("the raw displayed generator retains its certified physical readout");
+            .filter_map(|row| row.measurement_name().map(str::to_owned))
+            .collect::<std::collections::BTreeSet<_>>();
+        assert!(shown.contains("bit0_uma__m_ikprime"));
+        assert_eq!(shown, measured, "every named readout has a planned surface");
         let outputs = bloq_graph::ZXGraph::try_from(&graph)
             .unwrap()
             .output_ports();
-        assert!(!readout.branches.is_empty());
-        for (_, surface) in &readout.branches {
+        for generator in generators.iter().filter(|row| row.is_measurement()) {
             assert!(
                 outputs
                     .iter()
-                    .all(|position| !surface.stabilizer.port_stabilizer.contains_key(position)),
-                "every physical branch must close before live outputs"
+                    .all(|position| !generator.stabilizer.port_stabilizer.contains_key(position)),
+                "every planned readout closes before live outputs"
             );
         }
         for generator in &generators {
@@ -3073,19 +3067,6 @@ mod tests {
     }
 
     #[test]
-    fn schedule_stabilizers_job_matches_block_graph_stabilizers_for_t_gallery() {
-        let graph = GalleryItem::T.build().flatten().unwrap();
-        let expected = graph.stabilizers().expect("block graph stabilizers");
-        let actual = run_stabilizers_job(graph);
-        let expected_stabilizers = expected.generators;
-
-        assert_eq!(
-            stabilizer_signatures(&actual),
-            stabilizer_signatures(&expected_stabilizers)
-        );
-    }
-
-    #[test]
     fn schedule_stabilizers_job_projects_displayed_ccz_arms() {
         let mut graph = GalleryItem::CCZGateTeleport.build().flatten().unwrap();
         graph.set_shown_branch_arm("b0", false).unwrap();
@@ -3095,17 +3076,19 @@ mod tests {
             .map(|branch| (branch.target, branch.shown_true()))
             .collect::<Vec<_>>();
         let expected = graph
-            .project_branches(assignments)
-            .unwrap()
-            .stabilizers()
-            .unwrap()
-            .generators;
+            .planned_surfaces(&assignments, bloq_graph::ModuleCertificationLimits::DEFAULT)
+            .unwrap();
+        let shown = graph.project_branches(assignments).unwrap();
         let actual = run_stabilizers_job(graph);
 
         assert_eq!(
             stabilizer_signatures(&actual),
             stabilizer_signatures(&expected)
         );
+        for generator in &actual {
+            bloq_graph::stabilizer_as_gltf_data(generator, &shown, 2.0)
+                .expect("the planned surface fits the displayed arm");
+        }
     }
 
     #[test]

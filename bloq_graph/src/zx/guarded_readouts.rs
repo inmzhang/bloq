@@ -10,8 +10,8 @@ use std::sync::Arc;
 use bloq_utils::boolean::{BooleanOp, DECISION_FALSE as ZERO, DECISION_TRUE as ONE, DecisionId};
 use glam::IVec3;
 
-use super::guarded_surfaces::{GuardedSurface, SurfaceColumn};
-use super::{NodeKind, Stabilizer, ZXGraph};
+use super::guarded_surfaces::{GuardedSurface, GuardedSurfaceKind, SurfaceColumn};
+use super::{NodeKind, Stabilizer, StabilizerGenerator, StabilizerRowKind, ZXGraph};
 use crate::{BlockGraphError, GuardedTopology, Pauli, StabilizerError};
 
 pub(super) type LocalQueryCache =
@@ -31,7 +31,7 @@ impl GuardedReadoutPlan {
     pub(crate) fn action_dependencies(
         &mut self,
     ) -> Result<Vec<(usize, usize, crate::ActionDependency)>, BlockGraphError> {
-        use crate::{Action, ActionDependency, GuardedSurfaceKind, GuardedVariable};
+        use crate::{Action, ActionDependency, GuardedVariable};
 
         let actions = self.topology.source.actions();
         let names = actions
@@ -676,8 +676,45 @@ impl GuardedReadoutPlan {
         zx: &ZXGraph,
         outcome: impl Fn(&str) -> bool,
     ) -> Option<Stabilizer> {
+        self.materialize_surface_with(surface, zx, |bit| {
+            self.topology.evaluate_source(bit, &outcome)
+        })
+    }
+
+    /// Materialize every surface active under one complete assignment of the
+    /// topology variables, such as [`GuardedTopology::branch_selection_values`].
+    /// Named readouts keep their names; output frames and closed surfaces are
+    /// logical rows. Identity rows are omitted.
+    pub(crate) fn materialize_surfaces(
+        &self,
+        zx: &ZXGraph,
+        values: &[bool],
+    ) -> Vec<StabilizerGenerator> {
+        let evaluate = |bit| self.topology.diagram.evaluate(bit, |index| values[index]);
+        (0..self.surfaces.len())
+            .filter_map(|surface| {
+                let stabilizer = self.materialize_surface_with(surface, zx, evaluate)?;
+                let kind = match &self.surfaces[surface].kind {
+                    GuardedSurfaceKind::Readout { name, .. } => {
+                        StabilizerRowKind::Measurement { name: name.clone() }
+                    }
+                    GuardedSurfaceKind::LogicalReadout | GuardedSurfaceKind::OutputFrame { .. } => {
+                        StabilizerRowKind::Logical
+                    }
+                };
+                (!stabilizer.paulis.is_identity())
+                    .then(|| StabilizerGenerator::new(stabilizer, kind))
+            })
+            .collect()
+    }
+
+    fn materialize_surface_with(
+        &self,
+        surface: usize,
+        zx: &ZXGraph,
+        evaluate: impl Fn(DecisionId) -> bool,
+    ) -> Option<Stabilizer> {
         let row = &self.surfaces[surface].row;
-        let evaluate = |bit| self.topology.evaluate_source(bit, &outcome);
         evaluate(row.active).then(|| {
             let paulis = super::guarded_surfaces::materialize_row(
                 self.columns
@@ -1026,7 +1063,7 @@ mod tests {
 #[cfg(test)]
 mod fragment_tests {
     use super::*;
-    use crate::{GalleryItem, GuardedSurfaceKind, GuardedSurfaceSpace, ModuleCertificationLimits};
+    use crate::{GalleryItem, GuardedSurfaceSpace, ModuleCertificationLimits};
 
     #[test]
     fn shared_fragments_cover_complete_native_coefficients_after_collection() {

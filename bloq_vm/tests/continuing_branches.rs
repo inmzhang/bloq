@@ -286,7 +286,7 @@ fn continuing_membership_keeps_native_t_and_selective_execution() {
 }
 
 #[test]
-fn module_certificates_cover_mixed_continuing_choices() {
+fn modules_with_mixed_continuing_choices_run_noiselessly() {
     let source = "BLOG 1.0
 module Gate {
   0: ZXZ [0,0,0]
@@ -315,24 +315,6 @@ module main {
 ";
     let program = bloq_graph::BlockGraph::from_text(source).unwrap();
     let compiler = CompileContext::new(CompileConfig::default());
-    let summary = compiler
-        .summarize(&program, bloq_graph::ModuleCertificationLimits::DEFAULT)
-        .unwrap();
-    let graph = program.flatten().unwrap();
-    let assignments = graph.branch_assignments_up_to(5).unwrap();
-    assert_eq!(assignments.len(), 4);
-    for assignment in assignments {
-        let projected = graph
-            .project_branches_deferred(assignment.iter().copied())
-            .unwrap();
-        summary
-            .materialize_projection_stabilizers(
-                &projected.to_zx_graph().unwrap(),
-                glam::IVec3::ZERO,
-                &assignment,
-            )
-            .unwrap();
-    }
     let bloq = compiler.compile(&program).unwrap().bloq;
     assert_noiseless(&bloq_vm::run_bloq(&bloq, 8, 13).unwrap());
 }

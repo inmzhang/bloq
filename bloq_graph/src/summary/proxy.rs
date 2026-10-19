@@ -132,8 +132,7 @@ impl ModuleSummary {
 
         let zx = ZXGraph::from_block_graph_for_analysis(&source)
             .map_err(|error| graph_error(error.into()))?;
-        let certificate =
-            self.materialize_certificate_rows(&zx, ModuleOrientation::IDENTITY, normalize)?;
+        let certificate = self.materialize_certificate_rows(&zx, normalize)?;
         let (mut fixed, restricted) = zx
             .restrict_selective_relation_with_limits(&certificate, &fills, self.limits)
             .map_err(|error| self.runtime_error(error))?;
