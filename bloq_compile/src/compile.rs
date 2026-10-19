@@ -786,10 +786,26 @@ fn compile_pinned_clifford_proxy(
     ctx.compile(graph)
 }
 
+static PROXY_CACHE: OnceLock<crate::SharedCompileCache> = OnceLock::new();
+
+/// Releases cached templates, module artifacts, and summaries used by the
+/// Clifford distance and detector-slice proxy entry points.
+///
+/// These entry points share a process-wide, append-only cache. Clear it between
+/// distance or program sweeps to release retained memory. Compilations already
+/// in flight retain their templates and can finish normally.
+pub fn clear_clifford_proxy_cache() {
+    if let Some(cache) = PROXY_CACHE.get() {
+        cache.clear();
+    }
+}
+
 fn proxy_context(config: CompileConfig) -> CompileContext {
-    static CACHE: OnceLock<crate::SharedCompileCache> = OnceLock::new();
     // Both distance presentations reuse identical physical proxy templates.
-    CompileContext::with_shared_cache(config, CACHE.get_or_init(crate::SharedCompileCache::new))
+    CompileContext::with_shared_cache(
+        config,
+        PROXY_CACHE.get_or_init(crate::SharedCompileCache::new),
+    )
 }
 
 /// Cache key for the unified signature→template map: a spatial block signature,
@@ -1167,10 +1183,19 @@ impl CompileContext {
     fn prepare_module_definitions(
         &self,
         program: &BlockGraph,
-        summary: &bloq_graph::PreparedModuleRelations,
+        summary: &Arc<bloq_graph::PreparedModuleRelations>,
         jobs: NonZeroUsize,
     ) -> Result<Vec<Arc<PreparedDefinitionObject>>, CompileError> {
-        let definition_keys = program.module_definition_cache_keys();
+        let prepared_definitions = summary.definitions();
+        let definition_keys = prepared_definitions
+            .iter()
+            .map(|definition| {
+                (
+                    definition.name().to_owned(),
+                    definition.implementation_key().to_owned(),
+                )
+            })
+            .collect::<std::collections::HashMap<_, _>>();
         let seam_faces = program.module_public_seam_faces();
         let orientations_by_name = program.definition_orientations();
         let mut names = definition_keys.keys().cloned().collect::<Vec<_>>();
@@ -4200,6 +4225,29 @@ module main {
         assert_eq!(compile_to_binary(&cold, &graph), expected);
     }
 
+    #[test]
+    fn clearing_proxy_cache_releases_retained_objects_and_recompiles_identically() {
+        // A separate config keeps other concurrently running proxy tests from
+        // retaining this shard while its memory lifetime is checked.
+        let config = CompileConfig::new(3).with_certification_limits(ModuleCertificationLimits {
+            max_expanded_blocks: ModuleCertificationLimits::DEFAULT.max_expanded_blocks - 1,
+            ..ModuleCertificationLimits::DEFAULT
+        });
+        let graph = GalleryItem::XMemory.build();
+        let expected = compile_clifford_proxy(config, &graph, &[])
+            .unwrap()
+            .bloq
+            .to_binary();
+        let retained = Arc::downgrade(&proxy_context(config).cache);
+        assert!(retained.upgrade().is_some());
+
+        clear_clifford_proxy_cache();
+
+        assert!(retained.upgrade().is_none());
+        let rebuilt = compile_clifford_proxy(config, &graph, &[]).unwrap();
+        assert_eq!(rebuilt.bloq.to_binary(), expected);
+    }
+
     /// Contexts sharing one cache may compile concurrently; every output must
     /// match what a private context produces alone.
     #[test]
@@ -4769,6 +4817,14 @@ module main {{
             .compile(&graph)
             .unwrap_err();
         assert!(matches!(error, CompileError::Module(_)), "{error:?}");
+        assert!(error.to_string().contains("missing_port"), "{error}");
+        let error = CompileContext::new(CompileConfig::default())
+            .summarize(&graph, ModuleCertificationLimits::DEFAULT)
+            .unwrap_err();
+        assert!(
+            matches!(error, ModuleCertificationError::Graph { .. }),
+            "{error:?}"
+        );
         assert!(error.to_string().contains("missing_port"), "{error}");
     }
 

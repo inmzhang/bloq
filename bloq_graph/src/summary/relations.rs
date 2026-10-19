@@ -44,6 +44,32 @@ impl ModuleRelations {
         )
     }
 
+    fn cached_reduction(
+        &self,
+        key: RelationKey,
+        equations: usize,
+        solve: impl FnOnce(&RelationKey) -> Result<ReducedRelation, BlockGraphError>,
+    ) -> Result<Arc<ReducedRelation>, BlockGraphError> {
+        let cached = self
+            .reductions
+            .lock()
+            .expect("module relation cache poisoned")
+            .get(&key)
+            .cloned();
+        if let Some(reduced) = cached {
+            self.reused.fetch_add(equations, Ordering::Relaxed);
+            return Ok(reduced);
+        }
+        // Independent callers may solve the same miss; only publication is locked.
+        let reduced = Arc::new(solve(&key)?);
+        self.eliminated.fetch_add(equations, Ordering::Relaxed);
+        let mut cache = self
+            .reductions
+            .lock()
+            .expect("module relation cache poisoned");
+        Ok(Arc::clone(cache.entry(key).or_insert(reduced)))
+    }
+
     pub(crate) fn reduce(
         &self,
         rows: Vec<BooleanRow>,
@@ -158,61 +184,49 @@ impl ModuleRelations {
                 .collect(),
         };
         let equations = seams.len().saturating_mul(2);
-        let reduced = {
-            let mut cache = self
-                .reductions
-                .lock()
-                .expect("module relation cache poisoned");
-            if let Some(reduced) = cache.get(&key) {
-                self.reused.fetch_add(equations, Ordering::Relaxed);
-                Arc::clone(reduced)
-            } else {
-                let mut local_limits = limits.boolean_limits();
-                local_limits.max_nodes = local_limits.max_nodes.min(diagram.limits().max_nodes);
-                local_limits.max_steps = local_limits.max_steps.min(diagram.limits().max_steps);
-                let mut local = BooleanDecisionDiagram::with_limits(local_limits);
-                // Reserve work already spent by the caller before local solving.
-                let start = diagram.steps();
-                local.charge(start)?;
-                for node in &key.nodes {
-                    local.charge(1)?;
-                    local.make_node(node.variable, node.low, node.high)?;
-                }
-                local.charge(key.rows.iter().fold(0usize, |sum, (_, terms)| {
-                    sum.saturating_add(
-                        terms
-                            .len()
-                            .saturating_mul(terms.len().max(1).ilog2() as usize + 1)
-                            .saturating_add(1),
-                    )
-                }))?;
-                let mut rows = close_seams(
-                    key.rows
-                        .iter()
-                        .map(|(active, terms)| BooleanRow::from_terms(*active, terms.clone()))
-                        .collect(),
-                    &key.seams,
-                    &mut local,
-                    limits,
-                )?;
-                local.charge(
-                    local.nodes().len().saturating_mul(2).saturating_add(
-                        rows.iter()
-                            .map(|row| row.terms().len().saturating_add(1))
-                            .fold(0usize, usize::saturating_add),
-                    ),
-                )?;
-                local.collect_garbage(rows.iter_mut().flat_map(BooleanRow::decisions_mut));
-                diagram.charge(local.steps() - start)?;
-                self.eliminated.fetch_add(equations, Ordering::Relaxed);
-                let reduced = Arc::new(ReducedRelation {
-                    nodes: local.nodes().to_vec(),
-                    rows,
-                });
-                cache.insert(key, Arc::clone(&reduced));
-                reduced
+        let reduced = self.cached_reduction(key, equations, |key| {
+            let mut local_limits = limits.boolean_limits();
+            local_limits.max_nodes = local_limits.max_nodes.min(diagram.limits().max_nodes);
+            local_limits.max_steps = local_limits.max_steps.min(diagram.limits().max_steps);
+            let mut local = BooleanDecisionDiagram::with_limits(local_limits);
+            // Reserve work already spent by the caller before local solving.
+            let start = diagram.steps();
+            local.charge(start)?;
+            for node in &key.nodes {
+                local.charge(1)?;
+                local.make_node(node.variable, node.low, node.high)?;
             }
-        };
+            local.charge(key.rows.iter().fold(0usize, |sum, (_, terms)| {
+                sum.saturating_add(
+                    terms
+                        .len()
+                        .saturating_mul(terms.len().max(1).ilog2() as usize + 1)
+                        .saturating_add(1),
+                )
+            }))?;
+            let mut rows = close_seams(
+                key.rows
+                    .iter()
+                    .map(|(active, terms)| BooleanRow::from_terms(*active, terms.clone()))
+                    .collect(),
+                &key.seams,
+                &mut local,
+                limits,
+            )?;
+            local.charge(
+                local.nodes().len().saturating_mul(2).saturating_add(
+                    rows.iter()
+                        .map(|row| row.terms().len().saturating_add(1))
+                        .fold(0usize, usize::saturating_add),
+                ),
+            )?;
+            local.collect_garbage(rows.iter_mut().flat_map(BooleanRow::decisions_mut));
+            diagram.charge(local.steps() - start)?;
+            Ok(ReducedRelation {
+                nodes: local.nodes().to_vec(),
+                rows,
+            })
+        })?;
         let mut decisions = vec![ZERO, ONE];
         for node in &reduced.nodes {
             // Canonical variables are a sorted subset of caller variables;
@@ -292,6 +306,86 @@ pub(crate) fn close_seams(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn empty_key() -> RelationKey {
+        RelationKey {
+            nodes: Vec::new(),
+            rows: Vec::new(),
+            seams: Vec::new(),
+        }
+    }
+
+    fn empty_relation() -> ReducedRelation {
+        ReducedRelation {
+            nodes: Vec::new(),
+            rows: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn panicking_solver_does_not_poison_or_publish_the_cache() {
+        let cache = ModuleRelations::default();
+        let panic = std::panic::catch_unwind(|| {
+            cache.cached_reduction(empty_key(), 2, |_| {
+                drop(cache.reductions.try_lock().unwrap());
+                panic!("solver panicked")
+            })
+        });
+        panic.unwrap_err();
+        assert!(cache.reductions.lock().unwrap().is_empty());
+        assert_eq!(cache.work(), (0, 0));
+        cache
+            .cached_reduction(empty_key(), 2, |_| Ok(empty_relation()))
+            .unwrap();
+        assert_eq!(cache.work(), (2, 0));
+    }
+
+    #[test]
+    fn racing_cache_misses_solve_concurrently_and_publish_one_relation() {
+        use std::sync::mpsc::channel;
+        use std::time::Duration;
+
+        let cache = ModuleRelations::default();
+        let timeout = Duration::from_secs(5);
+        std::thread::scope(|scope| {
+            let (started, starts) = channel();
+            let mut releases = Vec::new();
+            let mut workers = Vec::new();
+            for _ in 0..2 {
+                let (release, released) = channel();
+                releases.push(release);
+                let started = started.clone();
+                let cache = &cache;
+                workers.push(scope.spawn(move || {
+                    cache
+                        .cached_reduction(empty_key(), 2, |_| {
+                            started.send(()).unwrap();
+                            released.recv_timeout(timeout).unwrap();
+                            Ok(empty_relation())
+                        })
+                        .unwrap()
+                }));
+            }
+            for _ in 0..2 {
+                starts.recv_timeout(timeout).unwrap();
+            }
+            for release in releases {
+                release.send(()).unwrap();
+            }
+            let mut results = workers.into_iter().map(|worker| worker.join().unwrap());
+            assert!(Arc::ptr_eq(
+                &results.next().unwrap(),
+                &results.next().unwrap()
+            ));
+        });
+        assert_eq!(cache.reductions.lock().unwrap().len(), 1);
+        // Both misses performed elimination; only subsequent hits reuse work.
+        assert_eq!(cache.work(), (4, 0));
+        cache
+            .cached_reduction(empty_key(), 2, |_| panic!("cache hit must not solve"))
+            .unwrap();
+        assert_eq!(cache.work(), (4, 2));
+    }
 
     #[test]
     fn cached_full_support_survives_column_variable_and_arena_remapping() {

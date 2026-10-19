@@ -122,54 +122,54 @@ impl ModuleSummaryCache {
             return Ok(Arc::clone(summary));
         }
         let jobs = jobs.unwrap_or_else(bloq_graph::default_module_jobs);
-        let summary = self
-            .prepare_validated(program, limits, jobs)?
-            .summarize_with_jobs(jobs)?;
+        let (prepared, summary) =
+            program.prepare_module_summary_with_cache(limits, jobs, |key| {
+                self.definition(key, limits)
+            })?;
+        self.retain_definitions(&prepared, limits);
         Ok(Arc::clone(
             lock(&self.entries).entry(key).or_insert(summary),
         ))
     }
 
-    /// Callers validate source; graph preparation checks inferred interfaces.
+    /// Graph preparation validates source before consulting the definition cache.
     pub(crate) fn prepare_validated(
         &self,
         program: &BlockGraph,
         limits: ModuleCertificationLimits,
         jobs: NonZeroUsize,
     ) -> Result<Arc<PreparedModuleRelations>, ModuleCertificationError> {
-        let inferred;
-        let program = if program.has_module_structure() {
-            program
-        } else {
-            inferred = program
-                .clone_local_definition()
-                .with_inferred_interface()
-                .map_err(|error| ModuleCertificationError::Graph {
-                    module: program.name.clone(),
-                    source: bloq_graph::BlockGraphError::ModuleSource(Arc::new(error)),
-                })?;
-            &inferred
-        };
-        let keys = program.module_definition_cache_keys();
-        let reused = {
-            let definitions = lock(&self.definitions);
-            keys.values()
-                .filter_map(|key| {
-                    definitions
-                        .get(&(key.clone(), limits))
-                        .map(|summary| (key.clone(), Arc::clone(summary)))
-                })
-                .collect()
-        };
-        let prepared = program.prepare_module_relations(limits, jobs, &reused)?;
+        let prepared = program.prepare_module_relations_with_cache(limits, jobs, |key| {
+            self.definition(key, limits)
+        })?;
+        self.retain_definitions(&prepared, limits);
+        Ok(prepared)
+    }
+
+    fn definition(
+        &self,
+        key: &str,
+        limits: ModuleCertificationLimits,
+    ) -> Option<Arc<PreparedModuleRelations>> {
+        lock(&self.definitions)
+            .get(&(key.to_owned(), limits))
+            .cloned()
+    }
+
+    fn retain_definitions(
+        &self,
+        prepared: &Arc<PreparedModuleRelations>,
+        limits: ModuleCertificationLimits,
+    ) {
         let mut definitions = lock(&self.definitions);
         for definition in prepared.definitions() {
-            let key = (keys[definition.name()].clone(), limits);
-            definitions.entry(key).or_insert(definition);
+            // The entry is never instantiated. Finished objects already cache
+            // its output, so retain only reusable child geometry and relations.
+            if definition.name() != BlockGraph::ENTRY_MODULE {
+                let key = (definition.implementation_key().to_owned(), limits);
+                definitions.entry(key).or_insert(definition);
+            }
         }
-        Ok(Arc::clone(
-            &definitions[&(keys[prepared.name()].clone(), limits)],
-        ))
     }
 
     fn clear(&self) {
@@ -374,6 +374,40 @@ pub(crate) fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 mod tests {
     use super::*;
     use crate::CompileContext;
+
+    #[test]
+    fn preparation_retains_children_without_retaining_expanded_roots() {
+        let cache = ModuleSummaryCache::default();
+        let program = bloq_graph::GalleryItem::PhaseGradientK4.build();
+        let limits = ModuleCertificationLimits::DEFAULT;
+        let prepared = cache
+            .prepare_validated(&program, limits, NonZeroUsize::MIN)
+            .unwrap();
+        let child = prepared
+            .definitions()
+            .into_iter()
+            .find(|definition| definition.name() != BlockGraph::ENTRY_MODULE)
+            .expect("the fixture contains reusable definitions");
+        let name = child.name().to_owned();
+        let root = Arc::downgrade(&prepared);
+        let weak_child = Arc::downgrade(&child);
+        drop(child);
+        drop(prepared);
+        assert!(root.upgrade().is_none());
+        let retained = weak_child.upgrade().expect("child remains reusable");
+        let next = cache
+            .prepare_validated(&program, limits, NonZeroUsize::MIN)
+            .unwrap();
+        let reused = next
+            .definitions()
+            .into_iter()
+            .find(|definition| definition.name() == name)
+            .unwrap();
+        assert!(Arc::ptr_eq(&retained, &reused));
+        drop((next, retained, reused));
+        cache.clear();
+        assert!(weak_child.upgrade().is_none());
+    }
 
     #[test]
     fn procedural_graph_summary_infers_open_port_interface() {

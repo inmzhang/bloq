@@ -43,7 +43,7 @@ pub(crate) struct SurfaceTopology {
 /// One factored, complete module correlation space. No row-space product is
 /// formed for combinations of choices in different regions or child modules.
 #[doc(hidden)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GuardedSurfaceSpace {
     pub topology: GuardedTopology,
     pub(crate) columns: BTreeMap<SurfaceColumn, usize>,
@@ -84,7 +84,7 @@ pub enum GuardedSurfaceKind {
 }
 
 #[doc(hidden)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GuardedSurface {
     pub kind: GuardedSurfaceKind,
     /// Conditions already include the corresponding source feedback expression.

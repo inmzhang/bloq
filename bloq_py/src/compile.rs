@@ -211,8 +211,8 @@ impl PyCompileContext {
 /// signatures run concurrently, while simultaneous cold misses for one signature
 /// may duplicate work before keeping one result.
 ///
-/// Clifford proxies use a separate compiler-owned template cache; clearing this
-/// cache affects only ordinary `compile` calls.
+/// Clifford proxies use a separate compiler-owned cache; `clear_compile_cache`
+/// clears both caches.
 ///
 /// The cache is never evicted, so it grows with every distinct distance,
 /// convention, and block signature the process compiles — a distance sweep
@@ -220,14 +220,13 @@ impl PyCompileContext {
 /// memory back.
 static COMPILE_CACHE: std::sync::OnceLock<SharedCompileCache> = std::sync::OnceLock::new();
 
-/// Drops every circuit template cached by `compile`, releasing their memory.
+/// Drops templates, module artifacts, and summaries cached by `compile` and
+/// Clifford proxy compilation, releasing their memory.
 ///
 /// `compile` caches templates process-wide and never evicts them, so a process
 /// that compiles at many code distances — a distance sweep, say — keeps every
 /// distance's templates resident. Call this between phases of such a run to
 /// give the memory back; the next `compile` simply refills the cache.
-///
-/// The separate compiler-owned cache used by Clifford proxies is unaffected.
 ///
 /// Compilations already in flight on other threads are unaffected.
 ///
@@ -244,6 +243,7 @@ fn clear_compile_cache() {
     if let Some(cache) = COMPILE_CACHE.get() {
         cache.clear();
     }
+    bloq_compile::clear_clifford_proxy_cache();
 }
 
 /// Compiles `graph` into a Bloq IR program with a one-shot context. Circuit

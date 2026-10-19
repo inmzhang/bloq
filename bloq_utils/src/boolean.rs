@@ -132,7 +132,7 @@ impl ComputedTable {
     fn insert(&mut self, key: ComputedKey, result: DecisionId, nodes: usize) {
         let capacity = nodes
             .saturating_mul(2)
-            .clamp(1 << 16, MAX_CACHE_ENTRIES)
+            .clamp(16, MAX_CACHE_ENTRIES)
             .next_power_of_two();
         if capacity > self.entries.len() {
             let old = std::mem::replace(&mut self.entries, vec![ComputedEntry::EMPTY; capacity]);
@@ -3220,6 +3220,50 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn small_diagram_caches_stay_small_through_clone_and_collection() {
+        let mut diagram = BooleanDecisionDiagram::default();
+        assert!(diagram.apply_cache.entries.is_empty());
+        diagram.make_node(0, DECISION_FALSE, DECISION_TRUE).unwrap();
+        let mut left = diagram.make_node(1, DECISION_FALSE, DECISION_TRUE).unwrap();
+        let mut right = diagram.make_node(2, DECISION_FALSE, DECISION_TRUE).unwrap();
+        let mut result = diagram.apply(BooleanOp::And, left, right).unwrap();
+        let capacity = diagram.apply_cache.entries.len();
+        assert!(capacity <= 16);
+
+        let mut cloned = diagram.clone();
+        assert_eq!(cloned.apply_cache.entries.len(), capacity);
+        let steps = cloned.steps();
+        assert_eq!(cloned.apply(BooleanOp::And, left, right).unwrap(), result);
+        assert_eq!(cloned.steps(), steps);
+
+        assert_eq!(
+            diagram.collect_garbage([&mut left, &mut right, &mut result]),
+            1
+        );
+        assert_eq!(diagram.apply_cache.entries.len(), capacity);
+        let steps = diagram.steps();
+        assert_eq!(diagram.apply(BooleanOp::And, left, right).unwrap(), result);
+        assert_eq!(diagram.steps(), steps);
+    }
+
+    #[test]
+    fn computed_table_growth_is_bounded_and_preserves_cached_results() {
+        let mut table = ComputedTable::default();
+        let key = (BooleanOp::And, DecisionId(2), DecisionId(3));
+        table.insert(key, DecisionId(4), 4);
+        let initial_capacity = table.entries.len();
+        let other_key = (BooleanOp::Or, DecisionId(2), DecisionId(3));
+        table.insert(other_key, DecisionId(5), initial_capacity);
+        assert!(table.entries.len() > initial_capacity);
+        assert_eq!(table.get(key), Some(DecisionId(4)));
+        assert_eq!(table.get(other_key), Some(DecisionId(5)));
+        table.insert(other_key, DecisionId(5), usize::MAX);
+        assert_eq!(table.entries.len(), MAX_CACHE_ENTRIES);
+        assert_eq!(table.get(key), Some(DecisionId(4)));
+        assert_eq!(table.get(other_key), Some(DecisionId(5)));
     }
 
     #[test]

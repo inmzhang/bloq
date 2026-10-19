@@ -5472,14 +5472,13 @@ def _run_cli(args: typing.Sequence[builtins.str]) -> builtins.int:
 
 def clear_compile_cache() -> None:
     r"""
-    Drops every circuit template cached by `compile`, releasing their memory.
+    Drops templates, module artifacts, and summaries cached by `compile` and
+    Clifford proxy compilation, releasing their memory.
 
     `compile` caches templates process-wide and never evicts them, so a process
     that compiles at many code distances — a distance sweep, say — keeps every
     distance's templates resident. Call this between phases of such a run to
     give the memory back; the next `compile` simply refills the cache.
-
-    The separate compiler-owned cache used by Clifford proxies is unaffected.
 
     Compilations already in flight on other threads are unaffected.
 
