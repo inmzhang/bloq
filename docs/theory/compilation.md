@@ -262,6 +262,15 @@ Finalization turns the assembled pieces into one program:
 4. **Check the layout.** Confirm that no two coexisting instances claim the
    same physical qubit at the same time.
 
+Occupancy ordering also protects pending quantum state while a readout or
+selector is unavailable. Boundary flows identify the qubits that must remain
+live between a producer and its consumer. A complete patch lifetime may move
+before or after another use, but a dependency that forces reuse inside that
+lifetime is a `LiveQubitReuse` compile error. The compiler never resolves that
+conflict by discarding the required lifetime ordering. Conditional uses are
+checked under their shared predicates; region reuse is rejected when its
+conditional body cannot be summarized in the containing Boolean domain.
+
 The result records the code distance and construction convention as metadata.
 
 ## Measuring reuse

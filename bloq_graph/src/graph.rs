@@ -505,9 +505,9 @@ impl BlockGraph {
     /// This inspection query does not change the source or compile physical IR.
     /// Authored hierarchies use the compiler's module linker and correlation
     /// composition, retaining definition and instance ownership in each node.
-    /// Continuing branches use the guarded causal readout planner.
-    /// Composed and continuing-branch DAGs retain dependencies without assigning
-    /// a single measurement stabilizer to each node.
+    /// Source actions use the same guarded causal readout planner as compilation.
+    /// Flat DAGs carry the displayed branch arms' measurement surfaces; composed
+    /// DAGs retain dependencies without assigning a surface to each node.
     ///
     /// # Errors
     ///
@@ -527,10 +527,16 @@ impl BlockGraph {
         &self,
         limits: crate::ModuleCertificationLimits,
     ) -> Result<ActionDag, BlockGraphError> {
+        crate::CancellationToken::checkpoint()?;
         if self.has_module_structure() {
             return crate::action_dag::hierarchy::analyze(self, limits);
         }
         self.analyzed_local_action_graph(limits)
+    }
+
+    /// Whether this definition places child module instances.
+    pub(crate) fn has_child_instances(&self) -> bool {
+        !self.instances.is_empty()
     }
 
     /// Causal readout plan of this graph as one definition, ignoring any
@@ -564,6 +570,7 @@ impl BlockGraph {
         let mut plan = self.plan_local_readouts(limits)?;
         let mut dag = self.build_action_graph(&self.actions())?;
         dag.attach_guarded_dependencies(plan.action_dependencies()?)?;
+        crate::CancellationToken::checkpoint()?;
         // A displayed selection the guards cannot reach has no surfaces to show.
         if let Some(surfaces) = shown_surfaces(&plan, &self.shown_branch_arms())? {
             dag.attach_measurement_surfaces(surfaces);
@@ -725,11 +732,17 @@ impl BlockGraph {
         Ok(self)
     }
 
-    /// Replaces the installed DAG with its planned analysis.
+    /// Replaces the installed DAG with its planned analysis. A definition with
+    /// child instances is certified through its composed hierarchy instead:
+    /// that DAG expands child actions, which belong to their authored
+    /// definitions and must not replace this module's source DAG.
     fn analyze_installed_actions(
         &mut self,
         limits: crate::ModuleCertificationLimits,
     ) -> Result<(), BlockGraphError> {
+        if self.has_child_instances() {
+            return self.analyze_action_graph_with_limits(limits).map(drop);
+        }
         let dag = self.analyzed_local_action_graph(limits)?;
         self.install_action_graph(dag, None);
         Ok(())
@@ -1049,8 +1062,8 @@ impl BlockGraph {
     }
 
     /// Replaces all actions, validating the new set against the graph and, once
-    /// the topology is structurally complete, deriving each measurement's
-    /// stabilizer surface and its implicit dependency edges.
+    /// the topology is structurally complete, certifying guarded readout
+    /// recipes and their implicit dependency edges.
     ///
     /// # Errors
     ///
@@ -3691,6 +3704,69 @@ mod tests {
             assert_eq!(graph.actions(), actions);
             assert_eq!(graph.action_inputs, inputs);
         }
+    }
+
+    #[test]
+    fn cancelled_guarded_action_install_restores_the_previous_dag() {
+        let mut graph = BlockGraph::new();
+        graph.add_block(Block::new(
+            glam::IVec3::ZERO,
+            BlockKind::Cube(CubeKind::ZXZ),
+        ));
+        let actions = vec![Action::Measure {
+            target: MeasureTarget::Node(glam::IVec3::ZERO),
+            name: "m".into(),
+        }];
+        let token = crate::CancellationToken::new();
+        let error = token.scope(|| {
+            token.cancel();
+            graph.set_actions(actions.clone()).unwrap_err()
+        });
+        assert!(matches!(
+            error,
+            BlockGraphError::Stabilizer(crate::StabilizerError::Cancelled(_))
+        ));
+        assert!(graph.actions().is_empty());
+        assert!(graph.action_graph_error().is_none());
+        graph.set_actions(actions).unwrap();
+        assert!(graph.action_graph().is_analyzed());
+    }
+
+    #[test]
+    fn setting_hierarchical_actions_preserves_authored_module_boundaries() {
+        let mut graph = BlockGraph::from_text(
+            "BLOG 1.0\n\
+             module Child {\n\
+               0: ZXZ [0, 0, 0]\n\
+               child_m = measure 0\n\
+             }\n\
+             module main {\n\
+               child: Child @ [3, 0, 0]\n\
+               0: ZXZ [0, 0, 0]\n\
+             }\n",
+        )
+        .unwrap();
+        let actions = vec![Action::Measure {
+            target: MeasureTarget::Node(glam::IVec3::ZERO),
+            name: "root_m".into(),
+        }];
+
+        graph.set_actions(actions.clone()).unwrap();
+        assert_eq!(graph.actions(), actions);
+        graph.validate().unwrap();
+        let text = graph.to_blog_text();
+        let restored = BlockGraph::from_text(&text).unwrap();
+        assert_eq!(restored.actions(), actions);
+        assert_eq!(restored.to_blog_text(), text);
+        assert_eq!(
+            graph
+                .analyze_action_graph()
+                .unwrap()
+                .ordered_nodes()
+                .count(),
+            2
+        );
+        assert_eq!(graph.to_blog_text(), text);
     }
 
     #[test]

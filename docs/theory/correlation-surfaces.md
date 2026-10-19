@@ -367,6 +367,12 @@ serve as the readout of $m_i$ when it meets four conditions:
    even.
 4. **Activation.** $w$ is active on every reachable choice.
 
+Source validation, dependency analysis, `stabilizers()`, and physical
+compilation all apply these four conditions to the same guarded relation. A
+named record whose only readout reaches a live output is therefore invalid at
+validation, not only at compilation. Compilation separately derives the
+terminal output frames.
+
 Some readouts must wait for earlier values. A selective cap can be read only
 after the value that chooses its basis is known. Bloq therefore plans in
 **causal waves**:
@@ -388,18 +394,31 @@ authored record: unnamed merges and terminal measurements carry no named
 coordinate, so a surface can also pick up their records. When a named merge is
 repeated by a later unnamed merge between the same patches, both records agree
 and a surface through both has constant parity. Among the surfaces that meet
-the four conditions, Bloq therefore reduces each readout against the remaining
-relation latest layer first. The accepted surface keeps support on a later
-layer only when no earlier witness exists, so it does not reach a later record
-it does not need. An earlier unnamed record can still be required, as for a
-parity read jointly with a terminal measurement. This selection rule removes
-the repeated-merge failure; it is not a general proof that a surface never
-depends on an unnamed record in the same layer.
+the four conditions, Bloq therefore prefers the one that completes earliest.
+Each physical column carries a completion time: its layer, raised by the guards
+of the blocks it touches and by the condition of any feedback that toggles it.
+A known name's column carries the time its own readout completed, so a fold
+costs as much as the readout it reuses. Bloq reduces each readout against the
+relation latest column first, breaking ties by layer and then by longer spatial
+extent. The accepted surface keeps late support only when no earlier witness
+exists, so it does not reach a later record it does not need. An earlier
+unnamed record can still be required, as for a parity read jointly with a
+terminal measurement. This selection rule removes the repeated-merge failure;
+it is not a general proof that a surface never depends on an unnamed record in
+the same layer.
 
 Availability constraints only relax as values become known. Bloq keeps their
 pivots between waves and releases each constraint when its condition becomes
 available, so later waves do not restart elimination. An accepted readout is
-removed from the live relation, and later readouts refer to it by name.
+removed from the live relation, and later readouts refer to it by name. Its
+defining relation is restored while a later readout chooses its witness, so
+that witness can move to an earlier equivalent coset through the known value.
+
+Source `z` is a preference, not a control deadline: a readout may extend above
+its controlled cap. Lowering orders the required records before the cap, and
+scheduling preserves the pending state or rejects destructive qubit reuse.
+The timing preference is conservative across reachable choices; it does not
+find a separately optimal schedule for every branch.
 
 ### Corrected values
 

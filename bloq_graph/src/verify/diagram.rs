@@ -356,6 +356,9 @@ impl LogicalVerifier {
     /// Builds a verifier that samples unnamed boundary/joint measurements and
     /// materializes their terminal output-frame correction.
     /// Sampling and selective fills preserve the supplied named readout parities.
+    /// This mode requires a scalar stabilizer presentation. Sources supported
+    /// through guarded readouts can use [`Self::new`] or [`Self::with_boundaries`]
+    /// for fixed named-outcome verification.
     ///
     /// # Errors
     ///
@@ -365,6 +368,8 @@ impl LogicalVerifier {
     }
 
     /// Internal-measurement mode with caller-specified boundary order.
+    /// The scalar-presentation requirement of [`Self::with_internal_measurements`]
+    /// also applies here.
     ///
     /// # Errors
     ///

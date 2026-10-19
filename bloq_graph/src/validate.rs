@@ -258,7 +258,7 @@ pub enum InvalidActionError {
 }
 
 /// Validates graph structure and action semantics, then — once the cached DAG
-/// is stale — the stabilizer-derived measurement surfaces and dependency edges.
+/// is stale — the guarded readout certificates and dependency edges.
 pub(crate) fn validate(graph: &BlockGraph) -> Result<(), BlockGraphError> {
     validate_with_limits(graph, crate::ModuleCertificationLimits::DEFAULT)
 }
@@ -270,6 +270,10 @@ pub(crate) fn validate_with_limits(
     let mut dag = validate_source(graph)?;
     let regions = graph.branch_regions()?;
     if (!regions.is_empty() || graph.has_actions()) && !graph.action_graph().is_analyzed() {
+        // A parent's installed DAG stays unanalyzed; certify its composition.
+        if graph.has_child_instances() {
+            return graph.analyze_action_graph_with_limits(limits).map(drop);
+        }
         let mut plan = graph.plan_local_readouts(limits)?;
         dag.attach_guarded_dependencies(plan.action_dependencies()?)?;
     }
