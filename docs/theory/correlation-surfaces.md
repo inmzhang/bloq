@@ -273,6 +273,17 @@ The Clifford proxy collects temporal-Hadamard reference offsets while binding
 the corresponding pipe records and combines them with spatial wall offsets by
 XOR. Its frame equations retain these references without a separate edge scan.
 
+### Bell boundary outcomes
+
+Ideal Port adapters retain both Bell measurement bits $b_{XX}$ and $b_{ZZ}$.
+Their signed relations are $XX=(-1)^{b_{XX}}$, $ZZ=(-1)^{b_{ZZ}}$, and
+$YY=(-1)^{b_{XX}\oplus b_{ZZ}\oplus1}$, since $XX\,ZZ=-YY$.
+The gateway includes these records and the input transpose sign $Y^T=-Y$
+exactly once in corrected readouts, selectors, and output frames. Spatial
+Port surgery uses the same signed binding. Orientation alone never requests
+postselection; selecting a Bell sector requires an explicit
+[discard condition](../graphs/actions.md#discard).
+
 ## Dynamic choices
 
 Selective caps and structural branches make a block graph a family of graphs.

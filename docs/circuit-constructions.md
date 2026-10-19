@@ -188,11 +188,11 @@ without additional measurement terms.
 
 Reversed temporal roles use ideal simulation boundaries: a future-connected
 output prepares a Bell pair between the patch and a private output qubit;
-a past-connected input postselects a Bell measurement between the patch and
-a private input qubit $q$. The simulator accepts only the positive outcomes of
-$X_L X_q$ and $Z_L Z_q$ and normalizes surviving states. Output frames retain
-Bell preparation byproducts and the boundary transpose signs. The private
-output remains live when later operations reuse the patch.
+a past-connected input measures the patch and a private input qubit in the
+Bell basis. Both XX/ZZ outcome signs enter correlation readouts and Pauli
+frames, including the Y transpose sign. All outcomes are retained; intentional
+postselection requires an explicit discard. The private output remains live
+when later operations reuse the patch.
 
 ### Spatial Port
 

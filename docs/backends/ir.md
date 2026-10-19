@@ -70,8 +70,9 @@ block. Instances share circuit data and own separate measurement records.
 
 Reversed temporal Ports carry `InstanceProvenance::IdealPortAdapter`, marking
 their Bell preparation or measurement as an ideal simulation boundary. Their
-logical interface binds the private physical qubit. A Bell measurement's two
-outcomes feed a `Discard` node that rejects either negative outcome.
+logical interface binds the private physical qubit. Bell measurement outcomes
+enter signed readout and frame parities; only explicit `Discard` nodes request
+postselection.
 
 | Record address | Example |
 | --- | --- |

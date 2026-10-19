@@ -6,9 +6,9 @@
 use bloq_circuit::PauliMap;
 use bloq_graph::{Basis, BlockGraph, BlockKind, Pauli, PortRole};
 use bloq_ir::{
-    Bloq, BloqEdge, BloqNode, BloqValidationError, ClassicalExpr, ClassicalNode, LogicalInput,
-    LogicalOutput, NodeDetector, TemplateId, TemporalPipeRef, WalkControl,
-    lowering::{InstanceMeasurement, NodeRestart, TemplateInstanceId},
+    Bloq, BloqValidationError, ClassicalNode, LogicalInput, LogicalOutput, NodeDetector,
+    TemplateId, TemporalPipeRef, WalkControl,
+    lowering::{NodeRestart, TemplateInstanceId},
 };
 use glam::{IVec2, IVec3};
 use petgraph::graph::NodeIndex;
@@ -127,7 +127,6 @@ type BoundPorts = crate::FxMap<TemplateInstanceId, (IVec3, Option<IVec2>)>;
 pub(crate) struct LogicalInterface {
     inputs: BoundPorts,
     outputs: BoundPorts,
-    postselect: Vec<TemplateInstanceId>,
     distance: u32,
 }
 
@@ -146,7 +145,6 @@ impl LogicalInterface {
             .collect::<crate::FxSet<_>>();
         let mut inputs = BoundPorts::default();
         let mut outputs = BoundPorts::default();
-        let mut postselect = Vec::new();
         for (&site, &instance) in instance_by_site {
             let (position, expansion) = match site {
                 ChunkSiteSource::SpatialPort(position) => (position, Some(ports[&position])),
@@ -182,9 +180,6 @@ impl LogicalInterface {
                     .filter(|port| !port.is_spatial())
                     .and_then(|port| port.private_qubit);
                 inputs.insert(instance, (position, private));
-                if private.is_some() {
-                    postselect.push(instance);
-                }
             }
             if role.has_output_boundary() && frame_ports.contains(&position) {
                 outputs.insert(
@@ -193,11 +188,9 @@ impl LogicalInterface {
                 );
             }
         }
-        postselect.sort_unstable();
         Self {
             inputs,
             outputs,
-            postselect,
             distance,
         }
     }
@@ -208,28 +201,7 @@ pub(crate) fn finish_program(
     bloq: &mut Bloq,
     interface: LogicalInterface,
 ) -> Result<(), CompileError> {
-    // A Bell cap is the +XX,+ZZ branch, not a causal teleportation with feedback.
-    for instance in interface.postselect {
-        let owner = bloq
-            .quantum_nodes()
-            .find(|(_, node)| node.instances.iter().any(|item| item.id == instance))
-            .map(|(id, _)| id)
-            .expect("boundary instance has a quantum owner");
-        let discard = bloq.add_node(BloqNode::classical(ClassicalNode::Discard {
-            condition: ClassicalExpr::Or(Box::new([ClassicalExpr::In(0), ClassicalExpr::In(1)])),
-        }));
-        for measurement in 0..2 {
-            let bit = bloq.add_node(BloqNode::classical(ClassicalNode::observable_fragment(
-                vec![InstanceMeasurement {
-                    instance,
-                    measurement,
-                }],
-                Vec::new(),
-            )));
-            bloq.add_edge(owner, bit, BloqEdge::Order);
-            bloq.add_edge(bit, discard, BloqEdge::value(measurement));
-        }
-    }
+    // Port-adapter outcomes already enter readouts and frames through their gateways.
     schedule::induce_occupancy_order_edges(bloq)?;
     bloq.optimize()
         .map_err(|_| BloqValidationError::CyclicGraph)?;

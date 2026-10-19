@@ -39,10 +39,10 @@ accepted shot, the X/Y/Z expectations include the output's Pauli frame correctio
 
 Reversed temporal Ports use [ideal Bell adapters](../circuit-constructions.md#temporal-port).
 A future-connected output retains a private qubit; a past-connected input
-arrives on a private qubit before its Bell measurement. Either negative Bell
-outcome discards the shot. Accepted states are normalized, and output frames
-include Bell preparation byproducts. These boundary operations remain ideal
-when circuit noise is enabled.
+arrives on a private qubit before its Bell measurement. Bell outcomes enter
+corrected readouts and output frames without discarding shots. Intentional
+postselection requires an explicit discard. These boundary operations remain
+ideal when circuit noise is enabled.
 
 :::{important}
 The default decoder is a stochastic policy model, not a syndrome decoder.

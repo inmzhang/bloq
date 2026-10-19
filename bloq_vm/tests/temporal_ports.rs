@@ -1,13 +1,25 @@
 //! Independent tensors for bending either end of a temporal identity wire.
 use std::cell::RefCell;
+use std::collections::BTreeSet;
 
+use bloq_compile::{CompileConfig, CompileContext};
 use bloq_graph::{Block, BlockGraph, BlockKind, CubeKind, Direction, GalleryItem, Pipe, PortRole};
 use bloq_vm::verify::{logical_signature, signatures_match};
 use bloq_vm::{Simulator, run_bloq_with_io};
 use glam::{IVec3, ivec3};
 
 mod common;
-use common::choi::{exact::ExactChoi, stabilizer::physical_qubit};
+use common::choi::{
+    exact::{BellOutcomes, ExactChoi},
+    stabilizer::physical_qubit,
+};
+
+fn compile(graph: &BlockGraph) -> bloq_ir::Bloq {
+    CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
+        .compile(graph)
+        .expect("temporal Port fixture compiles with ideal T sources")
+        .bloq
+}
 
 fn wire(
     graph: &mut BlockGraph,
@@ -31,7 +43,7 @@ fn wire(
 }
 
 #[test]
-fn temporal_roles_are_the_same_independent_bell_tensor() {
+fn temporal_roles_preserve_unitary_channels_and_bell_instrument_sectors() {
     for kind in [CubeKind::ZXZ, CubeKind::XZX] {
         for hadamard in [false, true] {
             for (first, last, inputs) in [
@@ -42,17 +54,8 @@ fn temporal_roles_are_the_same_independent_bell_tensor() {
             ] {
                 let mut graph = BlockGraph::new();
                 wire(&mut graph, IVec3::ZERO, kind, first, last, hadamard);
-                let bloq = if first == PortRole::Output && last == PortRole::Input && hadamard {
-                    bloq_compile::compile_clifford_proxy(
-                        bloq_compile::CompileConfig::new(3),
-                        &graph,
-                        &[],
-                    )
-                    .unwrap()
-                    .bloq
-                } else {
-                    bloq_compile::compile(&graph, 3).unwrap()
-                };
+                let mut bloq = compile(&graph);
+                let bell = (last == PortRole::Input).then(|| BellOutcomes::expose(&mut bloq));
                 bloq.validate().unwrap();
                 let bloq = bloq_ir::Bloq::from_binary(&bloq.to_binary()).unwrap();
                 let text = bloq.to_text();
@@ -78,7 +81,8 @@ fn temporal_roles_are_the_same_independent_bell_tensor() {
                 .unwrap();
                 let references = RefCell::new(Vec::new());
                 let mut checked = 0;
-                let shots = if last == PortRole::Input { 128 } else { 8 };
+                let mut sectors = BTreeSet::new();
+                let shots = if last == PortRole::Input { 64 } else { 8 };
                 let report = run_bloq_with_io(
                     &bloq,
                     shots,
@@ -93,6 +97,8 @@ fn temporal_roles_are_the_same_independent_bell_tensor() {
                         Ok(())
                     },
                     |sim, context| {
+                        let sector = bell.as_ref().map(|bell| bell.read(context));
+                        sectors.extend(sector);
                         let refs = references
                             .borrow()
                             .iter()
@@ -100,7 +106,18 @@ fn temporal_roles_are_the_same_independent_bell_tensor() {
                             .collect::<Vec<_>>();
                         let mut boundaries = refs
                             .iter()
-                            .map(|(port, output)| (*port, output, (false, false)))
+                            .map(|(port, output)| {
+                                // Two inputs form a Bell measurement instrument. Its
+                                // reference state depends on the observed sector; this
+                                // frame compares that sector with the positive Bell tensor.
+                                let frame = if inputs == 2 && *port == 2 * IVec3::Z {
+                                    let (x, z) = sector.unwrap();
+                                    (z, x)
+                                } else {
+                                    (false, false)
+                                };
+                                (*port, output, frame)
+                            })
                             .collect::<Vec<_>>();
                         for output in context.outputs {
                             assert!(
@@ -135,20 +152,84 @@ fn temporal_roles_are_the_same_independent_bell_tensor() {
                     },
                 )
                 .unwrap();
-                assert_eq!(checked, shots - report.discarded);
+                assert_eq!(checked, shots);
+                assert_eq!(report.discarded, 0);
                 assert!(report.all_detectors_constant());
                 if last == PortRole::Input {
-                    // Two independent positive Bell outcomes: probability 1/4.
-                    assert!(
-                        (16..=52).contains(&checked),
-                        "Bell cap survivors: {checked}/{shots}"
-                    );
-                } else {
-                    assert_eq!(report.discarded, 0);
+                    assert_eq!(sectors.len(), 4, "every Bell measurement outcome");
                 }
             }
         }
     }
+}
+
+#[test]
+fn an_explicit_discard_retains_the_positive_bell_effect() {
+    use bloq_ir::{BloqEdge, BloqNode, ClassicalExpr, ClassicalNode};
+
+    let mut graph = BlockGraph::new();
+    wire(
+        &mut graph,
+        IVec3::ZERO,
+        CubeKind::ZXZ,
+        PortRole::Auto,
+        PortRole::Input,
+        false,
+    );
+    let mut bloq = compile(&graph);
+    let bell = BellOutcomes::expose(&mut bloq);
+    let discard = bloq.add_node(BloqNode::classical(ClassicalNode::Discard {
+        condition: ClassicalExpr::Or(Box::new([ClassicalExpr::In(0), ClassicalExpr::In(1)])),
+    }));
+    for (slot, node) in bell.nodes.into_iter().enumerate() {
+        bloq.add_edge(node, discard, BloqEdge::value(slot as u32));
+    }
+    bloq.validate().unwrap();
+    let expected = (1..16)
+        .map(|word| match word {
+            5 | 15 => 1.0,
+            10 => -1.0,
+            _ => 0.0,
+        })
+        .collect::<Vec<_>>();
+    let references = RefCell::new(Vec::new());
+    let mut accepted = 0;
+    let report = run_bloq_with_io(
+        &bloq,
+        64,
+        17,
+        |sim, context| {
+            references.borrow_mut().clear();
+            for input in context.inputs {
+                let reference = sim.num_qubits();
+                sim.cx(input.qubit, reference)?;
+                references.borrow_mut().push(reference);
+            }
+            Ok(())
+        },
+        |sim, context| {
+            assert_eq!(bell.read(context), (false, false));
+            let outputs = references
+                .borrow()
+                .iter()
+                .map(|&qubit| physical_qubit(qubit, sim.num_qubits()))
+                .collect::<Vec<_>>();
+            let actual = logical_signature(
+                sim,
+                &outputs
+                    .iter()
+                    .map(|output| (output, (false, false)))
+                    .collect::<Vec<_>>(),
+            )?;
+            assert!(signatures_match(&actual, &expected));
+            accepted += 1;
+            Ok(())
+        },
+    )
+    .unwrap();
+    assert!(accepted > 0 && report.discarded > 0);
+    assert_eq!(accepted + report.discarded, report.shots);
+    assert!(report.all_detectors_constant());
 }
 
 #[test]
@@ -169,7 +250,8 @@ fn reversed_non_clifford_map_is_transposed_and_outputs_survive_patch_reuse() {
         PortRole::Auto,
         false,
     );
-    let bloq = bloq_compile::compile(&graph.with_inferred_interface().unwrap(), 3).unwrap();
+    let mut bloq = compile(&graph.with_inferred_interface().unwrap());
+    let bell = BellOutcomes::expose(&mut bloq);
     assert_eq!(
         bloq.logical_inputs()
             .iter()
@@ -195,15 +277,19 @@ fn reversed_non_clifford_map_is_transposed_and_outputs_survive_patch_reuse() {
             sim.t(1)?;
             Ok(())
         },
-    )
-    .postselected();
-    let report = oracle.run(&bloq, 64, 0x7A45, |_, _| Ok(()));
-    assert!((8..=26).contains(&(report.shots - report.discarded)));
+    );
+    let mut sectors = BTreeSet::new();
+    let report = oracle.run(&bloq, 64, 0x7A45, |_, context| {
+        sectors.insert(bell.read(context));
+        Ok(())
+    });
+    assert_eq!(sectors.len(), 4);
+    assert_eq!(report.discarded, 0);
     assert!(report.all_detectors_constant());
 }
 
 #[test]
-fn causal_vm_executes_ideal_bell_boundaries_with_postselection() {
+fn causal_vm_executes_ideal_bell_boundaries_with_feedback() {
     let graph = BlockGraph::from_text(
         "BLOG 1.0
 module Wire {
@@ -226,10 +312,8 @@ module main {
 }",
     )
     .unwrap();
-    let bloq = bloq_compile::compile(&graph, 3).unwrap();
+    let bloq = compile(&graph);
     let program = bloq_vm::lower(&bloq, &bloq_vm::LoweringConfig::default()).unwrap();
-    let mut accepted = 0;
-    let mut rejected = 0;
     for seed in 0..64 {
         let result = program
             .run(bloq_vm::RuntimeConfig {
@@ -242,20 +326,15 @@ module main {
                 ..Default::default()
             })
             .unwrap();
-        if result.artifact.discarded {
-            rejected += 1;
-        } else {
-            accepted += 1;
-            let (x, y, z) = result.logical_bloch(&program.outputs[0]).unwrap();
-            assert!(
-                (x - 1.0).abs() < 1e-9 && y.abs() < 1e-9 && z.abs() < 1e-9,
-                "seed {seed}: Bloch ({x},{y},{z}), input={:?}, output={:?}",
-                program.inputs,
-                program.outputs
-            );
-        }
+        assert!(!result.artifact.discarded);
+        let (x, y, z) = result.logical_bloch(&program.outputs[0]).unwrap();
+        assert!(
+            (x - 1.0).abs() < 1e-9 && y.abs() < 1e-9 && z.abs() < 1e-9,
+            "seed {seed}: Bloch ({x},{y},{z}), input={:?}, output={:?}",
+            program.inputs,
+            program.outputs
+        );
     }
-    assert!(accepted > 0 && rejected > 0);
 }
 
 #[test]
@@ -270,7 +349,7 @@ fn reversed_temporal_ports_keep_signed_y_correlations() {
     graph.add_block(Block::new(2 * IVec3::Z, BlockKind::Y));
     graph.add_pipe(Pipe::new(IVec3::ZERO, Direction::ZPLUS));
     graph.add_pipe(Pipe::new(IVec3::Z, Direction::ZPLUS));
-    let bloq = bloq_compile::compile(&graph, 3).unwrap();
+    let bloq = compile(&graph);
     // The future Y effect is <+Y|; transposing it to an output gives |-Y>.
     ExactChoi::new(&[], &[IVec3::ZERO], |sim| {
         sim.h(0);
@@ -284,11 +363,17 @@ fn reversed_temporal_ports_keep_signed_y_correlations() {
     let mut graph = GalleryItem::S.build().flatten().unwrap();
     graph.set_port_role(IVec3::ZERO, PortRole::Output).unwrap();
     graph.set_port_role(2 * IVec3::Z, PortRole::Input).unwrap();
-    let bloq = bloq_compile::compile(&graph, 3).unwrap();
-    ExactChoi::new(&[2 * IVec3::Z], &[IVec3::ZERO], |sim| {
+    let mut bloq = compile(&graph);
+    let bell = BellOutcomes::expose(&mut bloq);
+    let mut sectors = BTreeSet::new();
+    let report = ExactChoi::new(&[2 * IVec3::Z], &[IVec3::ZERO], |sim| {
         sim.s(0);
         Ok(())
     })
-    .postselected()
-    .run(&bloq, 64, 0x51, |_, _| Ok(()));
+    .run(&bloq, 64, 0x51, |_, context| {
+        sectors.insert(bell.read(context));
+        Ok(())
+    });
+    assert_eq!(sectors.len(), 4);
+    assert_eq!(report.discarded, 0);
 }

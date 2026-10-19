@@ -58,8 +58,8 @@ pub(crate) fn compile_port(
     Ok(Arc::new(LoweringTemplate::from_chunks(chunks, gateway)?))
 }
 
-/// Ideal simulation cup/cap. Bell records come first so lowering can postselect
-/// the cap; cup records instead participate in the ordinary output frames.
+/// Ideal simulation Bell boundary. Both preparation and measurement outcomes
+/// contribute to correlation-surface parities through the observable gateway.
 pub(crate) fn compile_bell_port(
     boundary_basis: Basis,
     connectivity: Connectivity,

@@ -362,7 +362,7 @@ pub enum InstanceProvenance {
         /// Realized substitution half.
         part: SpatialPortPart,
     },
-    /// Ideal simulation Bell preparation or postselected Bell measurement at a
+    /// Ideal simulation Bell preparation or Bell measurement at a
     /// temporal Port whose declared role reverses circuit time.
     IdealPortAdapter {
         /// Authored Port position.

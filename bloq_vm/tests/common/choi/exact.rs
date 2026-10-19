@@ -1,6 +1,6 @@
 //! Exact normalized Choi states for small unitary maps and state preparations.
 //! The ideal circuit acts on output qubits 0..n; reference halves follow them.
-//! This checks each surviving branch, not its probability or discarded branches.
+//! Every shot must preserve the corrected channel without discarding Bell outcomes.
 
 #![allow(
     dead_code,
@@ -9,7 +9,11 @@
 
 use std::cell::RefCell;
 
-use bloq_ir::Bloq;
+use bloq_ir::lowering::InstanceMeasurement;
+use bloq_ir::{
+    Bloq, BloqEdge, BloqNode, BloqNodeId, ClassicalNode, InstanceProvenance, NodeProvenance,
+    PortRole,
+};
 use bloq_vm::verify::{VerifyReport, logical_signature, signatures_match};
 use bloq_vm::{
     ExecError, OutputLogical, PreparationContext, ShotContext, Simulator, run_bloq_with_io,
@@ -22,7 +26,6 @@ pub(crate) struct ExactChoi {
     inputs: Vec<IVec3>,
     outputs: Vec<IVec3>,
     expected: Vec<f64>,
-    postselected: bool,
 }
 
 impl ExactChoi {
@@ -65,14 +68,7 @@ impl ExactChoi {
             inputs: inputs.to_vec(),
             outputs: outputs.to_vec(),
             expected,
-            postselected: false,
         }
-    }
-
-    /// Bell caps intentionally retain only their positive-outcome branch.
-    pub(crate) fn postselected(mut self) -> Self {
-        self.postselected = true;
-        self
     }
 
     fn matches(
@@ -244,10 +240,67 @@ impl ExactChoi {
             "every surviving Choi shot must be scored"
         );
         assert!(scored > 0, "Choi check needs a surviving branch");
-        if !self.postselected {
-            assert_eq!(report.discarded, 0);
-        }
+        assert_eq!(report.discarded, 0);
         report
+    }
+}
+
+/// Expose the two existing Bell records without changing physical execution.
+pub(crate) struct BellOutcomes {
+    pub nodes: [BloqNodeId; 2],
+    names: [String; 2],
+}
+
+impl BellOutcomes {
+    pub(crate) fn expose(bloq: &mut Bloq) -> Self {
+        let adapters = bloq
+            .quantum_nodes()
+            .flat_map(|(id, quantum)| {
+                quantum.instances.iter().filter_map(move |instance| {
+                    matches!(
+                        instance.provenance,
+                        InstanceProvenance::IdealPortAdapter {
+                            role: PortRole::Input,
+                            ..
+                        }
+                    )
+                    .then_some((id, instance.id))
+                })
+            })
+            .collect::<Vec<_>>();
+        let [(owner, instance)] = adapters.as_slice() else {
+            panic!("fixture must contain exactly one reversed input Bell adapter");
+        };
+        let names = [0, 1].map(|measurement| format!("Bell {} m{measurement}", instance.0));
+        let nodes = std::array::from_fn(|measurement| {
+            let node = bloq.add_node(
+                BloqNode::classical(ClassicalNode::observable_fragment(
+                    vec![InstanceMeasurement {
+                        instance: *instance,
+                        measurement: measurement as u32,
+                    }],
+                    Vec::new(),
+                ))
+                .with_provenance(NodeProvenance::BranchSelector {
+                    name: names[measurement].clone(),
+                }),
+            );
+            bloq.add_edge(*owner, node, BloqEdge::Order);
+            node
+        });
+        Self { nodes, names }
+    }
+
+    pub(crate) fn read(&self, context: &ShotContext<'_>) -> (bool, bool) {
+        let [x, z] = self.names.each_ref().map(|name| {
+            context
+                .named_branch_selectors
+                .iter()
+                .find(|(candidate, _)| *candidate == name)
+                .expect("the exposed Bell record was evaluated")
+                .1
+        });
+        (x, z)
     }
 }
 
