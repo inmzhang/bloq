@@ -36,7 +36,9 @@ const SHOTS: usize = 6;
 // ==============================================================================
 
 fn compile_gallery(item: GalleryItem) -> Bloq {
-    bloq_compile::compile(&item.build(), 3)
+    CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
+        .compile(&item.build())
+        .map(|artifacts| artifacts.bloq)
         .unwrap_or_else(|e| panic!("{item:?}: failed to compile: {e:?}"))
 }
 
@@ -52,7 +54,9 @@ fn compile_closed_gallery(item: GalleryItem) -> Bloq {
     } else {
         graph
     };
-    bloq_compile::compile(&graph, 3)
+    CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
+        .compile(&graph)
+        .map(|artifacts| artifacts.bloq)
         .unwrap_or_else(|e| panic!("{item:?}: closed variant failed to compile: {e:?}"))
 }
 
@@ -224,7 +228,10 @@ fn signed_structural_projections_preserve_s_phase() {
             },
         ]);
         graph.set_actions(actions).unwrap();
-        bloq_compile::compile(&graph, 3).unwrap()
+        CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
+            .compile(&graph)
+            .unwrap()
+            .bloq
     };
     for value in [false, true] {
         let bloq = compile(value);
@@ -297,7 +304,7 @@ fn toffoli_preserves_choi_state() {
 /// not vacuous.
 #[test]
 fn phase_gradient_k4_frame_stays_evaluable() {
-    let bloq = CompileContext::new(CompileConfig::default())
+    let bloq = CompileContext::new(CompileConfig::default().with_prepare_t_with_mpps(true))
         .compile(&GalleryItem::PhaseGradientK4.build())
         .expect("PhaseGradientK4 module compiles")
         .bloq;

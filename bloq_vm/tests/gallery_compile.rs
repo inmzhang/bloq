@@ -10,15 +10,25 @@ use bloq_ir::circuit::Pauli;
 use bloq_ir::{BoundaryFace, ClassicalNode, InstanceProvenance, NodeProvenance, SpatialPortPart};
 use bloq_vm::run_bloq;
 
+fn compile(graph: &BlockGraph, distance: u32) -> Result<bloq_ir::Bloq, bloq_compile::CompileError> {
+    bloq_compile::CompileContext::new(
+        bloq_compile::CompileConfig::new(distance).with_prepare_t_with_mpps(true),
+    )
+    .compile(graph)
+    .map(|artifacts| artifacts.bloq)
+}
+
 #[test]
 fn every_supported_gallery_entry_compiles() {
     for gallery in
         GalleryItem::iter().filter(|gallery| !gallery.in_category(GalleryCategory::AnalysisOnly))
     {
         let program = gallery.build();
-        bloq_compile::CompileContext::new(bloq_compile::CompileConfig::default())
-            .compile(&program)
-            .unwrap_or_else(|error| panic!("{gallery:?}: module compile failed: {error:?}"));
+        bloq_compile::CompileContext::new(
+            bloq_compile::CompileConfig::default().with_prepare_t_with_mpps(true),
+        )
+        .compile(&program)
+        .unwrap_or_else(|error| panic!("{gallery:?}: module compile failed: {error:?}"));
     }
 }
 
@@ -31,7 +41,7 @@ fn spatial_ports_lower_to_one_cube_and_one_virtual_temporal_port() {
         GalleryItem::And4T,
     ] {
         let graph = gallery.build();
-        let bloq = bloq_compile::compile(&graph, 3)
+        let bloq = compile(&graph, 3)
             .unwrap_or_else(|error| panic!("{gallery:?}: direct compile failed: {error}"));
         let min_z = graph
             .positions()
@@ -98,7 +108,7 @@ fn virtual_temporal_port_does_not_claim_the_next_lattice_cell() {
     graph.add_pipe(Pipe::new(glam::IVec3::ZERO, Direction::XPLUS));
     graph.add_block(Block::new(glam::IVec3::Z, BlockKind::Cube(CubeKind::ZXZ)));
 
-    let bloq = bloq_compile::compile(&graph, 3).expect("occupied cell above is unrelated");
+    let bloq = compile(&graph, 3).expect("occupied cell above is unrelated");
 
     assert!(bloq.nodes().any(|(_, node)| matches!(
         node.provenance,
@@ -141,7 +151,7 @@ fn multiplex_port_lowers_to_a_corrected_physical_output() {
         Some(&Pauli::Z)
     );
 
-    let bloq = bloq_compile::compile(&graph, 3).expect("Multiplex Z measurement compiles");
+    let bloq = compile(&graph, 3).expect("Multiplex Z measurement compiles");
     assert_eq!(bloq.logical_outputs().len(), 2);
     assert_eq!(bloq.output_frames().len(), 2);
     let output_qubit = |port| {
@@ -239,7 +249,7 @@ fn spatial_port_matches_its_manual_cube_and_temporal_port_expansion() {
     manual.add_pipe(Pipe::new(-glam::IVec3::Z, Direction::ZPLUS));
 
     let emit = |graph: &BlockGraph| {
-        let bloq = bloq_compile::compile(graph, 3).expect("equivalent graph compiles");
+        let bloq = compile(graph, 3).expect("equivalent graph compiles");
         bloq_stim::emit_bloq_stim(&bloq)
             .expect("equivalent graph emits Stim")
             .parse::<stim::Circuit>()
@@ -250,8 +260,8 @@ fn spatial_port_matches_its_manual_cube_and_temporal_port_expansion() {
 
 #[test]
 fn dynamic_graph_accepts_spatial_port() {
-    let bloq = bloq_compile::compile(&GalleryItem::CCZInjectedAnd.build(), 3)
-        .expect("dynamic spatial Port compiles");
+    let bloq =
+        compile(&GalleryItem::CCZInjectedAnd.build(), 3).expect("dynamic spatial Port compiles");
     assert!(
         bloq.quantum_nodes()
             .flat_map(|(_, node)| &node.instances)

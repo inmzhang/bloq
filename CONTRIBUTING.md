@@ -122,6 +122,10 @@ recipes live in `tools/release.just`, so editing them does not select native bui
 Use `just test-full` for ignored or slow tests in release mode, and `just fidelity`
 for both physical Choi suites. Graph-level logical checks use QuiZX;
 non-Clifford physical execution checks belong in `bloq_vm/tests`.
+Use ideal T-source proxies for ordinary VM tests: set
+`CompileConfig::with_prepare_t_with_mpps(true)` in Rust or
+`prepare_t_with_mpps=True` in Python. Execute full cultivation circuits when
+the test specifically covers cultivation or its native factory retry protocol.
 Prose-only edits need a diff and link review; changed Rust API examples need
 doctests. Keep regression tests that protect behavior rather than private layout.
 

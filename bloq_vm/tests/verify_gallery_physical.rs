@@ -111,7 +111,7 @@ fn verify_fixture(fixture: TestFixture) -> Result<(), String> {
         remainder.is_empty(),
         "gallery CCZ inputs are complete triples"
     );
-    let ctx = CompileContext::new(CompileConfig::new(3));
+    let ctx = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true));
     let compiled = ctx.compile(&program);
     if fixture.in_category(GalleryCategory::AnalysisOnly) {
         return match compiled {
@@ -227,7 +227,7 @@ fn assert_identity_choi(source: &str, input_port: glam::IVec3, output_port: glam
     let graph = bloq_graph::BlockGraph::from_blog_text(source)
         .expect("identity graph parses")
         .fix_shadowed_faces();
-    let bloq = CompileContext::new(CompileConfig::new(3))
+    let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
         .compile(&graph)
         .expect("identity graph compiles")
         .bloq;
@@ -281,7 +281,7 @@ fn ccz_resource_hook_drives_gate_teleportation() {
         glam::IVec3::new(2, 0, 1),
     ];
     let graph = bloq_graph::GalleryItem::CCZGateTeleport.build();
-    let bloq = CompileContext::new(CompileConfig::new(3))
+    let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
         .compile(&graph)
         .expect("CCZ teleport compiles")
         .bloq;
@@ -307,7 +307,7 @@ fn and_4t_choi_map_d3() {
     const XY: glam::IVec3 = glam::IVec3::new(3, 0, 3);
 
     let program = bloq_graph::GalleryItem::And4T.build();
-    let bloq = CompileContext::new(CompileConfig::new(3))
+    let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
         .compile(&program)
         .expect("four-T AND module compiles")
         .bloq;
@@ -337,7 +337,7 @@ fn ccz_injected_and_choi_map_d3() {
     const OUT: glam::IVec3 = glam::IVec3::new(0, 1, 2);
 
     let program = bloq_graph::GalleryItem::CCZInjectedAnd.build();
-    let bloq = CompileContext::new(CompileConfig::new(3))
+    let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
         .compile(&program)
         .expect("CCZ-injected AND module compiles")
         .bloq;
@@ -429,7 +429,7 @@ fn ccz_injected_maj_truth_table_d3() {
         Vec::new(),
     );
     let program = bloq_graph::BlockGraph::from_definitions(vec![child, root]).unwrap();
-    let bloq = CompileContext::new(CompileConfig::new(3))
+    let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
         .compile(&program)
         .expect("CCZ-injected MAJ module compiles")
         .bloq;
@@ -475,7 +475,7 @@ fn uma_truth_table_d3() {
     const OUT: glam::IVec3 = glam::IVec3::new(2, 0, 2);
 
     let program = bloq_graph::GalleryItem::UMA.build();
-    let bloq = CompileContext::new(CompileConfig::new(3))
+    let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
         .compile(&program)
         .expect("UMA module compiles")
         .bloq;

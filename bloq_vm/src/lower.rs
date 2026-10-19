@@ -3174,7 +3174,8 @@ mod tests {
 
     #[test]
     fn thth_sources_and_live_output_hold_have_causal_metadata() {
-        let bloq = CompileContext::new(CompileConfig::new(3))
+        // Full cultivation is required to inspect the factory body and decoder GAP.
+        let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(false))
             .compile(&GalleryItem::THTH.build())
             .unwrap()
             .bloq;
@@ -3392,7 +3393,8 @@ mod tests {
 
     #[test]
     fn zero_latency_factory_keeps_the_reusable_gap_frontier() {
-        let bloq = CompileContext::new(CompileConfig::new(3))
+        // This test verifies the full factory's post-cultivation GAP frontier.
+        let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(false))
             .compile(&GalleryItem::T.build())
             .unwrap()
             .bloq;
@@ -3428,7 +3430,7 @@ mod tests {
 
     #[test]
     fn postmerge_noise_does_not_add_vm_time() {
-        let bloq = CompileContext::new(CompileConfig::new(3))
+        let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
             .compile(&GalleryItem::T.build())
             .unwrap()
             .bloq;

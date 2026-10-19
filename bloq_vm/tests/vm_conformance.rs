@@ -1618,7 +1618,7 @@ fn standalone_noise_keeps_its_zero_time_stream_and_effect() {
 #[test]
 fn compiled_clifford_t_and_thth_run_without_noiseless_detector_failures() {
     for item in [GalleryItem::CNOT, GalleryItem::T, GalleryItem::THTH] {
-        let bloq = CompileContext::new(CompileConfig::new(3))
+        let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
             .compile(&item.build())
             .unwrap()
             .bloq;
@@ -1642,13 +1642,9 @@ fn compiled_clifford_t_and_thth_run_without_noiseless_detector_failures() {
                 .all(|detector| !detector.value),
             "{item:?}"
         );
-        if !matches!(item, GalleryItem::CNOT) {
-            assert!(!dynamic.retries.is_empty(), "{item:?}");
-            let lowered = lower(&bloq, &LoweringConfig::default()).unwrap();
-            assert!(lowered.instructions().any(|instruction| matches!(
-                instruction,
-                Instruction::Rus { decoder_hold, .. } if !decoder_hold.is_empty()
-            )));
-        }
+        assert!(
+            dynamic.retries.is_empty(),
+            "{item:?}: ideal T sources do not retry"
+        );
     }
 }

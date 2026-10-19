@@ -1109,7 +1109,12 @@ mod tests {
             bloq_test::find_test_case("t_gate[open]").expect("native T gallery case"),
         )
         .expect("gallery case builds");
-        let mut bloq = bloq_compile::compile(&case.graph, 3).expect("native T compiles");
+        let mut bloq = bloq_compile::CompileContext::new(
+            bloq_compile::CompileConfig::new(3).with_prepare_t_with_mpps(true),
+        )
+        .compile(&case.graph)
+        .expect("ideal-source T compiles")
+        .bloq;
         bloq.flatten().expect("flatten native T");
 
         assert!(

@@ -1,6 +1,8 @@
 #![cfg(test)]
 
 //! Isolated |T⟩-factory verification.
+//! These tests intentionally retain cultivation and escape circuits: their
+//! subject is the factory output and its retry-region boundary.
 //!
 //! The gallery `t_gate` graph is a *gate teleportation*: its magic worldline is
 //! consumed by the lattice-surgery merge, so at end-of-shot nothing live remains
@@ -60,7 +62,7 @@ fn isolated_factory() -> BlockGraph {
 fn assert_exact_fidelity(distance: u32) {
     const TOL: f64 = 1e-9;
     let graph = isolated_factory();
-    let ctx = CompileContext::new(CompileConfig::new(distance));
+    let ctx = CompileContext::new(CompileConfig::new(distance).with_prepare_t_with_mpps(false));
     let bloq = ctx
         .compile(&graph)
         .unwrap_or_else(|e| panic!("isolated factory failed to compile at d={distance}: {e:?}"))
@@ -148,7 +150,7 @@ fn isolated_factory_t_exact_fidelity_d7() {
 
 #[test]
 fn isolated_factory_supports_escape_latency() {
-    let ctx = CompileContext::new(CompileConfig::new(5));
+    let ctx = CompileContext::new(CompileConfig::new(5).with_prepare_t_with_mpps(false));
     let mut bloq = ctx
         .compile(&isolated_factory())
         .expect("isolated factory compiles")

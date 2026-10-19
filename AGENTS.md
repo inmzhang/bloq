@@ -28,6 +28,9 @@ architecture cannot support it:
   Keep physical and Stim coverage driven by that corpus.
 - Use QuiZX for graph-level logical checks. Non-Clifford physical execution
   checks belong in `bloq_vm/tests`.
+- Use ideal T-source proxies (`with_prepare_t_with_mpps(true)` in Rust,
+  `prepare_t_with_mpps=True` in Python) for VM execution tests. Retain full
+  circuits when testing cultivation or the native factory retry protocol.
 - Test observable behavior rather than private layout. Follow the verification
   commands in [CONTRIBUTING.md](CONTRIBUTING.md#verification); prose-only edits
   need a diff and link review, while changed Rust API examples need doctests.

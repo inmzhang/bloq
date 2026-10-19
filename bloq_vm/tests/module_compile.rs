@@ -13,7 +13,7 @@ mod common;
 
 fn compile_blog(source: &str) -> bloq_ir::Bloq {
     let program = bloq_graph::BlockGraph::from_text(source).unwrap();
-    let bloq = CompileContext::new(CompileConfig::default())
+    let bloq = CompileContext::new(CompileConfig::default().with_prepare_t_with_mpps(true))
         .compile(&program)
         .unwrap()
         .bloq;
@@ -143,10 +143,12 @@ fn spatially_rotated_module_interfaces_compile() {
 #[test]
 fn module_compile_uses_configured_certification_limits() {
     let program = bloq_graph::BlockGraph::from_text(ONE_BLOCK_INTERIOR_STAGE).unwrap();
-    let config = CompileConfig::default().with_certification_limits(ModuleCertificationLimits {
-        max_local_columns: 0,
-        ..ModuleCertificationLimits::DEFAULT
-    });
+    let config = CompileConfig::default()
+        .with_prepare_t_with_mpps(true)
+        .with_certification_limits(ModuleCertificationLimits {
+            max_local_columns: 0,
+            ..ModuleCertificationLimits::DEFAULT
+        });
     let error = CompileContext::new(config).compile(&program).unwrap_err();
 
     assert!(matches!(
@@ -161,7 +163,7 @@ fn module_compile_uses_configured_certification_limits() {
 #[test]
 fn module_composition_rejects_measurement_surface_on_output() {
     let program = bloq_graph::BlockGraph::from_text(bloq_test::ONE_BIT_ADDER_SOURCE).unwrap();
-    let context = CompileContext::new(CompileConfig::default());
+    let context = CompileContext::new(CompileConfig::default().with_prepare_t_with_mpps(true));
 
     for error in [
         context
@@ -189,9 +191,10 @@ fn module_composition_rejects_measurement_surface_on_output() {
 fn compact_adders_compile_with_default_branch_limits() {
     for item in [GalleryItem::ThreeBitAdder, GalleryItem::TenBitAdder] {
         let program = item.build();
-        let artifacts = CompileContext::new(CompileConfig::default())
-            .compile(&program)
-            .unwrap_or_else(|error| panic!("{item:?}: {error}"));
+        let artifacts =
+            CompileContext::new(CompileConfig::default().with_prepare_t_with_mpps(true))
+                .compile(&program)
+                .unwrap_or_else(|error| panic!("{item:?}: {error}"));
         artifacts.bloq.validate().unwrap();
         let binary = artifacts.bloq.to_binary();
         assert_eq!(
@@ -232,7 +235,7 @@ fn guarded_arithmetic_allows_prepared_and_entangled_outputs() {
         1,
     );
     let program = bloq_graph::BlockGraph::from_text(&source).unwrap();
-    let bloq = CompileContext::new(CompileConfig::default())
+    let bloq = CompileContext::new(CompileConfig::default().with_prepare_t_with_mpps(true))
         .compile(&program)
         .unwrap()
         .bloq;
@@ -245,13 +248,16 @@ fn guarded_arithmetic_allows_prepared_and_entangled_outputs() {
 fn module_object_links_repeatably_and_rejects_another_target() {
     for item in [GalleryItem::CNOT, GalleryItem::PhaseGradientK4] {
         let program = item.build();
-        let context = CompileContext::new(CompileConfig::default());
+        let context = CompileContext::new(CompileConfig::default().with_prepare_t_with_mpps(true));
         let object = context.compile_object(&program).unwrap();
 
-        assert_eq!(object.config(), CompileConfig::default());
+        assert_eq!(
+            object.config(),
+            CompileConfig::default().with_prepare_t_with_mpps(true)
+        );
         let mut first = context.link_object(&object).unwrap();
         let second = context.link_object(&object).unwrap();
-        let detached = CompileContext::new(CompileConfig::default())
+        let detached = CompileContext::new(CompileConfig::default().with_prepare_t_with_mpps(true))
             .link_object(&object)
             .unwrap();
         let bytes = first.bloq.to_binary();
@@ -270,7 +276,8 @@ fn module_object_links_repeatably_and_rejects_another_target() {
         );
         second.bloq.validate().unwrap();
 
-        let other_target = CompileContext::new(CompileConfig::new(5));
+        let other_target =
+            CompileContext::new(CompileConfig::new(5).with_prepare_t_with_mpps(true));
         assert!(matches!(
             other_target.link_object(&object),
             Err(CompileError::CompiledObjectTargetMismatch { .. })
@@ -282,20 +289,26 @@ fn module_object_links_repeatably_and_rejects_another_target() {
 fn cold_and_warm_module_compiles_are_byte_identical() {
     for item in [GalleryItem::CNOT, GalleryItem::PhaseGradientK4] {
         let program = item.build();
-        let cold = CompileContext::new(CompileConfig::default())
+        let cold = CompileContext::new(CompileConfig::default().with_prepare_t_with_mpps(true))
             .compile(&program)
             .unwrap()
             .bloq
             .to_binary();
         let cache = SharedCompileCache::new();
-        CompileContext::with_shared_cache(CompileConfig::default(), &cache)
-            .compile(&program)
-            .unwrap();
-        let warm = CompileContext::with_shared_cache(CompileConfig::default(), &cache)
-            .compile(&program)
-            .unwrap()
-            .bloq
-            .to_binary();
+        CompileContext::with_shared_cache(
+            CompileConfig::default().with_prepare_t_with_mpps(true),
+            &cache,
+        )
+        .compile(&program)
+        .unwrap();
+        let warm = CompileContext::with_shared_cache(
+            CompileConfig::default().with_prepare_t_with_mpps(true),
+            &cache,
+        )
+        .compile(&program)
+        .unwrap()
+        .bloq
+        .to_binary();
 
         assert_eq!(cold, warm);
     }
@@ -305,11 +318,11 @@ fn cold_and_warm_module_compiles_are_byte_identical() {
 fn module_link_matches_flat_oracle_structure_and_execution_contract() {
     let item = GalleryItem::PhaseGradientK4;
     let program = item.build();
-    let flat = CompileContext::new(CompileConfig::default())
+    let flat = CompileContext::new(CompileConfig::default().with_prepare_t_with_mpps(true))
         .compile(&item.build().flatten().unwrap())
         .unwrap()
         .bloq;
-    let modular = CompileContext::new(CompileConfig::default())
+    let modular = CompileContext::new(CompileConfig::default().with_prepare_t_with_mpps(true))
         .compile(&program)
         .unwrap()
         .bloq;
@@ -415,7 +428,8 @@ module main {{
 "#,
             );
             let program = bloq_graph::BlockGraph::from_text(&source).unwrap();
-            let context = CompileContext::new(CompileConfig::default());
+            let context =
+                CompileContext::new(CompileConfig::default().with_prepare_t_with_mpps(true));
             let composed = context.compile(&program).unwrap().bloq;
             let flat = context.compile(&program.flatten().unwrap()).unwrap().bloq;
             for bloq in [&composed, &flat] {
@@ -563,7 +577,7 @@ fn child_branch_can_read_a_bound_sibling_export() {
             .collect(),
     );
     let program = BlockGraph::from_definitions(vec![producer, consumer, root]).unwrap();
-    let artifacts = CompileContext::new(CompileConfig::default())
+    let artifacts = CompileContext::new(CompileConfig::default().with_prepare_t_with_mpps(true))
         .compile(&program)
         .unwrap();
     artifacts.bloq.validate().unwrap();
@@ -612,7 +626,7 @@ fn composite_branch_can_read_a_child_export() {
         Vec::new(),
     );
     let program = BlockGraph::from_definitions(vec![producer, root]).unwrap();
-    let artifacts = CompileContext::new(CompileConfig::default())
+    let artifacts = CompileContext::new(CompileConfig::default().with_prepare_t_with_mpps(true))
         .compile(&program)
         .unwrap();
     artifacts.bloq.validate().unwrap();

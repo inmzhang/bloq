@@ -83,7 +83,7 @@ fn native_stabilizer_instruments_preserve_choi_correlations() {
         } else {
             4
         };
-        let bloq = CompileContext::new(CompileConfig::new(3))
+        let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
             .compile(&program)
             .unwrap_or_else(|error| panic!("{}: {error}", fixture.id()))
             .bloq;

@@ -7,7 +7,7 @@
 //! * spatial-Hadamard walls — hand-built graphs (hub arm shapes, parallel
 //!   walls, the rejected quarter turn) that are not registry fixtures;
 //! * measurement-alias resolution across multi-instance lattice surgery;
-//! * `T`-block region execution and the exact per-output Pauli frames, incl.
+//! * adaptive `T`-gate execution and the exact per-output Pauli frames, incl.
 //!   selector-arm signs and non-linear resolve conditions;
 //! * `Feedback` row semantics.
 //!
@@ -29,7 +29,7 @@ use common::choi::exact::ExactChoi;
 fn compiled_case(name: &str, distance: u32) -> (CompileReadyCase, bloq_compile::Bloq) {
     let test_case = find_test_case(name).expect("case exists in the registry");
     let case = CompileReadyCase::from_test_case(test_case).expect("case builds");
-    let ctx = CompileContext::new(CompileConfig::new(distance));
+    let ctx = CompileContext::new(CompileConfig::new(distance).with_prepare_t_with_mpps(true));
     let bloq = ctx
         .compile(&case.graph)
         .expect("graph compiles to a Bloq")
@@ -110,7 +110,7 @@ fn prepared_rotated_yoke_preserves_source_choi_correlations(
         / norm;
     assert!((expected - 1.0).abs() < 1e-9);
 
-    let bloq = CompileContext::new(CompileConfig::new(3))
+    let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
         .compile(&graph)
         .unwrap()
         .bloq;
@@ -175,7 +175,7 @@ fn junction_feedback_uses_the_same_source_wire_in_graph_and_module_frames() {
         1 -> +X
         feedback Z 1
     ";
-    let compiler = CompileContext::new(CompileConfig::new(3));
+    let compiler = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true));
     for direction in [" -> +Z", ""] {
         let graph = BlockGraph::from_blog_text(
             &source.replace("feedback Z 1", &format!("feedback Z 1{direction}")),
@@ -196,7 +196,7 @@ fn assert_spatial_hadamard_is_physical(
     label: &str,
     expected_observables: Option<usize>,
 ) {
-    let ctx = CompileContext::new(CompileConfig::new(distance));
+    let ctx = CompileContext::new(CompileConfig::new(distance).with_prepare_t_with_mpps(true));
     let bloq = ctx
         .compile_and_validate(graph)
         .unwrap_or_else(|error| panic!("{label} d{distance}: {error}"))
@@ -265,7 +265,7 @@ fn named_hadamard_and_spatial_records_survive_storage_reordering() {
                 });
             }
             graph.set_actions(actions.clone()).unwrap();
-            let ctx = CompileContext::new(CompileConfig::new(3));
+            let ctx = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true));
             let module = graph.clone().with_inferred_interface().unwrap();
             for artifacts in [ctx.compile_and_validate(&graph), ctx.compile(&module)] {
                 let report = run_bloq(&artifacts.unwrap().bloq, 4, 0xA4).unwrap();
@@ -300,6 +300,65 @@ fn spatial_hadamard_h_graph_transitions_are_physical() {
     assert_eq!(graph.stabilizers().expect("H graph stabilizers").len(), 2);
     for distance in [3, 5] {
         assert_spatial_hadamard_is_physical(&graph, distance, 0x57, "H graph", Some(2));
+    }
+}
+
+#[test]
+fn spatial_hadamard_port_substitutions_preserve_the_open_temporal_face() {
+    use bloq_graph::PortRole;
+
+    for spatial_input in [false, true] {
+        let cube = if spatial_input { IVec3::ZERO } else { IVec3::Z };
+        let spatial_port = cube + IVec3::Y;
+        let temporal_port = if spatial_input { IVec3::Z } else { IVec3::ZERO };
+        let (input, output) = if spatial_input {
+            (spatial_port, temporal_port)
+        } else {
+            (temporal_port, spatial_port)
+        };
+        let mut source = BlockGraph::new();
+        source.add_block(Block::new(cube, BlockKind::Cube(CubeKind::ZXX)));
+        for (position, role) in [(input, PortRole::Input), (output, PortRole::Output)] {
+            source.add_block(
+                Block::new(position, BlockKind::Port)
+                    .with_port_role(role)
+                    .unwrap(),
+            );
+        }
+        source.add_pipe(Pipe::new(cube, Direction::YPLUS).with_hadamard());
+        source.add_pipe(Pipe::new(
+            if spatial_input { cube } else { temporal_port },
+            Direction::ZPLUS,
+        ));
+
+        for rotation in 0..4 {
+            let graph = source.rotate_about_origin(UDirection::Z, rotation).unwrap();
+            let rotate = |position| {
+                bloq_graph::ModuleRotation::new(UDirection::Z, rotation)
+                    .try_rotate_position(position)
+                    .unwrap()
+            };
+            let oracle = ExactChoi::new(&[rotate(input)], &[rotate(output)], |sim| {
+                sim.h(0);
+                Ok(())
+            });
+            let module = graph.clone().with_inferred_interface().unwrap();
+            for distance in [3, 5] {
+                let compiler = CompileContext::new(
+                    CompileConfig::new(distance).with_prepare_t_with_mpps(true),
+                );
+                for artifacts in [compiler.compile(&graph), compiler.compile(&module)] {
+                    let bloq = artifacts.unwrap().bloq;
+                    let report = oracle.run(&bloq, 8, 0x57, |_, _| Ok(()));
+                    assert_eq!(report.discarded, 0);
+                    assert!(!report.detectors.is_empty());
+                    assert!(
+                        report.all_detectors_constant(),
+                        "spatial_input={spatial_input} rotation={rotation} d={distance}"
+                    );
+                }
+            }
+        }
     }
 }
 
@@ -399,7 +458,7 @@ fn cnot_aliased_measurements_resolve() {
         .expect("at least one cnot case");
     let name = test_case.id().to_string();
     let case = CompileReadyCase::from_test_case(test_case).expect("case builds");
-    let ctx = CompileContext::new(CompileConfig::new(3));
+    let ctx = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true));
     let bloq = ctx.compile(&case.graph).expect("cnot compiles").bloq;
 
     let shots = 8;
@@ -430,13 +489,14 @@ fn cnot_aliased_measurements_resolve() {
     );
 }
 
+/// Ideal logical T preparation still exercises the adaptive gate's feedforward
+/// and signed terminal frame. Cultivation is verified in `verify_t_block`.
 #[test]
-fn native_t_feedforward_tracks_selector_and_evaluates_frames() {
+fn t_gate_feedforward_tracks_selector_and_evaluates_frames() {
     let (_, bloq) = compiled_case("t_gate[open]", 3);
     // Enough shots that seeing both selector values does not hinge on one RNG stream.
     let shots = 32;
-    let report =
-        run_bloq(&bloq, shots, 0x7).expect("native T executes through cultivation and escape");
+    let report = run_bloq(&bloq, shots, 0x7).expect("ideal-source T executes");
 
     assert_eq!(report.discarded, 0);
     assert!(report.all_detectors_constant());
@@ -477,9 +537,9 @@ fn thth_frame_recovers_exact_gate_sequence() {
     graph.add_block(Block::new(IVec3::NEG_Z, BlockKind::Port));
     graph.add_pipe(Pipe::new(IVec3::NEG_Z, Direction::ZPLUS).with_hadamard());
 
-    let ctx = CompileContext::new(CompileConfig::new(3));
+    let ctx = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true));
     let bloq = ctx.compile(&graph).expect("THTH compiles").bloq;
-    let shots = 3;
+    let shots = 8;
     let seed = 0x11;
 
     // The added input Hadamard precedes the gallery's T;H;T;H circuit.
@@ -546,7 +606,7 @@ fn t_fed_t_gate_bloqs(cap: &str, h_pipe: bool, resolve: &str) -> [bloq_compile::
     let graph = bloq_graph::BlockGraph::from_blog_text(&source)
         .expect("t-fed t gate blog parses")
         .fix_shadowed_faces();
-    let ctx = CompileContext::new(CompileConfig::new(3));
+    let ctx = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true));
     let module = graph.clone().with_inferred_interface().unwrap();
     [ctx.compile(&graph), ctx.compile(&module)]
         .map(|artifacts| artifacts.expect("t-fed t gate compiles").bloq)
@@ -675,7 +735,7 @@ fn assert_crossing_decoder_flip_changes_z_frame(bloq: &bloq_ir::Bloq) {
 fn t_block_frame_z_uses_the_crossing_rows_decoder_estimate() {
     let test_case = find_test_case("t_gate[open]").expect("native T gate case");
     let case = CompileReadyCase::from_test_case(test_case).expect("case builds");
-    let ctx = CompileContext::new(CompileConfig::new(3));
+    let ctx = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true));
     let bloq = ctx.compile(&case.graph).expect("t block compiles").bloq;
     assert_crossing_decoder_flip_changes_z_frame(&bloq);
 }
@@ -713,7 +773,7 @@ fn hadamard_capped_t_bloq() -> bloq_compile::Bloq {
     let graph = bloq_graph::BlockGraph::from_blog_text(HADAMARD_CAPPED_T_BLOG)
         .expect("hadamard-capped t blog parses")
         .fix_shadowed_faces();
-    let ctx = CompileContext::new(CompileConfig::new(3));
+    let ctx = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true));
     ctx.compile(&graph)
         .expect("hadamard-capped t block compiles")
         .bloq
@@ -746,7 +806,7 @@ fn hadamard_capped_t_preserves_the_source_branch_sign() {
         .unwrap()
         .fix_shadowed_faces();
     let module = graph.clone().with_inferred_interface().unwrap();
-    let compiler = CompileContext::new(CompileConfig::new(3));
+    let compiler = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true));
     for artifacts in [compiler.compile(&graph), compiler.compile(&module)] {
         let bloq = artifacts.unwrap().bloq;
         let ideals = [false, true].map(|negative| {
@@ -962,7 +1022,7 @@ fn feedback_multi_target_even_parity_does_not_flip_observable() {
         );
     }
 
-    let ctx = CompileContext::new(CompileConfig::new(3));
+    let ctx = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true));
     let bloq = ctx.compile(&graph).expect("fixture compiles").bloq;
     let observable_count = bloq
         .top()
@@ -1085,7 +1145,7 @@ fn unconditioned_feedback_uses_its_wire_for_condition_reads(
     let source = BlockGraph::from_blog_text(source)
         .unwrap()
         .fix_shadowed_faces();
-    let compiler = CompileContext::new(CompileConfig::new(3));
+    let compiler = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true));
     for feedback in [false, true] {
         let mut graph = source.clone();
         graph
@@ -1159,7 +1219,7 @@ fn feedback_only_frame_content_reports_the_byproduct() {
     let graph = bloq_graph::BlockGraph::from_blog_text(FEEDBACK_ONLY_FRAME_BLOG)
         .expect("feedback-only frame blog parses")
         .fix_shadowed_faces();
-    let ctx = CompileContext::new(CompileConfig::new(3));
+    let ctx = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true));
     let bloq = ctx.compile(&graph).expect("fixture compiles").bloq;
     let shots = 4;
     let seed = 0xF3;

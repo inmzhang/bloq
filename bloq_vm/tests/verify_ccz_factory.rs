@@ -1,6 +1,8 @@
 #![cfg(test)]
 
 //! CCZ factory output verification.
+//! Embedded T resources use ideal logical preparation; T cultivation is
+//! verified separately in `verify_t_block`.
 //!
 //! A CCZ factory (eight embedded `T` blocks) outputs three logical qubits at
 //! port-terminated worldlines whose joint state is `CCZ|+++⟩`, carrying a
@@ -38,7 +40,7 @@ fn assert_ccz_factory_on_orbit(fixture: TestFixture, shots: usize, seed: u64) {
         .expect("a fixture case");
     let name = test_case.id().to_string();
     let case = CompileReadyCase::from_test_case(test_case).expect("case builds");
-    let ctx = CompileContext::new(CompileConfig::new(3));
+    let ctx = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true));
     let bloq = ctx.compile(&case.graph).expect("factory compiles").bloq;
 
     let ports = bloq

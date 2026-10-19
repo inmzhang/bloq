@@ -41,7 +41,7 @@ fn source() -> String {
 fn three_independent_cz_choices_share_members_and_continue() {
     let ast = bloq_graph::parse_blog_program_to_ast(&source()).unwrap();
     let program = bloq_graph::lower_blog_graph_ast_deferred(&ast).unwrap();
-    let compiler = CompileContext::new(CompileConfig::new(3));
+    let compiler = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true));
     let bloq = compiler.compile(&program).unwrap().bloq;
     assert!(
         bloq.quantum_nodes()
@@ -280,7 +280,10 @@ fn continuing_membership_keeps_native_t_and_selective_execution() {
         });
     }
     graph.set_actions_deferred(actions).unwrap();
-    let bloq = bloq_compile::compile(&graph, 3).unwrap();
+    let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
+        .compile(&graph)
+        .unwrap()
+        .bloq;
     let report = bloq_vm::run_bloq(&bloq, 4, 11).unwrap();
     assert_noiseless(&report);
 }
@@ -314,7 +317,7 @@ module main {
 }
 ";
     let program = bloq_graph::BlockGraph::from_text(source).unwrap();
-    let compiler = CompileContext::new(CompileConfig::default());
+    let compiler = CompileContext::new(CompileConfig::default().with_prepare_t_with_mpps(true));
     let bloq = compiler.compile(&program).unwrap().bloq;
     assert_noiseless(&bloq_vm::run_bloq(&bloq, 8, 13).unwrap());
 }
@@ -334,7 +337,7 @@ fn adder_preserves_coherent_state_with_adaptive_corrections() {
         .collect::<Vec<_>>();
     let (resources, remainder) = resources.as_chunks::<3>();
     assert!(remainder.is_empty());
-    let config = CompileConfig::default();
+    let config = CompileConfig::default().with_prepare_t_with_mpps(true);
     let compiler = CompileContext::new(config);
     let bloq = compiler.compile(&program).unwrap().bloq;
     assert_eq!(
@@ -386,7 +389,7 @@ fn adder_preserves_coherent_state_with_adaptive_corrections() {
 #[ignore = "64-bit compiler scaling; run with --release --ignored"]
 fn large_adder_compiles_without_an_implicit_ir_audit() {
     let program = bloq_test::benchmark::controlled_adder(64);
-    let artifacts = CompileContext::new(CompileConfig::default())
+    let artifacts = CompileContext::new(CompileConfig::default().with_prepare_t_with_mpps(true))
         .compile(&program)
         .unwrap();
     assert!(!artifacts.bloq.to_binary().is_empty());
@@ -402,7 +405,11 @@ fn ten_bit_adder_verifies_uniform_and_alternating_choices() {
         max_guarded_domain_size: 256,
         ..bloq_graph::ModuleCertificationLimits::DEFAULT
     };
-    let compiler = CompileContext::new(CompileConfig::default().with_certification_limits(limits));
+    let compiler = CompileContext::new(
+        CompileConfig::default()
+            .with_prepare_t_with_mpps(true)
+            .with_certification_limits(limits),
+    );
     let artifacts = compiler.compile(&program).unwrap();
     eprintln!(
         "ten-bit shared registry compiled in {:?}",

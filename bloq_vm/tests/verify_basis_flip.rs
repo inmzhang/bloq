@@ -38,7 +38,8 @@ fn fixed_resource_basis_flip_has_the_hadamard_choi_state_d3() {
                     }
                     Ok(())
                 });
-                let compiler = CompileContext::new(CompileConfig::new(3));
+                let compiler =
+                    CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true));
                 let module = graph.clone().with_inferred_interface().unwrap();
                 for artifacts in [compiler.compile(&graph), compiler.compile(&module)] {
                     let bloq = artifacts.unwrap().bloq;
@@ -64,7 +65,7 @@ fn y_readout_matches_hadamard_conjugation_for_both_boundary_colors() {
             graph
                 .set_pipe_hadamard(glam::IVec3::Z, glam::IVec3::new(0, 0, 2), hadamard)
                 .unwrap();
-            let bloq = CompileContext::new(CompileConfig::new(3))
+            let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
                 .compile(&graph)
                 .unwrap()
                 .bloq;
@@ -105,7 +106,7 @@ fn native_t_basis_flip_preserves_authored_postselection_d3() {
                 .iter()
                 .any(|action| matches!(action, Action::DiscardIf(_)))
         );
-        let bloq = CompileContext::new(CompileConfig::new(3))
+        let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
             .compile(&graph)
             .unwrap()
             .bloq;
@@ -158,7 +159,7 @@ fn basis_flip_preserves_a_branch_with_an_arm_owned_y_hadamard_d3() {
         ])
         .unwrap();
     for graph in [source.clone(), source.flip_xz_basis().unwrap()] {
-        let bloq = CompileContext::new(CompileConfig::new(3))
+        let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
             .compile(&graph)
             .unwrap()
             .bloq;
