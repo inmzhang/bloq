@@ -30,14 +30,12 @@ and links to generated item documentation.
 ## Select the verification layer
 
 Choose `graph-verify` when comparing an authored graph with an expected logical
-map before physical compilation. Choose `verify` when checking Clifford flows in
+map, given as a QuiZX graph to `LogicalVerifier` or `verify_logical`, before
+physical compilation. Choose `verify` when checking Clifford flows in
 physical circuits with native Stim. Choose `vm` when measurement-dependent
 execution, retries, or corrected non-Clifford output states are the question.
 These layers check different properties; none alone establishes noisy decoding
 performance.
-
-Author feedback as `Action::Feedback` and pass an expected QuiZX graph directly
-to `LogicalVerifier` or `verify_logical` through `graph-verify`.
 
 A full IR well-formedness audit through `Bloq::validate` is available without
 these features. It checks the compiled representation rather than an expected

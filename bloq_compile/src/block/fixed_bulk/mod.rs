@@ -370,28 +370,25 @@ mod tests {
     }
 
     #[rstest]
-    #[case(3, None, None)]
-    #[case(5, None, Some(3))]
-    #[case(5, Some(10), Some(8))]
-    #[case(5, Some(3), None)]
+    #[case(3, 3, None)]
+    #[case(5, 5, Some(3))]
+    #[case(5, 10, Some(8))]
+    #[case(5, 3, None)]
     fn test_compile_cube_bulk_loop_follows_the_resolved_round_count(
         #[case] distance: u32,
-        #[case] rounds: Option<u32>,
+        #[case] rounds: u32,
         #[case] repetitions: Option<u32>,
     ) {
-        let template = match rounds {
-            Some(rounds) => compile_cube(
-                CubeKind::ZXZ,
-                Connectivity::ISOLATED,
-                distance,
-                rounds,
-                LayerSchedule::Compact,
-            )
-            .expect("cube compiles"),
-            None => compile_fixture(CubeKind::ZXZ, Connectivity::ISOLATED, distance),
-        };
+        let template = compile_cube(
+            CubeKind::ZXZ,
+            Connectivity::ISOLATED,
+            distance,
+            rounds,
+            LayerSchedule::Compact,
+        )
+        .expect("cube compiles");
         assert_eq!(loop_repetitions(&template), repetitions);
-        if distance == 3 {
+        if repetitions.is_none() {
             assert!(template.program_template.repeat_states.is_empty());
         }
     }

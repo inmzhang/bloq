@@ -433,11 +433,14 @@ fn cnot_aliased_measurements_resolve() {
 #[test]
 fn native_t_feedforward_tracks_selector_and_evaluates_frames() {
     let (_, bloq) = compiled_case("t_gate[open]", 3);
-    let shots = 8;
+    // Enough shots that seeing both selector values does not hinge on one RNG stream.
+    let shots = 32;
     let report =
         run_bloq(&bloq, shots, 0x7).expect("native T executes through cultivation and escape");
 
     assert_eq!(report.discarded, 0);
+    assert!(report.all_detectors_constant());
+    assert!(report.max_rank > 1, "native T must be non-Clifford");
     assert_eq!(report.branch_selectors.len(), shots);
     assert!(report.branch_selectors.contains(&false));
     assert!(report.branch_selectors.contains(&true));

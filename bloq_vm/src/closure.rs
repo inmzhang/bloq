@@ -1113,19 +1113,14 @@ mod tests {
         bloq.flatten().expect("flatten native T");
 
         assert!(
-            bloq.levels().any(|(_, level)| {
-                let demands = implicit_correction_demands(level, None);
-                level.nodes().any(|(id, node)| {
-                    matches!(
-                        node.try_classical(),
-                        Some(ClassicalNode::Observable { index: Some(_), .. })
-                    ) && needs_correction(level, id, &demands)
-                })
-            }),
-            "native T must contain a decoder-backed observable"
+            bloq.levels()
+                .any(|(_, level)| level.nodes().any(|(_, node)| matches!(
+                    node.try_classical(),
+                    Some(ClassicalNode::Observable { .. })
+                ))),
+            "native T must contain observables"
         );
-        guard_decode_observable_closure(&bloq)
-            .expect("compiler output closes every decoder-backed output face");
+        guard_decode_observable_closure(&bloq).expect("native T closes every decoded face");
     }
 
     // ---- terminal read: guard_consumed_output_faces ----

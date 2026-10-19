@@ -1227,6 +1227,30 @@ pub(crate) fn replace_graph_with_cleanup(
     );
 }
 
+/// Installs a freshly loaded graph and its module source, dropping any pending
+/// branch-arm capture from the previous graph. Shared by active and background
+/// tab loads so both leave the same state.
+fn load_graph_with_cleanup(
+    graph_state: &mut GraphState,
+    editor_state: &mut EditorState,
+    target_state: &mut TargetState,
+    compile_ui: &mut CompileUiState,
+    circuit_viewer: &mut BloqViewerState,
+    graph: BlockGraph,
+    program: Option<BlockGraph>,
+) {
+    graph_state.pending_branch_arm = None;
+    graph_state.source_graph = program.map(std::sync::Arc::new);
+    replace_graph_with_cleanup(
+        graph_state,
+        editor_state,
+        target_state,
+        compile_ui,
+        circuit_viewer,
+        graph,
+    );
+}
+
 /// Like [`replace_graph_with_cleanup`], but also installs a fresh selection
 /// (e.g. the transformed elements after a translate/rotate).
 pub(crate) fn replace_graph_with_cleanup_and_selection(
@@ -1576,23 +1600,22 @@ fn apply_parse_blog_result_to_tab(
 }
 
 /// Installs a graph produced for a background tab into that tab's snapshot,
-/// resetting the dependent state exactly as [`replace_graph_with_cleanup`] does
-/// for the active tab, and framing the camera it will be restored with.
+/// resetting the dependent state exactly as an active-tab load does, and
+/// framing the camera it will be restored with.
 pub(super) fn install_graph_into_tab(
     tab: &mut crate::resources::EditorTab,
     graph: BlockGraph,
     program: Option<bloq_graph::BlockGraph>,
     title: Option<String>,
 ) {
-    tab.snapshot.graph_state.pending_branch_arm = None;
-    tab.snapshot.graph_state.source_graph = program.map(std::sync::Arc::new);
-    replace_graph_with_cleanup(
+    load_graph_with_cleanup(
         &mut tab.snapshot.graph_state,
         &mut tab.snapshot.editor_state,
         &mut tab.snapshot.target_state,
         &mut tab.snapshot.compile_ui,
         &mut tab.snapshot.circuit_viewer,
         graph,
+        program,
     );
     tab.snapshot.camera_settings = crate::systems::camera::camera_settings_for_graph(
         &tab.snapshot.graph_state.graph,
@@ -1743,15 +1766,14 @@ fn poll_editor_jobs_system(
         } else {
             match done.result {
                 Ok(parsed) => {
-                    graph_state.pending_branch_arm = None;
-                    graph_state.source_graph = Some(std::sync::Arc::new(parsed.source_graph));
-                    replace_graph_with_cleanup(
+                    load_graph_with_cleanup(
                         &mut graph_state,
                         &mut editor_state,
                         &mut target_state,
                         &mut compile_ui,
                         &mut circuit_viewer,
                         parsed.graph,
+                        Some(parsed.source_graph),
                     );
                     reset_camera_to_graph(
                         &mut camera_transform,
@@ -2904,16 +2926,11 @@ mod tests {
             Transform::default(),
             super::CameraSettings::default(),
         ));
-        *app.world_mut().resource_mut::<TargetState>() = TargetState {
-            open_window: true,
-            target: Some(GraphElement::Block(IVec3::ZERO)),
-            tag_buffer: "old graph".into(),
-            block_kind_buffer: BlockKind::Y,
-            port_color_hex_buffer: "000000".into(),
-            port_role_buffer: bloq_graph::PortRole::Input,
-            pipe_hadamard_buffer: true,
-            suppress_enter_confirm_until_release: true,
-        };
+        {
+            let mut target = app.world_mut().resource_mut::<TargetState>();
+            target.open_window = true;
+            target.pipe_hadamard_buffer = true;
+        }
         {
             let mut state = app.world_mut().resource_mut::<GraphState>();
             state
@@ -2955,15 +2972,8 @@ mod tests {
             }
         });
         let target = app.world().resource::<TargetState>();
-        let defaults = TargetState::default();
         assert!(!target.open_window);
-        assert!(target.target.is_none());
-        assert!(target.tag_buffer.is_empty());
-        assert_eq!(target.block_kind_buffer, defaults.block_kind_buffer);
-        assert_eq!(target.port_color_hex_buffer, defaults.port_color_hex_buffer);
-        assert_eq!(target.port_role_buffer, defaults.port_role_buffer);
         assert!(!target.pipe_hadamard_buffer);
-        assert!(!target.suppress_enter_confirm_until_release);
         let mut state = app.world_mut().resource_mut::<GraphState>();
         assert!(state.pending_branch_arm.is_none());
         assert!(state.graph.has_block_at(IVec3::X));

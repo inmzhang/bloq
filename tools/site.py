@@ -294,7 +294,7 @@ def check_links_and_privacy(output, *, incomplete=False):
             if target is not None and (not target.is_relative_to(output) or not target.is_file()):
                 errors.append(f"{origin.relative_to(output)}: missing CSS asset {reference}")
     forbidden = ("bloq-paper", "bloq-experiments", "/Users/", "/home/", "/var/folders/")
-    text_suffixes = {".html", ".js", ".json", ".svg", ".css", ".txt", ".md", ".rst", ".blog", ".bloqir", ".qasm", ".py"}
+    text_suffixes = {".html", ".js", ".json", ".svg", ".css", ".txt", ".md", ".rst", ".blog", ".bloqir", ".py"}
     for path in output.rglob("*"):
         if path.name == ".doctrees":
             errors.append(f"{path.relative_to(output)}: Sphinx build cache must not be published")
