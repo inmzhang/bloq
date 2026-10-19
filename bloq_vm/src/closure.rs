@@ -1103,6 +1103,31 @@ mod tests {
             .expect("the parent continuation starts after the accepted RUS attempt");
     }
 
+    #[test]
+    fn t_gate_gallery_program_validates() {
+        let case = bloq_test::CompileReadyCase::from_test_case(
+            bloq_test::find_test_case("t_gate[open]").expect("native T gallery case"),
+        )
+        .expect("gallery case builds");
+        let mut bloq = bloq_compile::compile(&case.graph, 3).expect("native T compiles");
+        bloq.flatten().expect("flatten native T");
+
+        assert!(
+            bloq.levels().any(|(_, level)| {
+                let demands = implicit_correction_demands(level, None);
+                level.nodes().any(|(id, node)| {
+                    matches!(
+                        node.try_classical(),
+                        Some(ClassicalNode::Observable { index: Some(_), .. })
+                    ) && needs_correction(level, id, &demands)
+                })
+            }),
+            "native T must contain a decoder-backed observable"
+        );
+        guard_decode_observable_closure(&bloq)
+            .expect("compiler output closes every decoder-backed output face");
+    }
+
     // ---- terminal read: guard_consumed_output_faces ----
 
     fn constant_untaken_include_program() -> Bloq {

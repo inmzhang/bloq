@@ -22,7 +22,7 @@ def test_compiled_instance_provenance_is_public(y_memory):
     assert isinstance(provenance, bloq.ir.InstanceProvenance.Block)
 
 
-def test_compile_records_metadata(y_memory):
+def test_compile_records_metadata_and_preserves_it_through_codecs(y_memory):
     _, program = y_memory
     for distance, compiled in [
         (3, program),
@@ -30,6 +30,11 @@ def test_compile_records_metadata(y_memory):
     ]:
         assert compiled.metadata[bloq.ir.CODE_DISTANCE_METADATA_KEY] == distance
         assert compiled.metadata[bloq.ir.CONVENTION_METADATA_KEY] == "fixed-bulk"
+        for restored in [
+            bloq.Bloq.from_text(compiled.to_text()),
+            bloq.Bloq.from_binary(compiled.to_binary()),
+        ]:
+            assert restored.metadata == compiled.metadata
 
 
 def test_hand_built_program_has_no_metadata():

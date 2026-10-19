@@ -1267,9 +1267,7 @@ fn replace_graph_with_cleanup_impl(
     }
     editor_state.sync_after_graph_edit(graph_state);
 
-    target_state.open_window = false;
-    target_state.target = None;
-    target_state.tag_buffer.clear();
+    *target_state = TargetState::default();
 
     compile_ui.reset_for_new_graph();
     circuit_viewer.reset_for_new_graph();
@@ -1596,7 +1594,6 @@ pub(super) fn install_graph_into_tab(
         &mut tab.snapshot.circuit_viewer,
         graph,
     );
-    tab.snapshot.target_state = TargetState::default();
     tab.snapshot.camera_settings = crate::systems::camera::camera_settings_for_graph(
         &tab.snapshot.graph_state.graph,
         tab.snapshot.editor_state.pipe_length,
@@ -2885,7 +2882,7 @@ mod tests {
     }
 
     #[test]
-    fn active_blog_load_clears_capture_and_undo_restores_it() {
+    fn active_blog_load_resets_attribute_editor_and_undo_restores_capture() {
         use crate::resources::{ImportExportState, PendingBranchArm};
         use bevy::prelude::*;
         let pool = AsyncComputeTaskPool::get_or_init(TaskPool::new);
@@ -2907,6 +2904,16 @@ mod tests {
             Transform::default(),
             super::CameraSettings::default(),
         ));
+        *app.world_mut().resource_mut::<TargetState>() = TargetState {
+            open_window: true,
+            target: Some(GraphElement::Block(IVec3::ZERO)),
+            tag_buffer: "old graph".into(),
+            block_kind_buffer: BlockKind::Y,
+            port_color_hex_buffer: "000000".into(),
+            port_role_buffer: bloq_graph::PortRole::Input,
+            pipe_hadamard_buffer: true,
+            suppress_enter_confirm_until_release: true,
+        };
         {
             let mut state = app.world_mut().resource_mut::<GraphState>();
             state
@@ -2947,6 +2954,16 @@ mod tests {
                 future::yield_now().await;
             }
         });
+        let target = app.world().resource::<TargetState>();
+        let defaults = TargetState::default();
+        assert!(!target.open_window);
+        assert!(target.target.is_none());
+        assert!(target.tag_buffer.is_empty());
+        assert_eq!(target.block_kind_buffer, defaults.block_kind_buffer);
+        assert_eq!(target.port_color_hex_buffer, defaults.port_color_hex_buffer);
+        assert_eq!(target.port_role_buffer, defaults.port_role_buffer);
+        assert!(!target.pipe_hadamard_buffer);
+        assert!(!target.suppress_enter_confirm_until_release);
         let mut state = app.world_mut().resource_mut::<GraphState>();
         assert!(state.pending_branch_arm.is_none());
         assert!(state.graph.has_block_at(IVec3::X));

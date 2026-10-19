@@ -1,6 +1,6 @@
 //! Circuit-distance regression checks for native non-Clifford or adaptive
 //! gallery entries in the shared corpus, excluding analysis-only graphs and
-//! the ten-bit adder scaling case. The three-bit adder runs at d5 only;
+//! the ten-bit adder scaling case. The three-bit adder runs at d3/d5 only;
 //! d7 retains the other gallery compositions without repeating its costly sweep.
 //!
 //! `compile_clifford_proxy` restricts the certified source relation and
@@ -115,7 +115,7 @@ fn gallery_proxy_distances(distance: u32, samples: usize) {
         (fixture.in_category(GalleryCategory::NonClifford)
             || fixture.in_category(GalleryCategory::Adaptive))
             && !fixture.in_category(GalleryCategory::AnalysisOnly)
-            // The three-bit adder covers this family at d5; its d7 sweep
+            // The three-bit adder covers this family at d3/d5; its d7 sweep
             // adds costly carry-chain stress beyond those distance checks.
             && *fixture != TestFixture::TenBitAdder
             && !(distance == 7 && *fixture == TestFixture::ThreeBitAdder)
@@ -210,6 +210,11 @@ fn gallery_proxy_distances(distance: u32, samples: usize) {
     }
     assert!(checked >= 13, "only {checked} gallery entries checked");
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[test]
+fn non_clifford_and_dynamic_gallery_distance_d3() {
+    gallery_proxy_distances(3, 2);
 }
 
 #[test]

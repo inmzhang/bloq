@@ -38,6 +38,9 @@ serde_json = { workspace = true, optional = true }
 strum.workspace = true
 thiserror.workspace = true
 
+[dev-dependencies]
+quizx.workspace = true
+
 # docs.rs builds with every feature so the gltf/verify surfaces show up.
 [package.metadata.docs.rs]
 all-features = true

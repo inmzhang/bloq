@@ -517,7 +517,7 @@ def setup(app):
     app.add_directive("detector-slices", DetectorSlices)
 
     app.add_lexer("blog", BlogLexer)
-    for language in ("bloqir", "stim", "qasm"):
+    for language in ("bloqir", "stim"):
         app.add_lexer(language, TextLexer)
     for language in ("rust,ignore", "rust,no_run"):
         app.add_lexer(language, RustLexer)

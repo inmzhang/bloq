@@ -15,7 +15,7 @@ use super::ybasis::compile_y;
 pub(crate) fn validate_fixed_bulk(signature: BlockSignature) -> Result<(), CompileError> {
     let connectivity = signature.connectivity;
     let missing_basis = signature.boundary_basis.is_none();
-    // Y reports a missing basis before checking connectivity; other leaves reverse that order.
+    // Preserve Y's historical diagnostic precedence when both fields are invalid.
     if signature.kind == BlockKind::Y && missing_basis {
         return Err(CompileError::MissingBoundaryBasis {
             kind: signature.kind,
@@ -25,9 +25,13 @@ pub(crate) fn validate_fixed_bulk(signature: BlockSignature) -> Result<(), Compi
     let future = connectivity.has_pipe(Direction::ZPLUS);
     let valid_temporal = match signature.kind {
         BlockKind::Cube(_) | BlockKind::Walking(_) => return Ok(()),
+        // Rotations use only temporal pipes; realignment owns any Hadamard flip.
         BlockKind::PatchRotation(_) => true,
+        // Leaves inherit the patch orientation from their single temporal neighbour.
         BlockKind::Y | BlockKind::Port | BlockKind::Selective(_) => past ^ future,
+        // Measurements consume a patch arriving from the past.
         BlockKind::Measurement(_) => past && !future,
+        // T cultivation prepares a patch that escapes into the future.
         BlockKind::T => future && !past,
     };
     if !valid_temporal || connectivity.spatial_pipes().next().is_some() {

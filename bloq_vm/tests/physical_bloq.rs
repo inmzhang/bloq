@@ -431,6 +431,38 @@ fn cnot_aliased_measurements_resolve() {
 }
 
 #[test]
+fn native_t_feedforward_tracks_selector_and_evaluates_frames() {
+    let (_, bloq) = compiled_case("t_gate[open]", 3);
+    let shots = 8;
+    let report =
+        run_bloq(&bloq, shots, 0x7).expect("native T executes through cultivation and escape");
+
+    assert_eq!(report.discarded, 0);
+    assert_eq!(report.branch_selectors.len(), shots);
+    assert!(report.branch_selectors.contains(&false));
+    assert!(report.branch_selectors.contains(&true));
+
+    // The native fixture's raw readout carries the selective correction bit.
+    let raw = &report.observables[0].per_shot;
+    assert_eq!(raw.len(), shots);
+    let corrected = raw
+        .iter()
+        .zip(&report.branch_selectors)
+        .map(|(raw, selector)| raw ^ selector)
+        .collect::<Vec<_>>();
+    assert!(
+        corrected.windows(2).all(|pair| pair[0] == pair[1]),
+        "raw readout XOR selector must be constant: {corrected:?}"
+    );
+
+    assert_eq!(report.frame_pairs.len(), 1);
+    let frame = &report.frame_pairs[0];
+    assert_eq!(frame.z_bits.len(), shots);
+    assert!(frame.z_bits.iter().all(Option::is_some));
+    assert_eq!(frame.x_bits, vec![Some(false); shots]);
+}
+
+#[test]
 fn thth_frame_recovers_exact_gate_sequence() {
     use bloq_graph::{Block, BlockKind, CubeKind, Direction, Pipe};
     use glam::IVec3;

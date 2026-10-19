@@ -195,7 +195,7 @@ def test_blog_highlighting_tokens_and_registration():
         add_directive=lambda *args: None, connect=lambda *args, **kwargs: None,
     ))
     assert registered["blog"] is config["BlogLexer"]
-    assert all(registered[name] is TextLexer for name in ("bloqir", "stim", "qasm"))
+    assert all(registered[name] is TextLexer for name in ("bloqir", "stim"))
     source = '''BLOG 1.0
 import "stage#1.blog" as Stage
 module main {

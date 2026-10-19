@@ -2201,6 +2201,7 @@ dependencies = [
  "bloq_utils",
  "bloq_vm",
  "glam",
+ "quizx",
  "serde_json",
  "strum 0.28.0",
  "thiserror 2.0.21",

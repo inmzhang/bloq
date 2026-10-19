@@ -36,12 +36,8 @@ execution, retries, or corrected non-Clifford output states are the question.
 These layers check different properties; none alone establishes noisy decoding
 performance.
 
-The development API no longer provides `infer_feedback`, `infer_feedback_with`,
-`FeedbackOptions`, or `FeedbackInferenceError`, and removes the `utils::qasm`
-module and `graph::verify::parse_qasm`/`QasmError` exports. Author feedback as
-`Action::Feedback` and pass an expected QuiZX graph directly to `LogicalVerifier`
-or `verify_logical`. These logical verification APIs remain available through
-`graph-verify`.
+Author feedback as `Action::Feedback` and pass an expected QuiZX graph directly
+to `LogicalVerifier` or `verify_logical` through `graph-verify`.
 
 A full IR well-formedness audit through `Bloq::validate` is available without
 these features. It checks the compiled representation rather than an expected
