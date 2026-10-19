@@ -276,7 +276,10 @@ def _from_qasm(qasm: str, *, seed: int, temporal_hadamards_only: bool) -> Topolo
         # This is layout normalization only. Original signs are lowered into
         # native actions below, never inferred from the resulting geometry.
         normalized.set_phase(node, Fraction(1, 4) if phase == Fraction(7, 4) else phase % 1)
-    augmented = prepare_graph(normalized)
+    try:
+        augmented = prepare_graph(normalized)
+    except ValueError as error:
+        raise TopologiqImportError("upstream_flow", f"Pauli-flow preparation failed: {error}") from error
     options = dict(graph_traverse_mode="tfs", seed=seed, gravity=7,
                    temporal_hadamards_only=temporal_hadamards_only,
                    z_stretch=2, debug=0, animate=False,
@@ -292,6 +295,8 @@ def _from_qasm(qasm: str, *, seed: int, temporal_hadamards_only: bool) -> Topolo
             if isinstance(node, Integral) and not isinstance(node, bool)
         )
         raise TopologiqImportError("upstream_layout", str(error), nodes=failed_nodes) from error
+    if tuple(manager.inputs) != tuple(source.inputs()) or tuple(manager.outputs) != tuple(source.outputs()):
+        raise TopologiqImportError("boundaries", "Upstream changed the ordered source interface")
     if temporal_hadamards_only:
         for u, v, edge in manager.bgraph.edges(data=True):
             if edge.get("edge_type") == "HADAMARD" and (

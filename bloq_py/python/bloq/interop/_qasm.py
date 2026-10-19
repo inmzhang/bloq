@@ -9,6 +9,7 @@ from typing import Any, NoReturn
 from pyzx.circuit.gates import qasm_gate_table
 from pyzx.circuit.qasmparser import QASMParser
 
+
 class QASMImportError(ValueError):
     """A source feature that the exact QASM frontend cannot preserve."""
 
@@ -89,8 +90,13 @@ class _ExactQASMParser(QASMParser):
         if name in ("id", "barrier") and phases:
             raise QASMImportError("qasm_operand", f"Operation {name!r} takes no angles: {c}")
         if name in self.parametrized_gates:
-            arity = len(self.parametrized_gates[name][1])
+            parameters, arguments, _ = self.parametrized_gates[name]
+            if len(set(parameters)) != len(parameters):
+                raise QASMImportError("qasm_parameter", f"Gate {name!r} has duplicate angle parameters: {c}")
+            arity = len(arguments)
         elif name in self.custom_gates:
+            if phases:
+                raise QASMImportError("qasm_parameter", f"Gate {name!r} takes no angles: {c}")
             arity = self.custom_gates[name].qubits
         elif name in qasm_gate_table or name == "id":
             if name in ("ccx", "ccz", "cswap"):
@@ -129,4 +135,9 @@ def parse_qasm(qasm: str) -> Any:
     """Parse without PyZX's float conversion or denominator rounding."""
     if version("pyzx") != "0.10.7":
         raise QASMImportError("pyzx_version", "Exact QASM parsing requires pyzx==0.10.7")
-    return _ExactQASMParser().parse(qasm).to_basic_gates()
+    try:
+        return _ExactQASMParser().parse(qasm).to_basic_gates()
+    except QASMImportError:
+        raise
+    except (TypeError, ValueError, IndexError, KeyError) as error:
+        raise QASMImportError("qasm_syntax", str(error)) from error

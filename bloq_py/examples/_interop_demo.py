@@ -92,8 +92,10 @@ def run_demo(source_qasm, clifford_t_qasm, ideal_unitary, output_dir: Path, summ
             compile_warnings=[str(w.message) for w in compile_warnings], status="compiled",
         )
         save()
-        indices = {output.port: i for i, output in enumerate(program.logical_outputs())}
-        if len(indices) != len(imported.output_ports) or set(indices) != set(imported.output_ports):
+        outputs = program.logical_outputs()
+        indices = {output.port: i for i, output in enumerate(outputs)}
+        if (len(outputs) != len(imported.output_ports) or len(indices) != len(outputs)
+                or set(indices) != set(imported.output_ports)):
             raise RuntimeError("VM output interface differs from the source circuit")
         if compile_only:
             return summary
@@ -112,7 +114,7 @@ def run_demo(source_qasm, clifford_t_qasm, ideal_unitary, output_dir: Path, summ
         execution = bloq.run_noiseless(program, shots=shots, seed=seed,
                                       input_state="zero", include_signature=True)
         summary["execution_seconds"] = time.perf_counter() - started
-        (output_dir / "execution.json").write_text(json.dumps(execution, indent=2) + "\n", encoding="utf-8")
+        save_json(output_dir / "execution.json", execution)
         stage = "vm_verification"
         if not execution["all_detectors_constant"]:
             raise RuntimeError("noiseless VM execution has nonconstant detectors")
@@ -141,7 +143,7 @@ def run_demo(source_qasm, clifford_t_qasm, ideal_unitary, output_dir: Path, summ
         summary.update(status="failed", failed_stage=stage, error=str(error), error_type=type(error).__name__)
         if hasattr(error, "code"):
             summary.update(error_code=error.code, error_nodes=getattr(error, "nodes", ()))
-            summary["failure_layer"] = "upstream" if error.code == "upstream_layout" else "adapter"
+            summary["failure_layer"] = "upstream" if error.code in ("upstream_layout", "upstream_flow") else "adapter"
         else:
             summary["failure_layer"] = stage
         save()

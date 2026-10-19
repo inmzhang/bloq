@@ -26,7 +26,6 @@ Aleks Kissinger and John van de Wetering).
 
 from importlib.metadata import version
 from typing import Any
-import warnings
 
 from pyzx.pauliweb import PauliWeb
 from pyzx.utils import (
@@ -223,19 +222,8 @@ def _compute_pauli_webs(graph: Any) -> Any:
 
 class _AugmentedZXGraph(AugmentedZXGraph):
     def add_pauli_packs(self) -> None:
-        # Placement requires the full pack; reduced analysis is optional upstream.
+        # Routing preserves the source graph; reduced webs are not used.
         self.pauli_pack = _compute_pauli_webs(self.zx_graph)
-        self.pauli_pack_errors: dict[str, str] = {}
-        try:
-            self.pauli_pack_reduced = _compute_pauli_webs(self.zx_graph_reduced)
-        except ValueError as error:
-            self.pauli_pack_reduced = None
-            self.pauli_pack_errors["reduced"] = str(error)
-            warnings.warn(
-                f"PyZX Pauli webs unavailable for reduced graph: {error}",
-                RuntimeWarning,
-                stacklevel=2,
-            )
 
 
 def prepare_graph(source: Any) -> Any:

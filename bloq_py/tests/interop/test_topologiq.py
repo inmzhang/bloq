@@ -110,6 +110,31 @@ def test_native_routing_failure_retains_its_cause_and_failed_nodes(monkeypatch):
     assert caught.value.__cause__ is failure
 
 
+@pytest.mark.parametrize("width,gates", [(1, ""), (2, "h q[0];")])
+def test_idle_wire_flow_failure_has_a_public_diagnostic(width, gates):
+    require_upstream()
+    with pytest.raises(TopologiqImportError) as caught:
+        from_qasm(qasm(gates, width))
+    assert caught.value.code == "upstream_flow"
+    assert isinstance(caught.value.__cause__, ValueError)
+
+
+@pytest.mark.parametrize("interface", ["inputs", "outputs"])
+def test_routing_cannot_reorder_source_ports(interface, monkeypatch):
+    require_upstream()
+    from topologiq.core.graph_manager.graph_manager import BlockGraphManager
+
+    build = BlockGraphManager.build
+
+    def reorder_after_build(manager):
+        build(manager)
+        setattr(manager, interface, list(reversed(getattr(manager, interface))))
+
+    monkeypatch.setattr(BlockGraphManager, "build", reorder_after_build)
+    with pytest.raises(TopologiqImportError, match="boundaries"):
+        from_qasm(qasm("cx q[0],q[1];", 2))
+
+
 @pytest.mark.parametrize("angle", ["pi+1", "1e-1000", "0.2500000000000000000001*pi"])
 def test_source_angles_cannot_round_to_a_supported_gate(angle, monkeypatch):
     require_upstream()

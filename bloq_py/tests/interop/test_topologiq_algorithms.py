@@ -23,6 +23,7 @@ def algorithms(monkeypatch):
 
 @pytest.mark.parametrize("name", NAMES)
 def test_candidate_checks_exported_channels_and_has_non_stabilizer_output(algorithms, name):
+    pytest.importorskip("pyzx", reason="opt-in exact QASM frontend")
     from bloq.interop._qasm import parse_qasm
 
     result = algorithms["generate_candidate"](name)

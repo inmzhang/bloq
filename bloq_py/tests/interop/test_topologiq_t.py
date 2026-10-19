@@ -8,14 +8,16 @@ from unittest.mock import patch
 
 import pytest
 
-from bloq.interop._qasm import parse_qasm
-from bloq.interop._topologiq_t import lower_t_gadgets
-from bloq.interop.topologiq import TopologiqImportError, _from_qasm, _routed_path, from_qasm
+pytest.importorskip("pyzx", reason="opt-in pinned upstream integration environment")
+pytest.importorskip("topologiq", reason="opt-in pinned upstream integration environment")
+
+from bloq.interop._qasm import parse_qasm  # noqa: E402
+from bloq.interop._topologiq_t import lower_t_gadgets  # noqa: E402
+from bloq.interop.topologiq import TopologiqImportError, _from_qasm, _routed_path, from_qasm  # noqa: E402
 
 
 @pytest.mark.parametrize("corruption", ["missing", "hadamard", "branched"])
 def test_twin_identity_wire_contract(corruption, monkeypatch):
-    pytest.importorskip("topologiq", reason="opt-in pinned upstream integration environment")
     from topologiq.core.graph_manager.graph_manager import BlockGraphManager
 
     build = BlockGraphManager.build
@@ -42,7 +44,6 @@ def test_twin_identity_wire_contract(corruption, monkeypatch):
 
 @pytest.fixture(scope="module")
 def temporal_qpe_layout():
-    pytest.importorskip("topologiq", reason="opt-in pinned upstream integration environment")
     from topologiq.core.graph_manager.graph_manager import BlockGraphManager
 
     repository = Path(__file__).resolve().parents[3]

@@ -56,15 +56,13 @@ outer(pi/2) q[0];""")
     assert circuit.gates[0].phase == Fraction(1, 2)
 
 
-def test_source_and_global_parser_remain_unchanged():
+def test_global_parser_remains_unchanged():
     from pyzx.circuit.qasmparser import QASMParser
 
     text = source("rx(pi/2) q[0];")
-    original = text
     parser = QASMParser.parse_phase_arg
     circuit = frontend.parse_qasm(text)
     assert circuit.gates[0].phase == Fraction(1, 2)
-    assert text == original
     assert QASMParser.parse_phase_arg is parser
 
 
@@ -72,6 +70,25 @@ def test_version_guard_precedes_source_parsing(monkeypatch):
     monkeypatch.setattr(frontend, "version", lambda _: "0.0.0")
     with pytest.raises(QASMImportError, match="pyzx_version"):
         frontend.parse_qasm("not QASM")
+
+
+@pytest.mark.parametrize("operation", [
+    "gate plain q { h q; } plain(pi/2) q[0];",
+    "gate repeated(a,a) q { rz(a) q; } repeated(pi/4,pi/2) q[0];",
+])
+def test_custom_gate_angles_cannot_be_silently_ignored_or_rebound(operation):
+    with pytest.raises(QASMImportError, match="qasm_parameter"):
+        frontend.parse_qasm(source(operation))
+
+
+@pytest.mark.parametrize("text", [
+    "", "not QASM", source("h(pi/4) q[0];"),
+    source("gate phase(a) q { rz(a) q; } phase(pi/4,pi/2) q[0];"),
+])
+def test_native_parser_diagnostics_have_frontend_provenance(text):
+    with pytest.raises(QASMImportError, match="qasm_syntax") as caught:
+        frontend.parse_qasm(text)
+    assert isinstance(caught.value.__cause__, (TypeError, ValueError, IndexError, KeyError))
 
 
 @pytest.mark.parametrize("operation", [

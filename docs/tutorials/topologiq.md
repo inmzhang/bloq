@@ -107,6 +107,9 @@ approximation error against the Fourier transform.
   adder layout fails with `LiveQubitReuse`; the Trotter example exhausts the
   temporal-only H routing budget. Bloq rejects incompatible results without rerouting
   or adding mixed-axis spatial Hadamard walls.
+- The pinned Pauli-web frontend cannot process idle input-to-output wires,
+  including an identity circuit or unused register qubits. The adapter rejects
+  these sources with an `upstream_flow` diagnostic and retains the upstream cause.
 - VM examples use ideal T-source proxies, ideal decoding, and ideal boundary
   capture. They verify noiseless compiled circuits, not cultivation acceptance,
   hardware timing, or fault-tolerant distance. The

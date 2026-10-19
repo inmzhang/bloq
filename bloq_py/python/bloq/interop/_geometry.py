@@ -45,10 +45,18 @@ def _space_diagram(nodes, edges):
     have degree two and phase zero (identity tensors); any H stays on the
     middle segment. Endpoint gadgets then fit between original grid cells.
     """
-    spaced = {node: dict(data, position=tuple(GRID_SPACING * x for x in data["position"]))
+    positions = {node: _position(data["position"]) for node, data in nodes.items()}
+    if len(set(positions.values())) != len(positions):
+        raise GeometryError("coordinates", "Exported nodes overlap")
+    spaced = {node: dict(data, position=_position(tuple(GRID_SPACING * x for x in positions[node])))
               for node, data in nodes.items()}
     pipes = {}
-    for index, ((a, b), _) in enumerate(edges.items()):
+    for index, ((a, b), endpoints) in enumerate(edges.items()):
+        if a not in positions or b not in positions:
+            raise GeometryError("pipe_geometry", f"Unknown exported edge endpoint: {a!r} -> {b!r}")
+        if tuple(_position(p) for p in endpoints) != (positions[a], positions[b]):
+            raise GeometryError("pipe_geometry", f"Stored endpoints disagree with node positions: {a!r} -> {b!r}")
+        _direction(positions[a], positions[b])
         p, q = spaced[a]["position"], spaced[b]["position"]
         step = tuple((y - x) // GRID_SPACING for x, y in zip(p, q))
         ka, kb = nodes[a]["tqec"], nodes[b]["tqec"]
@@ -154,7 +162,12 @@ def build_graph(nodes, edges, qubits, actions):
     if any(set(mapping) != set(range(qubits)) for mapping in ports.values()):
         raise GeometryError('boundaries', 'Layout does not cover the source interface')
     graph.set_actions(actions)
-    inputs, outputs = (tuple(ports[role][i] for i in range(qubits)) for role in ('input', 'output'))
+    # Resource collars can precede the upstream origin. Keep interface maps
+    # aligned with the nonnegative coordinates used by native compilation.
+    min_z = min(p[2] for p in positions.values())
+    graph = graph.with_zero_min_z()
+    inputs, outputs = (tuple((x, y, z - min_z) for _, (x, y, z) in sorted(ports[role].items()))
+                       for role in ('input', 'output'))
     graph = bloq.BlockGraph.definition('main', graph,
         inputs={f'in_{i}': p for i, p in enumerate(inputs)}, outputs={f'out_{i}': p for i, p in enumerate(outputs)})
     graph.validate()

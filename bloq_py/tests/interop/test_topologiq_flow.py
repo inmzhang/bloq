@@ -83,18 +83,9 @@ def test_preparation_preserves_source_and_upstream_functions():
     augmented = flow.prepare_graph(graph)
     assert isinstance(augmented, AugmentedZXGraph)
     assert canonical_pack(augmented.pauli_pack) == canonical_pack(compute_pauli_webs(graph))
-    assert augmented.pauli_pack_reduced is not None
     assert graph.to_json() == original
     assert pyzx.pauliweb.gflow is original_gflow
     assert pyzx.pauliweb.compute_pauli_webs is original_compute
-
-
-def test_unavailable_reduced_pack_has_a_diagnostic():
-    with pytest.warns(RuntimeWarning, match="Pauli webs unavailable for reduced graph"):
-        augmented = flow.prepare_graph(circuit_graph("h q[0];"))
-    assert augmented.pauli_pack is not None
-    assert augmented.pauli_pack_reduced is None
-    assert "No edge between" in augmented.pauli_pack_errors["reduced"]
 
 
 def test_pyzx_version_guard(monkeypatch):
