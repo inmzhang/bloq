@@ -2384,11 +2384,16 @@ mod tests {
             .build()
             .materialize_root_graph()
             .expect("gallery flat projection");
-        let generators = graph.stabilizers().unwrap().generators;
-        let mut product = generators[1].clone();
+        let mut z_sheets = graph.stabilizers().unwrap().into_iter().filter(|row| {
+            row.stabilizer
+                .port_stabilizer
+                .values()
+                .all(|&pauli| matches!(pauli, Pauli::I | Pauli::Z))
+        });
+        let mut product = z_sheets.next().unwrap();
         product
             .stabilizer
-            .phase_free_mul_assign(&generators[2].stabilizer);
+            .phase_free_mul_assign(&z_sheets.next().unwrap().stabilizer);
         let data = stabilizer_as_gltf_data(&product, &graph, 2.0).unwrap();
         assert_patch_rotation_color_at_named(
             &data,
@@ -2845,7 +2850,6 @@ mod tests {
             .expect("gallery flat projection");
         let stabilizers = graph.stabilizers().expect("T stabilizers");
         let generator = stabilizers
-            .generators
             .iter()
             .find(|generator| generator.is_measurement())
             .expect("T has a measurement generator");
@@ -3094,8 +3098,8 @@ mod tests {
         graph.add_pipe(Pipe::new(IVec3::new(0, 0, 0), Direction::ZMINUS));
 
         let stabilizers = graph.stabilizers().expect("walking graph stabilizers");
-        assert!(!stabilizers.generators.is_empty());
-        for generator in &stabilizers.generators {
+        assert!(!stabilizers.is_empty());
+        for generator in &stabilizers {
             let mesh = stabilizer_as_gltf_data(generator, &graph, 2.0)
                 .expect("walking stabilizer should convert to mesh data");
             assert!(!mesh.triangles.is_empty());
@@ -3112,7 +3116,7 @@ mod tests {
         let stride = 3.0;
         let expected_top = IVec3::new(1, 1, 2).as_vec3() * stride + Vec3::Z * 0.5;
 
-        assert!(stabilizers.generators.iter().any(|generator| {
+        assert!(stabilizers.iter().any(|generator| {
             if !generator
                 .stabilizer
                 .interior_nodes

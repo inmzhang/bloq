@@ -1,8 +1,8 @@
 //! ZX-calculus graph layer for post-conversion analysis and verification.
 //!
 //! A [`ZXGraph`] is derived from a [`BlockGraph`](crate::BlockGraph) via
-//! conversion and drives stabilizer computation, output-correction solving, and
-//! runtime-basis derivation for dynamic (selective and T) blocks.
+//! conversion and carries correlation-surface planning, output-correction
+//! solving, and runtime-basis evolution for dynamic (selective and T) blocks.
 
 mod convert;
 mod graph;
@@ -15,11 +15,9 @@ pub use guarded_surfaces::{GuardedSurface, GuardedSurfaceKind, GuardedSurfaceSpa
 mod layer;
 mod modular;
 mod output_correction;
-mod readout;
 mod restriction;
 mod runtime_basis;
 mod stabilizer;
-mod symbolic_basis;
 
 pub use graph::{NodeKind, ZXEdge, ZXError, ZXGraph, ZXNode};
 pub use layer::ZXLayerView;
@@ -28,16 +26,14 @@ pub use output_correction::{
     OutputCorrectionError, OutputCorrectionRow, SymbolicFramePair, SymbolicOutputCorrection,
     solve_output_correction_symbolic, solve_output_correction_symbolic_prefix,
 };
-pub use readout::{NamedReadout, ReadoutCoordinates, ReadoutPlan};
-pub use runtime_basis::{DerivedSurface, RuntimeBasisError, RuntimeStabilizerBasis};
+pub use runtime_basis::{RuntimeBasisError, RuntimeStabilizerBasis};
 pub(crate) use stabilizer::fill_ports_auto;
 #[cfg(test)]
 pub(crate) use stabilizer::reduce_to_basis;
 #[cfg(feature = "verify")]
-pub(crate) use stabilizer::{CoeffVec, solve_coeff_combination};
+pub(crate) use stabilizer::solve_coeff_combination;
+pub(crate) use stabilizer::{CoeffVec, gaussian_elimination_with_tracking};
 pub use stabilizer::{
-    FillPortsError, SelectiveFixing, SelectiveFixingTarget, SelectiveFixings, Stabilizer,
-    StabilizerError, StabilizerGenerator, StabilizerGenerators, StabilizerRowKind,
-    selective_fixings,
+    FillPortsError, Stabilizer, StabilizerError, StabilizerGenerator, StabilizerGenerators,
+    StabilizerRowKind,
 };
-pub use symbolic_basis::{SymbolicBasisError, SymbolicSite, SymbolicStabilizerBasis};

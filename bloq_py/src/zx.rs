@@ -13,7 +13,7 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyfunction, gen_stub_pymethods};
 
 use crate::errors;
-use crate::graph::{PyBlockGraph, PyStabilizerGenerator};
+use crate::graph::PyBlockGraph;
 use crate::primitives::{ivec3_from, ivec3_into, py_bool};
 
 /// ZX analysis failures are graph-level diagnoses, so they map onto the same
@@ -304,21 +304,6 @@ impl PyZXGraph {
     ///     BlockGraphError: If the actions do not form a runnable program.
     fn validate_for_program(&self) -> PyResult<()> {
         self.0.validate_for_program().map_err(zx_err)
-    }
-
-    /// Derives the stabilizer generators of the diagram.
-    ///
-    /// Raises:
-    ///     BlockGraphError: If the stabilizers cannot be derived.
-    fn stabilizers(&self) -> PyResult<Vec<PyStabilizerGenerator>> {
-        Ok(self
-            .0
-            .stabilizers()
-            .map_err(zx_err)?
-            .generators
-            .into_iter()
-            .map(Into::into)
-            .collect())
     }
 
     fn __repr__(&self) -> String {

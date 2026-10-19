@@ -1,8 +1,6 @@
 use std::borrow::Cow;
 
-use bloq_graph::{
-    Basis, BlockGraph, BlockKind, CubeHeight, CubeKind, Direction, PortRole, StabilizerGenerators,
-};
+use bloq_graph::{Basis, BlockGraph, BlockKind, CubeHeight, CubeKind, Direction, PortRole};
 use glam::{IVec2, IVec3};
 
 use crate::{CompileError, compile::block_xy_offset};
@@ -43,25 +41,6 @@ pub(crate) type SpatialPortExpansionMap = crate::FxMap<IVec3, SpatialPortExpansi
 
 /// Replace authored spatial Ports with their compiler-only cube half. The
 /// positionless temporal Port half is added by `LowerPlan`.
-pub(crate) fn expand_spatial_ports(
-    source: &BlockGraph,
-    distance: u32,
-    stabilizers: &StabilizerGenerators,
-) -> Result<(BlockGraph, SpatialPortExpansionMap), CompileError> {
-    let (graph, expansions) = expand_spatial_port_topology(source, distance)?;
-    let mut graph = graph.into_owned();
-    if expansions.is_empty() {
-        return Ok((graph, expansions));
-    }
-
-    graph.validate_structure()?;
-    graph = graph.with_analyzed_action_graph(stabilizers)?;
-    Ok((graph, expansions))
-}
-
-/// Expand spatial Ports without attaching semantic action dependencies.
-/// Definition-object compilation needs only this local physical topology; the
-/// root semantic preflight attaches the composed stabilizer rows separately.
 pub(crate) fn expand_spatial_port_topology(
     source: &BlockGraph,
     distance: u32,

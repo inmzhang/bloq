@@ -1049,7 +1049,6 @@ mod tests {
         let stabilizer = graph
             .stabilizers()
             .unwrap()
-            .generators
             .into_iter()
             .find(bloq_graph::StabilizerGenerator::is_measurement)
             .unwrap();
@@ -1787,7 +1786,7 @@ mod tests {
             ..Default::default()
         };
         let editor = EditorState {
-            stabilizers: graph_state.graph.stabilizers().unwrap().generators,
+            stabilizers: graph_state.graph.stabilizers().unwrap(),
             show_stabilizers: false,
             ..Default::default()
         };

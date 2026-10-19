@@ -22,7 +22,6 @@ fn requires_flat<T>(result: Result<T, BlockGraphError>) {
 fn scientific_queries_cannot_ignore_child_geometry() {
     let graph = hierarchy();
     requires_flat(graph.to_zx_graph());
-    requires_flat(graph.stabilizers());
     requires_flat(graph.clone().analyze_actions());
     requires_flat(graph.fill_ports_auto());
     requires_flat(graph.branch_projections());

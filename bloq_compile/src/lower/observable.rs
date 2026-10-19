@@ -173,10 +173,6 @@ fn resolve_observable_insertions_with_spatial_ports(
 ) -> Result<Vec<ObservableChunkInsertion>, CompileError> {
     let mut insertions = Vec::new();
     for (obs_index, stabilizer) in generators.iter().enumerate() {
-        if !statically_resolved(stabilizer, compiled_blocks) {
-            continue;
-        }
-
         // Resolve every block touched by either node or edge support through one
         // gateway path. Edge-only algebraic support is not a different physical
         // category: `build_local_flow_key` reconstructs its junction Pauli.
@@ -476,9 +472,6 @@ pub(super) fn resolve_observables(
     )?;
     insertions.extend(pipe_insertions);
     for (index, generator) in generators.iter().enumerate() {
-        if !statically_resolved(generator, context.input.compiled) {
-            continue;
-        }
         let wall_sign = push_wall_observable_insertions(
             context.input.graph,
             context.input.wall_templates,
@@ -510,32 +503,12 @@ pub(super) struct MaterializedObservables {
     pub(super) reference_offsets: crate::FxSet<u32>,
 }
 
-/// The statically-resolved generator ordinals — every non-selective-crossing
-/// `Measurement` or `Logical` row (the rows [`statically_resolved`] owns). The
-/// all-rows completeness rule (design §3) materializes an `Observable` for
-/// each, so a row whose gateway resolution yields no records or operators still
-/// surfaces as a constant-`false` observable (zero bit inputs) rather than
-/// silently having no readable value. Selective-crossing rows are excluded
-/// here; the proxy has already pinned them. Selective-internal rows never
-/// become observables.
-pub(super) fn statically_resolved_row_indices(
-    generators: &[StabilizerGenerator],
-    compiled_blocks: &CompiledTemplateMap,
-) -> Vec<u32> {
-    generators
-        .iter()
-        .enumerate()
-        .filter(|(_, generator)| statically_resolved(generator, compiled_blocks))
-        .map(|(index, _)| index as u32)
-        .collect()
-}
-
 /// Materialize the pinned public basis, including empty rows. Static insertions
 /// share one complete recipe per row; guarded/shared fragments use composition
 /// in ordinary lowering.
 pub(super) fn materialize_observable_nodes(
     resolved: Vec<ResolvedObservable>,
-    all_row_indices: &[u32],
+    row_count: u32,
     bloq: &mut Bloq,
     node_map: &[Option<BloqNodeId>],
 ) -> MaterializedObservables {
@@ -565,7 +538,7 @@ pub(super) fn materialize_observable_nodes(
             }
         }
     }
-    for &index in all_row_indices {
+    for index in 0..row_count {
         rows.entry(index).or_default();
     }
     let mut observable_by_index = crate::FxMap::default();
@@ -879,12 +852,6 @@ fn resolve_pipe_observable_insertions(
     let mut insertions = Vec::new();
     let mut reference_offsets = crate::FxSet::default();
     for (obs_index, stabilizer) in generators.iter().enumerate() {
-        // Mirror the block pass's ownership skip exactly, or a U6-owned
-        // generator's realignment operator dangles one-sidedly at the H seam
-        // (`ObservableSeamMismatch` — phase_gradient's rail).
-        if !statically_resolved(stabilizer, compiled) {
-            continue;
-        }
         let mut hadamard_edges = stabilizer
             .stabilizer
             .interior_edges
@@ -1109,28 +1076,6 @@ pub(super) fn hadamard_temporal_pipe(
             hadamard: true,
         }
     })
-}
-
-/// Whether the pinned proxy can resolve this public row through static gateways.
-/// Selective-internal rows and deferred readout plans have no static observable;
-/// every selective in a retained row's support must already have a fixed template.
-fn statically_resolved(
-    stabilizer: &StabilizerGenerator,
-    compiled_blocks: &CompiledTemplateMap,
-) -> bool {
-    if !stabilizer.kind.is_readout() || stabilizer.readout_plan().is_some() {
-        return false;
-    }
-    !stabilizer
-        .stabilizer
-        .interior_nodes
-        .iter()
-        .any(|(pos, pauli)| {
-            *pauli != Pauli::I
-                && compiled_blocks
-                    .get(pos)
-                    .is_some_and(|compiled| compiled.template.is_selective())
-        })
 }
 
 /// One operator-only insertion carrying a block's boundary operators, with
@@ -1422,7 +1367,7 @@ mod tests {
         };
         let resolved = vec![insertion(0, 1), insertion(1, 0)];
 
-        let _materialized = materialize_observable_nodes(resolved, &[], &mut bloq, &node_map);
+        let _materialized = materialize_observable_nodes(resolved, 0, &mut bloq, &node_map);
 
         let records: Vec<_> = bloq
             .nodes()

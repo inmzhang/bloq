@@ -1,9 +1,7 @@
 //! Fixed distance presentations of a fully certified source relation.
 
-use bloq_utils::boolean::{BooleanOp, DECISION_FALSE};
-
 use super::*;
-use crate::{Action, ActionDag, GuardedTopology, RuntimeBasisError, StabilizerError};
+use crate::{Action, GuardedTopology, RuntimeBasisError};
 
 impl ModuleSummary {
     /// Certify the complete source, then contract its signed relation with a
@@ -92,7 +90,7 @@ impl ModuleSummary {
             .iter()
             .copied()
             .collect::<HashMap<_, _>>();
-        let mut reachable = plan.topology.domain;
+        let mut conditions = vec![plan.topology.domain];
         let mut fills = Vec::with_capacity(pins.len());
         for (&(position, kind), &pin) in selectives.iter().zip(pins) {
             let selector = *resolves.get(&position).ok_or_else(|| {
@@ -109,11 +107,7 @@ impl ModuleSummary {
                     .negate(selector)
                     .map_err(|error| self.runtime_error(RuntimeBasisError::from(error)))?
             };
-            reachable = plan
-                .topology
-                .diagram
-                .apply(BooleanOp::And, reachable, required)
-                .map_err(|error| self.runtime_error(RuntimeBasisError::from(error)))?;
+            conditions.push(required);
             fills.push((
                 position,
                 if pin {
@@ -123,125 +117,45 @@ impl ModuleSummary {
                 },
             ));
         }
-        if reachable == DECISION_FALSE {
-            return Err(ModuleCertificationError::CliffordDistanceUnreachablePins {
-                module: self.name.clone(),
-            });
-        }
-        drop(plan);
+        let values = plan
+            .topology
+            .witness_values(&conditions)
+            .map_err(|error| self.runtime_error(RuntimeBasisError::from(error)))?
+            .ok_or_else(
+                || ModuleCertificationError::CliffordDistanceUnreachablePins {
+                    module: self.name.clone(),
+                },
+            )?;
 
         let zx = ZXGraph::from_block_graph_for_analysis(&source)
             .map_err(|error| graph_error(error.into()))?;
         let certificate = self.materialize_certificate_rows(&zx, normalize)?;
-        let (mut fixed, restricted) = zx
+        let (fixed, restricted) = zx
             .restrict_selective_relation_with_limits(&certificate, &fills, self.limits)
             .map_err(|error| self.runtime_error(error))?;
         drop(certificate);
-        // With structural branches excluded and all caps fixed, the complete
-        // physical relation has no remaining source-outcome dependence.
-        fixed.action_graph = fixed_measurement_dag(&fixed);
-        fixed
-            .validate_for_program()
-            .map_err(|error| graph_error(error.into()))?;
-        let mut generators = fixed
-            .stabilizers_from_external_basis_with_limits(restricted.rows(), self.limits)
-            .map_err(|error| self.runtime_error(error.into()))?;
-        let restricted_rank = restricted.rows().len();
-        drop(restricted);
-        self.validate_fixed_distance_presentation(&fixed, restricted_rank, &mut generators)?;
-        Ok((source, generators))
-    }
-
-    fn validate_fixed_distance_presentation(
-        &self,
-        zx: &ZXGraph,
-        restricted_rank: usize,
-        generators: &mut StabilizerGenerators,
-    ) -> Result<(), ModuleCertificationError> {
-        let unsatisfied =
-            || self.runtime_error(StabilizerError::ComposedPresentationUnsatisfied.into());
-        if generators.basis_rank() != restricted_rank {
-            return Err(self.runtime_error(
-                StabilizerError::BasisRankDeficient {
-                    expected: restricted_rank,
-                    actual: generators.basis_rank(),
-                }
-                .into(),
-            ));
-        }
-        let names = zx
-            .action_graph()
-            .ordered_nodes()
-            .filter_map(|node| match &node.action {
+        // The planned recipes of these pins are the public rows, in source
+        // measurement order; the restricted relation completes their rank.
+        let actions = source.actions();
+        let order = actions
+            .iter()
+            .filter_map(|action| match action {
                 Action::Measure { name, .. } => Some(name.as_str()),
                 _ => None,
             })
             .enumerate()
             .map(|(ordinal, name)| (name, ordinal))
             .collect::<HashMap<_, _>>();
-        let mut seen = FxHashSet::default();
-        for generator in &generators.generators {
-            if let Some(name) = generator.measurement_name() {
-                if !names.contains_key(name) || !seen.insert(name) {
-                    return Err(unsatisfied());
-                }
-                for port in zx.nodes().iter().filter(|node| node.is_output_port(zx)) {
-                    let support = generator.stabilizer.paulis.get(port.id);
-                    if support != Pauli::I
-                        && !(port.role == crate::PortRole::Multiplex && support == Pauli::Z)
-                    {
-                        return Err(self.runtime_error(
-                            StabilizerError::MeasurementSurfaceTouchesOutputPort {
-                                name: name.to_owned(),
-                                port: port.pos,
-                            }
-                            .into(),
-                        ));
-                    }
-                }
-            }
-        }
-        if seen.len() != names.len() {
-            return Err(unsatisfied());
-        }
-        // Fixed rows carry no coefficient recipes; changing their public order
-        // leaves private rank completion and all physical supports untouched.
-        generators.generators.sort_by_key(|generator| {
+        let mut generators = plan.materialize_surfaces(&fixed, &values);
+        generators.sort_by_key(|generator| {
             generator
                 .measurement_name()
-                .map_or(usize::MAX, |name| names[name])
+                .map_or(usize::MAX, |name| order[name])
         });
-        let mut dag = zx.action_graph().clone();
-        dag.attach_readout_dependencies(&generators.generators, Some(zx))
-            .map_err(|error| match error {
-                crate::BlockGraphError::Stabilizer(error) => self.runtime_error(error.into()),
-                _ => unsatisfied(),
-            })?;
-        generators.zx_graph.action_graph = dag;
-        generators
-            .validate_measurements_close_before_outputs_with_limits(self.limits)
-            .map_err(|error| self.runtime_error(error))
+        let relation = restricted.rows().iter().map(|row| row.paulis.clone());
+        let generators = StabilizerGenerators::completed(fixed, generators, relation);
+        Ok((source, generators))
     }
-}
-
-fn fixed_measurement_dag(zx: &ZXGraph) -> ActionDag {
-    let measurements = zx
-        .action_graph()
-        .ordered_nodes()
-        .filter(|node| matches!(node.action, Action::Measure { .. }))
-        .collect::<Vec<_>>();
-    let actions = measurements
-        .iter()
-        .map(|node| node.action.clone())
-        .collect::<Vec<_>>();
-    let mut dag = ActionDag::from_actions(&actions);
-    for (ordinal, node) in measurements.into_iter().enumerate() {
-        if let Some(observable) = node.measurement {
-            dag.set_measurement_observable(ordinal, observable)
-                .expect("filtered action ordinal names a measurement");
-        }
-    }
-    dag
 }
 
 #[cfg(test)]
@@ -316,12 +230,6 @@ module main {
                     .nodes()
                     .iter()
                     .all(|node| !matches!(node.kind, crate::NodeKind::Selective(_)))
-            );
-            assert!(
-                fixed
-                    .generators
-                    .iter()
-                    .all(|generator| generator.readout_plan().is_none())
             );
             assert_eq!(
                 fixed

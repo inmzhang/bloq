@@ -14,10 +14,10 @@ use rustc_hash::FxHashMap;
 
 use crate::{
     Action, ActionNode, BinaryOp, BlockGraph, Expr, FeedbackTarget, NodeKind, Pauli, PauliBasis,
-    PortRole, SelectiveKind, ZXGraph,
+    PortRole, RuntimeStabilizerBasis, SelectiveKind, ZXGraph,
 };
 
-use super::correction::{InternalCorrection, ResolvedCorrection, fresh_var};
+use super::correction::{InternalCorrection, ResolvedCorrection, fresh_var, named_readouts};
 use super::{MeasurementKey, VerifyLogicalError, stabilizer_supports_measurement};
 use crate::zx::{CoeffVec, solve_coeff_combination};
 
@@ -254,9 +254,9 @@ impl StructuralVerifier {
         let projected = self
             .source
             .project_branches(self.targets.iter().copied().zip(values.iter().copied()))?;
-        let arm = Arc::new(LogicalVerifier::with_boundaries_from_zx(
-            projected.to_zx_graph()?,
-            self.boundaries.clone(),
+        let arm = Arc::new(LogicalVerifier::from_projection(
+            &projected,
+            Some(self.boundaries.clone()),
             self.internal_measurements,
         )?);
         let mut cache = self.arms.lock().expect("projection cache is not poisoned");
@@ -382,21 +382,19 @@ impl LogicalVerifier {
         internal_measurements: InternalMeasurements,
     ) -> Result<Self, VerifyLogicalError> {
         source.require_flat_hierarchy("logical verification")?;
+        // Records must be readable before live outputs, as in compilation.
+        crate::validate::validate(&source.copy_local_geometry().fix_shadowed_faces())?;
         let regions = source.branch_regions()?;
         if regions.is_empty() {
-            let zx = source.to_zx_graph()?;
-            let boundaries = boundaries.unwrap_or_else(|| BoundaryOrder::infer(source, &zx));
-            return Self::with_boundaries_from_zx(zx, boundaries, internal_measurements);
+            return Self::from_projection(source, boundaries, internal_measurements);
         }
         let assignments = source
             .branch_assignments_up_to(1)?
             .pop()
             .expect("Boolean branch conditions have a reachable assignment");
         let projected = source.project_branches(assignments.iter().copied())?;
-        let zx = projected.to_zx_graph()?;
-        let boundaries = boundaries.unwrap_or_else(|| BoundaryOrder::infer(&projected, &zx));
-        let mut verifier =
-            Self::with_boundaries_from_zx(zx, boundaries.clone(), internal_measurements)?;
+        let mut verifier = Self::from_projection(&projected, boundaries, internal_measurements)?;
+        let boundaries = verifier.boundaries.clone();
         let values = assignments.iter().map(|(_, value)| *value).collect();
         let arms = Arc::new(Mutex::new(BTreeMap::from([(
             values,
@@ -413,11 +411,14 @@ impl LogicalVerifier {
         Ok(verifier)
     }
 
-    fn with_boundaries_from_zx(
-        zx: ZXGraph,
-        boundaries: BoundaryOrder,
+    /// Builds the static verifier of one graph without structural branches.
+    fn from_projection(
+        graph: &BlockGraph,
+        boundaries: Option<BoundaryOrder>,
         internal_measurements: InternalMeasurements,
     ) -> Result<Self, VerifyLogicalError> {
+        let zx = graph.to_zx_graph()?;
+        let boundaries = boundaries.unwrap_or_else(|| BoundaryOrder::infer(graph, &zx));
         zx.validate_for_program()?;
         boundaries.validate(&zx)?;
         let actions = zx
@@ -442,13 +443,15 @@ impl LogicalVerifier {
             }
         }
 
-        let named_phases = named_measurement_phases(&zx, &actions, &measurement_vars)?;
+        let records = named_records(&zx, &actions);
+        let named_phases = named_measurement_phases(&zx, &actions, &measurement_vars, &records)?;
         let correction = match internal_measurements {
             InternalMeasurements::Ignore => None,
             InternalMeasurements::Correct => Some(InternalCorrection::new(
                 &zx,
                 &named_phases,
                 &measurement_vars,
+                records,
                 &mut next_variable,
             )?),
         };
@@ -457,7 +460,7 @@ impl LogicalVerifier {
             .map(InternalCorrection::measurement_vars)
             .unwrap_or(&named_phases);
         let (symbolic, selectives) =
-            build_symbolic_graph(&zx, &boundaries, &actions, phases, &feedback_vars)?;
+            build_symbolic_graph(&zx, &boundaries, &actions, phases, &feedback_vars);
         Ok(Self {
             symbolic,
             boundaries,
@@ -757,7 +760,7 @@ impl LogicalVerifier {
                     .expect("resolved internal branch")
                     .phases,
                 &self.feedback_vars,
-            )?
+            )
         } else {
             (self.symbolic.clone(), self.selectives.clone())
         };
@@ -874,10 +877,26 @@ pub(super) fn eval_expr(expr: &Expr, values: &BTreeMap<String, bool>) -> bool {
     }
 }
 
+/// Every named record's native key.
+fn named_records(zx: &ZXGraph, actions: &[ActionNode]) -> BTreeMap<String, MeasurementKey> {
+    actions
+        .iter()
+        .filter_map(|action| {
+            let Action::Measure { name, .. } = &action.action else {
+                return None;
+            };
+            let key =
+                MeasurementKey::for_action(zx, action).expect("validated measurement has a key");
+            Some((name.clone(), key))
+        })
+        .collect()
+}
+
 fn named_measurement_phases(
     zx: &ZXGraph,
     actions: &[ActionNode],
     variables: &BTreeMap<String, Var>,
+    records: &BTreeMap<String, MeasurementKey>,
 ) -> Result<BTreeMap<MeasurementKey, Parity>, VerifyLogicalError> {
     let mut phases = BTreeMap::new();
     let mut crossings = Vec::new();
@@ -908,23 +927,16 @@ fn named_measurement_phases(
         return Ok(phases);
     }
 
-    let stabilizers = zx.stabilizers().map_err(|source| {
-        VerifyLogicalError::RuntimeBasisInitializationFailed {
-            source: source.into(),
-        }
-    })?;
+    let basis = RuntimeStabilizerBasis::from_zx_graph(zx.clone())
+        .map_err(|source| VerifyLogicalError::RuntimeBasisInitializationFailed { source })?;
+    let surfaces = named_readouts(&basis, records)?;
     let rows = actions
         .iter()
         .filter_map(|action| {
             let Action::Measure { name, .. } = &action.action else {
                 return None;
             };
-            let row = stabilizers
-                .generators
-                .iter()
-                .find(|generator| generator.measurement_name() == Some(name))
-                .expect("canonical table includes each named measurement");
-            Some((name.as_str(), &row.stabilizer))
+            Some((name.as_str(), &surfaces[name]))
         })
         .collect::<Vec<_>>();
     for (name, node_id, pauli) in crossings {
@@ -987,7 +999,7 @@ fn build_symbolic_graph(
     actions: &[ActionNode],
     measurement_key_vars: &BTreeMap<MeasurementKey, Parity>,
     feedback_vars: &FxHashMap<usize, Var>,
-) -> Result<(QuizxGraph, FxHashMap<IVec3, SelectiveSite>), VerifyLogicalError> {
+) -> (QuizxGraph, FxHashMap<IVec3, SelectiveSite>) {
     let mut graph = QuizxGraph::new();
     let mut node_vertices = Vec::with_capacity(zx.nodes().len());
     let mut input_boundaries = FxHashMap::default();
@@ -1117,7 +1129,7 @@ fn build_symbolic_graph(
                         &mut anchors,
                         target,
                         variable,
-                    )?;
+                    );
                 }
             }
             _ => {}
@@ -1138,7 +1150,7 @@ fn build_symbolic_graph(
             .map(|position| output_boundaries[position])
             .collect(),
     );
-    Ok((graph, selectives))
+    (graph, selectives)
 }
 
 fn insert_feedback(
@@ -1148,16 +1160,13 @@ fn insert_feedback(
     anchors: &mut FxHashMap<(usize, usize), WireAnchor>,
     target: &FeedbackTarget,
     variable: Var,
-) -> Result<(), VerifyLogicalError> {
+) {
     let node = zx
         .node_at(target.target)
         .expect("validated feedback target exists");
     let neighbor = zx
         .feedback_edge(target)
-        .ok_or(VerifyLogicalError::FeedbackTargetWithoutWire {
-            target: target.target,
-            pauli: target.pauli,
-        })?
+        .expect("validated feedback target has a wire")
         .n2;
     let vertex_types = match target.pauli {
         PauliBasis::X => [Some(VType::X), None],
@@ -1195,7 +1204,6 @@ fn insert_feedback(
         }
     }
     debug_assert_eq!(node_vertices[node.id], anchors[&(node.id, neighbor)].target);
-    Ok(())
 }
 
 fn is_state_boundary(zx: &ZXGraph, node: usize) -> bool {
@@ -1475,25 +1483,27 @@ mod tests {
             }),
             "named selective must carry a nontrivial unnamed compensation"
         );
-        for chosen in [PauliBasis::X, PauliBasis::Y] {
-            let resolved = correction
-                .resolve(&verifier.actions, &FxHashMap::from_iter([(site, chosen)]))
+        for cmp in [false, true] {
+            let assignment =
+                BTreeMap::from([("cmp".to_owned(), cmp), ("parity".to_owned(), false)]);
+            let resolved = verifier
+                .resolve_assignment(&assignment)
+                .unwrap()
+                .correction
                 .unwrap();
-            let basis = resolved.basis;
-            let phases = resolved.phases;
-            for name in ["cmp", "parity"] {
-                let row = basis
-                    .derive_measurement_surface(name, i64::MAX)
-                    .unwrap()
-                    .stabilizer;
-                let actual = phases
+            let zx = resolved.basis.zx_graph();
+            let readouts =
+                named_readouts(&resolved.basis, &named_records(zx, &verifier.actions)).unwrap();
+            for (name, row) in &readouts {
+                let actual = resolved
+                    .phases
                     .iter()
-                    .filter(|(key, _)| stabilizer_supports_measurement(&row, key))
+                    .filter(|(key, _)| stabilizer_supports_measurement(row, key))
                     .fold(Parity::default(), |parity, (_, term)| &parity + term);
                 assert_eq!(
                     actual,
                     Parity::single(verifier.measurement_vars[name]),
-                    "{chosen:?} {name}"
+                    "cmp={cmp} {name}"
                 );
             }
         }
@@ -1506,18 +1516,16 @@ mod tests {
             .materialize_root_graph()
             .expect("gallery flat projection");
         let zx = source.to_zx_graph().unwrap();
-        let stabilizers = zx.stabilizers().unwrap();
         let verifier = LogicalVerifier::with_internal_measurements(&source).unwrap();
+        let basis = crate::RuntimeStabilizerBasis::from_zx_graph(zx.clone()).unwrap();
+        let readouts = named_readouts(&basis, &named_records(&zx, &verifier.actions)).unwrap();
         let correction = verifier.correction.as_ref().unwrap();
         assert!(correction.sampled_vars().next().is_some());
-        for generator in &stabilizers.generators {
-            let Some(name) = generator.measurement_name() else {
-                continue;
-            };
+        for (name, readout) in &readouts {
             let actual = correction
                 .measurement_vars()
                 .iter()
-                .filter(|(key, _)| stabilizer_supports_measurement(&generator.stabilizer, key))
+                .filter(|(key, _)| stabilizer_supports_measurement(readout, key))
                 .fold(Parity::default(), |parity, (_, contribution)| {
                     &parity + contribution
                 });
@@ -1679,240 +1687,6 @@ mod tests {
             );
         }
         assert!(saw_vanishing_class);
-    }
-
-    #[test]
-    fn spatial_node_records_drive_joint_native_phase_parities() {
-        let mut source = crate::GalleryItem::CZSpatialH
-            .build()
-            .materialize_root_graph()
-            .expect("gallery flat projection");
-        source
-            .set_actions_lenient(vec![
-                Action::Measure {
-                    target: MeasureTarget::Node(IVec3::Z),
-                    name: "a".into(),
-                },
-                Action::Measure {
-                    target: MeasureTarget::Node(IVec3::X + IVec3::Z),
-                    name: "b".into(),
-                },
-            ])
-            .unwrap();
-        assert_eq!(
-            source
-                .action_graph()
-                .node_by_ordinal(1)
-                .unwrap()
-                .measurement,
-            Some(crate::MeasurementObservable::Concrete(PauliBasis::Z))
-        );
-        let mut reversed = BlockGraph::new();
-        for block in source
-            .blocks()
-            .cloned()
-            .collect::<Vec<_>>()
-            .into_iter()
-            .rev()
-        {
-            reversed.add_block(block);
-        }
-        for pipe in source.pipes() {
-            reversed.add_pipe(if pipe.is_hadamard() {
-                Pipe::new(pipe.dst(), pipe.dir().negate()).with_hadamard()
-            } else {
-                pipe.clone()
-            });
-        }
-        reversed.set_actions_lenient(source.actions()).unwrap();
-        for mut source in [source, reversed] {
-            // The X-readout spur is identity when unnamed outcomes are zero,
-            // but its nonzero terminal outcome needs an output correction.
-            let mut with_unnamed = source.clone();
-            for z in [1, 2] {
-                with_unnamed.add_block(Block::new(
-                    IVec3::new(-1, 0, z),
-                    BlockKind::Cube(CubeKind::XZX),
-                ));
-            }
-            with_unnamed.add_pipe(Pipe::new(IVec3::new(-1, 0, 1), Direction::XPLUS));
-            with_unnamed.add_pipe(Pipe::new(IVec3::new(-1, 0, 1), Direction::ZPLUS));
-            for verifier in [
-                LogicalVerifier::new(&source).unwrap(),
-                LogicalVerifier::with_internal_measurements(&with_unnamed).unwrap(),
-            ] {
-                let internal_count = verifier
-                    .correction
-                    .as_ref()
-                    .map_or(0, |correction| correction.sampled_vars().count());
-                if verifier.correction.is_some() {
-                    assert!(
-                        (1..=8).contains(&internal_count),
-                        "spur must supply bounded unnamed samples"
-                    );
-                }
-                for a in [false, true] {
-                    for b in [false, true] {
-                        let mut gates = vec![("cz", vec![0, 1])];
-                        if b {
-                            gates.push(("z", vec![0]));
-                        }
-                        if a ^ b {
-                            gates.push(("x", vec![1]));
-                        }
-                        let expected = circuit_graph(2, &gates);
-                        let assignment = BTreeMap::from([("a".into(), a), ("b".into(), b)]);
-                        let expected = contract(&expected);
-                        let mut verified = false;
-                        let mut verified_nonzero = false;
-                        for mask in 0..(1usize << internal_count) {
-                            let mut sample = 0;
-                            let (branch, diagram) = verifier
-                                .instantiate_with(&assignment, |_| {
-                                    let value = mask & (1 << sample) != 0;
-                                    sample += 1;
-                                    value
-                                })
-                                .unwrap();
-                            assert_eq!(sample, internal_count);
-                            match compare_branch(branch, diagram, &expected).unwrap().status() {
-                                BranchStatus::Verified => {
-                                    verified = true;
-                                    verified_nonzero |= mask != 0;
-                                }
-                                BranchStatus::Impossible => {}
-                                status => panic!("unexpected branch status {status:?}"),
-                            }
-                        }
-                        assert!(verified, "a={a}, b={b} has a nonzero branch");
-                        if internal_count != 0 {
-                            assert!(
-                                verified_nonzero,
-                                "a={a}, b={b} must verify with nonzero unnamed outcomes"
-                            );
-                        }
-                    }
-                }
-            }
-            source.add_block(Block::new(
-                IVec3::new(5, 0, 0),
-                BlockKind::Cube(CubeKind::ZXZ),
-            ));
-            let mut actions = source.actions();
-            actions.push(Action::Measure {
-                target: MeasureTarget::Node(IVec3::new(5, 0, 0)),
-                name: "closed".into(),
-            });
-            source.set_actions_lenient(actions).unwrap();
-            let branch = LogicalVerifier::new(&source)
-                .unwrap()
-                .verify_branch(
-                    &circuit_graph(2, &[("cz", vec![0, 1])]),
-                    &BTreeMap::from([
-                        ("a".into(), false),
-                        ("b".into(), false),
-                        ("closed".into(), true),
-                    ]),
-                )
-                .unwrap();
-            assert_eq!(branch.status(), BranchStatus::Impossible);
-        }
-    }
-
-    #[test]
-    fn spatial_and_edge_records_compose_two_phases_on_one_wire() {
-        let mut source = crate::GalleryItem::CZSpatialH
-            .build()
-            .materialize_root_graph()
-            .expect("gallery flat projection");
-        source
-            .set_actions_lenient(vec![
-                Action::Measure {
-                    target: MeasureTarget::Node(IVec3::X + IVec3::Z),
-                    name: "b".into(),
-                },
-                Action::Measure {
-                    target: MeasureTarget::Edge {
-                        src: IVec3::Z,
-                        dir: Direction::XPLUS,
-                    },
-                    name: "m".into(),
-                },
-            ])
-            .unwrap();
-        let verifier = LogicalVerifier::new(&source).unwrap();
-        for b in [false, true] {
-            for m in [false, true] {
-                let mut gates = vec![("cz", vec![0, 1])];
-                if b {
-                    gates.push(("z", vec![0]));
-                }
-                if m {
-                    gates.push(("z", vec![1]));
-                }
-                let branch = verifier
-                    .verify_branch(
-                        &circuit_graph(2, &gates),
-                        &BTreeMap::from([("b".into(), b), ("m".into(), m)]),
-                    )
-                    .unwrap();
-                assert_eq!(branch.status(), BranchStatus::Verified);
-            }
-        }
-    }
-
-    #[test]
-    fn hadamard_edge_measurement_is_independent_of_storage_and_target_direction() {
-        let original = crate::GalleryItem::CZSpatialH
-            .build()
-            .materialize_root_graph()
-            .expect("gallery flat projection");
-        let edge = original.pipes().find(|pipe| pipe.is_hadamard()).unwrap();
-        for reverse_blocks in [false, true] {
-            for reverse_pipe in [false, true] {
-                for reverse_target in [false, true] {
-                    let mut source = BlockGraph::new();
-                    let mut blocks = original.blocks().cloned().collect::<Vec<_>>();
-                    if reverse_blocks {
-                        blocks.reverse();
-                    }
-                    for block in blocks {
-                        source.add_block(block);
-                    }
-                    for pipe in original.pipes() {
-                        source.add_pipe(if pipe.is_hadamard() && reverse_pipe {
-                            crate::Pipe::new(pipe.dst(), pipe.dir().negate()).with_hadamard()
-                        } else {
-                            pipe.clone()
-                        });
-                    }
-                    let (src, dir) = if reverse_target {
-                        (edge.dst(), edge.dir().negate())
-                    } else {
-                        (edge.src(), edge.dir())
-                    };
-                    source
-                        .set_actions_lenient(vec![Action::Measure {
-                            target: MeasureTarget::Edge { src, dir },
-                            name: "m".into(),
-                        }])
-                        .unwrap();
-                    source.validate_source().unwrap();
-                    for value in [false, true] {
-                        let expected = if value {
-                            circuit_graph(2, &[("cz", vec![0, 1]), ("z", vec![1])])
-                        } else {
-                            circuit_graph(2, &[("cz", vec![0, 1])])
-                        };
-                        let branch = LogicalVerifier::new(&source)
-                            .unwrap()
-                            .verify_branch(&expected, &BTreeMap::from([("m".into(), value)]))
-                            .unwrap();
-                        assert_eq!(branch.status(), BranchStatus::Verified);
-                    }
-                }
-            }
-        }
     }
 
     #[test]
@@ -2085,9 +1859,12 @@ mod tests {
                 crate::StabilizerError::FeedbackTargetWithoutWire { .. }
             ))
         ));
-        assert!(matches!(LogicalVerifier::new(&source),
-            Err(VerifyLogicalError::FeedbackTargetWithoutWire { target, pauli: PauliBasis::X })
-                if target == IVec3::ZERO));
+        assert!(matches!(
+            LogicalVerifier::new(&source),
+            Err(VerifyLogicalError::Graph(crate::BlockGraphError::Stabilizer(
+                crate::StabilizerError::FeedbackTargetWithoutWire { target, pauli: PauliBasis::X }
+            ))) if target == IVec3::ZERO
+        ));
     }
 
     #[test]

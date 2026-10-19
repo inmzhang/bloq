@@ -1400,10 +1400,7 @@ mod tests {
             ("three_cnots", bloq_graph::GalleryItem::ThreeCNOTs.build()),
             ("t_gate", bloq_graph::GalleryItem::T.build()),
             ("and_4t", bloq_graph::GalleryItem::And4T.build()),
-            (
-                "one_bit_adder_fixture",
-                crate::utils::one_bit_adder_fixture(),
-            ),
+            ("uma", bloq_graph::GalleryItem::UMA.build()),
         ] {
             cases.push((
                 name.to_owned(),
@@ -1594,10 +1591,7 @@ mod tests {
         let mut cases = vec![("renumbered".to_owned(), sparse)];
         for (name, source) in [
             ("t_gate", bloq_graph::GalleryItem::T.build()),
-            (
-                "one_bit_adder_fixture",
-                crate::utils::one_bit_adder_fixture(),
-            ),
+            ("uma", bloq_graph::GalleryItem::UMA.build()),
         ] {
             cases.push((
                 name.to_owned(),
@@ -1688,10 +1682,7 @@ mod tests {
         for (name, source) in [
             ("cnot", bloq_graph::GalleryItem::CNOT.build()),
             ("and_4t", bloq_graph::GalleryItem::And4T.build()),
-            (
-                "one_bit_adder_fixture",
-                crate::utils::one_bit_adder_fixture(),
-            ),
+            ("uma", bloq_graph::GalleryItem::UMA.build()),
         ] {
             let started = Instant::now();
             let graph = simplified_zx_graph(&source.flatten().unwrap(), 0).unwrap();

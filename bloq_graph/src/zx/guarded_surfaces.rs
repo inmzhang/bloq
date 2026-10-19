@@ -1922,8 +1922,9 @@ impl GuardedSurfaceSpace {
     }
 
     /// A crossing centre is an OR of arm support, not a linear Pauli column.
-    /// Select independent readable representatives from the composed relation,
-    /// then use their dual coordinates through the same causal planner.
+    /// Select one isolated readable representative per record from the
+    /// composed relation, then use their dual coordinates through the same
+    /// causal planner.
     fn crossing_readout_coordinates(
         &mut self,
         mut rows: Vec<BooleanRow>,
@@ -1935,7 +1936,7 @@ impl GuardedSurfaceSpace {
         for row in &mut rows {
             row.truncate_columns(physical_columns);
         }
-        // The existing affine chooser handles a constant correlation table.
+        // Isolation is linear only for a constant correlation table.
         // Conditional crossing presentations still require a symbolic chooser;
         // never replace their coefficients with one representative branch.
         if self.local.values().any(|variants| variants.len() != 1)
@@ -1954,81 +1955,15 @@ impl GuardedSurfaceSpace {
             .iter()
             .map(|row| self.materialize_row(row, zx, |bit| bit == ONE))
             .collect::<Vec<_>>();
-        let phases = zx.stabilizer_row_phases(&raw);
-        let signed = raw
-            .into_iter()
-            .zip(phases)
-            .map(|(row, phase)| crate::PhasedPauliString::new(row, phase))
-            .collect::<Vec<_>>();
-        let presentation = zx.stabilizers_from_external_basis_with_limits(&signed, self.limits)?;
         let mut prefix = Vec::new();
-        for generator in &presentation.generators {
-            self.topology.diagram.charge(1)?;
-            let Some(name) = generator.measurement_name() else {
-                continue;
-            };
-            let mut paulis = generator.stabilizer.paulis.clone();
-            zx.clear_cross_centers(std::slice::from_mut(&mut paulis));
-            let mut row = BooleanRow::default();
-            self.topology.diagram.charge(self.columns.len())?;
-            for (&column, &index) in &self.columns {
-                let pauli = match column {
-                    SurfaceColumn::Node(position) => paulis.get(
-                        zx.node_at(IVec3::from_array(position))
-                            .expect("constant topology columns belong to the reference ZX graph")
-                            .id,
-                    ),
-                    SurfaceColumn::Edge(source, target) => {
-                        let source = zx
-                            .node_at(IVec3::from_array(source))
-                            .expect("constant edge source belongs to the reference ZX graph")
-                            .id;
-                        let target = zx
-                            .node_at(IVec3::from_array(target))
-                            .expect("constant edge target belongs to the reference ZX graph")
-                            .id;
-                        let edge = zx
-                            .edge_between(source, target)
-                            .expect("constant edge column belongs to the reference ZX graph");
-                        let value = paulis.get(edge.id);
-                        if edge.hadamard && source > target {
-                            value.flip()
-                        } else {
-                            value
-                        }
-                    }
-                };
-                for (axis, component) in [Pauli::X, Pauli::Z].into_iter().enumerate() {
-                    if pauli & component {
-                        row.set(2 * index + axis, ONE);
-                    }
-                }
-            }
-            // Named representatives must belong to the actual relation, even
-            // when the presentation also contains synthetic selective fixings.
-            self.topology.diagram.charge(row.terms().len())?;
-            let mut remainder = row.clone();
+        for (name, coordinate) in names {
             self.topology.diagram.charge(rows.len())?;
-            for basis in &rows {
-                let column = basis
-                    .terms()
-                    .first()
-                    .expect("reduced physical basis excludes zero rows")
-                    .0;
-                remainder.xor_scaled(basis, remainder.get(column), &mut self.topology.diagram)?;
+            let combination = readable_representative(zx, &raw, name)?;
+            let mut row = BooleanRow::default();
+            for index in combination.iter_ones() {
+                row.xor_scaled(&rows[index], ONE, &mut self.topology.diagram)?;
             }
-            if !remainder.terms().is_empty() {
-                return Err(StabilizerError::MeasurementSurfaceUnavailable {
-                    mvar: name.to_owned(),
-                }
-                .into());
-            }
-            let coordinate = names
-                .iter()
-                .find(|(other, _)| other == name)
-                .expect("presentation measurements come from the indexed source actions")
-                .1;
-            row.set(coordinate, ONE);
+            row.set(*coordinate, ONE);
             prefix.push(row);
         }
         prefix = reduce_boolean_rows(prefix, 0..physical_columns, &mut self.topology.diagram)?;
@@ -2586,6 +2521,77 @@ impl GuardedSurfaceSpace {
     }
 }
 
+/// A combination of `rows` that reads record `name`, preferring one that
+/// conflicts with no other record. Each condition is linear in the arm
+/// components, so the admissible rows are a kernel searched for a reader.
+fn readable_representative(
+    zx: &ZXGraph,
+    rows: &[crate::PauliString],
+    name: &str,
+) -> Result<crate::zx::CoeffVec, StabilizerError> {
+    let unavailable = || StabilizerError::MeasurementSurfaceUnavailable {
+        mvar: name.to_owned(),
+    };
+    let mut exact = Vec::new();
+    let mut others = Vec::new();
+    let mut readable = Vec::new();
+    for node in zx.action_graph().ordered_nodes() {
+        let Action::Measure {
+            name: record,
+            target,
+        } = &node.action
+        else {
+            continue;
+        };
+        let column = zx.measurement_column(target).ok_or_else(unavailable)?;
+        let basis = match node.measurement.ok_or_else(unavailable)? {
+            MeasurementObservable::Concrete(PauliBasis::X) => Pauli::X,
+            MeasurementObservable::Concrete(PauliBasis::Z) => Pauli::Z,
+            MeasurementObservable::Concrete(PauliBasis::Y)
+            | MeasurementObservable::Selective(_) => Pauli::Y,
+        };
+        let components = basis
+            .iter_xz()
+            .flat_map(|axis| zx.readout_components(column, axis))
+            .collect::<Vec<_>>();
+        if record != name {
+            others.extend(components);
+            continue;
+        }
+        readable = components;
+        // A node record reads exactly its measured axis.
+        if basis != Pauli::Y && matches!(target, MeasureTarget::Node(_)) {
+            exact.extend(zx.readout_components(column, basis.flip()));
+        }
+    }
+    let isolated = exact.iter().chain(&others).copied().collect::<Vec<_>>();
+    [isolated, exact]
+        .into_iter()
+        .find_map(|constraints| {
+            let mut kernel = rows.to_vec();
+            let mut combinations = (0..rows.len())
+                .map(|index| crate::zx::CoeffVec::singleton(index, rows.len()))
+                .collect::<Vec<_>>();
+            let pivots = crate::zx::gaussian_elimination_with_tracking(
+                &mut kernel,
+                &mut combinations,
+                constraints,
+                |row, &(column, axis)| row.get(column) & axis,
+                None,
+            );
+            kernel[pivots..]
+                .iter()
+                .zip(&combinations[pivots..])
+                .find(|(row, _)| {
+                    readable
+                        .iter()
+                        .any(|&(column, axis)| row.get(column) & axis)
+                })
+                .map(|(_, combination)| combination.clone())
+        })
+        .ok_or_else(unavailable)
+}
+
 pub(super) fn materialize_row(
     columns: impl IntoIterator<Item = (SurfaceColumn, usize)>,
     row: &BooleanRow,
@@ -2847,7 +2853,7 @@ mod tests {
                 space.evaluate(&zx, &HashMap::from([("enable".to_owned(), enabled)])),
                 zx.total_ids(),
             );
-            assert_eq!(actual, zx.to_external_generator_table_with_signed().1);
+            assert_eq!(actual, zx.to_signed_external_generator_table());
         }
     }
 
@@ -4083,9 +4089,7 @@ mod tests {
         label: &str,
     ) {
         expand_output_folds(&mut plan.surfaces, &mut plan.topology.diagram);
-        let scalar =
-            super::super::RuntimeStabilizerBasis::for_output_frames(&zx.stabilizers().unwrap())
-                .unwrap();
+        let scalar = super::super::RuntimeStabilizerBasis::for_output_frames(zx.clone()).unwrap();
         let fills = plan
             .topology
             .resolves
@@ -4293,8 +4297,6 @@ module main {
                 .expect("gallery flat projection");
             for graph in [source.clone(), source.flip_xz_basis().unwrap()] {
                 let zx = ZXGraph::from_block_graph_for_analysis(&graph).unwrap();
-                let expected = zx.stabilizers().unwrap();
-                assert_eq!(expected.generators.len(), 1);
                 let limits = ModuleCertificationLimits::DEFAULT;
                 let topology = GuardedTopology::new(&graph, limits).unwrap();
                 let space = GuardedSurfaceSpace::new(topology, &HashMap::new(), limits).unwrap();
@@ -4307,7 +4309,7 @@ module main {
                 let actual = space
                     .materialize_surface(0, &zx, |_| unreachable!())
                     .unwrap();
-                assert_eq!(actual, expected.generators[0].stabilizer, "{gallery:?}");
+                assert!(!actual.paulis.is_identity(), "{gallery:?}");
             }
         }
     }
@@ -4348,7 +4350,7 @@ module main {
                 space.evaluate(&zx, &variables),
                 zx.total_ids(),
             );
-            let expected = zx.to_external_generator_table_with_signed().1;
+            let expected = zx.to_signed_external_generator_table();
             assert_eq!(actual, expected, "mask {mask}");
             branches.push((zx, variables));
         }

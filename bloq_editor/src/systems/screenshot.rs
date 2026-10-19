@@ -343,7 +343,7 @@ mod tests {
                 (*b - *a).cross(*c - *a).normalize_or_zero().dot(Vec3::X) < 0.99
             })
         );
-        let surface = graph.stabilizers().unwrap().generators.remove(0);
+        let surface = graph.stabilizers().unwrap().remove(0);
         assert!(
             !bloq_graph::stabilizer_as_gltf_data(&surface, &graph, 2.0)
                 .unwrap()

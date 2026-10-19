@@ -3,7 +3,7 @@
 pub(crate) mod hierarchy;
 mod svg;
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use bloq_utils::PauliBasis;
 use glam::IVec3;
@@ -14,8 +14,8 @@ use rand::{Rng, RngExt};
 
 use crate::validate::InvalidActionError;
 use crate::{
-    Action, BlockGraph, BlockGraphError, BlockKind, BranchRegion, Expr, FeedbackTarget,
-    MeasureTarget, SelectiveKind, Stabilizer, StabilizerGenerator, selective_fixings,
+    Action, BlockGraph, BlockGraphError, BlockKind, BranchRegion, Expr, MeasureTarget,
+    SelectiveKind, Stabilizer, StabilizerGenerator,
 };
 
 /// Distinct jointly reachable values of an ordered set of Boolean action
@@ -44,23 +44,7 @@ pub enum ResolveDomainError {
     },
 }
 
-impl ResolveDomainError {
-    /// Retain a caller's domain label without disguising Boolean exhaustion.
-    pub(crate) fn into_stabilizer(
-        self,
-        phase: &'static str,
-        limit: usize,
-    ) -> crate::StabilizerError {
-        match self {
-            Self::Resource(error) => error.into(),
-            Self::TooManyValues { observed } => crate::StabilizerError::ResourceLimited {
-                phase,
-                observed,
-                limit,
-            },
-        }
-    }
-}
+impl ResolveDomainError {}
 
 impl ResolveValueDomain {
     /// Distinct reachable value tuples.
@@ -504,153 +488,6 @@ impl ActionDag {
         self.graph.find_edge(pred_idx, node_idx).is_some()
     }
 
-    /// Attaches physical readout dependencies and rejects dependency cycles.
-    pub(crate) fn attach_readout_dependencies(
-        &mut self,
-        generators: &[StabilizerGenerator],
-        zx: Option<&crate::ZXGraph>,
-    ) -> Result<(), BlockGraphError> {
-        let fixings = selective_fixings(generators);
-        let no_fixings = Default::default();
-        let measurement_nodes = self
-            .ordered
-            .iter()
-            .filter_map(|&node| match &self.graph[node].action {
-                Action::Measure { name, .. } => Some((name.clone(), node)),
-                _ => None,
-            })
-            .collect::<BTreeMap<_, _>>();
-        let resolve_nodes = self
-            .ordered
-            .iter()
-            .filter_map(|&node| match self.graph[node].action {
-                Action::Resolve { target, .. } => Some((target, node)),
-                _ => None,
-            })
-            .collect::<HashMap<_, _>>();
-        let branch_nodes = self
-            .ordered
-            .iter()
-            .filter_map(|&node| match self.graph[node].action {
-                Action::Branch { target, .. } => Some((target, node)),
-                _ => None,
-            })
-            .collect::<HashMap<_, _>>();
-        let branch_regions = self
-            .branch_regions
-            .iter()
-            .filter_map(|region| {
-                branch_nodes
-                    .get(&region.target)
-                    .copied()
-                    .map(|node| (node, region.clone()))
-            })
-            .collect::<Vec<_>>();
-        let feedback_nodes = self
-            .ordered
-            .iter()
-            .filter_map(|&node| match &self.graph[node].action {
-                Action::Feedback { targets, .. } => Some((node, targets.clone())),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-
-        let surfaces = generators
-            .iter()
-            .filter_map(|generator| Some((generator, generator.named_readout()?)))
-            .flat_map(|(generator, recipe)| {
-                recipe.surfaces().map(move |surface| (generator, surface))
-            });
-        for (generator, surface) in surfaces {
-            let name = generator.measurement_name().expect("named readout");
-            let fixings = if generator.readout_plan().is_some() {
-                &no_fixings
-            } else {
-                &fixings
-            };
-            let Some(&measurement_node) = measurement_nodes.get(name) else {
-                continue;
-            };
-            self.graph[measurement_node].measurement_stabilizer = Some(surface.clone());
-
-            let selective_sites = reachable_selective_sites(surface, fixings);
-            for site in &selective_sites {
-                if let Some(&resolve_node) = resolve_nodes.get(site) {
-                    self.add_dependency(
-                        resolve_node,
-                        measurement_node,
-                        ActionDependency::SelectiveSupport,
-                    );
-                }
-            }
-            for (branch_node, region) in &branch_regions {
-                if measurement_touches_branch_region(surface, region, &selective_sites, fixings) {
-                    self.add_dependency(
-                        *branch_node,
-                        measurement_node,
-                        ActionDependency::BranchSupport,
-                    );
-                }
-            }
-            for (feedback_node, targets) in &feedback_nodes {
-                if feedback_perturbs_measurement(targets, surface, &selective_sites, fixings, zx) {
-                    self.add_dependency(
-                        *feedback_node,
-                        measurement_node,
-                        ActionDependency::FeedbackAnticommutation,
-                    );
-                }
-            }
-        }
-
-        for generator in generators {
-            if let Some(recipe) = generator.readout_plan() {
-                let name = generator.measurement_name().expect("named readout");
-                let measurement_node = measurement_nodes[name];
-                if generator.uses_source_outcomes() {
-                    for ordinal in recipe
-                        .branches
-                        .iter()
-                        .flat_map(|(_, branch)| &branch.readout_ordinals)
-                    {
-                        let predecessor = generators[*ordinal]
-                            .measurement_name()
-                            .expect("readout recipe references a named row");
-                        self.add_dependency(
-                            measurement_nodes[predecessor],
-                            measurement_node,
-                            ActionDependency::ReadoutParity,
-                        );
-                    }
-                }
-                self.graph[measurement_node].measurement_stabilizer =
-                    Some(recipe.branches[0].1.stabilizer.clone());
-                for site in &recipe.sites {
-                    if let Some(&resolve_node) = resolve_nodes.get(site) {
-                        self.add_dependency(
-                            resolve_node,
-                            measurement_node,
-                            ActionDependency::SelectiveSupport,
-                        );
-                    }
-                }
-            }
-        }
-
-        for (name, &node) in &measurement_nodes {
-            if self.graph[node].measurement_stabilizer.is_none() {
-                return Err(crate::StabilizerError::MeasurementSurfaceUnavailable {
-                    mvar: name.clone(),
-                }
-                .into());
-            }
-        }
-
-        self.validate_semantics()?;
-        self.analyzed = true;
-        Ok(())
-    }
-
     fn add_dependency(
         &mut self,
         predecessor: NodeIndex<u32>,
@@ -863,54 +700,6 @@ impl ActionDag {
         }
     }
 
-    pub(crate) fn first_resolve_values_with_limits(
-        &self,
-        targets: &[IVec3],
-        limits: BooleanLimits,
-    ) -> Result<Option<Vec<bool>>, BooleanResourceError> {
-        let Some(mut diagram) = self.resolve_decision_diagram_with_limits(targets, limits)? else {
-            return Ok(None);
-        };
-        Ok(diagram.values_up_to(1)?.pop())
-    }
-
-    pub(crate) fn complete_resolve_values_with_limits(
-        &self,
-        targets: &[IVec3],
-        fixed: &[(IVec3, bool)],
-        limits: BooleanLimits,
-    ) -> Result<Option<Vec<bool>>, BooleanResourceError> {
-        let Some(mut diagram) = self.resolve_decision_diagram_with_limits(targets, limits)? else {
-            return Ok(None);
-        };
-        let mut conjunction = DECISION_TRUE;
-        for &(site, value) in fixed {
-            let Some(index) = targets.iter().position(|&target| target == site) else {
-                return Ok(None);
-            };
-            let root = diagram.roots[index];
-            let required = if value { root } else { diagram.negate(root)? };
-            conjunction = diagram.apply(crate::BinaryOp::And, conjunction, required)?;
-        }
-        if conjunction == DECISION_FALSE {
-            return Ok(None);
-        }
-        let mut values = Vec::new();
-        for index in 0..targets.len() {
-            let root = diagram.roots[index];
-            let false_root = diagram.negate(root)?;
-            let when_false = diagram.apply(crate::BinaryOp::And, conjunction, false_root)?;
-            let value = when_false == DECISION_FALSE;
-            conjunction = if value {
-                diagram.apply(crate::BinaryOp::And, conjunction, root)?
-            } else {
-                when_false
-            };
-            values.push(value);
-        }
-        Ok(Some(values))
-    }
-
     /// Whether `values` is jointly reachable for `targets`, decided
     /// symbolically without materializing the full output domain. Missing or
     /// cyclic targets and mismatched slice lengths are not reachable.
@@ -927,27 +716,6 @@ impl ActionDag {
             return Ok(false);
         };
         diagram.contains(values)
-    }
-
-    pub(crate) fn resolve_xor_is_with_limits(
-        &self,
-        targets: &[IVec3],
-        expected: bool,
-        limits: BooleanLimits,
-    ) -> Result<bool, BooleanResourceError> {
-        let Some(mut diagram) = self.resolve_decision_diagram_with_limits(targets, limits)? else {
-            return Ok(false);
-        };
-        let roots = std::mem::take(&mut diagram.roots);
-        let parity = roots.into_iter().try_fold(DECISION_FALSE, |parity, root| {
-            diagram.apply(crate::BinaryOp::Xor, parity, root)
-        })?;
-        Ok(parity
-            == if expected {
-                DECISION_TRUE
-            } else {
-                DECISION_FALSE
-            })
     }
 
     pub(crate) fn branch_values_up_to(
@@ -1081,69 +849,6 @@ impl ActionDag {
             })
             .collect()
     }
-}
-
-fn reachable_selective_sites(
-    row: &Stabilizer,
-    fixings: &crate::SelectiveFixings<'_>,
-) -> Vec<IVec3> {
-    let mut sites = fixings
-        .keys()
-        .copied()
-        .filter(|site| {
-            row.interior_nodes
-                .get(site)
-                .is_some_and(|pauli| *pauli != crate::Pauli::I)
-        })
-        .collect::<HashSet<_>>();
-    let mut pending = sites.iter().copied().collect::<Vec<_>>();
-    while let Some(site) = pending.pop() {
-        for (&pos, &pauli) in &fixings[&site].row.interior_nodes {
-            if pauli != crate::Pauli::I && fixings.contains_key(&pos) && sites.insert(pos) {
-                pending.push(pos);
-            }
-        }
-    }
-    let mut sites = sites.into_iter().collect::<Vec<_>>();
-    sites.sort_unstable_by_key(|pos| (pos.x, pos.y, pos.z));
-    sites
-}
-
-fn measurement_touches_branch_region(
-    row: &Stabilizer,
-    region: &BranchRegion,
-    selective_sites: &[IVec3],
-    fixings: &crate::SelectiveFixings<'_>,
-) -> bool {
-    stabilizer_touches_branch_region(row, region)
-        || selective_sites
-            .iter()
-            .any(|site| stabilizer_touches_branch_region(fixings[site].row, region))
-}
-
-fn stabilizer_touches_branch_region(row: &Stabilizer, region: &BranchRegion) -> bool {
-    // ZX materialization records block anchors even for extended blocks;
-    // `BranchRegion::blocks` uses that same coordinate keyspace.
-    row.interior_nodes
-        .iter()
-        .any(|(&position, &pauli)| pauli != crate::Pauli::I && region.contains_block(position))
-        || row.interior_edges.iter().any(|(&(first, second), &pauli)| {
-            pauli != crate::Pauli::I
-                && (region.contains_block(first) || region.contains_block(second))
-        })
-}
-
-fn feedback_perturbs_measurement(
-    targets: &[FeedbackTarget],
-    row: &Stabilizer,
-    selective_sites: &[IVec3],
-    fixings: &crate::SelectiveFixings<'_>,
-    zx: Option<&crate::ZXGraph>,
-) -> bool {
-    row.odd_anticommutes_feedback(targets, zx)
-        || selective_sites
-            .iter()
-            .any(|site| fixings[site].row.odd_anticommutes_feedback(targets, zx))
 }
 
 fn evaluate_expr_with(
@@ -1290,10 +995,7 @@ mod tests {
     use crate::{
         Action, Block, BlockGraph, BlockKind, CubeKind, Direction, Expr, MeasureTarget, Pipe,
     };
-    use crate::{
-        ActionDag, ActionDependency, BlockGraphError, MeasurementObservable, PauliBasis,
-        SelectiveKind,
-    };
+    use crate::{ActionDag, BlockGraphError, MeasurementObservable, PauliBasis, SelectiveKind};
 
     #[test]
     fn shared_aliases_stay_bounded_for_domain_and_sampling() {
@@ -1352,10 +1054,6 @@ mod tests {
 
         let domain = dag.resolve_value_domain(&[first, second]).unwrap();
         assert_eq!(domain.values(), &[vec![false, true], vec![true, false]]);
-        assert!(
-            dag.resolve_xor_is_with_limits(&[first, second], true, BooleanLimits::DEFAULT)
-                .unwrap()
-        );
     }
 
     #[test]
@@ -1530,15 +1228,6 @@ mod tests {
         let domain = query(2, BooleanLimits::DEFAULT).unwrap();
         assert_eq!(domain.values(), &[vec![false], vec![true]]);
         assert_eq!(domain, query(2, BooleanLimits::UNLIMITED).unwrap());
-        assert_eq!(
-            dag.complete_resolve_values_with_limits(
-                &[target],
-                &[(target, true)],
-                BooleanLimits::DEFAULT
-            )
-            .unwrap(),
-            Some(vec![true])
-        );
     }
 
     #[test]
@@ -1816,215 +1505,5 @@ mod tests {
             }
             other => panic!("expected DependencyCycle, got: {other:?}"),
         }
-    }
-
-    #[test]
-    fn stabilizer_analysis_adds_all_implicit_dependencies_and_surface() {
-        use crate::{
-            FeedbackTarget, SelectiveFixingTarget, Stabilizer, StabilizerGenerator,
-            StabilizerRowKind,
-        };
-
-        let selective_a = ivec3(1, 0, 0);
-        let selective_b = ivec3(2, 0, 0);
-        let feedback_target = ivec3(3, 0, 0);
-        let actions = vec![
-            Action::Measure {
-                target: MeasureTarget::Node(ivec3(0, 0, 0)),
-                name: "control".into(),
-            },
-            Action::Resolve {
-                target: selective_a,
-                condition: Expr::Var("control".into()),
-            },
-            Action::Resolve {
-                target: selective_b,
-                condition: Expr::Var("control".into()),
-            },
-            Action::Feedback {
-                targets: vec![FeedbackTarget {
-                    pauli: PauliBasis::X,
-                    target: feedback_target,
-                    direction: None,
-                }],
-                condition: None,
-            },
-            Action::Measure {
-                target: MeasureTarget::Node(ivec3(4, 0, 0)),
-                name: "m".into(),
-            },
-        ];
-        let measurement = Stabilizer::from_interior_nodes([
-            (selective_a, crate::Pauli::X),
-            (feedback_target, crate::Pauli::Z),
-        ]);
-        let fixing_a = Stabilizer::from_interior_nodes([
-            (selective_a, crate::Pauli::Y),
-            (selective_b, crate::Pauli::Z),
-        ]);
-        let fixing_b = Stabilizer::from_interior_nodes([(selective_b, crate::Pauli::Y)]);
-        let generators = vec![
-            StabilizerGenerator::new(
-                Stabilizer::from_interior_nodes([(ivec3(0, 0, 0), crate::Pauli::X)]),
-                StabilizerRowKind::Measurement {
-                    name: "control".into(),
-                },
-            ),
-            StabilizerGenerator::new(
-                measurement.clone(),
-                StabilizerRowKind::Measurement { name: "m".into() },
-            ),
-            StabilizerGenerator::new(
-                fixing_a,
-                StabilizerRowKind::SelectiveFixing {
-                    targets: vec![SelectiveFixingTarget {
-                        pos: selective_a,
-                        forbidden: crate::Pauli::Y,
-                    }],
-                },
-            ),
-            StabilizerGenerator::new(
-                fixing_b,
-                StabilizerRowKind::SelectiveFixing {
-                    targets: vec![SelectiveFixingTarget {
-                        pos: selective_b,
-                        forbidden: crate::Pauli::Y,
-                    }],
-                },
-            ),
-        ];
-
-        let mut dag = ActionDag::from_actions(&actions);
-        dag.attach_readout_dependencies(&generators, None).unwrap();
-
-        let dependencies = dag.dependencies().collect::<Vec<_>>();
-        assert!(dependencies.contains(&(1, 4, ActionDependency::SelectiveSupport)));
-        assert!(dependencies.contains(&(2, 4, ActionDependency::SelectiveSupport)));
-        assert!(dependencies.contains(&(3, 4, ActionDependency::FeedbackAnticommutation)));
-        assert_eq!(
-            dag.node_by_ordinal(4).unwrap().measurement_stabilizer,
-            Some(measurement)
-        );
-        assert!(dag.is_analyzed());
-    }
-
-    #[test]
-    fn implicit_feedback_dependency_rejects_a_cycle() {
-        use crate::{FeedbackTarget, Stabilizer, StabilizerGenerator, StabilizerRowKind};
-
-        let target = ivec3(0, 0, 0);
-        let actions = vec![
-            Action::Measure {
-                target: MeasureTarget::Node(target),
-                name: "m".into(),
-            },
-            Action::Feedback {
-                targets: vec![FeedbackTarget {
-                    pauli: PauliBasis::X,
-                    target,
-                    direction: None,
-                }],
-                condition: Some(Expr::Var("m".into())),
-            },
-        ];
-        let generators = vec![StabilizerGenerator::new(
-            Stabilizer::from_interior_nodes([(target, crate::Pauli::Z)]),
-            StabilizerRowKind::Measurement { name: "m".into() },
-        )];
-
-        let err = ActionDag::from_actions(&actions)
-            .attach_readout_dependencies(&generators, None)
-            .unwrap_err();
-        assert!(matches!(
-            err,
-            BlockGraphError::InvalidAction(InvalidActionError::DependencyCycle { .. })
-        ));
-    }
-
-    #[test]
-    fn stabilizer_analysis_adds_terminal_branch_support_dependency() {
-        use crate::{BranchRegion, Stabilizer, StabilizerGenerator, StabilizerRowKind};
-
-        let controller = ivec3(0, 0, 0);
-        let branch_target = ivec3(0, 0, 1);
-        let actions = [
-            Action::Measure {
-                target: MeasureTarget::Node(controller),
-                name: "control".into(),
-            },
-            Action::Branch {
-                target: branch_target,
-                condition: Expr::Var("control".into()),
-            },
-            Action::Measure {
-                target: MeasureTarget::Node(ivec3(1, 0, 0)),
-                name: "m".into(),
-            },
-        ];
-        let generators = [
-            StabilizerGenerator::new(
-                Stabilizer::from_interior_nodes([(controller, crate::Pauli::X)]),
-                StabilizerRowKind::Measurement {
-                    name: "control".into(),
-                },
-            ),
-            StabilizerGenerator::new(
-                Stabilizer::from_interior_nodes([])
-                    .with_interior_edges([((controller, branch_target), crate::Pauli::Z)]),
-                StabilizerRowKind::Measurement { name: "m".into() },
-            ),
-        ];
-
-        let mut dag = ActionDag::from_actions(&actions);
-        dag.branch_regions.push(BranchRegion::test_region(
-            branch_target,
-            vec![branch_target],
-            Vec::new(),
-        ));
-        dag.attach_readout_dependencies(&generators, None).unwrap();
-
-        assert!(
-            dag.dependencies()
-                .any(|dependency| dependency == (1, 2, ActionDependency::BranchSupport))
-        );
-    }
-
-    #[test]
-    fn terminal_branch_support_rejects_self_control_cycle() {
-        use crate::{BranchRegion, Stabilizer, StabilizerGenerator, StabilizerRowKind};
-
-        let controller = ivec3(0, 0, 0);
-        let branch_target = ivec3(0, 0, 1);
-        let actions = [
-            Action::Measure {
-                target: MeasureTarget::Node(controller),
-                name: "control".into(),
-            },
-            Action::Branch {
-                target: branch_target,
-                condition: Expr::Var("control".into()),
-            },
-        ];
-        let generators = [StabilizerGenerator::new(
-            Stabilizer::from_interior_nodes([(branch_target, crate::Pauli::X)]),
-            StabilizerRowKind::Measurement {
-                name: "control".into(),
-            },
-        )];
-
-        let mut dag = ActionDag::from_actions(&actions);
-        dag.branch_regions.push(BranchRegion::test_region(
-            branch_target,
-            vec![branch_target],
-            Vec::new(),
-        ));
-        let err = dag
-            .attach_readout_dependencies(&generators, None)
-            .unwrap_err();
-
-        assert!(matches!(
-            err,
-            BlockGraphError::InvalidAction(InvalidActionError::DependencyCycle { .. })
-        ));
     }
 }

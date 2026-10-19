@@ -85,16 +85,6 @@ def test_zx_clifford_and_t():
     assert not tzx.is_clifford_computation
 
 
-def test_zx_stabilizers_match_block_graph():
-    g = bloq.GalleryItem("x_memory").load()
-    zx = to_zx_graph(g)
-    zx_rows = zx.stabilizers()
-    graph_rows = g.stabilizers()
-    assert [str(r.stabilizer.paulis) for r in zx_rows] == [
-        str(r.stabilizer.paulis) for r in graph_rows
-    ]
-
-
 def test_zx_validate_and_measurement_columns():
     g = bloq.BlockGraph.from_text(
         "BLOG 1.0\n0: ZXZ [0,0,0]\n1: Z [0,0,1]\n0 -> +Z\nm = measure 1\n"

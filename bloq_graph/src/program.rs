@@ -9,8 +9,7 @@ use thiserror::Error;
 use crate::ast::Span;
 use crate::graph::LinkBranchOccupancy;
 use crate::zx::{
-    ProjectedExternalTable, ProjectionError, ProjectionLimits, RuntimeBasisError, StabilizerError,
-    ZXGraph,
+    ProjectedExternalTable, ProjectionError, ProjectionLimits, RuntimeBasisError, ZXGraph,
 };
 use crate::{
     Action, Block, BlockGraph, BlockKind, Direction, Expr, PhasedPauliString, Pipe, PortRole,
@@ -436,8 +435,8 @@ pub struct ModuleCertificationLimits {
     /// Guarded readout planning reclaims dead functions at reduction boundaries
     /// before checking this limit; transient operations may allocate more.
     pub max_witness_nodes: usize,
-    /// Maximum attempts in one normalization pass. Internal prefixes, rejected
-    /// candidates, and terminal solves are charged before affine work.
+    /// Maximum row operations when restricting a certified relation to the
+    /// pinned selective choices of a Clifford distance proxy.
     pub max_normalization_states: usize,
     /// Maximum distinct patterns in one guarded local topology/Pauli query.
     /// Continuing branches never enumerate the joint selector assignment space.
@@ -446,7 +445,7 @@ pub struct ModuleCertificationLimits {
 
 impl ModuleCertificationLimits {
     /// Production limits. Cumulative Boolean work is unlimited; allocation,
-    /// materialization, and normalization-search limits remain finite.
+    /// materialization, and restriction limits remain finite.
     pub const DEFAULT: Self = Self {
         max_expanded_blocks: 1_000_000,
         max_expanded_instances: 1_000_000,
@@ -552,7 +551,6 @@ pub struct UnknownCertificationLimit(
 pub struct LeafModuleCertificate {
     module: String,
     pub(crate) table: ProjectedExternalTable,
-    pub(crate) stabilizers: crate::StabilizerGenerators,
 }
 
 impl LeafModuleCertificate {
@@ -564,15 +562,6 @@ impl LeafModuleCertificate {
     /// Exact Pauli rows over quantum ports in interface declaration order.
     pub fn boundary_rows(&self) -> impl ExactSizeIterator<Item = &PhasedPauliString> {
         self.table.boundary_rows.iter().map(|row| &row.signed)
-    }
-
-    /// The independently certified public stabilizers for this definition.
-    ///
-    /// Module lowering reuses the named measurement rows instead of asking a
-    /// flattened parent graph to choose new representatives across the child
-    /// boundary.
-    pub fn stabilizers(&self) -> &crate::StabilizerGenerators {
-        &self.stabilizers
     }
 
     /// Expands one retained witness into the leaf ZX graph's dense column order.
@@ -1130,6 +1119,10 @@ impl BlockGraph {
     /// # Errors
     ///
     /// Returns an error if the definition is missing or cannot be certified within `limits`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a validated interface port is not a node of its definition.
     pub fn certify_leaf(
         &self,
         name: &str,
@@ -1158,85 +1151,46 @@ impl BlockGraph {
             return Err(ModuleCertificationError::NotLeaf(name.to_string()));
         }
 
-        certify_leaf_body(
-            name,
-            module.local_body(),
-            &module.interface.quantum_ports,
-            limits,
-        )
-    }
-}
+        let graph_error = |source| ModuleCertificationError::Graph {
+            module: name.to_string(),
+            source,
+        };
+        let body = module.local_body().fix_shadowed_faces();
+        let zx = ZXGraph::from_block_graph_for_analysis(&body)
+            .map_err(|source| graph_error(source.into()))?;
+        if zx.total_ids() > limits.max_local_columns {
+            return Err(resource_limit(
+                name,
+                "local ZX columns",
+                zx.total_ids(),
+                limits.max_local_columns,
+            ));
+        }
 
-pub(crate) fn certify_leaf_body(
-    name: &str,
-    source: &BlockGraph,
-    ports: &[QuantumPort],
-    limits: ModuleCertificationLimits,
-) -> Result<LeafModuleCertificate, ModuleCertificationError> {
-    let graph_error = |source| ModuleCertificationError::Graph {
-        module: name.to_string(),
-        source,
-    };
-    let body = source.fix_shadowed_faces();
-    let zx = ZXGraph::from_block_graph_for_analysis(&body)
-        .map_err(|source| graph_error(source.into()))?;
-    if zx.total_ids() > limits.max_local_columns {
-        return Err(resource_limit(
-            name,
-            "local ZX columns",
-            zx.total_ids(),
-            limits.max_local_columns,
-        ));
-    }
-
-    let columns = ports
-        .iter()
-        .map(|port| {
-            zx.node_at(port.position)
-                .expect("validated module port is a ZX node")
-                .id
+        let columns = module
+            .interface
+            .quantum_ports
+            .iter()
+            .map(|port| {
+                zx.node_at(port.position)
+                    .expect("validated module port is a ZX node")
+                    .id
+            })
+            .collect::<Vec<_>>();
+        let table = zx
+            .projected_external_table(
+                &columns,
+                ProjectionLimits {
+                    max_frontier_width: limits.max_frontier_width,
+                    max_witness_nodes: limits.max_witness_nodes,
+                },
+            )
+            .map_err(|error| projection_limit(name, error))?;
+        Ok(LeafModuleCertificate {
+            module: name.to_string(),
+            table,
         })
-        .collect::<Vec<_>>();
-    let table = zx
-        .projected_external_table(
-            &columns,
-            ProjectionLimits {
-                max_frontier_width: limits.max_frontier_width,
-                max_witness_nodes: limits.max_witness_nodes,
-            },
-        )
-        .map_err(|error| projection_limit(name, error))?;
-    let external_basis = table.flow_witness_basis().to_external_basis();
-    let stabilizers = zx
-        .stabilizers_from_external_basis_with_limits(&external_basis, limits)
-        .map_err(|source| match source {
-            StabilizerError::ResourceLimited {
-                phase,
-                observed,
-                limit,
-            } => resource_limit(name, phase, observed, limit),
-            source => graph_error(source.into()),
-        })?;
-    body.with_analyzed_action_graph(&stabilizers)
-        .map_err(graph_error)?;
-    stabilizers
-        .validate_measurements_close_before_outputs_with_limits(limits)
-        .map_err(|source| match source {
-            RuntimeBasisError::Stabilizer(StabilizerError::ResourceLimited {
-                phase,
-                observed,
-                limit,
-            }) => resource_limit(name, phase, observed, limit),
-            source => ModuleCertificationError::Runtime {
-                module: name.to_string(),
-                source,
-            },
-        })?;
-    Ok(LeafModuleCertificate {
-        module: name.to_string(),
-        table,
-        stabilizers,
-    })
+    }
 }
 
 impl BlockGraph {
@@ -2840,9 +2794,7 @@ fn write_connections(out: &mut String, module: &BlockGraph, ids: &HashMap<IVec3,
 mod tests {
     use super::*;
     use crate::{
-        CubeKind, FeedbackTarget, GalleryItem, Pauli, PauliBasis, SelectiveFixingTarget,
-        SelectiveKind, Stabilizer, StabilizerGenerator, StabilizerGenerators, StabilizerRowKind,
-        parse_inline_graph,
+        CubeKind, FeedbackTarget, GalleryItem, Pauli, PauliBasis, SelectiveKind, parse_inline_graph,
     };
 
     #[test]
@@ -3090,16 +3042,10 @@ mod tests {
         BlockGraph::from_definitions(vec![child, root])
     }
 
-    fn analyzed_body(
-        mut body: BlockGraph,
-        actions: Vec<Action>,
-        generators: Vec<StabilizerGenerator>,
-    ) -> BlockGraph {
+    fn analyzed_body(mut body: BlockGraph, actions: Vec<Action>) -> BlockGraph {
         body.set_actions_deferred_with_inputs(actions, ["i".to_string()])
             .unwrap();
-        let zx = body.to_zx_graph().unwrap();
-        body.with_analyzed_action_graph(&StabilizerGenerators::new(zx, generators))
-            .unwrap()
+        body.analyze_actions().unwrap()
     }
 
     fn y_seam_source() -> String {
@@ -3619,12 +3565,6 @@ module main {
         body.add_block(Block::new(target, BlockKind::Cube(CubeKind::ZXZ)));
         body.add_block(Block::new(IVec3::Z, BlockKind::Cube(CubeKind::ZXZ)));
         body.add_pipe(crate::Pipe::new(target, crate::Direction::ZPLUS));
-        let zx = body.to_zx_graph().unwrap();
-        let row = crate::PauliString::from_terms(
-            zx.total_ids(),
-            (0..zx.total_ids()).map(|column| (column, Pauli::Z)),
-        );
-        let surface = zx.materialize_stabilizer(row);
         let body = analyzed_body(
             body,
             vec![
@@ -3641,12 +3581,6 @@ module main {
                     name: "m".to_string(),
                 },
             ],
-            vec![StabilizerGenerator::new(
-                surface,
-                StabilizerRowKind::Measurement {
-                    name: "m".to_string(),
-                },
-            )],
         );
 
         assert!(matches!(
@@ -3659,7 +3593,7 @@ module main {
     fn selective_dependency_closes_a_child_binding_cycle() {
         let target = IVec3::ZERO;
         let mut body = BlockGraph::new();
-        body.add_block(Block::new(IVec3::NEG_Z, BlockKind::Cube(CubeKind::ZXZ)));
+        body.add_block(Block::new(IVec3::NEG_Z, BlockKind::T));
         body.add_block(Block::new(target, BlockKind::Selective(SelectiveKind::XY)));
         body.add_pipe(crate::Pipe::new(IVec3::NEG_Z, crate::Direction::ZPLUS));
         let body = analyzed_body(
@@ -3673,23 +3607,6 @@ module main {
                     target: crate::MeasureTarget::Node(target),
                     name: "m".to_string(),
                 },
-            ],
-            vec![
-                StabilizerGenerator::new(
-                    Stabilizer::from_interior_nodes([(target, Pauli::X)]),
-                    StabilizerRowKind::Measurement {
-                        name: "m".to_string(),
-                    },
-                ),
-                StabilizerGenerator::new(
-                    Stabilizer::from_interior_nodes([(target, Pauli::Y)]),
-                    StabilizerRowKind::SelectiveFixing {
-                        targets: vec![SelectiveFixingTarget {
-                            pos: target,
-                            forbidden: Pauli::Y,
-                        }],
-                    },
-                ),
             ],
         );
 
@@ -4046,22 +3963,18 @@ module main {
     #[test]
     fn discharged_measurements_still_materialize() {
         let program = parse_inline_graph(&measured_chain_source(32)).unwrap();
-        let summary = program
-            .summarize_root(ModuleCertificationLimits {
-                max_frontier_width: 6,
-                ..ModuleCertificationLimits::UNLIMITED
-            })
+        let stabilizers = program
+            .planned_surfaces(
+                &[],
+                ModuleCertificationLimits {
+                    max_frontier_width: 6,
+                    ..ModuleCertificationLimits::UNLIMITED
+                },
+            )
             .unwrap();
-        let graph = program
-            .materialize_root_graph()
-            .unwrap()
-            .fix_shadowed_faces();
-        let zx = crate::ZXGraph::try_from(&graph).unwrap();
-        let stabilizers = summary.materialize_stabilizers(&zx, IVec3::ZERO).unwrap();
 
         assert_eq!(
             stabilizers
-                .generators
                 .iter()
                 .filter(|generator| generator.measurement_name().is_some())
                 .count(),

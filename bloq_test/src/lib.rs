@@ -263,37 +263,21 @@ impl CompileReadyCase {
         Ok(Self { test_case, graph })
     }
 
-    /// Independent static observable count for backend checks. Guarded native
-    /// sources need not have one unconditional scalar presentation.
+    /// Observable count of the planned correlation surfaces: one per named
+    /// readout, output frame, and closed logical surface.
     ///
     /// # Errors
-    /// Returns an error when this source has no static stabilizer presentation.
+    /// Returns an error when this source has no causal readout plan.
     pub fn expected_observables(&self) -> Result<usize, TestCaseError> {
-        let graph = self
-            .graph
-            .flatten()
-            .map_err(|error| TestCaseError(error.to_string()))?;
-        let rows = if !self.graph.instances.is_empty() {
-            self.graph
-                .summarize_root(bloq_graph::ModuleCertificationLimits::DEFAULT)
-                .map_err(|error| error.to_string())
-                .and_then(|summary| {
-                    let zx =
-                        bloq_graph::ZXGraph::try_from(&graph).map_err(|error| error.to_string())?;
-                    summary
-                        .materialize_stabilizers(&zx, glam::IVec3::ZERO)
-                        .map_err(|error| error.to_string())
-                })
-        } else {
-            graph.stabilizers().map_err(|error| error.to_string())
-        };
-        rows.map_err(|error| {
-            TestCaseError(format!(
-                "build: {}: failed to find stabilizers: {error}",
-                self.id()
-            ))
-        })
-        .map(|rows| rows.len())
+        self.graph
+            .stabilizers()
+            .map(|rows| rows.len())
+            .map_err(|error| {
+                TestCaseError(format!(
+                    "build: {}: failed to plan correlation surfaces: {error}",
+                    self.id()
+                ))
+            })
     }
 }
 
@@ -562,7 +546,7 @@ struct WallDistanceProfiles {
 /// a wall case (leaving the code distance to apply).
 fn wall_graphlike_distance(origin: &TestCaseOrigin, distance: u32) -> Option<u32> {
     let profile = match origin.fixture {
-        TestFixture::CZ if origin.fill_variant == Some(0) => WALL_GRAPHLIKE_DISTANCES.perpendicular,
+        TestFixture::CZ if origin.fill_variant == Some(1) => WALL_GRAPHLIKE_DISTANCES.perpendicular,
         TestFixture::CZ | TestFixture::SpatialHadamard
             if origin.rotation.is_some_and(|rotation| {
                 rotation.axis == UDirection::Y && rotation.quarter_turns.rem_euclid(4) == 2

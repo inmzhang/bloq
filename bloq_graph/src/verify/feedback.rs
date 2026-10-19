@@ -209,9 +209,6 @@ pub enum FeedbackInferenceError {
     /// Checked dyadic arithmetic overflowed or lost exactness.
     #[error("dyadic comparison exceeded its checked arithmetic range or lost precision")]
     ArithmeticLimit,
-    /// Existing readouts do not establish a signed C0 convention.
-    #[error("cannot establish the existing signed C0 readout convention for {0:?}")]
-    ReadoutConventionUnavailable(String),
 }
 
 /// Derives additional Pauli feedback for an existing realization.
@@ -567,26 +564,20 @@ fn make_verifier(
 }
 
 fn validate_records(graph: &BlockGraph, limit: usize) -> Result<(), FeedbackInferenceError> {
+    // Validation plans every record's causal readout across all branches.
     graph.validate()?;
     if graph.branch_regions()?.is_empty() {
-        graph
-            .stabilizers()?
-            .validate_measurements_close_before_outputs_with_limit(limit)?;
-    } else {
-        let projections = graph.branch_projections_up_to(limit.saturating_add(1))?;
-        if projections.len() > limit {
-            return Err(FeedbackInferenceError::Limit {
-                phase: "structural branches",
-                observed: projections.len(),
-                limit,
-            });
-        }
-        for projection in projections {
-            projection
-                .graph()
-                .stabilizers()?
-                .validate_measurements_close_before_outputs_with_limit(limit)?;
-        }
+        return Ok(());
+    }
+    let projections = graph
+        .branch_assignments_up_to(limit.saturating_add(1))?
+        .len();
+    if projections > limit {
+        return Err(FeedbackInferenceError::Limit {
+            phase: "structural branches",
+            observed: projections,
+            limit,
+        });
     }
     Ok(())
 }

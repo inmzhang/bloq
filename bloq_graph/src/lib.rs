@@ -96,20 +96,18 @@ pub use program::{
     qualified_name,
 };
 pub use summary::{ModuleSummary, PreparedModuleRelations, default_module_jobs, map_jobs};
-// `Stabilizer`'s support maps and `SelectiveFixings` are public `FxHashMap`s,
+// `Stabilizer`'s support maps are public `FxHashMap`s,
 // so re-export the type rather than force downstream code onto a matching
 // `rustc-hash` version to name them.
 #[doc(no_inline)]
 pub use rustc_hash::FxHashMap;
 pub use validate::{InvalidActionError, InvalidBlockGraphError};
 pub use zx::{
-    DerivedSurface, FillPortsError, GuardedLocalSurface, GuardedReadoutPlan, GuardedSurface,
-    GuardedSurfaceKind, GuardedSurfaceSpace, LocalPauliSurface, NamedReadout, NodeKind,
-    OutputCorrectionError, OutputCorrectionRow, ReadoutCoordinates, ReadoutPlan, RuntimeBasisError,
-    RuntimeStabilizerBasis, SelectiveFixing, SelectiveFixingTarget, SelectiveFixings, Stabilizer,
-    StabilizerError, StabilizerGenerator, StabilizerGenerators, StabilizerRowKind, SurfaceSupport,
-    SymbolicBasisError, SymbolicFramePair, SymbolicOutputCorrection, SymbolicSite,
-    SymbolicStabilizerBasis, ZXEdge, ZXError, ZXGraph, ZXLayerView, ZXNode, selective_fixings,
+    FillPortsError, GuardedLocalSurface, GuardedReadoutPlan, GuardedSurface, GuardedSurfaceKind,
+    GuardedSurfaceSpace, LocalPauliSurface, NodeKind, OutputCorrectionError, OutputCorrectionRow,
+    RuntimeBasisError, RuntimeStabilizerBasis, Stabilizer, StabilizerError, StabilizerGenerator,
+    StabilizerGenerators, StabilizerRowKind, SurfaceSupport, SymbolicFramePair,
+    SymbolicOutputCorrection, ZXEdge, ZXError, ZXGraph, ZXLayerView, ZXNode,
     solve_output_correction_symbolic, solve_output_correction_symbolic_prefix,
 };
 

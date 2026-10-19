@@ -236,29 +236,6 @@ impl ModuleSummary {
             .map(|row| &row.signed)
     }
 
-    /// Materialize and present the complete composed certificate without
-    /// regenerating the linked graph's external stabilizer table. Rejects
-    /// named measurements without output-safe branch representatives (C0).
-    #[doc(hidden)]
-    pub fn materialize_stabilizers(
-        &self,
-        zx: &ZXGraph,
-        offset: IVec3,
-    ) -> Result<StabilizerGenerators, ModuleCertificationError> {
-        let external_basis = self
-            .materialize_certificate_rows(zx, |position| checked_add_position(position, offset))?;
-        zx.stabilizers_from_composed_basis(&external_basis, self.limits)
-            .map_err(crate::RuntimeBasisError::from)
-            .and_then(|stabilizers| {
-                // C0 / LIM-027: leaf certification alone does not establish
-                // closure after composition. Check the presented readouts,
-                // including selective fills, before using them for decoding.
-                stabilizers.validate_measurements_close_before_outputs_with_limits(self.limits)?;
-                Ok(stabilizers)
-            })
-            .map_err(|source| self.runtime_error(source))
-    }
-
     fn materialize_certificate_rows(
         &self,
         zx: &ZXGraph,
@@ -1744,7 +1721,7 @@ fn invalid(module: &str, message: &str) -> ModuleCertificationError {
 #[cfg(test)]
 mod certificate_tests {
     use super::*;
-    use crate::{GalleryItem, StabilizerRowKind};
+    use crate::GalleryItem;
 
     #[test]
     fn flat_source_limit_counts_cube_height_before_geometry_work() {
@@ -1770,59 +1747,6 @@ mod certificate_tests {
                 ..limits
             })
             .unwrap();
-    }
-
-    fn identity_wrapper(program: &BlockGraph) -> BlockGraph {
-        let mut child = program.root().clone();
-        child.name = "Child".into();
-        let mut body = BlockGraph::new();
-        let quantum_connections = child
-            .interface
-            .quantum_ports
-            .iter()
-            .map(|port| {
-                let role = match port.direction {
-                    crate::PortDirection::Input => crate::PortRole::Input,
-                    crate::PortDirection::Output => crate::PortRole::Output,
-                };
-                body.try_add_block(
-                    Block::new(port.position, BlockKind::Port)
-                        .with_port_role(role)
-                        .unwrap(),
-                )
-                .unwrap();
-                let endpoint = InstancePort {
-                    instance: "child".into(),
-                    port: port.name.clone(),
-                };
-                match port.direction {
-                    crate::PortDirection::Input => QuantumConnection::Input {
-                        block: port.position,
-                        input: endpoint,
-                        hadamard: false,
-                    },
-                    crate::PortDirection::Output => QuantumConnection::Output {
-                        output: endpoint,
-                        block: port.position,
-                        hadamard: false,
-                    },
-                }
-            })
-            .collect();
-        let root = BlockGraph::definition(
-            "main",
-            body,
-            child.interface.clone(),
-            vec![ModuleInstance {
-                name: "child".into(),
-                definition: child.name.clone(),
-                rotation: crate::ModuleRotation::IDENTITY,
-                translation: IVec3::ZERO,
-            }],
-            quantum_connections,
-            Vec::new(),
-        );
-        BlockGraph::from_definitions(vec![child, root]).unwrap()
     }
 
     #[test]
@@ -1861,37 +1785,6 @@ mod certificate_tests {
     }
 
     #[test]
-    fn parent_readout_survives_child_composition() {
-        let program = crate::parse_inline_graph(
-            "BLOG 1.0\n\nmodule Wire {\n\
-             in input: data = 0\nout output: data = 2\n\
-             0: Port [0,0,-1]\n1: ZXZ [0,0,0]\n2: Port [0,0,1]\n\
-             0 -> +Z\n1 -> +Z\n}\n\nmodule main {\n\
-             in input: data = 10\nout result = m\n\
-             wire: Wire @ [0,0,0]\n\
-             10: Port [0,0,-1] role=input\n11: X [0,0,1]\n\
-             10 -> wire.input\nwire.output -> 11\nm = measure 11\n}\n",
-        )
-        .unwrap();
-        let summary = program
-            .summarize_root(ModuleCertificationLimits::DEFAULT)
-            .unwrap();
-        let graph = program
-            .materialize_root_graph()
-            .unwrap()
-            .fix_shadowed_faces();
-        let zx = ZXGraph::try_from(&graph).unwrap();
-        let composed = summary.materialize_stabilizers(&zx, IVec3::ZERO).unwrap();
-        let flat = graph.stabilizers().unwrap();
-        assert_eq!(composed.generators.len(), flat.generators.len());
-        for (composed, flat) in composed.generators.iter().zip(&flat.generators) {
-            assert_eq!(composed.kind, flat.kind);
-            assert_eq!(composed.stabilizer.paulis, flat.stabilizer.paulis);
-            assert_eq!(composed.stabilizer.sign, flat.stabilizer.sign);
-        }
-    }
-
-    #[test]
     fn classical_parent_action_keeps_independent_connectors_within_frontier_limit() {
         let program = crate::parse_inline_graph(
             "BLOG 1.0\nmodule Wire {\n\
@@ -1914,112 +1807,6 @@ mod certificate_tests {
             })
             .unwrap();
         assert_eq!(summary.quantum_ports().len(), 4);
-    }
-
-    #[test]
-    fn identity_wrapper_preserves_materialized_stabilizers() {
-        let program = identity_wrapper(&GalleryItem::CCZInjectedMaj.build());
-        let summary = program
-            .summarize_root(ModuleCertificationLimits::UNLIMITED)
-            .unwrap();
-        let graph = program.materialize_root_graph().unwrap();
-        let zx = ZXGraph::try_from(&graph).unwrap();
-        let composed = summary.materialize_stabilizers(&zx, IVec3::ZERO).unwrap();
-        let flat = graph.stabilizers().unwrap();
-
-        assert_eq!(composed.generators.len(), flat.generators.len());
-        for (composed, flat) in composed.generators.iter().zip(&flat.generators) {
-            assert_eq!(composed.kind, flat.kind);
-            assert_eq!(composed.stabilizer.paulis, flat.stabilizer.paulis);
-            assert_eq!(composed.stabilizer.sign, flat.stabilizer.sign);
-        }
-    }
-
-    #[test]
-    fn composed_phase_cache_matches_flat_derivation_and_tracks_t_conversion() {
-        for item in [
-            GalleryItem::CNOT,
-            GalleryItem::CZTemporalH,
-            GalleryItem::S,
-            GalleryItem::T,
-            GalleryItem::CCZInjectedMaj,
-            GalleryItem::PhaseGradientK4,
-        ] {
-            let program = item.build();
-            let summary = program
-                .summarize_root(ModuleCertificationLimits::UNLIMITED)
-                .unwrap();
-            let graph = program.materialize_root_graph().unwrap();
-            let zx = ZXGraph::try_from(&graph).unwrap();
-            let composed = summary.materialize_stabilizers(&zx, IVec3::ZERO).unwrap();
-            let cached = composed.zx_graph.stabilizer_phase_basis.get().unwrap();
-            let mut queries = composed
-                .generators
-                .iter()
-                .map(|row| row.stabilizer.paulis.clone())
-                .chain(composed.auxiliary_rows().iter().cloned())
-                .collect::<Vec<_>>();
-            let products = queries
-                .windows(2)
-                .map(|rows| {
-                    let mut product = rows[0].clone();
-                    product ^= &rows[1];
-                    product
-                })
-                .collect::<Vec<_>>();
-            queries.extend(products);
-            let flat = ZXGraph::try_from(&graph).unwrap();
-            let mut raw_queries = queries.clone();
-            flat.clear_cross_centers(&mut raw_queries);
-            assert_eq!(
-                composed.zx_graph.stabilizer_row_phases(&queries),
-                flat.external_stabilizer_row_phases(&raw_queries),
-                "{item:?}"
-            );
-            let runtime =
-                crate::RuntimeStabilizerBasis::from_generators(&composed).with_t_nodes_as_ports();
-            let retained = runtime.zx_graph().stabilizer_phase_basis.get().unwrap();
-            assert!(Arc::ptr_eq(cached, retained), "{item:?}");
-            let mut fresh_demoted = runtime.zx_graph().clone();
-            fresh_demoted.stabilizer_phase_basis.take();
-            assert_eq!(
-                runtime.zx_graph().stabilizer_row_phases(&queries),
-                fresh_demoted.stabilizer_row_phases(&queries),
-                "{item:?} after T conversion"
-            );
-        }
-    }
-
-    #[test]
-    fn rotated_phase_gradient_summary_preserves_flat_nonlogical_rows() {
-        let program = GalleryItem::PhaseGradientK4.build();
-        let summary = program
-            .summarize_root(ModuleCertificationLimits::DEFAULT)
-            .unwrap();
-        let graph = program.materialize_root_graph().unwrap();
-        let zx = ZXGraph::try_from(&graph).unwrap();
-        let composed = summary.materialize_stabilizers(&zx, IVec3::ZERO).unwrap();
-        let flat = graph.stabilizers().unwrap();
-
-        assert_eq!(composed.generators.len(), flat.generators.len());
-        for (composed, flat) in composed.generators.iter().zip(&flat.generators) {
-            assert_eq!(composed.kind, flat.kind);
-            // Composition preserves child readout representatives; flat analysis
-            // may choose a different logical basis for the same graph.
-            if matches!(composed.kind, StabilizerRowKind::Logical) {
-                continue;
-            }
-            assert_eq!(
-                composed.stabilizer.paulis, flat.stabilizer.paulis,
-                "{:?}",
-                composed.kind
-            );
-            assert_eq!(
-                composed.stabilizer.sign, flat.stabilizer.sign,
-                "{:?}",
-                composed.kind
-            );
-        }
     }
 
     #[test]
@@ -2055,14 +1842,6 @@ mod certificate_tests {
                 );
                 phases.insert(witnessed.phase());
             }
-            let composed = summary.materialize_stabilizers(&zx, IVec3::ZERO).unwrap();
-            let flat = graph.stabilizers().unwrap();
-            assert_eq!(composed.generators.len(), flat.generators.len());
-            for (composed, flat) in composed.generators.iter().zip(&flat.generators) {
-                assert_eq!(composed.kind, flat.kind);
-                assert_eq!(composed.stabilizer.paulis, flat.stabilizer.paulis);
-                assert_eq!(composed.stabilizer.sign, flat.stabilizer.sign);
-            }
         }
         assert_eq!(phases, FxHashSet::from_iter([0, 2]));
     }
@@ -2070,28 +1849,13 @@ mod certificate_tests {
     #[test]
     fn composed_adder_rejects_unavailable_causal_readout() {
         let program = crate::BlockGraph::from_text(bloq_test::ONE_BIT_ADDER_SOURCE).unwrap();
-        let summary = program
-            .summarize_root(ModuleCertificationLimits::UNLIMITED)
-            .unwrap();
-        let graph = program
-            .materialize_root_graph()
-            .unwrap()
-            .canonical_true_branch_view()
-            .unwrap();
-        let offset = IVec3::new(0, 0, -*graph.spans().unwrap().2.start());
-        let graph = graph.with_zero_min_z().unwrap().fix_shadowed_faces();
-        let zx = ZXGraph::try_from(&graph).unwrap();
-
-        let result = summary.materialize_stabilizers(&zx, offset).map(|_| ());
+        let result = program.stabilizers();
         assert!(
             matches!(
                 result,
-                Err(ModuleCertificationError::Runtime {
-                    source: crate::RuntimeBasisError::Stabilizer(
-                        crate::StabilizerError::UnavailableControlParity { ref mvar, .. }
-                    ),
-                    ..
-                }) if mvar == "uma__m_ikprime"
+                Err(crate::BlockGraphError::Stabilizer(
+                    crate::StabilizerError::UnavailableControlParity { ref mvar, .. }
+                )) if mvar == "uma__m_ikprime"
             ),
             "{result:?}"
         );

@@ -130,7 +130,6 @@ fn multiplex_port_lowers_to_a_corrected_physical_output() {
         .unwrap();
     let stabilizers = graph.stabilizers().unwrap();
     let measurement = stabilizers
-        .generators
         .iter()
         .find(|generator| generator.measurement_name() == Some("z_at_multiplex"))
         .unwrap();

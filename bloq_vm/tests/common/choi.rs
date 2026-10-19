@@ -67,11 +67,6 @@ pub(crate) fn assert_channel_with_seed(
         .with_zero_min_z()
         .expect("Choi source normalizes within the coordinate lattice")
         .fix_shadowed_faces();
-    let summary = (!program.instances.is_empty()).then(|| {
-        program
-            .summarize_root(ModuleCertificationLimits::DEFAULT)
-            .expect("Choi source summary certifies")
-    });
     let linked = bloq_graph::flatten_module_definition(program, program, "")
         .expect("Choi source definition flattens");
     let sites = linked
@@ -206,17 +201,8 @@ pub(crate) fn assert_channel_with_seed(
             .project_branches_deferred(assignments.iter().copied())
             .expect("observed source branch projects");
         let zx = ZXGraph::try_from(&projected).expect("selected source branch has a ZX graph");
-        let generators = match &summary {
-            // The composed certificate presents the canonical all-true arms.
-            Some(summary) if assignments.iter().all(|&(_, shown)| shown) => summary
-                .materialize_stabilizers(&zx, offset)
-                .expect("module source has a stabilizer certificate"),
-            _ => zx
-                .stabilizers()
-                .expect("selected source has a stabilizer certificate"),
-        };
-        let basis = RuntimeStabilizerBasis::for_source_readouts(&generators)
-            .expect("source certificate has a runtime basis");
+        let basis = RuntimeStabilizerBasis::for_source_readouts(zx.clone())
+            .expect("selected source has a runtime basis");
         let named_coordinates = zx
             .action_graph()
             .ordered_nodes()
@@ -240,14 +226,7 @@ pub(crate) fn assert_channel_with_seed(
                 ))
             })
             .collect::<Vec<_>>();
-        assert_eq!(
-            values.len(),
-            generators
-                .generators
-                .iter()
-                .filter(|row| row.is_measurement())
-                .count()
-        );
+        assert_eq!(values.len(), named_coordinates.len());
         let mut fills = Vec::new();
         for action in &actions {
             if let Action::Resolve { target, condition } = action {
@@ -485,9 +464,7 @@ pub(crate) fn assert_channel_with_seed(
         {
             let mut paulis = surface.paulis;
             for ordinal in row.readout_ordinals {
-                paulis ^= &readouts[generators.generators[ordinal]
-                    .measurement_name()
-                    .expect("output correction fold names a measurement")];
+                paulis ^= &readouts[named_coordinates[ordinal].0];
             }
             let surface = filled.materialize_stabilizer(paulis);
             check(&surface, surface.sign ^ feedback(&surface), true);

@@ -444,17 +444,4 @@ fn public_summary_and_prepared_relation_plan_the_same_complete_supports() {
         .unwrap();
     assert_same_plan(&mut actual, &mut expected);
     assert_eq!(summary.relation_work(), relations.relation_work());
-    let zx = ZXGraph::try_from(&graph).unwrap();
-    let stabilizers = summary.materialize_stabilizers(&zx, IVec3::ZERO).unwrap();
-    for (index, _) in actual.surfaces.iter().enumerate() {
-        let surface = actual
-            .materialize_surface(index, &zx, |_| unreachable!())
-            .unwrap();
-        assert!(
-            stabilizers
-                .generators
-                .iter()
-                .any(|generator| generator.stabilizer == surface)
-        );
-    }
 }

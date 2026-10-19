@@ -193,7 +193,7 @@ mod tests {
                     .collect::<HashMap<_, _>>(),
             )
             .unwrap();
-        let expected = oracle.to_external_generator_table_with_signed().1;
+        let expected = oracle.to_signed_external_generator_table();
         assert_eq!(
             rows.rows(),
             expected,
@@ -220,7 +220,7 @@ mod tests {
                 for spider in [NodeKind::X, NodeKind::Z] {
                     for hadamards in 0..4 {
                         let graph = chain([left_kind, right_kind], spider, hadamards);
-                        let source = graph.to_external_generator_table_with_signed().1;
+                        let source = graph.to_signed_external_generator_table();
                         for left in [left_kind.pauli_if_false(), left_kind.pauli_if_true()] {
                             for right in [right_kind.pauli_if_false(), right_kind.pauli_if_true()] {
                                 for selected in 0..4 {
@@ -245,7 +245,7 @@ mod tests {
     #[test]
     fn signed_restriction_uses_supplied_signs_and_preserves_private_rows() {
         let graph = chain([SelectiveKind::XY; 2], NodeKind::Z, 1);
-        let mut source = graph.to_external_generator_table_with_signed().1;
+        let mut source = graph.to_signed_external_generator_table();
         let private = source
             .iter()
             .position(|row| row.paulis.get(3) == Pauli::Z)
@@ -290,7 +290,7 @@ mod tests {
                     }
                     graph.pos_to_node =
                         FxHashMap::from_iter(graph.nodes.iter().map(|node| (node.pos, node.id)));
-                    let source = graph.to_external_generator_table_with_signed().1;
+                    let source = graph.to_signed_external_generator_table();
                     let left = (graph.nodes[0].pos, PauliBasis::Y);
                     let right = (graph.nodes[2].pos, PauliBasis::Y);
                     for fills in [vec![left], vec![right], vec![left, right]] {
@@ -320,7 +320,7 @@ mod tests {
     fn signed_restriction_demotes_prepared_t_resources_without_rederivation() {
         let mut graph = chain([SelectiveKind::XY; 2], NodeKind::X, 3);
         graph.nodes[2].kind = NodeKind::T;
-        let source = graph.to_external_generator_table_with_signed().1;
+        let source = graph.to_signed_external_generator_table();
         for fills in [vec![], vec![(graph.nodes[0].pos, PauliBasis::Y)]] {
             let (filled, _) = graph
                 .restrict_selective_relation_with_limits(
@@ -337,7 +337,7 @@ mod tests {
     #[test]
     fn signed_restriction_preserves_signed_queries_at_tight_matrix_limit() {
         let graph = chain([SelectiveKind::XY; 2], NodeKind::Z, 1);
-        let mut source = graph.to_external_generator_table_with_signed().1;
+        let mut source = graph.to_signed_external_generator_table();
         source
             .iter_mut()
             .find(|row| row.paulis.get(3) == Pauli::Z)
@@ -373,8 +373,7 @@ mod tests {
         let mut expected = graph
             .fill_ports(&HashMap::from([(graph.nodes[0].pos, NodeKind::Y)]))
             .unwrap()
-            .to_external_generator_table_with_signed()
-            .1;
+            .to_signed_external_generator_table();
         expected
             .iter_mut()
             .find(|row| row.paulis.get(3) == Pauli::Z)
@@ -394,7 +393,7 @@ mod tests {
     #[test]
     fn signed_restriction_validates_fills_and_resource_bounds() {
         let graph = chain([SelectiveKind::XY; 2], NodeKind::X, 0);
-        let source = graph.to_external_generator_table_with_signed().1;
+        let source = graph.to_signed_external_generator_table();
         let pos = graph.nodes[0].pos;
         let limits = ModuleCertificationLimits::default();
         assert!(matches!(

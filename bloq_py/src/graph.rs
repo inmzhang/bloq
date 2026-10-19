@@ -66,7 +66,7 @@ impl StabilizerLike {
                         "stabilizer indices cannot be empty",
                     ));
                 }
-                let rows = graph.stabilizers().map_err(graph_err)?.generators;
+                let rows = graph.stabilizers().map_err(graph_err)?;
                 let mut selected = indices.into_iter().map(|index| {
                     let row = rows.get(index).ok_or_else(|| {
                         errors::InvalidArgumentError::new_err(format!(
@@ -942,12 +942,10 @@ impl PyStabilizer {
 
 /// A stabilizer generator row: a stabilizer plus its role.
 ///
-/// One row of the generator basis returned by `BlockGraph.stabilizers()` or
-/// `ZXGraph.stabilizers()`. The `kind` says what the row does: `"logical"`
-/// rows generate the diagram's logical stabilizer group, `"measurement"` rows
-/// witness a named measurement variable, and `"selective_fixing"` rows pin
-/// the measurement basis of one or more selective nodes. Internal rank rows
-/// are not exposed through the graph API.
+/// One correlation surface returned by `BlockGraph.stabilizers()` or
+/// `fill_ports_auto()`. The `kind` says what the row does: `"measurement"`
+/// rows read a named measurement variable, and `"logical"` rows are output
+/// frames or closed logical surfaces.
 #[gen_stub_pyclass]
 #[pyclass(
     name = "StabilizerGenerator",
@@ -974,12 +972,11 @@ impl PyStabilizerGenerator {
         self.0.stabilizer.clone().into()
     }
 
-    /// The row's role: `"measurement"`, `"selective_fixing"`, or `"logical"`.
+    /// The row's role: `"measurement"` or `"logical"`.
     #[getter]
     fn kind(&self) -> &'static str {
         match self.0.kind {
             bloq_graph::StabilizerRowKind::Measurement { .. } => "measurement",
-            bloq_graph::StabilizerRowKind::SelectiveFixing { .. } => "selective_fixing",
             bloq_graph::StabilizerRowKind::Logical => "logical",
         }
     }
@@ -995,19 +992,8 @@ impl PyStabilizerGenerator {
     fn measurement_name(&self) -> Option<String> {
         match &self.0.kind {
             bloq_graph::StabilizerRowKind::Measurement { name } => Some(name.clone()),
-            _ => None,
+            bloq_graph::StabilizerRowKind::Logical => None,
         }
-    }
-
-    /// `(position, forbidden_pauli)` pairs, for `"selective_fixing"` rows.
-    #[getter]
-    fn selective_fixing_targets(&self) -> Vec<((i32, i32, i32), PyPauli)> {
-        self.0
-            .kind
-            .selective_fixing_targets()
-            .iter()
-            .map(|t| (ivec3_into(t.pos), PyPauli::from(t.forbidden)))
-            .collect()
     }
 
     fn __repr__(&self) -> String {
@@ -1684,11 +1670,12 @@ impl PyBlockGraph {
             .map_err(graph_err)
     }
 
-    /// Derives the stabilizer generators of the graph's ZX diagram.
-    /// Call `flatten()` first if the graph contains child instances.
+    /// The correlation surfaces of the displayed branch arms, from the causal
+    /// readout plan that compilation uses: one row per named readout, output
+    /// frame, and closed logical surface. Module hierarchies are composed.
     ///
     /// Raises:
-    ///     BlockGraphError: If the stabilizers cannot be derived.
+    ///     BlockGraphError: If the source is invalid or a readout is unavailable.
     ///
     /// Examples:
     ///     >>> import bloq
@@ -1700,7 +1687,6 @@ impl PyBlockGraph {
         Ok(py
             .detach(move || source.stabilizers())
             .map_err(graph_err)?
-            .generators
             .into_iter()
             .map(Into::into)
             .collect())

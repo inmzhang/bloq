@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use bloq_graph::{
     Basis, Block, BlockGraph, BlockKind, ModuleCertificationError, ModuleCertificationLimits,
-    ModuleSummary, PortRole, RuntimeStabilizerBasis, StabilizerGenerators, default_module_jobs,
+    ModuleSummary, PortRole, StabilizerGenerators, default_module_jobs,
 };
 use glam::{IVec2, IVec3};
 use web_time::Instant;
@@ -20,7 +20,7 @@ use crate::signature::{
     BlockSignature, BlockSignatureMap, block_signatures, derive_block_signature,
     join_component_layer_schedules, relocatable_block_signatures,
 };
-use crate::spatial_port::{SpatialPortExpansionMap, expand_spatial_ports};
+use crate::spatial_port::SpatialPortExpansionMap;
 use crate::{Bloq, CompileError, Connectivity};
 
 #[path = "registry.rs"]
@@ -44,25 +44,6 @@ pub const CODE_DISTANCE_METADATA_KEY: &str = "bloq_compile.code_distance";
 pub const CONVENTION_METADATA_KEY: &str = "bloq_compile.convention";
 /// Metadata key for the seed used to sample a random Clifford proxy path.
 pub const CLIFFORD_PROXY_SEED_METADATA_KEY: &str = "bloq_compile.clifford_proxy_seed";
-
-/// The `z` shift that `BlockGraph::with_zero_min_z` applies to `graph`.
-///
-/// Module summaries and site relocations are both expressed in the source
-/// module's coordinates, so both must be moved by exactly this offset before
-/// they line up with the normalized graph.
-fn module_normalization_offset(
-    graph: &BlockGraph,
-    module: &ModuleSummary,
-) -> Result<IVec3, CompileError> {
-    let min_z = graph.spans().map_or(0, |(_, _, span)| *span.start());
-    let z = i32::try_from(-i64::from(min_z)).map_err(|_| {
-        ModuleCertificationError::InvalidConnection {
-            module: module.name().to_string(),
-            message: "module normalization exceeds i32 coordinates".to_string(),
-        }
-    })?;
-    Ok(IVec3::new(0, 0, z))
-}
 
 /// Qubit-layout offset of the block at grid position `block_xy`:
 /// `block_xy · (2·distance + 2)`.
@@ -534,19 +515,13 @@ pub struct CompileContext {
     flat_signature_builds: std::sync::atomic::AtomicUsize,
 }
 
-/// Per-site branch pins for the Clifford-proxy distance oracle:
-/// one bit per selective block, consumed in [`ordered_blocks`] order.
+/// Per-site branch pins for the Clifford-proxy distance oracle: one bit per
+/// selective block in expanded `(z, x, y)` order, over the certified source.
 #[derive(Debug)]
 struct CliffordProxyPins {
     pins: Vec<bool>,
     purpose: CliffordProxyPurpose,
-    source: CliffordProxySource,
-}
-
-#[derive(Debug)]
-enum CliffordProxySource {
-    Rows(Option<Arc<ModuleSummary>>),
-    Relation(Arc<ModuleSummary>),
+    summary: Arc<ModuleSummary>,
 }
 
 /// Which consumer requested a pinned Clifford artifact.
@@ -581,11 +556,10 @@ enum CliffordProxyPurpose {
 ///   arms only and cannot choose an authored graph region.
 /// - The action track (feedback, conditional-S corrections) is dropped —
 ///   Clifford frame corrections cannot change circuit distance.
-/// - Hierarchical inputs reuse their composed source certificate; topology is
-///   expanded only for this physical oracle.
-/// - Source stabilizer rows are reused and resolved through the pinned fills,
-///   without re-deriving a basis from the rewritten graph. Output frames use
-///   those resolved rows without replaying source actions.
+/// - The complete source relation is certified before the pins restrict it,
+///   so a pin cannot hide an invalid alternative. Public rows are the source's
+///   planned readouts and frames under the pins; hierarchical inputs reuse
+///   their composed certificate.
 ///
 /// The result is a fully determined program the static Stim backend accepts,
 /// suitable for `shortest_graphlike_error` / undetectable-error searches.
@@ -613,45 +587,12 @@ pub fn compile_clifford_proxy(
     graph: &BlockGraph,
     pins: &[bool],
 ) -> Result<CompileArtifacts, CompileError> {
-    compile_proxy(config, graph, pins, CliffordProxyPurpose::Distance)
-}
-
-/// Compile a Clifford distance oracle from the complete signed source relation.
-///
-/// Certifies all source choices before restricting to jointly reachable pins
-/// in expanded `(z, x, y)` block order. Structural branches require projection.
-/// T regions become perfect input ports and source feedback is omitted.
-/// Public rows are selected after restriction, so observable counts, indices
-/// and generator keys can differ from [`compile_clifford_proxy`].
-///
-/// # Errors
-///
-/// Returns source-certification, pin, resource-limit or physical-compilation errors.
-///
-/// # Examples
-///
-/// ```
-/// use bloq_compile::{CompileConfig, compile_clifford_distance};
-/// use bloq_graph::GalleryItem;
-/// let proxy = compile_clifford_distance(
-///     CompileConfig::new(3), &GalleryItem::T.build(), &[false],
-/// )?;
-/// bloq_stim::emit_bloq_stim(&proxy.bloq).expect("distance oracle emits static Stim");
-/// # Ok::<(), bloq_compile::CompileError>(())
-/// ```
-pub fn compile_clifford_distance(
-    config: CompileConfig,
-    graph: &BlockGraph,
-    pins: &[bool],
-) -> Result<CompileArtifacts, CompileError> {
-    let mut context = proxy_context(config);
-    let summary = context.summarize(graph, config.certification_limits())?;
-    context.clifford_proxy = Some(CliffordProxyPins {
-        pins: pins.to_vec(),
-        purpose: CliffordProxyPurpose::Distance,
-        source: CliffordProxySource::Relation(summary),
-    });
-    context.compile(graph)
+    compile_proxy(
+        config,
+        graph,
+        |_| Ok(pins.to_vec()),
+        CliffordProxyPurpose::Distance,
+    )
 }
 
 /// Compile one seeded random static Clifford proxy path.
@@ -669,15 +610,11 @@ pub fn compile_random_clifford_proxy(
     graph: &BlockGraph,
     seed: u64,
 ) -> Result<CompileArtifacts, CompileError> {
-    let flat = flat_proxy_graph(config, graph)?;
-    let source = flat.as_ref().unwrap_or(graph);
-    let pins = random_proxy_pins(source, seed)?;
-    let mut artifacts = compile_pinned_clifford_proxy(
+    let mut artifacts = compile_proxy(
         config,
-        source,
-        &pins,
+        graph,
+        |source| random_proxy_pins(source, seed),
         CliffordProxyPurpose::Distance,
-        graph.has_module_structure().then_some(graph),
     )?;
     artifacts.bloq.insert_metadata(
         CLIFFORD_PROXY_SEED_METADATA_KEY,
@@ -687,9 +624,6 @@ pub fn compile_random_clifford_proxy(
 }
 
 fn random_proxy_pins(graph: &BlockGraph, seed: u64) -> Result<Vec<bool>, CompileError> {
-    // Random projection drops every action, so reject unsupported structural
-    // composition before that rewrite can hide the Branch source.
-    reject_structural_proxy(graph)?;
     let (_, replacements) = graph.randomly_resolve_selectives(seed)?;
     let pins = ordered_blocks(graph)
         .into_iter()
@@ -713,8 +647,9 @@ fn random_proxy_pins(graph: &BlockGraph, seed: u64) -> Result<Vec<bool>, Compile
 
 /// Compile a pinned detector-slice proxy.
 ///
-/// Selectives resolve the source stabilizer basis, while T regions remain for
-/// display and are tracked with the slice engine's T-to-S substitution.
+/// Pins restrict the certified source relation as in
+/// [`compile_clifford_proxy`], while T regions remain for display and are
+/// tracked with the slice engine's T-to-S substitution.
 ///
 /// # Errors
 ///
@@ -726,45 +661,29 @@ pub fn compile_detslice_proxy(
     graph: &BlockGraph,
     pins: &[bool],
 ) -> Result<CompileArtifacts, CompileError> {
-    compile_proxy(config, graph, pins, CliffordProxyPurpose::Detslice)
-}
-
-fn flat_proxy_graph(
-    config: CompileConfig,
-    graph: &BlockGraph,
-) -> Result<Option<BlockGraph>, CompileError> {
-    if !graph.has_module_structure() {
-        return Ok(None);
-    }
-    Ok(Some(
-        graph.flatten_with_limits(config.certification_limits())?,
-    ))
-}
-
-fn compile_proxy(
-    config: CompileConfig,
-    graph: &BlockGraph,
-    pins: &[bool],
-    purpose: CliffordProxyPurpose,
-) -> Result<CompileArtifacts, CompileError> {
-    let flat = flat_proxy_graph(config, graph)?;
-    compile_pinned_clifford_proxy(
+    compile_proxy(
         config,
-        flat.as_ref().unwrap_or(graph),
-        pins,
-        purpose,
-        graph.has_module_structure().then_some(graph),
+        graph,
+        |_| Ok(pins.to_vec()),
+        CliffordProxyPurpose::Detslice,
     )
 }
 
-fn compile_pinned_clifford_proxy(
+/// Compile the proxy of `graph` with pins chosen from its expanded source.
+fn compile_proxy(
     config: CompileConfig,
     graph: &BlockGraph,
-    pins: &[bool],
+    pins: impl FnOnce(&BlockGraph) -> Result<Vec<bool>, CompileError>,
     purpose: CliffordProxyPurpose,
-    program: Option<&BlockGraph>,
 ) -> Result<CompileArtifacts, CompileError> {
-    let expected = graph
+    let flat = graph
+        .has_module_structure()
+        .then(|| graph.flatten_with_limits(config.certification_limits()))
+        .transpose()?;
+    let source = flat.as_ref().unwrap_or(graph);
+    reject_structural_proxy(source)?;
+    let pins = pins(source)?;
+    let expected = source
         .blocks()
         .filter(|block| block.kind().is_selective())
         .count();
@@ -775,15 +694,13 @@ fn compile_pinned_clifford_proxy(
         });
     }
     let mut ctx = proxy_context(config);
-    let source_summary = program
-        .map(|program| ctx.summarize(program, config.certification_limits()))
-        .transpose()?;
+    let summary = ctx.summarize(graph, config.certification_limits())?;
     ctx.clifford_proxy = Some(CliffordProxyPins {
-        pins: pins.to_vec(),
+        pins,
         purpose,
-        source: CliffordProxySource::Rows(source_summary),
+        summary,
     });
-    ctx.compile(graph)
+    ctx.compile(source)
 }
 
 static PROXY_CACHE: OnceLock<crate::SharedCompileCache> = OnceLock::new();
@@ -1063,60 +980,21 @@ impl CompileContext {
         Ok(artifacts)
     }
 
-    /// Validate the pinned oracle's source before omitting its action track.
-    fn preflight_proxy(&self, graph: &BlockGraph) -> Result<ProxyPreflight, CompileError> {
-        graph.validate_resource_limits(self.config.certification_limits())?;
+    /// Certify the pinned oracle's complete source before omitting its action
+    /// track.
+    fn preflight_proxy(&self) -> Result<ProxyPreflight, CompileError> {
         let proxy = self
             .clifford_proxy
             .as_ref()
             .expect("Clifford proxy context");
-        let module_summary = match &proxy.source {
-            CliffordProxySource::Rows(summary) => summary.as_deref(),
-            CliffordProxySource::Relation(summary) => {
-                let (source_graph, stabilizers) =
-                    summary.materialize_clifford_distance_relation(&proxy.pins)?;
-                let (graph, spatial_ports) = crate::spatial_port::expand_spatial_port_topology(
-                    &source_graph,
-                    self.config.code_distance(),
-                )?;
-                return self.proxy_preflight(graph.into_owned(), stabilizers, spatial_ports);
-            }
-        };
-        let graph = graph.canonical_true_branch_view()?;
-        graph.validate_source()?;
-        reject_structural_proxy(&graph)?;
-        let linked_offset = module_summary
-            .map(|summary| module_normalization_offset(&graph, summary))
-            .transpose()?
-            .unwrap_or(IVec3::ZERO);
-        let graph = graph.with_zero_min_z()?.fix_shadowed_faces();
-        let mut stabilizers = if let Some(summary) = module_summary {
-            let zx = bloq_graph::ZXGraph::from_block_graph_for_analysis(&graph)
-                .map_err(bloq_graph::RuntimeBasisError::from)?;
-            summary.materialize_stabilizers(&zx, linked_offset)?
-        } else {
-            graph.stabilizers_with_limits(self.config.certification_limits())?
-        };
-        let source_graph = graph.with_analyzed_action_graph(&stabilizers)?;
-        let (graph, spatial_ports) =
-            expand_spatial_ports(&source_graph, self.config.code_distance(), &stabilizers)?;
-        // Module materialization already certifies this on its composed rows.
-        if module_summary.is_none() {
-            stabilizers.validate_measurements_close_before_outputs_with_limits(
-                self.config.certification_limits(),
-            )?;
-        }
-        let changed = stabilizers.prepare_readouts(
-            source_graph.action_graph(),
-            self.config.certification_limits(),
+        let (source_graph, stabilizers) = proxy
+            .summary
+            .materialize_clifford_distance_relation(&proxy.pins)?;
+        let (graph, spatial_ports) = crate::spatial_port::expand_spatial_port_topology(
+            &source_graph,
+            self.config.code_distance(),
         )?;
-        let graph = if changed {
-            graph.with_analyzed_action_graph(&stabilizers)?
-        } else {
-            graph
-        };
-        let stabilizers = self.proxy_stabilizers(&graph, &stabilizers)?;
-        self.proxy_preflight(graph, stabilizers, spatial_ports)
+        self.proxy_preflight(graph.into_owned(), stabilizers, spatial_ports)
     }
 
     fn proxy_preflight(
@@ -1165,7 +1043,7 @@ impl CompileContext {
             } else {
                 let started_at = Instant::now();
                 self.report_progress(CompileStage::Validation)?;
-                let prepared = self.prepare_proxy(graph)?;
+                let prepared = self.prepare_proxy()?;
                 self.report_progress(CompileStage::Readouts)?;
                 let mut artifacts = Self::lower_prepared_proxy(self.config, prepared)?;
                 artifacts.compile_duration = started_at.elapsed();
@@ -1322,13 +1200,13 @@ impl CompileContext {
         ))
     }
 
-    fn prepare_proxy(&self, graph: &BlockGraph) -> Result<PreparedProxy, CompileError> {
+    fn prepare_proxy(&self) -> Result<PreparedProxy, CompileError> {
         let ProxyPreflight {
             graph,
             signatures,
             stabilizers,
             spatial_ports,
-        } = self.preflight_proxy(graph)?;
+        } = self.preflight_proxy()?;
         self.report_progress(CompileStage::Templates)?;
         let mut compiled = self.compile_blocks(&graph, &ordered_blocks(&graph), &signatures)?;
         for expansion in spatial_ports.values() {
@@ -1711,41 +1589,6 @@ impl CompileContext {
         }
     }
 
-    /// Stabilizers of the fixed Clifford program emitted by the proxy: T nodes
-    /// are ideal input ports and each selective is filled from its site pin.
-    fn proxy_stabilizers(
-        &self,
-        graph: &BlockGraph,
-        stabilizers: &StabilizerGenerators,
-    ) -> Result<StabilizerGenerators, CompileError> {
-        let proxy = self
-            .clifford_proxy
-            .as_ref()
-            .expect("caller checked the proxy is active");
-        let basis = RuntimeStabilizerBasis::from_generators(stabilizers).with_t_nodes_as_ports();
-        let mut pins = proxy.pins.iter().copied();
-        let mut fills = Vec::new();
-        for block in ordered_blocks(graph) {
-            let BlockKind::Selective(kind) = block.kind() else {
-                continue;
-            };
-            let pin = pins
-                .next()
-                .expect("compile_clifford_proxy validated the selective pin count");
-            let chosen = if pin {
-                kind.pauli_if_true()
-            } else {
-                kind.pauli_if_false()
-            };
-            fills.push((block.pos(), chosen));
-        }
-        debug_assert!(pins.next().is_none());
-
-        // Resolve the source rows in the selected arms; re-solving the pinned
-        // graph would replace the observable basis being tested.
-        Ok(basis.apply_selective_fills(&fills)?.into_generators())
-    }
-
     fn compile_temporal_template_plans(
         &self,
         plans: impl IntoIterator<Item = crate::lower::TemplatePlan>,
@@ -2111,54 +1954,30 @@ mod tests {
     }
 
     #[test]
-    fn clifford_proxy_preserves_source_generator_selection_and_order() {
-        let graph = GalleryItem::CNOT
-            .build()
-            .flatten()
-            .expect("gallery graph expands");
-        let mut source = graph.stabilizers().unwrap();
-        source.generators.reverse();
-        source.generators.pop().expect("CNOT has generators");
-        let ctx = CompileContext {
-            clifford_proxy: Some(CliffordProxyPins {
-                pins: Vec::new(),
-                purpose: CliffordProxyPurpose::Distance,
-                source: CliffordProxySource::Rows(None),
-            }),
-            ..CompileContext::new(CompileConfig::default())
-        };
-        let resolved = ctx.proxy_stabilizers(&graph, &source).unwrap();
-        assert_eq!(resolved.generators, source.generators);
-    }
-
-    #[test]
-    fn clifford_distance_checks_correlated_pins_and_limits() {
+    fn clifford_proxy_checks_correlated_pins_and_limits() {
         let graph = BlockGraph::from_blog_text(
             "BLOG 1.0\n\n  0: Port [0,0,0]\n  1: XZ [0,0,1]\n  2: Port [2,0,0]\n  3: XZ [2,0,1]\n  4: ZXZ [4,0,0]\n  5: ZXZ [6,0,0]\n  [0,0,0] -> +Z\n  [2,0,0] -> +Z\n\n  a = measure 4\n  b = measure 5\n  resolve 1 if a ^ b\n  resolve 3 if a ^ b\n",
         ).unwrap();
         for pins in [[false, false], [true, true]] {
-            let result = compile_clifford_distance(CompileConfig::new(3), &graph, &pins)
+            let result = compile_clifford_proxy(CompileConfig::new(3), &graph, &pins)
                 .expect("joint controls admit both uniform choices");
             result.bloq.validate().unwrap();
             assert!(!result.bloq.has_conditional_membership());
         }
         for pins in [[false, true], [true, false]] {
             assert!(matches!(
-                compile_clifford_distance(CompileConfig::new(3), &graph, &pins),
+                compile_clifford_proxy(CompileConfig::new(3), &graph, &pins),
                 Err(CompileError::ModuleCertification(
                     bloq_graph::ModuleCertificationError::CliffordDistanceUnreachablePins { .. }
                 ))
             ));
         }
         assert!(matches!(
-            compile_clifford_distance(CompileConfig::new(3), &graph, &[false]),
-            Err(CompileError::ModuleCertification(
-                bloq_graph::ModuleCertificationError::CliffordDistancePinCount {
-                    expected: 2,
-                    actual: 1,
-                    ..
-                }
-            ))
+            compile_clifford_proxy(CompileConfig::new(3), &graph, &[false]),
+            Err(CompileError::CliffordProxyPinCount {
+                expected: 2,
+                actual: 1,
+            })
         ));
         let limited = CompileConfig::new(3).with_certification_limits(
             bloq_graph::ModuleCertificationLimits {
@@ -2167,20 +1986,10 @@ mod tests {
             },
         );
         assert!(
-            compile_clifford_distance(limited, &graph, &[false, false])
+            compile_clifford_proxy(limited, &graph, &[false, false])
                 .unwrap_err()
                 .is_resource_limited()
         );
-    }
-
-    #[test]
-    fn clifford_distance_requires_explicit_structural_projection() {
-        assert!(matches!(
-            compile_clifford_distance(CompileConfig::new(3), &structural_branch_graph(), &[],),
-            Err(CompileError::ModuleCertification(
-                bloq_graph::ModuleCertificationError::CliffordDistanceStructuralBranches { .. }
-            ))
-        ));
     }
 
     fn single_cube_runtime_graph() -> BlockGraph {
@@ -2602,19 +2411,19 @@ mod tests {
         )
         .unwrap();
         let graph = bloq_graph::lower_blog_ast_deferred(&source, []).unwrap();
-        assert!(matches!(
-            compile_clifford_proxy(CompileConfig::default(), &graph, &[false]),
-            Err(CompileError::RuntimeBasis(
-                bloq_graph::RuntimeBasisError::Stabilizer(
-                    bloq_graph::StabilizerError::MeasurementSurfaceTouchesOutputPort {
-                        ref name,
-                        port,
-                    }
-                )
-            )) if name == "mzz" && port == ivec3(0, 0, 2)
-        ));
         let context = CompileContext::new(CompileConfig::default());
 
+        assert!(matches!(
+            compile_clifford_proxy(CompileConfig::default(), &graph, &[false]),
+            Err(CompileError::ModuleCertification(
+                bloq_graph::ModuleCertificationError::Runtime {
+                    source: bloq_graph::RuntimeBasisError::Stabilizer(
+                        bloq_graph::StabilizerError::UnavailableControlParity { ref mvar, .. }
+                    ),
+                    ..
+                }
+            )) if mvar == "mzz"
+        ));
         for error in [
             context.compile_and_validate(&graph).unwrap_err(),
             context.compile(&graph).unwrap_err(),
@@ -2630,22 +2439,19 @@ mod tests {
 
     #[test]
     fn t_region_observable_ids_fail_before_wrapping() {
-        let context = CompileContext {
-            clifford_proxy: Some(CliffordProxyPins {
-                pins: vec![false],
-                purpose: CliffordProxyPurpose::Detslice,
-                source: CliffordProxySource::Rows(None),
-            }),
-            ..CompileContext::new(CompileConfig::default())
-        };
-        let prepared = context
-            .prepare_proxy(
-                &GalleryItem::T
-                    .build()
-                    .flatten()
-                    .expect("gallery graph expands"),
+        let mut context = CompileContext::new(CompileConfig::default());
+        let summary = context
+            .summarize(
+                &GalleryItem::T.build(),
+                bloq_graph::ModuleCertificationLimits::DEFAULT,
             )
             .unwrap();
+        context.clifford_proxy = Some(CliffordProxyPins {
+            pins: vec![false],
+            purpose: CliffordProxyPurpose::Detslice,
+            summary,
+        });
+        let prepared = context.prepare_proxy().unwrap();
         let plan = crate::lower::LowerPlan::from_linked_input(&prepared.plan);
         let placed = crate::lower::PlacedPlan::new(PhysicalInput {
             graph: &prepared.graph,
@@ -2677,7 +2483,7 @@ mod tests {
 
         ctx.compile_and_validate(&graph)
             .expect("the normalized z span is 0..=1");
-        compile_clifford_distance(CompileConfig::new(3), &graph, &[])
+        compile_clifford_proxy(CompileConfig::new(3), &graph, &[])
             .expect("distance compilation normalizes the same span")
             .bloq
             .validate()
@@ -3359,12 +3165,7 @@ mod tests {
     fn registry_preparations_do_not_decode_unavailable_output_axes() {
         for gallery in [GalleryItem::BellState, GalleryItem::GHZ] {
             let graph = gallery.build().flatten().expect("gallery graph expands");
-            let expected = bloq_graph::ZXGraph::from_block_graph_for_analysis(&graph)
-                .unwrap()
-                .stabilizers()
-                .unwrap()
-                .generators
-                .len();
+            let expected = graph.stabilizers().unwrap().len();
             let context = CompileContext::new(CompileConfig::default());
             for bloq in [
                 registry::compile_graph(&context, &graph).unwrap().bloq,

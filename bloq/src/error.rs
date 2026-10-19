@@ -90,7 +90,6 @@ impl_from! {
     bloq_graph::FillPortsError,
     bloq_graph::StabilizerError,
     bloq_graph::RuntimeBasisError,
-    bloq_graph::SymbolicBasisError,
     bloq_graph::OutputCorrectionError,
     bloq_graph::ResolveDomainError,
     bloq_compile::CompileError,

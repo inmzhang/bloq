@@ -1,14 +1,10 @@
-//! Stabilizer computation for ZX graphs: deriving the stabilizer generators of
-//! a graph, filling open ports, and the Pauli-string linear algebra behind it.
+//! Stabilizer rows of ZX graphs: their materialized surfaces, automatic port
+//! filling, and the Pauli-string linear algebra behind them.
 
-mod affine;
 mod basis;
-mod computation;
-mod engine;
-mod measurement;
 mod selective;
 
-use super::{RuntimeBasisError, RuntimeStabilizerBasis, SymbolicStabilizerBasis, ZXGraph};
+use super::ZXGraph;
 use crate::{
     Action, Block, BlockGraph, BlockGraphError, BlockKind, CubeKind, Direction, FeedbackTarget,
     ModuleCertificationLimits, Pipe, SelectiveKind,
@@ -19,20 +15,14 @@ use rustc_hash::FxHashMap;
 use std::collections::{BTreeMap, HashMap, hash_map::Entry};
 use thiserror::Error;
 
-#[cfg(test)]
-pub(crate) use basis::coeffs_to_sparse;
+#[cfg(feature = "verify")]
+pub(crate) use basis::solve_coeff_combination;
 pub(crate) use basis::{
-    CoeffVec, DeadlineProjection, axis_pivot_constraints, deadline_projection_with_initial_coeffs,
-    gaussian_elimination_with_tracking, reduce_to_basis, solve_coeff_combination,
+    CoeffVec, axis_pivot_constraints, gaussian_elimination_with_tracking, reduce_to_basis,
 };
-pub(crate) use computation::{
-    CanonicalStabilizerTable, canonicalize_stabilizer_table, canonicalize_stabilizer_table_legacy,
-    canonicalize_stabilizer_table_with_external_basis, complete_stabilizer_search,
-    has_forced_direct_action_cycle, stabilizers_satisfy_global_constraints,
-};
-pub(crate) use engine::StabilizerBasis;
 pub(crate) use selective::{
-    SelectiveConstraint, collect_selective_constraints, normalize_selective_support,
+    collect_selective_constraints, normalize_selective_support,
+    normalize_selective_support_in_place,
 };
 
 /// An error from filling a graph's open ports with concrete boundary spiders.
@@ -101,14 +91,6 @@ pub enum StabilizerError {
         /// Configured limit.
         limit: usize,
     },
-    /// The canonical basis has insufficient rank.
-    #[error("canonical stabilizer basis lost rank: expected {expected}, got {actual}")]
-    BasisRankDeficient {
-        /// Required rank.
-        expected: usize,
-        /// Actual rank.
-        actual: usize,
-    },
     /// Selective support cannot be normalized.
     #[error("selective support at {pos} for {kind} cannot be normalized")]
     SelectiveSupportUnsatisfiable {
@@ -139,47 +121,12 @@ pub enum StabilizerError {
         /// Feedback Pauli.
         pauli: bloq_utils::PauliBasis,
     },
-    /// A measurement surface reaches a logical output.
-    #[error("measurement surface for '{name}' reaches output port {port}")]
-    MeasurementSurfaceTouchesOutputPort {
-        /// Measurement name.
-        name: String,
-        /// Touched output port.
-        port: IVec3,
-    },
-    /// A measurement surface extends beyond its causal deadline.
-    #[error(
-        "measurement surface for '{name}' has interior support at z {max_z}, past its accepted deadline {deadline}"
-    )]
-    MeasurementSurfaceExtendsPastDeadline {
-        /// Measurement name.
-        name: String,
-        /// Latest interior layer.
-        max_z: i32,
-        /// Accepted deadline.
-        deadline: i64,
-    },
-    /// Two selective fixing rows are coupled.
-    #[error(
-        "selective fixing row for site {row:?} anticommutes with the flip axis of selective site {site:?}"
-    )]
-    SelectiveFixingRowsCoupled {
-        /// Fixing-row site.
-        row: IVec3,
-        /// Coupled selective site.
-        site: IVec3,
-    },
     /// No deterministic presentation satisfies the composed certificate.
     #[error("composed module certificate has no admissible deterministic presentation")]
     ComposedPresentationUnsatisfied,
 }
 
-impl StabilizerError {
-    /// Incomplete searches must not enter fallbacks for unsatisfied constraints.
-    pub(crate) fn is_interrupted(&self) -> bool {
-        matches!(self, Self::ResourceLimited { .. } | Self::Cancelled(_))
-    }
-}
+impl StabilizerError {}
 
 pub(crate) struct SearchBudget {
     visited: usize,
@@ -257,36 +204,6 @@ impl SearchBudget {
                 + coefficient_rows as u128 * coefficient_width.div_ceil(64) as u128,
         )
     }
-
-    fn check_affine(
-        &self,
-        rows: &[PauliString],
-        coeffs: &[CoeffVec],
-        constraints: usize,
-    ) -> Result<(), StabilizerError> {
-        let rank = rows.len();
-        let width = rows.first().map_or(0, PauliString::len);
-        let coeff_width = coeffs.iter().map(CoeffVec::len).max().unwrap_or(0);
-        // Input/normalized/output coefficient rows, plus the equations and
-        // their coefficient-space kernel, coexist during the affine solve.
-        self.check_words(
-            rank as u128 * Self::pauli_words(width)
-                + (3 * rank as u128 + 1) * coeff_width.div_ceil(64) as u128
-                + (constraints as u128 + rank as u128 + 1) * (rank as u128 + 1).div_ceil(64),
-        )
-    }
-
-    fn check_prefix_storage(
-        &self,
-        depth: usize,
-        rank: usize,
-        width: usize,
-    ) -> Result<(), StabilizerError> {
-        // Prefix recursion retains earlier basis/span snapshots. Account for
-        // their triangular growth before cloning the next prefix.
-        let rows = (depth as u128 * (depth as u128 + 1) / 2).saturating_mul(3);
-        self.check_words(rows.saturating_mul(Self::pauli_words(width) + rank.div_ceil(64) as u128))
-    }
 }
 
 /// A stabilizer of a ZX graph, with its Pauli support broken out by the graph
@@ -306,32 +223,6 @@ pub struct Stabilizer {
 }
 
 impl Stabilizer {
-    /// Latest gate needed to read this surface: z for selective caps, z+1
-    /// for ordinary nodes. Empty surfaces have no measurement deadline.
-    ///
-    /// # Panics
-    ///
-    /// Panics if this materialized surface names a position absent from `zx`.
-    pub fn measurement_deadline(&self, zx: &ZXGraph) -> Option<i64> {
-        self.interior_nodes
-            .keys()
-            .chain(self.port_stabilizer.keys())
-            .copied()
-            .chain(
-                self.interior_edges
-                    .keys()
-                    .flat_map(|&(left, right)| [left, right]),
-            )
-            .map(|position| {
-                let node = zx
-                    .node_at(position)
-                    .expect("materialized surface names graph positions");
-                i64::from(position.z)
-                    + i64::from(!matches!(node.kind, crate::NodeKind::Selective(_)))
-            })
-            .max()
-    }
-
     /// XORs this stabilizer with `other`, ignoring Pauli-product phase.
     ///
     /// Shared interior edges must use the same endpoint order.
@@ -440,45 +331,6 @@ pub(crate) fn contracted_sign(row_phase: u8, edges: &FxHashMap<(IVec3, IVec3), P
     (row_phase == 2) ^ yy_edge_sign(edges)
 }
 
-/// A selective node and the Pauli basis it is forbidden from taking, used to
-/// constrain how selective supports are normalized.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SelectiveFixingTarget {
-    /// Position of the selective node.
-    pub pos: IVec3,
-    /// Pauli the node may not be fixed to.
-    pub forbidden: Pauli,
-}
-
-/// The canonical fixing-row binding for one selective site.
-#[derive(Debug, Clone, Copy)]
-pub struct SelectiveFixing<'a> {
-    /// Stabilizer row fixing the site.
-    pub row: &'a Stabilizer,
-    /// The site's branch-flip axis, pinned by `row`.
-    pub forbidden: Pauli,
-}
-
-/// Selective site to its fixing-row binding.
-pub type SelectiveFixings<'a> = FxHashMap<IVec3, SelectiveFixing<'a>>;
-
-/// Builds the canonical selective-site fixing map from generator row kinds.
-pub fn selective_fixings(generators: &[StabilizerGenerator]) -> SelectiveFixings<'_> {
-    let mut fixings = FxHashMap::default();
-    for generator in generators {
-        for target in generator.kind.selective_fixing_targets() {
-            fixings.insert(
-                target.pos,
-                SelectiveFixing {
-                    row: &generator.stabilizer,
-                    forbidden: target.forbidden,
-                },
-            );
-        }
-    }
-    fixings
-}
-
 /// The role a stabilizer generator row plays in the basis.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StabilizerRowKind {
@@ -487,41 +339,8 @@ pub enum StabilizerRowKind {
         /// Measurement name.
         name: String,
     },
-    /// Fixes the basis of one or more selective nodes.
-    SelectiveFixing {
-        /// Selective sites fixed by the row.
-        targets: Vec<SelectiveFixingTarget>,
-    },
     /// A plain logical generator.
     Logical,
-}
-
-impl StabilizerRowKind {
-    /// Returns the selective-fixing targets, or an empty slice for other kinds.
-    pub fn selective_fixing_targets(&self) -> &[SelectiveFixingTarget] {
-        match self {
-            StabilizerRowKind::SelectiveFixing { targets } => targets,
-            _ => &[],
-        }
-    }
-
-    pub(crate) fn fixes_selective(&self, pos: IVec3) -> bool {
-        self.selective_fixing_targets()
-            .iter()
-            .any(|target| target.pos == pos)
-    }
-
-    pub(crate) fn is_selective_fixing(&self) -> bool {
-        matches!(self, StabilizerRowKind::SelectiveFixing { .. })
-    }
-
-    /// Whether this row carries a readable measurement or logical value.
-    pub fn is_readout(&self) -> bool {
-        matches!(
-            self,
-            StabilizerRowKind::Measurement { .. } | StabilizerRowKind::Logical
-        )
-    }
 }
 
 /// A stabilizer generator paired with the [`StabilizerRowKind`] it plays.
@@ -534,37 +353,12 @@ pub struct StabilizerGenerator {
     pub stabilizer: Stabilizer,
     /// The role this generator plays in the basis.
     pub kind: StabilizerRowKind,
-    readout_plan: Option<std::sync::Arc<super::ReadoutPlan>>,
 }
 
 impl StabilizerGenerator {
     /// Pairs a stabilizer with its row kind.
     pub fn new(stabilizer: Stabilizer, kind: StabilizerRowKind) -> Self {
-        Self {
-            stabilizer,
-            kind,
-            readout_plan: None,
-        }
-    }
-
-    /// Frozen branch recipes used instead of this row for physical named readout.
-    pub fn readout_plan(&self) -> Option<&super::ReadoutPlan> {
-        self.readout_plan.as_deref()
-    }
-
-    /// Authoritative physical recipe for a named outcome.
-    pub fn named_readout(&self) -> Option<super::NamedReadout<'_>> {
-        self.measurement_name()?;
-        Some(match self.readout_plan() {
-            Some(recipe) => super::NamedReadout::Guarded(recipe),
-            None => super::NamedReadout::Fixed(&self.stabilizer),
-        })
-    }
-
-    /// Whether the recipe's ordinals name earlier corrected source outcomes.
-    pub fn uses_source_outcomes(&self) -> bool {
-        self.readout_plan()
-            .is_some_and(|recipe| recipe.coordinates == super::ReadoutCoordinates::SourceOutcomes)
+        Self { stabilizer, kind }
     }
 
     /// Whether this row witnesses a measurement variable.
@@ -605,11 +399,25 @@ impl StabilizerGenerators {
         }
     }
 
-    pub(crate) fn from_parts(
+    /// Completes the public rows with `relation` rows outside their span, so
+    /// the presentation spans the whole relation. Relation rows omit crossing
+    /// centres; completion rows regain them like public rows.
+    pub(crate) fn completed(
         zx_graph: ZXGraph,
         generators: Vec<StabilizerGenerator>,
-        auxiliary_rows: Vec<PauliString>,
+        relation: impl IntoIterator<Item = PauliString>,
     ) -> Self {
+        let mut span = basis::PauliSpan::new(zx_graph.total_ids());
+        for generator in &generators {
+            let mut row = generator.stabilizer.paulis.clone();
+            zx_graph.clear_cross_centers(std::slice::from_mut(&mut row));
+            span.insert_if_independent(row);
+        }
+        let mut auxiliary_rows = relation
+            .into_iter()
+            .filter(|row| span.insert_if_independent(row.clone()))
+            .collect::<Vec<_>>();
+        zx_graph.reconstruct_cross_center(&mut auxiliary_rows);
         Self {
             zx_graph,
             generators,
@@ -619,245 +427,6 @@ impl StabilizerGenerators {
 
     pub(crate) fn auxiliary_rows(&self) -> &[PauliString] {
         &self.auxiliary_rows
-    }
-
-    pub(crate) fn plan_readouts(
-        &mut self,
-        limits: ModuleCertificationLimits,
-    ) -> Result<(), RuntimeBasisError> {
-        let readouts = super::readout::plan_readouts(self, limits)?;
-        self.install_readouts(readouts);
-        Ok(())
-    }
-
-    /// Freeze physical named-readout choices after action analysis and C0
-    /// certification. The DAG must belong to this generator set's graph.
-    /// Returns whether new recipes require rebuilding the action dependencies.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if a causal readout is unavailable or exceeds `limits`.
-    pub fn prepare_readouts(
-        &mut self,
-        dag: &crate::ActionDag,
-        limits: ModuleCertificationLimits,
-    ) -> Result<bool, RuntimeBasisError> {
-        let readouts = super::readout::plan_causal_readouts(
-            self,
-            dag,
-            limits,
-            super::readout::ReadoutClosure::Required,
-        )?;
-        Ok(self.install_readouts(readouts))
-    }
-
-    #[cfg(feature = "verify")]
-    pub(crate) fn prepare_analysis_readouts(
-        &mut self,
-        dag: &crate::ActionDag,
-    ) -> Result<(), RuntimeBasisError> {
-        let readouts = super::readout::plan_causal_readouts(
-            self,
-            dag,
-            ModuleCertificationLimits::DEFAULT,
-            super::readout::ReadoutClosure::Analysis,
-        )?;
-        self.install_readouts(readouts);
-        Ok(())
-    }
-
-    fn install_readouts(&mut self, mut readouts: BTreeMap<String, super::ReadoutPlan>) -> bool {
-        let changed = !readouts.is_empty();
-        for generator in &mut self.generators {
-            if let Some(recipe) = generator
-                .measurement_name()
-                .and_then(|name| readouts.remove(name))
-            {
-                generator.readout_plan = Some(std::sync::Arc::new(recipe));
-            }
-        }
-        changed
-    }
-
-    /// Total basis rows, including private rank completion.
-    pub(crate) fn basis_rank(&self) -> usize {
-        self.generators.len() + self.auxiliary_rows.len()
-    }
-
-    /// Returns the number of public generator rows.
-    pub fn len(&self) -> usize {
-        self.generators.len()
-    }
-
-    /// Returns whether there are no public generator rows.
-    pub fn is_empty(&self) -> bool {
-        self.generators.is_empty()
-    }
-
-    /// Checks that fixing rows do not couple independent selective sites.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`StabilizerError::SelectiveFixingRowsCoupled`] for coupled sites.
-    pub fn validate_selective_decoupling(&self) -> Result<(), StabilizerError> {
-        let fixings = selective_fixings(&self.generators);
-        let mut sites = fixings.keys().copied().collect::<Vec<_>>();
-        sites.sort_unstable_by_key(|pos| (pos.x, pos.y, pos.z));
-        for &site in &sites {
-            let flip = fixings[&site].forbidden;
-            for &row in &sites {
-                if row == site {
-                    continue;
-                }
-                let support = fixings[&row]
-                    .row
-                    .interior_nodes
-                    .get(&site)
-                    .copied()
-                    .unwrap_or(Pauli::I);
-                if support.anticommutes(flip) {
-                    return Err(StabilizerError::SelectiveFixingRowsCoupled { row, site });
-                }
-            }
-        }
-        Ok(())
-    }
-
-    /// Requires an output-free representative for every measurement in every
-    /// reachable selective branch. Pure ZX analysis may retain output frames.
-    ///
-    /// # Errors
-    ///
-    /// Returns an unavailable-surface, output-support, or resource-limit error.
-    pub fn validate_measurements_close_before_outputs(&self) -> Result<(), RuntimeBasisError> {
-        self.validate_measurements_close_before_outputs_with_limits(
-            ModuleCertificationLimits::DEFAULT,
-        )
-    }
-
-    #[cfg(any(test, feature = "verify"))]
-    pub(crate) fn validate_measurements_close_before_outputs_with_limit(
-        &self,
-        max_guarded_domain_size: usize,
-    ) -> Result<(), RuntimeBasisError> {
-        self.validate_measurements_close_before_outputs_with_limits(ModuleCertificationLimits {
-            max_guarded_domain_size,
-            ..ModuleCertificationLimits::DEFAULT
-        })
-    }
-
-    /// Certifies C0 with explicit selective-domain, Boolean, and matrix limits.
-    ///
-    /// # Errors
-    ///
-    /// Returns an unavailable surface, an output-supported measurement, or a
-    /// resource-limit error if the proof cannot finish within these limits.
-    ///
-    /// # Panics
-    ///
-    /// Panics if internally stored generator rows and roles have different lengths.
-    pub fn validate_measurements_close_before_outputs_with_limits(
-        &self,
-        limits: ModuleCertificationLimits,
-    ) -> Result<(), RuntimeBasisError> {
-        if self
-            .generators
-            .iter()
-            .any(StabilizerGenerator::uses_source_outcomes)
-        {
-            for generator in &self.generators {
-                let Some(recipe) = generator.named_readout() else {
-                    continue;
-                };
-                let name = generator.measurement_name().expect("named readout");
-                for surface in recipe.surfaces() {
-                    for node in self
-                        .zx_graph
-                        .nodes()
-                        .iter()
-                        .filter(|node| node.is_output_port(&self.zx_graph))
-                    {
-                        let support = surface.paulis.get(node.id);
-                        if support != Pauli::I
-                            && !(node.role == crate::PortRole::Multiplex && support == Pauli::Z)
-                        {
-                            return Err(StabilizerError::MeasurementSurfaceTouchesOutputPort {
-                                name: name.to_owned(),
-                                port: node.pos,
-                            }
-                            .into());
-                        }
-                    }
-                }
-            }
-            return Ok(());
-        }
-        SearchBudget::with_limits(limits).check_matrix(
-            self.generators.len().saturating_mul(2),
-            self.zx_graph.total_ids(),
-            0,
-            0,
-        )?;
-        if let Ok(basis) = SymbolicStabilizerBasis::from_generators(self)
-            && basis.measurements_close_before_outputs(&self.zx_graph, limits.boolean_limits())?
-        {
-            return Ok(());
-        }
-
-        let sites = collect_selective_constraints(&self.zx_graph);
-        let targets = sites.iter().map(|site| site.pos).collect::<Vec<_>>();
-        let outputs = self.zx_graph.output_ports();
-        let rank = self.basis_rank();
-        SearchBudget::with_limits(limits).check_matrix(
-            rank.saturating_mul(3),
-            self.zx_graph.total_ids(),
-            rank,
-            self.generators.len(),
-        )?;
-        let basis = RuntimeStabilizerBasis::from_generators(self).with_t_nodes_as_ports();
-        let readout_width = basis.generators().len();
-
-        let domain = self
-            .zx_graph
-            .action_graph()
-            .resolve_value_domain_bounded_with_limits(
-                &targets,
-                limits.max_guarded_domain_size,
-                limits.boolean_limits(),
-            )
-            .map_err(|error| {
-                error.into_stabilizer("guarded-domain branches", limits.max_guarded_domain_size)
-            })?;
-        for values in domain.values() {
-            let fills = sites
-                .iter()
-                .zip(values)
-                .map(|(site, &value)| {
-                    let basis = if value {
-                        site.kind.pauli_if_true()
-                    } else {
-                        site.kind.pauli_if_false()
-                    };
-                    (site.pos, basis)
-                })
-                .collect::<Vec<_>>();
-            let branch = basis.apply_selective_fills(&fills)?;
-            for (ordinal, generator) in self.generators.iter().enumerate() {
-                let Some(name) = generator.measurement_name() else {
-                    continue;
-                };
-                if let Some(port) =
-                    branch.output_free_readout_failure(name, ordinal, readout_width, &outputs)?
-                {
-                    return Err(StabilizerError::MeasurementSurfaceTouchesOutputPort {
-                        name: name.into(),
-                        port,
-                    }
-                    .into());
-                }
-            }
-        }
-        Ok(())
     }
 }
 
@@ -906,7 +475,10 @@ pub(crate) fn fill_ports_auto(
     let mut generator_map = HashMap::<String, StabilizerGenerator>::new();
     let mut generator_order = Vec::new();
     let mut measurement_support = HashMap::new();
-    for generator in graph.stabilizers_with_limits(limits)?.generators {
+    if let Some(region) = graph.branch_regions()?.first() {
+        return Err(crate::InvalidActionError::MissingBranchValue(region.target).into());
+    }
+    for generator in graph.planned_surfaces(&[], limits)? {
         let external = stabilizer_external_string(&generator.stabilizer, &ordered_ports);
         if let Some(name) = generator.measurement_name() {
             measurement_support.insert(name.to_owned(), external.clone());
@@ -1148,67 +720,6 @@ fn pipe_direction_at(pipe: &Pipe, pos: IVec3) -> Result<Direction, FillPortsErro
 /// `zx::modular`, which each exercise a different slice of the same graphs and
 /// coefficient vectors.
 #[cfg(test)]
-pub(super) mod test_support {
-    use super::super::stabilizer::basis::CoeffVec;
-    use bloq_utils::PauliString;
-
-    /// A T injection feeding an `XY` selective block resolved by a joint `X`
-    /// measurement — the smallest graph with both a T site and a selective one.
-    pub(crate) fn build_t_selective_graph() -> crate::BlockGraph {
-        crate::BlockGraph::from_blog_text(
-            "BLOG 1.0\n\n\
-             0: Port [0, 0, 0]\n\
-             1: XZX [0, 0, 1]\n\
-             2: Port [0, 0, 2]\n\
-             3: T [1, 0, 0]\n\
-             4: XZX [1, 0, 1]\n\
-             5: XY [1, 0, 2]\n\
-             [0, 0, 0] -> +Z\n\
-             [0, 0, 1] -> +Z\n\
-             [0, 0, 1] -> +X\n\
-             [1, 0, 0] -> +Z\n\
-             [1, 0, 2] -> -Z\n\n\
-             mzz = measure 1 -> +X\n\
-             resolve 5 if mzz\n",
-        )
-        .expect("canonical T-selective graph must parse")
-    }
-
-    pub(crate) fn sparse_to_coeff(combination: &[usize], width: usize) -> CoeffVec {
-        let mut coeff = CoeffVec::zeros(width);
-        for &index in combination {
-            coeff.set_bit(index, true);
-        }
-        coeff
-    }
-
-    /// Replays a coefficient vector against the raw external table, giving the
-    /// row a tracked solution *should* materialize to.
-    pub(crate) fn algebraic_row_from_coeff(
-        coeff: &CoeffVec,
-        raw_external: &[PauliString],
-        width: usize,
-    ) -> PauliString {
-        let mut row = PauliString::new(width);
-        for index in coeff.to_indices() {
-            row ^= &raw_external[index];
-        }
-        row
-    }
-
-    pub(crate) fn algebraic_rows_from_coeffs(
-        coeffs: &[CoeffVec],
-        raw_external: &[PauliString],
-        width: usize,
-    ) -> Vec<PauliString> {
-        coeffs
-            .iter()
-            .map(|coeff| algebraic_row_from_coeff(coeff, raw_external, width))
-            .collect()
-    }
-}
-
-#[cfg(test)]
 mod tests {
     #[test]
     fn cancellation_preserves_spent_normalization_budget_and_restores_the_scope() {
@@ -1279,134 +790,10 @@ mod tests {
 
     use glam::ivec3;
     use std::collections::HashSet;
-    use std::sync::OnceLock;
 
-    use crate::zx::graph::CsrAdjacency;
-    use crate::zx::{NodeKind, ZXNode};
-    use crate::{ActionDag, Expr, GalleryItem, PauliBasis, PortRole};
+    use crate::{Expr, GalleryItem, PauliBasis};
 
     use super::*;
-
-    #[test]
-    fn selective_decoupling_rejects_foreign_anticommutation() {
-        let a = ivec3(0, 0, 0);
-        let b = ivec3(1, 0, 0);
-        let rows = vec![
-            StabilizerGenerator::new(
-                Stabilizer::from_interior_nodes([(a, Pauli::Y)]),
-                StabilizerRowKind::SelectiveFixing {
-                    targets: vec![SelectiveFixingTarget {
-                        pos: a,
-                        forbidden: Pauli::Y,
-                    }],
-                },
-            ),
-            StabilizerGenerator::new(
-                Stabilizer::from_interior_nodes([(b, Pauli::Y), (a, Pauli::X)]),
-                StabilizerRowKind::SelectiveFixing {
-                    targets: vec![SelectiveFixingTarget {
-                        pos: b,
-                        forbidden: Pauli::Y,
-                    }],
-                },
-            ),
-        ];
-        let zx = GalleryItem::CNOT
-            .build()
-            .materialize_root_graph()
-            .expect("gallery flat projection")
-            .to_zx_graph()
-            .unwrap();
-        let stabilizers = StabilizerGenerators::new(zx, rows);
-
-        assert!(matches!(
-            stabilizers.validate_selective_decoupling(),
-            Err(StabilizerError::SelectiveFixingRowsCoupled { row, site })
-                if row == b && site == a
-        ));
-    }
-
-    #[test]
-    fn measurement_must_close_in_every_selective_branch() {
-        let site = ivec3(0, 0, 0);
-        let output = ivec3(1, 0, 0);
-        let zx_graph = ZXGraph {
-            nodes: vec![
-                ZXNode::new(0, site, NodeKind::Selective(SelectiveKind::XZ)),
-                ZXNode::new(1, output, NodeKind::Port).with_role(PortRole::Output),
-            ],
-            edges: Vec::new(),
-            adjacency: CsrAdjacency::from_edges(2, &[]),
-            pos_to_node: FxHashMap::from_iter([(site, 0), (output, 1)]),
-            action_graph: ActionDag::from_actions(&[Action::Resolve {
-                target: site,
-                condition: Expr::Var("m".into()),
-            }]),
-            total_ids: 2,
-            cross_incident: OnceLock::new(),
-            stabilizer_phase_basis: OnceLock::new(),
-        };
-        let measurement = zx_graph.pauli_string_to_stabilizer(PauliString::try_from("Z_").unwrap());
-        let fixing = zx_graph.pauli_string_to_stabilizer(PauliString::try_from("YX").unwrap());
-        let generators = vec![
-            StabilizerGenerator::new(
-                measurement,
-                StabilizerRowKind::Measurement { name: "m".into() },
-            ),
-            StabilizerGenerator::new(
-                fixing,
-                StabilizerRowKind::SelectiveFixing {
-                    targets: vec![SelectiveFixingTarget {
-                        pos: site,
-                        forbidden: Pauli::Y,
-                    }],
-                },
-            ),
-        ];
-        let stabilizers = StabilizerGenerators::new(zx_graph.clone(), generators.clone());
-
-        assert!(matches!(
-            stabilizers.validate_measurements_close_before_outputs_with_limit(1),
-            Err(RuntimeBasisError::Stabilizer(
-                StabilizerError::ResourceLimited {
-                    phase: "guarded-domain branches",
-                    observed: 2,
-                    limit: 1,
-                }
-            ))
-        ));
-
-        assert!(matches!(
-            stabilizers.validate_measurements_close_before_outputs(),
-            Err(RuntimeBasisError::Stabilizer(
-                StabilizerError::MeasurementSurfaceTouchesOutputPort { ref name, port }
-            )) if name == "m" && port == output
-        ));
-
-        let with_auxiliary = StabilizerGenerators::from_parts(
-            zx_graph,
-            generators,
-            vec![PauliString::try_from("_X").unwrap()],
-        );
-        assert!(matches!(
-            with_auxiliary.validate_measurements_close_before_outputs_with_limits(
-                ModuleCertificationLimits {
-                    max_matrix_words: 100,
-                    ..ModuleCertificationLimits::DEFAULT
-                }
-            ),
-            Err(RuntimeBasisError::Stabilizer(
-                StabilizerError::ResourceLimited {
-                    phase: "dense matrix words",
-                    observed: 147,
-                    limit: 100,
-                }
-            ))
-        ));
-        with_auxiliary
-            .validate_measurements_close_before_outputs()
-            .unwrap();
-    }
 
     #[test]
     fn test_cnot() {
@@ -1417,18 +804,7 @@ mod tests {
         let zx = ZXGraph::try_from(&cnot).unwrap();
         assert_eq!(zx.nodes.len(), cnot.block_count());
         assert_eq!(zx.edges.len(), 2 * cnot.pipe_count());
-        let stabilizers = zx.stabilizers().unwrap();
-        assert_eq!(stabilizers.len(), 4);
-    }
-
-    #[test]
-    fn test_cz() {
-        let cz = GalleryItem::CZSpatialH
-            .build()
-            .materialize_root_graph()
-            .expect("gallery flat projection");
-        let zx = ZXGraph::try_from(&cz).unwrap();
-        let stabilizers = zx.stabilizers().unwrap();
+        let stabilizers = cnot.stabilizers().unwrap();
         assert_eq!(stabilizers.len(), 4);
     }
 
@@ -1449,7 +825,7 @@ mod tests {
                 .stabilizers()
                 .unwrap();
             assert_eq!(stabilizers.len(), 1);
-            assert_eq!(stabilizers.generators[0].stabilizer.sign, negative);
+            assert_eq!(stabilizers[0].stabilizer.sign, negative);
         }
     }
 
@@ -1470,7 +846,7 @@ mod tests {
         }
         let zx = ZXGraph::try_from(&cnot).unwrap();
         assert!(!zx.is_open());
-        let stabilizers = zx.stabilizers().unwrap();
+        let stabilizers = cnot.stabilizers().unwrap();
         assert_eq!(stabilizers.len(), 2);
     }
 
@@ -1484,7 +860,6 @@ mod tests {
         let generators: HashSet<String> = graph
             .stabilizers()
             .unwrap()
-            .generators
             .into_iter()
             .map(|stabilizer| stabilizer_external_string(&stabilizer.stabilizer, &ordered_ports))
             .collect();
@@ -1672,25 +1047,6 @@ mod tests {
                 .into_iter()
                 .all(|(filled_graph, _)| filled_graph.port_count() == 0
                     && filled_graph.validate().is_ok())
-        );
-    }
-
-    #[test]
-    fn zx_stabilizers_tag_measurement_names_on_generators() {
-        let graph = GalleryItem::T
-            .build()
-            .materialize_root_graph()
-            .expect("gallery flat projection");
-        let zx = ZXGraph::try_from(&graph).unwrap();
-        let stabilizers = zx.stabilizers().unwrap();
-
-        assert_eq!(
-            stabilizers
-                .generators
-                .iter()
-                .filter_map(StabilizerGenerator::measurement_name)
-                .collect::<Vec<_>>(),
-            vec!["mzz"]
         );
     }
 

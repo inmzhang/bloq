@@ -266,9 +266,6 @@ pub enum CompileError {
     /// Runtime stabilizer-basis construction failed.
     #[error("{0}")]
     RuntimeBasis(#[from] bloq_graph::RuntimeBasisError),
-    /// Symbolic stabilizer-basis construction failed.
-    #[error("{0}")]
-    SymbolicBasis(#[from] bloq_graph::SymbolicBasisError),
     /// Logical output-correction construction failed.
     #[error("{0}")]
     OutputCorrection(#[from] bloq_graph::OutputCorrectionError),

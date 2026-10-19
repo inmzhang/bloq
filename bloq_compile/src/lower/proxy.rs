@@ -6,7 +6,6 @@ use bloq_ir::{Basis, Bloq, BloqEdge, BloqNode, ClassicalExpr, ClassicalNode, Nod
 use super::leaves::ExprLeaves;
 use super::observable::{
     MaterializedObservables, materialize_observable_nodes, resolve_observables,
-    statically_resolved_row_indices,
 };
 use super::{
     ChunkSiteSource, LocalSurfaceContext, PhysicalInput, PhysicalPlacements, PhysicalProgram,
@@ -35,8 +34,12 @@ pub(crate) fn lower_clifford_proxy(
         placements.selectives.is_empty(),
         "proxy selectives are pinned"
     );
-    let rows = statically_resolved_row_indices(&stabilizers.generators, input.compiled);
-    let mut materialized = materialize_observable_nodes(observables, &rows, &mut bloq, &node_map);
+    let mut materialized = materialize_observable_nodes(
+        observables,
+        stabilizers.generators.len() as u32,
+        &mut bloq,
+        &node_map,
+    );
     materialized.reference_offsets = reference_offsets;
     emit_frames(input, stabilizers, &placements, &materialized, &mut bloq)?;
     let interface = super::LogicalInterface::bind(

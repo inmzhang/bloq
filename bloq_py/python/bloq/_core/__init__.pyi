@@ -803,11 +803,12 @@ class BlockGraph:
         """
     def stabilizers(self) -> builtins.list[StabilizerGenerator]:
         r"""
-        Derives the stabilizer generators of the graph's ZX diagram.
-        Call `flatten()` first if the graph contains child instances.
+        The correlation surfaces of the displayed branch arms, from the causal
+        readout plan that compilation uses: one row per named readout, output
+        frame, and closed logical surface. Module hierarchies are composed.
 
         Raises:
-            BlockGraphError: If the stabilizers cannot be derived.
+            BlockGraphError: If the source is invalid or a readout is unavailable.
 
         Examples:
             >>> import bloq
@@ -4334,12 +4335,10 @@ class StabilizerGenerator:
     r"""
     A stabilizer generator row: a stabilizer plus its role.
 
-    One row of the generator basis returned by `BlockGraph.stabilizers()` or
-    `ZXGraph.stabilizers()`. The `kind` says what the row does: `"logical"`
-    rows generate the diagram's logical stabilizer group, `"measurement"` rows
-    witness a named measurement variable, and `"selective_fixing"` rows pin
-    the measurement basis of one or more selective nodes. Internal rank rows
-    are not exposed through the graph API.
+    One correlation surface returned by `BlockGraph.stabilizers()` or
+    `fill_ports_auto()`. The `kind` says what the row does: `"measurement"`
+    rows read a named measurement variable, and `"logical"` rows are output
+    frames or closed logical surfaces.
     """
     @property
     def stabilizer(self) -> Stabilizer:
@@ -4349,7 +4348,7 @@ class StabilizerGenerator:
     @property
     def kind(self) -> builtins.str:
         r"""
-        The row's role: `"measurement"`, `"selective_fixing"`, or `"logical"`.
+        The row's role: `"measurement"` or `"logical"`.
         """
     @property
     def is_measurement(self) -> builtins.bool:
@@ -4360,11 +4359,6 @@ class StabilizerGenerator:
     def measurement_name(self) -> typing.Optional[builtins.str]:
         r"""
         The measurement variable name, for `"measurement"` rows.
-        """
-    @property
-    def selective_fixing_targets(self) -> builtins.list[tuple[tuple[builtins.int, builtins.int, builtins.int], Pauli]]:
-        r"""
-        `(position, forbidden_pauli)` pairs, for `"selective_fixing"` rows.
         """
     def __eq__(self, other: builtins.object, /) -> builtins.bool: ...
     def __repr__(self) -> builtins.str: ...
@@ -5240,13 +5234,6 @@ class ZXGraph:
 
         Raises:
             BlockGraphError: If the actions do not form a runnable program.
-        """
-    def stabilizers(self) -> builtins.list[StabilizerGenerator]:
-        r"""
-        Derives the stabilizer generators of the diagram.
-
-        Raises:
-            BlockGraphError: If the stabilizers cannot be derived.
         """
     def __repr__(self) -> builtins.str: ...
 

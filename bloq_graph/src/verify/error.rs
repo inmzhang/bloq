@@ -35,14 +35,6 @@ pub enum VerifyLogicalError {
     /// An external Boolean input lacks an assigned value.
     #[error("external Boolean input {0:?} has no supplied branch value")]
     MissingInputValue(String),
-    /// A feedback target has no wire carrying the requested Pauli frame.
-    #[error("feedback target {target} has no wire on which to insert {pauli}")]
-    FeedbackTargetWithoutWire {
-        /// Block receiving feedback.
-        target: IVec3,
-        /// Pauli correction being inserted.
-        pauli: crate::PauliBasis,
-    },
     /// A measurement outcome cannot be represented as a native ZX phase.
     #[error("measurement {0:?} has no native ZX phase representation")]
     MeasurementPhaseUnavailable(String),

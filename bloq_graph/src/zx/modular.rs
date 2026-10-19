@@ -2,7 +2,7 @@
 
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
 use bloq_utils::{Direction, Pauli, PauliString, PhasedPauliString};
 use glam::IVec3;
@@ -60,13 +60,6 @@ pub(crate) struct ProjectedExternalTable {
     pub closed_rows: Vec<WitnessedRow>,
     arena: WitnessArena,
     width: usize,
-    flow_basis: OnceLock<FlowWitnessBasis>,
-}
-
-#[derive(Debug, Clone)]
-struct TemporalDenseRow<'a> {
-    projection: PauliString,
-    flow: EdgeFlowRow<'a>,
 }
 
 /// Directed edge coordinates followed by the independent isolated-site ids.
@@ -113,10 +106,6 @@ impl<'a> EdgeFlowLayout<'a> {
                 .ok()
                 .map(|index| self.zx.edges.len() + index)
         }
-    }
-
-    fn project(&self, row: &PauliString) -> PauliString {
-        self.project_terms(row.iter_support())
     }
 
     fn project_terms(&self, terms: impl Iterator<Item = (usize, Pauli)>) -> PauliString {
@@ -191,49 +180,9 @@ impl EliminationRow for EdgeFlowRow<'_> {
     }
 }
 
-impl EliminationRow for TemporalDenseRow<'_> {
-    fn multiply_assign(&mut self, pivot: &Self) {
-        self.projection ^= &pivot.projection;
-        self.flow.multiply_assign(&pivot.flow);
-    }
-}
-
 impl ProjectedExternalTable {
     pub(crate) fn materialize(&self, row: &ProjectedRow) -> PhasedPauliString {
         self.arena.materialize(row.witness, self.width)
-    }
-
-    /// The canonical witnessed basis of this table.
-    ///
-    /// Building it is independent of any row being reduced, so callers that
-    /// classify many rows against one table build it once and reuse it.
-    pub(crate) fn flow_witness_basis(&self) -> &FlowWitnessBasis {
-        self.flow_basis.get_or_init(|| {
-            let basis = self
-                .boundary_rows
-                .iter()
-                .map(|candidate| WitnessedRow {
-                    signed: self.materialize(candidate),
-                    flow_witness: candidate.flow_witness.clone(),
-                })
-                .chain(self.closed_rows.iter().cloned())
-                .collect::<Vec<_>>();
-            FlowWitnessBasis {
-                rows: canonical_witnessed_external_basis(basis, self.width),
-            }
-        })
-    }
-}
-
-/// A reduced basis over one [`ProjectedExternalTable`], reusable across rows.
-#[derive(Debug, Clone)]
-pub(crate) struct FlowWitnessBasis {
-    rows: Vec<WitnessedRow>,
-}
-
-impl FlowWitnessBasis {
-    pub(crate) fn to_external_basis(&self) -> Vec<PhasedPauliString> {
-        self.rows.iter().map(|row| row.signed.clone()).collect()
     }
 }
 
@@ -446,140 +395,6 @@ pub(super) fn toggle<T: Ord>(set: &mut BTreeSet<T>, value: T) {
 }
 
 impl ZXGraph {
-    pub(crate) fn to_temporal_signed_external_generator_table(
-        &self,
-        semantic_columns: &[usize],
-        node_gates: &[Option<i64>],
-    ) -> Vec<PhasedPauliString> {
-        assert_eq!(node_gates.len(), self.nodes.len());
-        let edge_layout = EdgeFlowLayout::new(self);
-        let semantic = semantic_columns.iter().copied().collect::<FxHashSet<_>>();
-
-        let effective_node_gates = self
-            .nodes
-            .iter()
-            .map(|node| {
-                node_gates[node.id]
-                    .or_else(|| {
-                        self.neighbor_ids(node.id)
-                            .iter()
-                            .filter_map(|&neighbor| node_gates[neighbor])
-                            .max()
-                    })
-                    .unwrap_or(i64::MAX)
-            })
-            .collect::<Vec<_>>();
-        let mut layers = BTreeMap::<i64, (Vec<usize>, Vec<EdgePair>)>::new();
-        for node in &self.nodes {
-            layers
-                .entry(effective_node_gates[node.id])
-                .or_default()
-                .0
-                .push(node.id);
-        }
-        let mut unresolved_semantic_edges = FxHashSet::default();
-        for edge in self.edges.iter().filter(|edge| edge.n1 < edge.n2) {
-            let pair = self.edge_column_pair(edge);
-            if semantic.contains(&pair.0) {
-                unresolved_semantic_edges.insert(pair.0);
-            }
-            if semantic.contains(&pair.1) {
-                unresolved_semantic_edges.insert(pair.1);
-            }
-            let gate = effective_node_gates[edge.n1].max(effective_node_gates[edge.n2]);
-            layers.entry(gate).or_default().1.push(pair);
-        }
-        for (nodes, pairs) in layers.values_mut() {
-            nodes.sort_unstable();
-            pairs.sort_unstable();
-        }
-
-        let mut live = Vec::new();
-        let mut physical_columns = BTreeSet::new();
-        let mut released = Vec::new();
-        for (_, (node_ids, pairs)) in layers {
-            for &node_id in &node_ids {
-                if self.neighbor_ids(node_id).is_empty() && !semantic.contains(&node_id) {
-                    physical_columns.insert(node_id);
-                }
-                for (_, column) in self.neighbor_edges(node_id) {
-                    if !semantic.contains(&column) || unresolved_semantic_edges.contains(&column) {
-                        physical_columns.insert(column);
-                    }
-                }
-            }
-            live.extend(
-                self.local_stabilizer_flow_rows_for_nodes(&node_ids, None)
-                    .into_iter()
-                    .map(|signed| TemporalDenseRow {
-                        projection: PauliString::from_terms(
-                            self.total_ids,
-                            signed.paulis.iter_support().filter(|&(column, _)| {
-                                column >= self.nodes.len()
-                                    || semantic.contains(&column)
-                                    || self.neighbor_ids(column).is_empty()
-                            }),
-                        ),
-                        flow: EdgeFlowRow {
-                            signed: PhasedPauliString::new(
-                                edge_layout.project(&signed.paulis),
-                                signed.phase(),
-                            ),
-                            layout: &edge_layout,
-                        },
-                    }),
-            );
-            let eliminated = signed_gaussian_elimination(
-                &mut live,
-                pairs
-                    .iter()
-                    .flat_map(|&(left, right)| [(left, right, Pauli::X), (left, right, Pauli::Z)]),
-                |row, &(left, right, axis)| {
-                    (row.projection.get(left) ^ row.projection.get(right)) & axis
-                },
-            );
-            live.drain(..eliminated);
-            for &(left, right) in &pairs {
-                unresolved_semantic_edges.remove(&left);
-                unresolved_semantic_edges.remove(&right);
-                physical_columns.remove(&left);
-                physical_columns.remove(&right);
-            }
-            let discharged = node_ids
-                .iter()
-                .copied()
-                .chain(pairs.iter().flat_map(|&(left, right)| [left, right]))
-                .filter(|column| !semantic.contains(column))
-                .collect::<Vec<_>>();
-            for &column in &discharged {
-                physical_columns.remove(&column);
-            }
-            for row in &mut live {
-                for &column in &discharged {
-                    row.projection.set(column, Pauli::I);
-                }
-            }
-            let physical_rank = signed_gaussian_elimination(
-                &mut live,
-                physical_columns
-                    .iter()
-                    .copied()
-                    .flat_map(|column| [Pauli::X, Pauli::Z].map(|axis| (column, axis))),
-                |row, &(column, axis)| row.projection.get(column) & axis,
-            );
-
-            for row in live.drain(physical_rank..) {
-                released.push(row.flow.materialize());
-            }
-        }
-        assert!(
-            live.is_empty(),
-            "every temporal row closes at the final gate"
-        );
-
-        canonical_external_basis(released, self.total_ids)
-    }
-
     pub(crate) fn projected_external_table(
         &self,
         boundary_columns: &[usize],
@@ -789,7 +604,6 @@ impl ZXGraph {
             closed_rows,
             arena,
             width: self.total_ids,
-            flow_basis: OnceLock::new(),
         })
     }
 
@@ -939,14 +753,6 @@ impl ZXGraph {
             .into_iter()
             .map(|row| row.paulis)
             .collect()
-    }
-
-    pub(crate) fn to_external_generator_table_with_signed(
-        &self,
-    ) -> (Vec<PauliString>, Vec<PhasedPauliString>) {
-        let signed = self.to_signed_external_generator_table();
-        let rows = signed.iter().map(|row| row.paulis.clone()).collect();
-        (rows, signed)
     }
 
     /// Recover a complete tensor row's phase before the YY edge contractions.
@@ -1109,7 +915,7 @@ impl ZXGraph {
             .collect()
     }
 
-    fn to_signed_external_generator_table(&self) -> Vec<PhasedPauliString> {
+    pub(crate) fn to_signed_external_generator_table(&self) -> Vec<PhasedPauliString> {
         let layout = EdgeFlowLayout::new(self);
         let mut rows = Vec::new();
         for (node_ids, same_layer_pairs, pending_edge_pairs) in self.stabilizer_layers() {
@@ -1544,7 +1350,6 @@ mod tests {
     use glam::IVec3;
 
     use super::super::ZXGraph;
-    use super::super::stabilizer::test_support::build_t_selective_graph;
     use super::super::stabilizer::{axis_pivot_constraints, gaussian_elimination_with_tracking};
     use super::{FlowSourceKey, FlowWitness, ProjectionLimits};
     use crate::GalleryItem;
@@ -1982,7 +1787,7 @@ mod tests {
                     expected.multiply_assign(right);
                     let edge_row = |source: &PhasedPauliString| super::EdgeFlowRow {
                         signed: PhasedPauliString::new(
-                            layout.project(&source.paulis),
+                            layout.project_terms(source.paulis.iter_support()),
                             source.phase(),
                         ),
                         layout: &layout,
@@ -2019,11 +1824,6 @@ mod tests {
                     )
                     .unwrap()
                     .expect("complete rows belong to their local tensors");
-                assert_eq!(
-                    table.flow_witness_basis().to_external_basis(),
-                    expected,
-                    "{entry}"
-                );
                 for row in &table.boundary_rows {
                     let full = table.materialize(row);
                     assert_eq!(
@@ -2125,11 +1925,6 @@ mod tests {
                     )
                     .unwrap();
 
-                assert_eq!(
-                    projected.flow_witness_basis().to_external_basis(),
-                    eager_signed,
-                    "{entry:?}"
-                );
                 assert_eq!(projected.boundary_rows.len(), columns.len(), "{entry:?}");
                 assert_eq!(
                     projected.closed_rows.len(),
@@ -2166,107 +1961,8 @@ mod tests {
     }
 
     #[test]
-    fn temporal_external_table_matches_exact_eager_table() {
-        check_temporal_tables(dense_oracle_galleries());
-
-        let graph = crate::parse_blog_to_graph(
-            "BLOG 1.0\n\n0: Port [0, 0, 0]\n1: Port [0, 0, 1]\n0 -> +Z\n",
-        )
-        .unwrap();
-        let zx = ZXGraph::try_from(&graph).unwrap();
-        let actual = zx.to_temporal_signed_external_generator_table(&[0, 1], &[None, None]);
-        let expected = zx.to_signed_external_generator_table();
-        assert_eq!(
-            actual
-                .iter()
-                .map(|row| (&row.paulis, row.phase()))
-                .collect::<Vec<_>>(),
-            expected
-                .iter()
-                .map(|row| (&row.paulis, row.phase()))
-                .collect::<Vec<_>>(),
-        );
-    }
-
-    fn check_temporal_tables(entries: impl IntoIterator<Item = GalleryItem>) {
-        for entry in entries {
-            for projection in gallery_projections(
-                &entry
-                    .build()
-                    .materialize_root_graph()
-                    .expect("gallery flat projection"),
-            ) {
-                let zx = ZXGraph::try_from(&projection).unwrap();
-                let mut semantic = free_boundary_columns(&zx);
-                semantic.extend(zx.measurement_columns().into_values());
-                semantic.extend(zx.nodes.iter().filter_map(|node| {
-                    matches!(node.kind, super::NodeKind::Selective(_)).then_some(node.id)
-                }));
-                semantic.sort_unstable();
-                semantic.dedup();
-                let node_gates = zx
-                    .nodes
-                    .iter()
-                    .map(|node| {
-                        (!node.is_output_port(&zx)).then_some(
-                            if matches!(node.kind, super::NodeKind::Selective(_)) {
-                                i64::from(node.pos.z)
-                            } else {
-                                i64::from(node.pos.z) + 1
-                            },
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                let actual = zx.to_temporal_signed_external_generator_table(&semantic, &node_gates);
-                let expected = zx.to_signed_external_generator_table();
-
-                assert_eq!(
-                    actual
-                        .iter()
-                        .map(|row| (&row.paulis, row.phase()))
-                        .collect::<Vec<_>>(),
-                    expected
-                        .iter()
-                        .map(|row| (&row.paulis, row.phase()))
-                        .collect::<Vec<_>>(),
-                    "{entry:?}",
-                );
-            }
-        }
-    }
-
-    #[test]
     #[ignore = "ten-bit dense ZX oracle stress; run via just test-full"]
     fn ten_bit_adder_tables_match_eager_oracles() {
         check_projected_tables([GalleryItem::TenBitAdder]);
-        check_temporal_tables([GalleryItem::TenBitAdder]);
-    }
-
-    #[test]
-    fn modular_stabilizer_path_computes_representative_measurement_and_selective_graphs() {
-        for graph in [
-            GalleryItem::THTH
-                .build()
-                .materialize_root_graph()
-                .expect("gallery flat projection"),
-            GalleryItem::CCZFactoryWithTels
-                .build()
-                .materialize_root_graph()
-                .expect("gallery flat projection"),
-            build_t_selective_graph(),
-        ] {
-            let zx = ZXGraph::try_from(&graph).unwrap();
-            let table = zx.to_stabilizer_table().unwrap();
-
-            assert_eq!(table.basis.rows.len(), table.basis.kinds.len());
-            assert!(table.basis.rows.iter().all(|row| row.weight() > 0));
-            assert!(
-                table
-                    .basis
-                    .rows
-                    .iter()
-                    .all(|row| zx.row_has_external_edge_pair_support(row))
-            );
-        }
     }
 }

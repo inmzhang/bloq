@@ -21,9 +21,7 @@ use crate::gltf::{
     module_html_geometry, stabilizer_as_gltf_data,
 };
 use crate::validate::InvalidActionError;
-use crate::zx::{
-    StabilizerGenerator, StabilizerGenerators, fill_ports_auto as fill_ports_auto_impl,
-};
+use crate::zx::{StabilizerGenerator, fill_ports_auto as fill_ports_auto_impl};
 use crate::{
     Action, ActionDag, Block, BlockGraphError, BlockKind, CubeHeight, CubeKind, Direction,
     MeasureTarget, MeasurementObservable, PatchRotationKind, Pipe, WalkingBoundaryKind,
@@ -566,13 +564,8 @@ impl BlockGraph {
         let mut plan = self.plan_local_readouts(limits)?;
         let mut dag = self.build_action_graph(&self.actions())?;
         dag.attach_guarded_dependencies(plan.action_dependencies()?)?;
-        let shown = self
-            .branches
-            .iter()
-            .map(|branch| (branch.target, branch.shown_true()))
-            .collect::<Vec<_>>();
         // A displayed selection the guards cannot reach has no surfaces to show.
-        if let Some(surfaces) = shown_surfaces(&plan, &shown)? {
+        if let Some(surfaces) = shown_surfaces(&plan, &self.shown_branch_arms())? {
             dag.attach_measurement_surfaces(surfaces);
         }
         Ok(dag)
@@ -684,81 +677,26 @@ impl BlockGraph {
         ZXGraph::try_from(self).map_err(Into::into)
     }
 
-    /// Derives the stabilizer generators for this graph via the unified compute backend.
-    ///
-    /// Structural sources must first be expanded with
-    /// [`BlockGraph::branch_projections`]; one generator table cannot describe
-    /// several optional topologies.
+    /// Correlation surfaces of the displayed branch arms, from the causal
+    /// readout plan used by compilation. See [`Self::planned_surfaces`].
     ///
     /// # Errors
     ///
-    /// Returns an error if validation or stabilizer derivation fails.
-    pub fn stabilizers(&self) -> Result<StabilizerGenerators, BlockGraphError> {
-        self.stabilizers_with_limits(crate::ModuleCertificationLimits::DEFAULT)
+    /// Returns an error for invalid sources, unavailable readouts, or exhausted
+    /// analysis budgets.
+    pub fn stabilizers(&self) -> Result<Vec<StabilizerGenerator>, BlockGraphError> {
+        self.planned_surfaces(
+            &self.shown_branch_arms(),
+            crate::ModuleCertificationLimits::DEFAULT,
+        )
     }
 
-    /// Derive a static table with explicit construction and search limits.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if validation, resource limits, or stabilizer derivation fails.
-    pub fn stabilizers_with_limits(
-        &self,
-        limits: crate::ModuleCertificationLimits,
-    ) -> Result<StabilizerGenerators, BlockGraphError> {
-        self.require_flat_hierarchy("stabilizer analysis")?;
-        self.validate_resource_limits(limits)?;
-        if let Some(target) = self.action_graph.ordered_nodes().find_map(|node| {
-            if let Action::Branch { target, .. } = node.action {
-                Some(target)
-            } else {
-                None
-            }
-        }) {
-            return Err(crate::InvalidActionError::MissingBranchValue(target).into());
-        }
-        self.stabilizer_zx_graph(limits)?
-            .stabilizers_with_limits(limits)
-            .map_err(Into::into)
-    }
-
-    fn stabilizer_zx_graph(
-        &self,
-        limits: crate::ModuleCertificationLimits,
-    ) -> Result<ZXGraph, BlockGraphError> {
-        let columns = self
-            .pipe_count()
-            .checked_mul(2)
-            .and_then(|pipes| pipes.checked_add(self.block_count()));
-        if columns.is_none_or(|columns| columns > limits.max_local_columns) {
-            return Err(crate::StabilizerError::ResourceLimited {
-                phase: "local ZX columns",
-                observed: columns.unwrap_or(usize::MAX),
-                limit: limits.max_local_columns,
-            }
-            .into());
-        }
-        ZXGraph::from_block_graph_for_analysis(self).map_err(Into::into)
-    }
-
-    /// Rebuilds the action DAG with stabilizer-derived dependencies and surfaces.
-    ///
-    /// `stabilizers` must come from this graph. The returned graph stores only
-    /// derived metadata; BLOG serialization remains unchanged.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if action validation or readout dependency attachment fails.
-    pub fn with_analyzed_action_graph(
-        mut self,
-        stabilizers: &StabilizerGenerators,
-    ) -> Result<Self, BlockGraphError> {
-        let actions = self.actions();
-        let mut dag = self.build_action_graph(&actions)?;
-        stabilizers.validate_selective_decoupling()?;
-        dag.attach_readout_dependencies(&stabilizers.generators, Some(&stabilizers.zx_graph))?;
-        self.install_action_graph(dag, None);
-        Ok(self)
+    /// The displayed arm of every branch region.
+    fn shown_branch_arms(&self) -> Vec<(IVec3, bool)> {
+        self.branches
+            .iter()
+            .map(|branch| (branch.target, branch.shown_true()))
+            .collect()
     }
 
     /// Installs the planned action analysis: readout dependencies and the
@@ -3473,7 +3411,7 @@ mod tests {
             .materialize_root_graph()
             .expect("gallery flat projection");
         let stabilizers = graph.stabilizers().expect("CNOT stabilizers");
-        let stabilizer = &stabilizers.generators[0];
+        let stabilizer = &stabilizers[0];
 
         let transparent = graph
             .build_export_gltf(2.0, Some(stabilizer), &[])

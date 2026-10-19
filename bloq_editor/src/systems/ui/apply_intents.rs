@@ -2547,8 +2547,7 @@ mod tests {
             .flatten()
             .unwrap()
             .stabilizers()
-            .unwrap()
-            .generators;
+            .unwrap();
         assert!(!stabilizers.is_empty());
         for enabled in [true, false] {
             app.world_mut().resource_mut::<EditorState>().stabilizers = stabilizers.clone();

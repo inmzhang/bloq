@@ -708,22 +708,34 @@ impl GuardedTopology {
                 GuardedVariable::Outcome(_) => None,
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let Some(outcomes) = diagram.conjunction_witness(&conditions)? else {
-            return Ok(None);
-        };
+        let outcomes = diagram.conjunction_witness(&conditions)?;
+        Ok(outcomes.map(|outcomes| self.complete_values(&outcomes)))
+    }
+
+    /// One complete variable assignment satisfying every condition, or `None`
+    /// when they are jointly unreachable.
+    pub(crate) fn witness_values(
+        &mut self,
+        conditions: &[DecisionId],
+    ) -> Result<Option<Vec<bool>>, BooleanResourceError> {
+        let outcomes = self.diagram.conjunction_witness(conditions)?;
+        Ok(outcomes.map(|outcomes| self.complete_values(&outcomes)))
+    }
+
+    /// Extends outcome values to every variable; a branch variable takes the
+    /// value of its condition.
+    fn complete_values(&self, outcomes: &BTreeMap<usize, bool>) -> Vec<bool> {
         let outcome = |index| outcomes.get(&index).copied().unwrap_or(false);
-        Ok(Some(
-            self.variables
-                .iter()
-                .enumerate()
-                .map(|(index, variable)| match variable {
-                    GuardedVariable::Branch { condition, .. } => {
-                        self.diagram.evaluate(*condition, outcome)
-                    }
-                    GuardedVariable::Outcome(_) => outcome(index),
-                })
-                .collect(),
-        ))
+        self.variables
+            .iter()
+            .enumerate()
+            .map(|(index, variable)| match variable {
+                GuardedVariable::Branch { condition, .. } => {
+                    self.diagram.evaluate(*condition, outcome)
+                }
+                GuardedVariable::Outcome(_) => outcome(index),
+            })
+            .collect()
     }
 
     /// Collect only while no external stage retains unlisted decision ids.
