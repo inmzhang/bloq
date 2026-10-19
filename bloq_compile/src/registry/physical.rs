@@ -313,7 +313,7 @@ impl PhysicalProjection {
         let temporal_templates =
             context.compile_temporal_template_plans(input.temporal_templates())?;
         let wall_templates =
-            context.compile_spatial_template_walls(graph, input.spatial_walls())?;
+            context.compile_spatial_template_walls(graph, ports, input.spatial_walls())?;
         let pool = context.cache.pool_snapshot();
         let mut plan = LowerPlan::from_linked_input(&input);
         plan.set_incoming_cuts(&scheduled.incoming_cuts);

@@ -782,18 +782,41 @@ impl Program {
             self.core.bloq.top(),
             &self.core.global_meas,
         )?;
-        // Only ordinary spatial inputs inject after their temporal Port.
+        let mut owners = FxHashMap::default();
+        for (_, level) in self.core.bloq.levels() {
+            for (_, node) in level.nodes() {
+                if let Some(quantum) = node.try_quantum() {
+                    owners.extend(
+                        quantum
+                            .instances
+                            .iter()
+                            .map(|instance| (instance.id, quantum)),
+                    );
+                }
+            }
+        }
+        // Injection precedes the whole owning component, including its walls.
+        let input_cuts = self
+            .inputs
+            .iter()
+            .filter(|input| !input.prepare_before.contains(&input.input_instance))
+            .map(|input| {
+                let consumers = input
+                    .prepare_before
+                    .iter()
+                    .filter_map(|instance| owners.get(instance))
+                    .flat_map(|quantum| quantum.instances.iter().map(|instance| instance.id))
+                    .collect::<FxHashSet<_>>();
+                (input.input_instance, consumers)
+            })
+            .collect::<Vec<_>>();
         detectors.retain(|(_, detector)| {
-            !self.inputs.iter().any(|input| {
-                !input.prepare_before.contains(&input.input_instance)
+            !input_cuts.iter().any(|(input, consumers)| {
+                detector.terms.iter().any(|(instance, _)| instance == input)
                     && detector
                         .terms
                         .iter()
-                        .any(|(instance, _)| *instance == input.input_instance)
-                    && detector
-                        .terms
-                        .iter()
-                        .any(|(instance, _)| input.prepare_before.contains(instance))
+                        .any(|(instance, _)| consumers.contains(instance))
             })
         });
         let observable_nodes = collect_observables(&self.core.bloq);
@@ -2979,6 +3002,73 @@ graph {
             Ok(())
         })
         .unwrap();
+    }
+
+    #[test]
+    fn spatial_input_replacement_keeps_wall_checks_on_their_own_side_of_the_cut() {
+        use bloq_compile::{CompileConfig, CompileContext};
+        use bloq_graph::BlockGraph;
+
+        let graph = BlockGraph::from_blog_text(
+            "BLOG 1.0
+            0: Port [0,1,0] role=input
+            1: ZXX [0,0,0]
+            2: Port [0,0,1] role=output
+            1 -H> +Y
+            1 -> +Z",
+        )
+        .unwrap();
+        let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
+            .compile(&graph)
+            .unwrap()
+            .bloq;
+        let prepared = Program::prepare(&bloq, RunMode::PrepareInputs).unwrap();
+        let input = &prepared.inputs[0];
+        let records = prepared
+            .core
+            .global_meas
+            .iter()
+            .filter_map(|(measurement, &record)| {
+                (measurement.instance == input.input_instance).then_some(record)
+            })
+            .collect::<Vec<_>>();
+        let mut histories = vec![Vec::new(); records.len()];
+        let report = run_bloq_with_io(
+            &bloq,
+            16,
+            17,
+            |sim, context| {
+                // The virtual Port first encounters a random old gauge. Ideal
+                // input replacement establishes a fresh gauge before the wall.
+                for &qubit in &input.data_qubits {
+                    sim.h(qubit);
+                }
+                sim.h(context.inputs[0].qubit);
+                Ok(())
+            },
+            |sim, context| {
+                for (&record, history) in records.iter().zip(&mut histories) {
+                    history.push(context.record.get(record).unwrap());
+                }
+                let output = &context.outputs[0];
+                let frame = &context.frames[0];
+                let bloch = crate::verify::logical_bloch(
+                    sim,
+                    output,
+                    (frame.x.unwrap(), frame.z.unwrap()),
+                )?;
+                assert!((bloch.0 - 1.0).abs() < 1e-8);
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert!(
+            histories
+                .iter()
+                .any(|history| history.contains(&false) && history.contains(&true))
+        );
+        assert!(!report.detectors.is_empty());
+        assert!(report.all_detectors_constant());
     }
 
     #[test]

@@ -1228,7 +1228,8 @@ impl CompileContext {
             compiled.keys().copied(),
         );
         let temporal_templates = self.compile_temporal_template_plans(plan.temporal_templates())?;
-        let wall_templates = self.compile_spatial_template_walls(&graph, plan.spatial_walls())?;
+        let wall_templates =
+            self.compile_spatial_template_walls(&graph, &ports, plan.spatial_walls())?;
         let needs_padding = !ports.is_empty() || graph.pipes().any(|pipe| !pipe.dir().is_spatial());
         let padding_templates = self
             .cache
@@ -1616,13 +1617,14 @@ impl CompileContext {
     fn compile_spatial_template_walls(
         &self,
         graph: &BlockGraph,
+        ports: &PortExpansionMap,
         walls: impl IntoIterator<Item = crate::lower::SpatialPipeRef>,
     ) -> Result<crate::FxMap<crate::lower::SpatialPipeRef, LoweringTemplateId>, CompileError> {
         let mut templates = crate::FxMap::default();
         for wall in walls {
             self.check_cancellation()?;
             let distance = self.config.code_distance();
-            let key = spatial_hadamard_key(graph, wall, distance)?;
+            let key = spatial_hadamard_key(graph, ports, wall, distance)?;
             let template = self
                 .cache
                 .get_or_compile_fixed(Signature::SpatialHadamardPipe(key), || {
@@ -1657,6 +1659,7 @@ impl CompileContext {
 /// defensive because `Walking` signatures omit spatial faces.
 fn spatial_hadamard_key(
     graph: &BlockGraph,
+    ports: &PortExpansionMap,
     wall: crate::lower::SpatialPipeRef,
     distance: u32,
 ) -> Result<SpatialHadamardKey, CompileError> {
@@ -1678,7 +1681,12 @@ fn spatial_hadamard_key(
         bloq_graph::UDirection::Z => unreachable!("spatial Hadamard walls are not temporal"),
     };
     let make_side = |block: &Block, kind: bloq_graph::CubeKind| {
-        let connectivity = BlockSignature::template_connectivity(block, graph);
+        let mut connectivity = BlockSignature::template_connectivity(block, graph);
+        // The positionless Port half leaves this face open in the cube template.
+        // The wall must make the same data-collapse decision as that cube.
+        if let Some(expansion) = ports.get(&block.pos()).filter(|port| port.is_spatial()) {
+            connectivity = connectivity.with_pipe(expansion.cube_pipe_dir());
+        }
         WallSide {
             temporal_basis: kind.z(),
             connectivity,
