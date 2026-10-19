@@ -32,6 +32,12 @@ The example also executes larger candidates:
 | `iqp6` | 6 | 8 | Even output parity and the analytic all-zero probability |
 
 For example, replace `--candidate walk3` above with `--candidate simon6`.
+Use `--spacing 2 --routing-margin 1 --placement-margin 1` to try a tighter
+upstream routing canvas. The same options are available on `from_qasm` as
+`spacing`, `routing_margin`, and `placement_margin`. Smaller margins can
+increase routing depth or cause failure; compare validated layouts rather than
+assuming a smaller canvas reduces occupied spacetime volume. These options do
+not change Bloq's separate resource-gadget spacing.
 Simon uses three input and three output qubits with the nonlinear oracle
 `f(x) = (x0 xor x2, x1, (x0 xor x2) and x1)`. Its input marginal is uniform on
 `000`, `010`, `101` and `111`. The report recovers the unique nonzero period
@@ -75,7 +81,9 @@ report = bloq.run_noiseless(program, shots=3, input_state="zero", include_signat
   5π/4 with one signed T and a residual Pauli. No extra S gadgets replace T†.
   Missing phase stages and incomplete or duplicate routing histories reject.
 - Original ZX boundaries determine port order. Patch IDs can be reused;
-  preparation, H, Z, and release events receive ordered time slices. A release
+  preparation, H, Z, and release events receive dependency-ordered time slices.
+  Independent events on distinct patches share a slice; same-patch lifetimes
+  and every event/measurement boundary remain separate. A release
   is an X effect. Separate lifetimes are never joined. Reduced identity/H wires
   are preserved even when SpiderLS omits them from target code.
 - Spacing by three leaves room for the shared, channel-checked resource gadgets.

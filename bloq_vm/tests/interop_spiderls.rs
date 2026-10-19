@@ -82,6 +82,10 @@ fn ideal(name: &str, simulator: &mut Simulator) -> Result<(), ExecError> {
         "h" => simulator.h(0),
         "z" => simulator.z(0),
         "hzh" => simulator.x(0),
+        "parallel_local" => {
+            simulator.x(0);
+            simulator.x(1);
+        }
         "s" => simulator.s(0),
         "sdg" => simulator.s_dag(0),
         "t" | "passthrough" => simulator.t(0)?,
@@ -150,6 +154,7 @@ fn ideal(name: &str, simulator: &mut Simulator) -> Result<(), ExecError> {
 #[case("h")]
 #[case("z")]
 #[case("hzh")]
+#[case("parallel_local")]
 #[case("s")]
 #[case("sdg")]
 #[case("t")]

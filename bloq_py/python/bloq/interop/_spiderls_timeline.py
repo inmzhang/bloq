@@ -77,10 +77,10 @@ def diagram(source, target, schedule, routed):
         previous[patch] = n
         return n
 
-    def zero(event):
+    def zero(event, z):
         nonlocal index
         _require(set(event.dependency_node_ids) <= completed, f'Event {event.dag_node_id} precedes a dependency')
-        index += 1
+        index = z
         patch, kind = event.patch, event.kind
         if kind in ('PREPARE_INPUT', 'PREPARE_PLUS'):
             _require(patch not in active, f'Preparation overwrites active patch {patch}')
@@ -105,9 +105,24 @@ def diagram(source, target, schedule, routed):
                 del previous[patch]
         completed.add(event.dag_node_id)
 
-    for i in order:
-        if i in grouped[0]:
-            zero(events[i])
+    def zero_group(ids):
+        nonlocal index
+        base = index
+        times: dict[int, int] = {}
+        last_patch: dict[int, int] = {}
+        for i in order:
+            if i not in ids:
+                continue
+            event = events[i]
+            # Independent patches can share a slice. Keep all DAG edges and
+            # same-patch lifetimes strictly separated, including after release.
+            z = max([base + 1, last_patch.get(event.patch, base) + 1,
+                     *(times[d] + 1 for d in event.dependency_node_ids if d in times)])
+            zero(event, z)
+            times[i] = last_patch[event.patch] = z
+        index = max(times.values(), default=base)
+
+    zero_group(grouped[0])
     for layer in routed.layers:
         index += 1
         prefix = {n: d for n, d in raw['nodes'].items() if d['position'][2] == layer.time}
@@ -140,9 +155,7 @@ def diagram(source, target, schedule, routed):
             _require(m.time <= layer.time and set(m.dependency_node_ids) <= completed,
                      f'Measurement {m.measurement_id} precedes a dependency')
         completed.update(measurements[c.measurement_id].dag_node_id for c in layer.connections)
-        for i in order:
-            if i in grouped[layer.time]:
-                zero(events[i])
+        zero_group(grouped[layer.time])
     _require(events.keys() | measurements.keys() == completed, 'Some scheduled operations were not embedded')
     index = max(index + 1, 2)
     mapping = dict(target.final_patch_map)

@@ -11,29 +11,29 @@
     [
       0,
       9,
-      3
+      0
     ],
     [
       9,
       9,
-      6
+      0
     ]
   ],
   "output_ports": [
     [
       0,
       0,
-      45
+      33
     ],
     [
       0,
       9,
-      45
+      33
     ],
     [
       9,
       9,
-      45
+      33
     ]
   ],
   "t_gadgets": 1,
@@ -67,7 +67,7 @@
     "candidate": "walk3",
     "algorithm": "Coined walk on a four-cycle, three steps",
     "qubits": 3,
-    "candidate_generator_sha256": "949090b306d09c88b7c346e27c3fbc61b4b866e6c126fc969b0aaf38b603a298",
+    "candidate_generator_sha256": "5a95b7cd4eab05fbe609da9538c8a73a5f56a1015c051d9815d88b9810cc906b",
     "projective_spectral_error": 7.849665933929455e-16,
     "gate_counts": {
       "h": 6,

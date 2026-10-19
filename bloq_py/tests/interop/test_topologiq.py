@@ -18,6 +18,21 @@ def qasm(gates, width=1):
     return f'OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[{width}];\n{gates}\n'
 
 
+@pytest.mark.parametrize('options', [dict(gravity=-1), dict(gravity=True), dict(z_stretch=1.5)])
+def test_invalid_routing_weights_reject_before_upstream(options):
+    with pytest.raises(ValueError, match='nonnegative integer'):
+        from_qasm(qasm('h q[0];'), **options)
+
+
+def test_compact_qft_profile_reaches_validated_ir():
+    require_upstream()
+    fixture = Path(__file__).resolve().parents[3] / 'bloq_vm/tests/data/topologiq/qft2.qasm'
+    imported = from_qasm(fixture.read_text(), gravity=1, z_stretch=1)
+    assert imported.graph.block_count < 74
+    program = bloq.compile(imported.graph, distance=3, prepare_t_with_mpps=True, validate=True)
+    assert {output.port for output in program.logical_outputs()} == set(imported.output_ports)
+
+
 @pytest.mark.parametrize("operation", ["measure q[0] -> c[0];", "reset q[0];", "if(c==1) x q[0];"])
 def test_classical_operations_reject_before_upstream_ingestion(operation):
     with pytest.raises(TopologiqImportError, match="classical_control"):

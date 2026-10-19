@@ -16,6 +16,24 @@ def source(gates, width=1):
     return f'OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[{width}];\n{gates}\n'
 
 
+@pytest.mark.parametrize('options', [dict(spacing=1), dict(spacing=True),
+                                    dict(routing_margin=0), dict(placement_margin=1.5)])
+def test_invalid_routing_options_reject_even_for_an_identity(options):
+    with pytest.raises(ValueError, match='must be an integer'):
+        from_qasm(source(''), **options)
+
+
+def test_compact_routing_preserves_the_executable_interface():
+    import bloq
+
+    imported = from_qasm(source('h q[0]; cx q[0],q[1]; t q[1];', 2),
+                         spacing=2, routing_margin=1, placement_margin=1)
+    assert imported.layout_options['spacing'] == 2
+    assert imported.layout_options['routing_margin'] == 1
+    program = bloq.compile(imported.graph, distance=3, prepare_t_with_mpps=True, validate=True)
+    assert {output.port for output in program.logical_outputs()} == set(imported.output_ports)
+
+
 @pytest.mark.parametrize('gates,code', [
     ('rz(pi/8) q[0];', 'unsupported_phase'),
     ('rz(0.7853981633974483) q[0];', 'unsupported_angle'),
@@ -51,6 +69,14 @@ def test_zero_time_hzh_uses_dependencies_instead_of_event_array_order():
 
     program = bloq.compile(graph, distance=3, prepare_t_with_mpps=True, validate=True)
     assert {output.port for output in program.logical_outputs()} == set(outputs)
+
+
+def test_independent_local_event_chains_share_time_without_merging_each_chain():
+    imported = from_qasm(source('h q[0]; z q[0]; h q[0]; h q[1]; z q[1]; h q[1];', 2))
+    graph = imported.graph.flatten()
+    # Two independent four-event chains need four slices, not eight. The
+    # separate final output slice and resource spacing then give z=0..15.
+    assert max(p[2] for p in graph.positions()) <= 15
 
 
 @pytest.mark.parametrize('phase', ['pi/4', '-pi/4', '3*pi/4', '5*pi/4'])

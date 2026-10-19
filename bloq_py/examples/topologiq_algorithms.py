@@ -26,7 +26,8 @@ def _worker(name, args):
     return run_demo(candidate.source_qasm, candidate.clifford_t_qasm, candidate.ideal_unitary,
                     args.output_dir, candidate.summary, shots=args.shots,
                     synthesis_only=args.synthesis_only, compile_only=args.compile_only,
-                    layout_seed=args.layout_seed)
+                    layout_options=dict(seed=args.layout_seed, gravity=args.gravity,
+                                        z_stretch=args.z_stretch))
 
 
 def _comparison_markdown(comparison):
@@ -62,6 +63,8 @@ def main():
     parser.add_argument("--output-dir", type=Path, default=Path("topologiq-algorithms"))
     parser.add_argument("--shots", type=int, default=3)
     parser.add_argument("--layout-seed", type=int, default=1330)
+    parser.add_argument("--gravity", type=int, default=7)
+    parser.add_argument("--z-stretch", type=int, default=2)
     parser.add_argument("--timeout", type=float, default=180, help="seconds allowed per candidate")
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument("--synthesis-only", action="store_true")
@@ -70,6 +73,8 @@ def main():
     args = parser.parse_args()
     if args.shots < 1 or not np.isfinite(args.timeout) or args.timeout <= 0:
         parser.error("shots and timeout must be positive and finite")
+    if args.gravity < 0 or args.z_stretch < 0:
+        parser.error("gravity and z-stretch must be nonnegative")
     if len(set(args.candidates)) != len(args.candidates):
         parser.error("candidates must be unique")
     if args.output_dir.exists() and any(args.output_dir.iterdir()):
@@ -94,7 +99,8 @@ def main():
         output.mkdir()
         command = [sys.executable, str(Path(__file__).resolve()), "--worker", "--candidates", name,
                    "--shots", str(args.shots), "--layout-seed", str(args.layout_seed),
-                   "--output-dir", str(output.resolve())]
+                   "--output-dir", str(output.resolve()), "--gravity", str(args.gravity),
+                   "--z-stretch", str(args.z_stretch)]
         if args.synthesis_only:
             command.append("--synthesis-only")
         if args.compile_only:

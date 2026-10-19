@@ -49,6 +49,13 @@ map, routing options, and input/output ports in source-qubit order. Match
 is coordinate-based. `TopologiqImportError` includes a diagnostic `code` and
 available upstream `nodes`; native compilation errors remain authoritative.
 Use a nonzero layout seed; the pinned upstream treats zero as unseeded.
+The optional `gravity` and `z_stretch` routing weights default to 7 and 2.
+Try profiles such as `gravity=1, z_stretch=1` for a smaller layout; the algorithm
+example exposes them as `--gravity` and `--z-stretch`. Lower weights are not
+guaranteed to improve every circuit. Compare occupied cells, bounding volume
+and physical-qubit count separately, and retain only profiles passing channel
+and native execution checks. Temporal-only Hadamard routing and all T-frame and
+patch-lifetime checks remain enforced.
 
 ## Run the examples
 

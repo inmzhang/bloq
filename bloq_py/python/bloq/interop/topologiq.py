@@ -229,18 +229,26 @@ def _convert_geometry(
     return graph, shifted, in_ports, out_ports
 
 
-def from_qasm(qasm: str, *, seed: int = 1330) -> TopologiqImport:
+def from_qasm(qasm: str, *, seed: int = 1330, gravity: int = 7,
+              z_stretch: int = 2) -> TopologiqImport:
     """Compile a static OpenQASM 2 circuit through the audited upstream API.
 
     Hadamard pipes use only the temporal axis. Unsupported operations and unproved gadget frames raise
     :class:`TopologiqImportError`; no phases, ports, or failures are repaired
-    implicitly. Topologiq and PyZX must be installed separately.
+    implicitly. ``gravity`` and ``z_stretch`` are nonnegative upstream routing
+    weights; smaller values can reduce volume or make a layout infeasible.
+    Topologiq and PyZX must be installed separately.
     """
-    return _from_qasm(qasm, seed=seed, temporal_hadamards_only=True)
+    return _from_qasm(qasm, seed=seed, temporal_hadamards_only=True,
+                      gravity=gravity, z_stretch=z_stretch)
 
 
-def _from_qasm(qasm: str, *, seed: int, temporal_hadamards_only: bool) -> TopologiqImport:
+def _from_qasm(qasm: str, *, seed: int, temporal_hadamards_only: bool,
+               gravity: int = 7, z_stretch: int = 2) -> TopologiqImport:
     """The private policy argument supports replaying historical proof fixtures."""
+    for name, value in [('gravity', gravity), ('z_stretch', z_stretch)]:
+        if type(value) is not int or value < 0:
+            raise ValueError(f'{name} must be a nonnegative integer')
     clean = re.sub(r"//[^\n]*|/\*.*?\*/", "", qasm, flags=re.S)
     if not re.match(r"\s*OPENQASM\s+2(?:\.\d+)?\s*;", clean):
         raise TopologiqImportError("qasm_version", "Expected an OpenQASM 2 source circuit")
@@ -280,9 +288,9 @@ def _from_qasm(qasm: str, *, seed: int, temporal_hadamards_only: bool) -> Topolo
         augmented = prepare_graph(normalized)
     except ValueError as error:
         raise TopologiqImportError("upstream_flow", f"Pauli-flow preparation failed: {error}") from error
-    options = dict(graph_traverse_mode="tfs", seed=seed, gravity=7,
+    options = dict(graph_traverse_mode="tfs", seed=seed, gravity=gravity,
                    temporal_hadamards_only=temporal_hadamards_only,
-                   z_stretch=2, debug=0, animate=False,
+                   z_stretch=z_stretch, debug=0, animate=False,
                    # The upstream default can exhaust before reaching long
                    # resource arms imposed by its causal constraints.
                    a_star_max_visits_standard=20_000)

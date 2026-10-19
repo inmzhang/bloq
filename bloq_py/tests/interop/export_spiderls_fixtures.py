@@ -21,6 +21,7 @@ SOURCES = {
     "h": (1, "h q[0];"),
     "z": (1, "z q[0];"),
     "hzh": (1, "h q[0];\nz q[0];\nh q[0];"),
+    "parallel_local": (2, "h q[0];\nz q[0];\nh q[0];\nh q[1];\nz q[1];\nh q[1];"),
     "s": (1, "s q[0];"),
     "sdg": (1, "sdg q[0];"),
     "t": (1, "t q[0];"),

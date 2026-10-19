@@ -189,14 +189,26 @@ def _convert(source, target, schedule, routing):
     return build_graph(nodes, edges, len(source.inputs()), actions)
 
 
-def from_qasm(qasm: str) -> SpiderLSImport:
-    """Reduce, schedule, route, and import an exact static Clifford+T source."""
+def from_qasm(qasm: str, *, spacing: int = 3, routing_margin: int = 3,
+              placement_margin: int | None = None) -> SpiderLSImport:
+    """Reduce, schedule, route, and import an exact static Clifford+T source.
+
+    Routing spacing must be at least two; margins must be positive. Smaller
+    values trade routing room for footprint and can make a layout infeasible.
+    Bloq's separate resource-gadget spacing remains fixed.
+    """
     import pyzx as zx
     import pyzx_execution_order as execution
     from pyzx_target_code import generate_target_code
     from pyzx_parallelization import parallelize_target_program
     from pyzx_routing import route_parallel_schedule, validate_routing_result
 
+    for name, value, minimum in [('spacing', spacing, 2), ('routing_margin', routing_margin, 1),
+                                  ('placement_margin', placement_margin, 1)]:
+        if name == 'placement_margin' and value is None:
+            continue
+        if type(value) is not int or value < minimum:
+            raise ValueError(f'{name} must be an integer >= {minimum}')
     circuit = _source(qasm)
     if execution._phase_gate_label(Fraction(1)) != 'Z':
         raise SpiderLSImportError('upstream_patch', 'Apply bloq_py/examples/spiderls.patch to preserve pi phases')
@@ -210,7 +222,8 @@ def from_qasm(qasm: str) -> SpiderLSImport:
     target = generate_target_code(plan)
     schedule = parallelize_target_program(target, include_boundary_h=True)
     if target.initial_patch_map or schedule.slots:
-        routing = route_parallel_schedule(schedule)
+        routing = route_parallel_schedule(schedule, spacing=spacing, routing_margin=routing_margin,
+                                          placement_margin=placement_margin)
         validate_routing_result(routing, schedule)
     else:
         from pyzx_routing import BoundingBox, RoutingResult
