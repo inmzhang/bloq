@@ -168,18 +168,10 @@ impl<'a> PredicateAnalysis<'a> {
                 .saturating_add(excluded.len())
                 .saturating_add(1),
         )?;
-        let mut domain = DECISION_TRUE;
-        for &predicate in required {
-            let value = self.guard(Some(predicate))?;
-            domain = self.diagram.apply(BooleanOp::And, domain, value)?;
-        }
+        let mut domain = self.conjunction(required)?;
         for conjunction in excluded {
             self.charge(conjunction.len())?;
-            let mut active = DECISION_TRUE;
-            for &predicate in conjunction {
-                let value = self.guard(Some(predicate))?;
-                active = self.diagram.apply(BooleanOp::And, active, value)?;
-            }
+            let active = self.conjunction(conjunction)?;
             let inactive = self.diagram.negate(active)?;
             domain = self.diagram.apply(BooleanOp::And, domain, inactive)?;
             if domain == DECISION_FALSE {
@@ -187,6 +179,15 @@ impl<'a> PredicateAnalysis<'a> {
             }
         }
         Ok(domain != DECISION_FALSE)
+    }
+
+    fn conjunction(&mut self, predicates: &[ValueRef]) -> Result<DecisionId, Error> {
+        let mut result = DECISION_TRUE;
+        for &predicate in predicates {
+            let value = self.guard(Some(predicate))?;
+            result = self.diagram.apply(BooleanOp::And, result, value)?;
+        }
+        Ok(result)
     }
 
     fn guard(&mut self, node: Option<ValueRef>) -> Result<DecisionId, Error> {
@@ -237,11 +238,7 @@ impl<'a> PredicateAnalysis<'a> {
         if self.proves_conjunct(left, right)? {
             return Ok(true);
         }
-        let mut source = DECISION_TRUE;
-        for &node in left {
-            let value = self.guard(Some(node))?;
-            source = self.diagram.apply(BooleanOp::And, source, value)?;
-        }
+        let source = self.conjunction(left)?;
         let target = self.guard(Some(right))?;
         let absent = self.diagram.negate(target)?;
         Ok(self.diagram.apply(BooleanOp::And, source, absent)? == DECISION_FALSE)

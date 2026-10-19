@@ -118,11 +118,15 @@ struct EraNeighbors {
     successors: crate::FxMap<bloq_ir::BloqNodeId, Vec<bloq_ir::BloqNodeId>>,
 }
 
-fn conditional_footprint(node: &BloqNode) -> bool {
+fn guarded_node(node: &BloqNode) -> bool {
     node.activation.is_some()
         || node
             .try_quantum()
             .is_some_and(|quantum| !quantum.guards.is_empty())
+}
+
+fn conditional_footprint(node: &BloqNode) -> bool {
+    guarded_node(node)
         || node.try_region().is_some_and(|region| {
             region
                 .bodies()
@@ -169,11 +173,16 @@ impl LiveDirection {
     }
 }
 
-fn live_qubit_uses(
+/// Memoized live boundary support of a top-level node.
+fn cache_live_uses(
     bloq: &Bloq,
+    supports: &mut crate::FxMap<bloq_ir::BloqNodeId, LiveQubitUses>,
     id: bloq_ir::BloqNodeId,
-) -> Result<LiveQubitUses, crate::CompileError> {
-    live_qubit_uses_in_level(bloq, bloq.top(), id, id)
+) -> Result<(), crate::CompileError> {
+    if let Entry::Vacant(entry) = supports.entry(id) {
+        entry.insert(live_qubit_uses_in_level(bloq, bloq.top(), id, id)?);
+    }
+    Ok(())
 }
 
 fn live_qubit_uses_in_level(
@@ -192,12 +201,7 @@ fn live_qubit_uses_in_level(
                 .expect("compiled region activation exists")
         });
         for (_, body) in region.bodies() {
-            if body.nodes().any(|(_, node)| {
-                node.activation.is_some()
-                    || node
-                        .try_quantum()
-                        .is_some_and(|quantum| !quantum.guards.is_empty())
-            }) {
+            if body.nodes().any(|(_, node)| guarded_node(node)) {
                 return Err(crate::CompileError::ConditionalRegionLivenessUnsupported {
                     node: owner,
                 });
@@ -287,9 +291,7 @@ fn guarded_era_boundary(
         .into_iter()
         .chain(outgoing.iter().chain(incoming).copied())
     {
-        if let Entry::Vacant(entry) = supports.entry(id) {
-            entry.insert(live_qubit_uses(bloq, id)?);
-        }
+        cache_live_uses(bloq, supports, id)?;
     }
     let mut continuing = Vec::new();
     for (endpoint, adjacent, direction) in [
@@ -354,9 +356,7 @@ fn plan_live_era_reordering(
     use bloq_utils::boolean::BooleanDecisionDiagram;
 
     for id in [endpoint, reuser] {
-        if let Entry::Vacant(entry) = supports.entry(id) {
-            entry.insert(live_qubit_uses(bloq, id)?);
-        }
+        cache_live_uses(bloq, supports, id)?;
     }
     let mut qubits = direction
         .entry(&supports[&endpoint])
@@ -399,9 +399,7 @@ fn plan_live_era_reordering(
                 continue;
             }
             for &next in neighbors.get(&current).into_iter().flatten() {
-                if let Entry::Vacant(entry) = supports.entry(next) {
-                    entry.insert(live_qubit_uses(bloq, next)?);
-                }
+                cache_live_uses(bloq, supports, next)?;
                 let Some(outputs) = direction.exit(&supports[&next]).get(&qubit) else {
                     continue;
                 };
@@ -798,8 +796,6 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
         }
     }
 
-    drop(predicates);
-
     /// Whether an edge `from -> to` already exists. An existing edge appears
     /// in both `outgoing(from)` and `incoming(to)`, so scanning the two lists
     /// in lockstep and stopping as soon as either runs dry costs
@@ -987,22 +983,28 @@ mod tests {
     }
 
     #[test]
-    fn rus_footprints_and_exported_live_data_obey_the_same_era_rule() {
-        for region_is_producer in [false, true] {
+    fn plain_and_rus_footprints_obey_the_same_live_era_rule() {
+        for wrapped in [None, Some(false), Some(true)] {
             let mut bloq = Bloq::new();
             let producer = add_live_node(&mut bloq, 0, false, true);
             let consumer = add_live_node(&mut bloq, 2, true, false);
             let reuser = add_block_node(&mut bloq, ivec3(0, 0, 4), ivec2(0, 0));
-            wrap_in_rus(
-                &mut bloq,
-                if region_is_producer { producer } else { reuser },
-            );
+            if let Some(region_is_producer) = wrapped {
+                wrap_in_rus(
+                    &mut bloq,
+                    if region_is_producer { producer } else { reuser },
+                );
+            }
             bloq.add_edge(producer, consumer, BloqEdge::quantum(vec![]));
             bloq.add_edge(producer, reuser, BloqEdge::Order);
             bloq.add_edge(reuser, consumer, BloqEdge::Order);
             assert!(matches!(
                 induce_occupancy_order_edges(&mut bloq),
-                Err(crate::CompileError::LiveQubitReuse { .. })
+                Err(crate::CompileError::LiveQubitReuse {
+                    producer: actual_producer, consumer: actual_consumer,
+                    reuser: actual_reuser, qubit,
+                }) if (actual_producer, actual_consumer, actual_reuser, qubit)
+                    == (producer, consumer, reuser, ivec2(0, 0))
             ));
         }
     }
@@ -1111,26 +1113,6 @@ mod tests {
     }
 
     #[test]
-    fn a_control_dependency_cannot_reinitialize_an_unconsumed_live_era() {
-        let mut bloq = Bloq::new();
-        let producer = add_live_node(&mut bloq, 0, false, true);
-        let consumer = add_live_node(&mut bloq, 2, true, false);
-        let reuser = add_block_node(&mut bloq, ivec3(0, 0, 4), ivec2(0, 0));
-        bloq.add_edge(producer, consumer, BloqEdge::quantum(vec![]));
-        bloq.add_edge(producer, reuser, BloqEdge::Order);
-        bloq.add_edge(reuser, consumer, BloqEdge::Order);
-
-        assert!(matches!(
-            induce_occupancy_order_edges(&mut bloq),
-            Err(crate::CompileError::LiveQubitReuse {
-                producer: actual_producer, consumer: actual_consumer,
-                reuser: actual_reuser, qubit,
-            }) if (actual_producer, actual_consumer, actual_reuser, qubit)
-                == (producer, consumer, reuser, ivec2(0, 0))
-        ));
-    }
-
-    #[test]
     fn a_complete_era_can_run_after_a_later_source_layer() {
         let mut bloq = Bloq::new();
         let producer = add_live_node(&mut bloq, 0, false, true);
@@ -1168,23 +1150,9 @@ mod tests {
         let producer = add_live_node(&mut bloq, 0, false, true);
         let consumer = add_live_node(&mut bloq, 2, true, false);
         let reuser = add_block_node(&mut bloq, ivec3(0, 0, 4), ivec2(0, 0));
-        let bit = bloq.add_node(BloqNode::classical(ClassicalNode::observable_fragment(
-            Vec::new(),
-            Vec::new(),
-        )));
-        let inverse = bloq.add_node(BloqNode::classical(ClassicalNode::Compute {
-            expr: ClassicalExpr::Not(Box::new(ClassicalExpr::In(0))),
-        }));
-        bloq.add_edge(bit, inverse, BloqEdge::value(0));
-        for (node, guard) in [(consumer, inverse), (reuser, bit)] {
-            let quantum = bloq.node_mut(node).unwrap().expect_quantum_mut();
-            quantum.guards.push(QuantumGuard {
-                input: 0,
-                instances: vec![quantum.instances[0].id],
-                ..Default::default()
-            });
-            bloq.add_edge(guard, node, BloqEdge::value(0));
-        }
+        let (bit, inverse) = opposite_selectors(&mut bloq);
+        guard_member(&mut bloq, consumer, inverse);
+        guard_member(&mut bloq, reuser, bit);
         bloq.add_edge(producer, consumer, BloqEdge::quantum(vec![]));
         bloq.add_edge(producer, reuser, BloqEdge::Order);
         bloq.add_edge(reuser, consumer, BloqEdge::Order);

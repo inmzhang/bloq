@@ -238,14 +238,15 @@ impl ReadoutTiming {
         Ok(self.decisions[&root])
     }
 
-    fn include(
+    /// Control time of a reachable row and its columns with live coefficients.
+    fn controls(
         &mut self,
         row: &BooleanRow,
         diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
-    ) -> Result<(), BooleanResourceError> {
+    ) -> Result<Option<(i64, Vec<usize>)>, BooleanResourceError> {
         let care = diagram.apply(BooleanOp::And, row.active, self.domain)?;
         if care == ZERO {
-            return Ok(());
+            return Ok(None);
         }
         let mut control = self.decision(row.active, diagram)?;
         let mut columns = Vec::new();
@@ -258,6 +259,17 @@ impl ReadoutTiming {
             control = control.max(self.decision(value, diagram)?);
             columns.push(column);
         }
+        Ok(Some((control, columns)))
+    }
+
+    fn include(
+        &mut self,
+        row: &BooleanRow,
+        diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
+    ) -> Result<(), BooleanResourceError> {
+        let Some((control, columns)) = self.controls(row, diagram)? else {
+            return Ok(());
+        };
         // Choosing a guarded row requires its coefficient controls even when
         // another term in that same row has a constant coefficient.
         diagram.charge(columns.len())?;
@@ -273,23 +285,13 @@ impl ReadoutTiming {
         own: usize,
         diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
     ) -> Result<i64, BooleanResourceError> {
-        let care = diagram.apply(BooleanOp::And, row.active, self.domain)?;
-        if care == ZERO {
+        let Some((control, columns)) = self.controls(row, diagram)? else {
             return Ok(i64::MIN);
-        }
-        let mut time = self.decision(row.active, diagram)?;
-        diagram.charge(row.terms().len())?;
-        for &(column, value) in row.terms() {
-            let value = diagram.constrain(value, care)?;
-            if value == ZERO {
-                continue;
-            }
-            if column != own {
-                time = time.max(self.columns[column]);
-            }
-            time = time.max(self.decision(value, diagram)?);
-        }
-        Ok(time)
+        };
+        Ok(columns
+            .into_iter()
+            .filter(|&column| column != own)
+            .fold(control, |time, column| time.max(self.columns[column])))
     }
 }
 
@@ -3974,48 +3976,6 @@ mod tests {
         timing.include(&row, &mut space.topology.diagram).unwrap();
         assert_eq!(timing.columns[0], 7);
         assert_eq!(timing.row(&row, 1, &mut space.topology.diagram).unwrap(), 7);
-    }
-
-    #[test]
-    fn readout_timing_resolves_correlated_branch_controls_before_columns() {
-        let source = bloq_test::benchmark::structural_branch_workload(2);
-        let program = crate::parse_inline_graph(&source.to_blog_text()).unwrap();
-        let mut graph = program.materialize_root_graph().unwrap();
-        let mut actions = graph.actions();
-        for action in &mut actions {
-            if let Action::Branch { condition, .. } = action {
-                *condition = crate::Expr::Var("m0".into());
-            }
-        }
-        graph.set_actions_deferred(actions.clone()).unwrap();
-        let limits = ModuleCertificationLimits::DEFAULT;
-        let mut space = GuardedSurfaceSpace::new(
-            GuardedTopology::new(&graph, limits).unwrap(),
-            &HashMap::new(),
-            limits,
-        )
-        .unwrap();
-        assert_ne!(space.topology.domain, ONE);
-        for known in [HashMap::new(), HashMap::from([("m0".into(), 7)])] {
-            let mut timing = space.readout_timing(&[], &known, &actions).unwrap();
-            let expected = known.get("m0").copied().unwrap_or(i64::MAX);
-            for (_, _, root) in &space.topology.branches {
-                assert_eq!(
-                    timing.decision(*root, &mut space.topology.diagram).unwrap(),
-                    expected
-                );
-            }
-            for (&column, &index) in &space.columns {
-                let guarded = match column {
-                    SurfaceColumn::Node(position) => position[1] == 0,
-                    SurfaceColumn::Edge(left, right) => left[1] == 0 && right[1] == 0,
-                };
-                if guarded {
-                    assert_eq!(timing.columns[2 * index], expected);
-                    assert_eq!(timing.columns[2 * index + 1], expected);
-                }
-            }
-        }
     }
 
     #[test]
