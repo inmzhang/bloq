@@ -1,0 +1,25 @@
+{
+  "upstream_revision": "2c8c205ed3b9c707aca8b2f73c1b3bfd9b025bea",
+  "upstream_patch": "bloq_py/examples/spiderls.patch",
+  "upstream_patch_sha256": "b919925295ea2092749973193f964b6568b75b26d896904bf8de197ee4630828",
+  "input_ports": [
+    [
+      9,
+      0,
+      0
+    ]
+  ],
+  "output_ports": [
+    [
+      9,
+      0,
+      6
+    ]
+  ],
+  "t_gadgets": 0,
+  "layout_options": {
+    "include_boundary_h": true,
+    "grid_spacing": 3,
+    "ordered_zero_time_events": true
+  }
+}

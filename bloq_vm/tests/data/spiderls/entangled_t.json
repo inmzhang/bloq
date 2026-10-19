@@ -1,0 +1,56 @@
+{
+  "upstream_revision": "2c8c205ed3b9c707aca8b2f73c1b3bfd9b025bea",
+  "upstream_patch": "bloq_py/examples/spiderls.patch",
+  "upstream_patch_sha256": "b919925295ea2092749973193f964b6568b75b26d896904bf8de197ee4630828",
+  "input_ports": [
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      9,
+      3
+    ]
+  ],
+  "output_ports": [
+    [
+      0,
+      0,
+      21
+    ],
+    [
+      0,
+      9,
+      21
+    ]
+  ],
+  "t_gadgets": 1,
+  "layout_options": {
+    "spacing": 3,
+    "data_spacing": 3,
+    "routing_margin": 3,
+    "placement_margin": 3,
+    "max_physical_layers": 1000,
+    "max_port_combinations": 32,
+    "max_ancilla_candidates_per_layer": 16,
+    "source_parallel_depth": 2,
+    "initial_patch_width": 1,
+    "initial_patch_height": 4,
+    "canvas": {
+      "x_min": -3,
+      "x_max": 3,
+      "y_min": -3,
+      "y_max": 6
+    },
+    "boundary_convention": {
+      "orientation_0": "N/S=Z,E/W=X",
+      "orientation_90": "N/S=X,E/W=Z"
+    },
+    "magic_supply": "outside_canvas_perimeter",
+    "include_boundary_h": true,
+    "grid_spacing": 3,
+    "ordered_zero_time_events": true
+  }
+}

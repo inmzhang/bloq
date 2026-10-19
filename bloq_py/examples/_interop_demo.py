@@ -30,8 +30,8 @@ def run_demo(source_qasm, clifford_t_qasm, ideal_unitary, output_dir: Path, summ
     """
     if shots < 1:
         raise ValueError("shots must be positive")
-    if compiler not in ("topologiq", "topols"):
-        raise ValueError("compiler must be 'topologiq' or 'topols'")
+    if compiler not in ("topologiq", "topols", "spiderls"):
+        raise ValueError("compiler must be topologiq, topols, or spiderls")
     if output_dir.exists() and any(output_dir.iterdir()):
         raise ValueError("--output-dir must be empty; each run retains its own artifacts")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -52,10 +52,11 @@ def run_demo(source_qasm, clifford_t_qasm, ideal_unitary, output_dir: Path, summ
     stage = "layout"
     try:
         options = dict(layout_options or {})
-        options.setdefault("seed", layout_seed)
+        if compiler != "spiderls":
+            options.setdefault("seed", layout_seed)
         summary.update(status="running", stage=stage, layout_options=options)
         save()
-        print(f"Routing with {'TopoLS' if compiler == 'topols' else 'Topologiq'}...", file=sys.stderr, flush=True)
+        print(f"Routing with {compiler}...", file=sys.stderr, flush=True)
         started = time.perf_counter()
         adapter = import_module(f"bloq.interop.{compiler}")
         imported = adapter.from_qasm(clifford_t_qasm, **options)

@@ -1,0 +1,21 @@
+BLOG 1.0
+
+module main {
+  in in_0: data = 0
+  out out_0: data = 1
+
+  0: Port [9, 0, 0] role=input
+  1: Port [9, 0, 6] role=output
+  2: ZXX [9, 0, 3]
+  3: ZXX [9, 0, 1]
+  4: ZXX [9, 0, 2]
+  5: ZXX [9, 0, 4]
+  6: XZX [9, 0, 5]
+  0 -> +Z
+  2 -> +Z
+  3 -> +Z
+  4 -> +Z
+  5 -H> +Z
+  6 -> +Z
+
+}

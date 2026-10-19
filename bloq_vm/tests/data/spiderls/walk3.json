@@ -1,0 +1,137 @@
+{
+  "upstream_revision": "2c8c205ed3b9c707aca8b2f73c1b3bfd9b025bea",
+  "upstream_patch": "bloq_py/examples/spiderls.patch",
+  "upstream_patch_sha256": "b919925295ea2092749973193f964b6568b75b26d896904bf8de197ee4630828",
+  "input_ports": [
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      9,
+      3
+    ],
+    [
+      9,
+      9,
+      6
+    ]
+  ],
+  "output_ports": [
+    [
+      0,
+      0,
+      45
+    ],
+    [
+      0,
+      9,
+      45
+    ],
+    [
+      9,
+      9,
+      45
+    ]
+  ],
+  "t_gadgets": 1,
+  "layout_options": {
+    "spacing": 3,
+    "data_spacing": 3,
+    "routing_margin": 3,
+    "placement_margin": 3,
+    "max_physical_layers": 1000,
+    "max_port_combinations": 32,
+    "max_ancilla_candidates_per_layer": 16,
+    "source_parallel_depth": 4,
+    "initial_patch_width": 4,
+    "initial_patch_height": 4,
+    "canvas": {
+      "x_min": -3,
+      "x_max": 6,
+      "y_min": -3,
+      "y_max": 6
+    },
+    "boundary_convention": {
+      "orientation_0": "N/S=Z,E/W=X",
+      "orientation_90": "N/S=X,E/W=Z"
+    },
+    "magic_supply": "outside_canvas_perimeter",
+    "include_boundary_h": true,
+    "grid_spacing": 3,
+    "ordered_zero_time_events": true
+  },
+  "algorithm": {
+    "candidate": "walk3",
+    "algorithm": "Coined walk on a four-cycle, three steps",
+    "qubits": 3,
+    "candidate_generator_sha256": "949090b306d09c88b7c346e27c3fbc61b4b866e6c126fc969b0aaf38b603a298",
+    "projective_spectral_error": 7.849665933929455e-16,
+    "gate_counts": {
+      "h": 6,
+      "x": 6,
+      "cx": 6,
+      "sdg": 3,
+      "t": 3,
+      "s": 3
+    },
+    "t_count": 3,
+    "expected_probabilities": [
+      0.0,
+      0.0,
+      0.42677669529663675,
+      0.07322330470336312,
+      0.0,
+      0.0,
+      0.07322330470336312,
+      0.4267766952966369
+    ],
+    "output_pauli_stabilizer_count": 4,
+    "non_stabilizer_output": true,
+    "family": "quantum walk",
+    "steps": 3,
+    "coin_qubit": 0,
+    "position_qubits": [
+      1,
+      2
+    ],
+    "coin_angle": "pi/4"
+  },
+  "source_qasm": "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[3];\nry(pi/4) q[0];\nx q[2];\ncx q[1],q[2];\ncx q[0],q[2];\nx q[1];\nry(pi/4) q[0];\nx q[2];\ncx q[1],q[2];\ncx q[0],q[2];\nx q[1];\nry(pi/4) q[0];\nx q[2];\ncx q[1],q[2];\ncx q[0],q[2];\nx q[1];",
+  "expected_state": [
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.6532814824381882,
+      0.0
+    ],
+    [
+      0.2705980500730985,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      -0.2705980500730985,
+      0.0
+    ],
+    [
+      0.6532814824381883,
+      0.0
+    ]
+  ]
+}

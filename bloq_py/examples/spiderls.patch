@@ -1,0 +1,136 @@
+diff --git a/src/pyzx_execution_order.py b/src/pyzx_execution_order.py
+index 8aead92..9e3d4d1 100644
+--- a/src/pyzx_execution_order.py
++++ b/src/pyzx_execution_order.py
+@@ -11,7 +11,7 @@ Model
+   INACTIVE vertex with the largest number of remaining edges to ACTIVE nodes.
+ 
+ Spider phases are ignored by the scheduler but preserved exactly as metadata.
+-For compact reporting, only S-family and T-family phases are exposed through
++For compact reporting, Pauli Z, S-family, and T-family phases are exposed through
+ ``phase_gates`` and printed when phase reporting is enabled. Zero phases are
+ omitted. Inverse phases S† (3/2) and T† (7/4) are intentionally displayed as
+ S and T, respectively, because the downstream pipe diagram does not distinguish
+@@ -72,7 +72,7 @@ class ExecutionPlan:
+     # Exact PyZX phase object for every internal Z-spider. The scheduler never
+     # consumes or modifies these values; they are carried for later stages.
+     spider_phases: tuple[tuple[Vertex, Any], ...]
+-    # Compact gate labels for S-family and T-family phases only. Zero phases
++    # Compact gate labels for Z, S-family, and T-family phases. Zero phases
+     # are omitted, and S†/T† are collapsed to S/T for pipe-diagram display.
+     # Exact phases remain available in ``spider_phases`` for later stages.
+     phase_gates: tuple[tuple[Vertex, str], ...]
+@@ -81,10 +81,10 @@ class ExecutionPlan:
+ 
+ 
+ def _phase_gate_label(phase: Any) -> str | None:
+-    """Return a compact S/T-family label for an exact PyZX phase.
++    """Return a compact Z/S/T-family label for an exact PyZX phase.
+ 
+-    PyZX stores phases as multiples of pi. Thus 1/2 and 3/2 are the
+-    S/S† family, while 1/4 and 7/4 are the T/T† family. The phase is reduced
++    PyZX stores phases as multiples of pi. The phase 1 is Z; 1/2 and 3/2 are
++    the S/S† family, while 1/4 and 7/4 are the T/T† family. The phase is reduced
+     modulo 2. For pipe-diagram display, both directions are collapsed to
+     ``S`` or ``T``. Zero and all other phases are omitted from this compact
+     view, while their exact values remain preserved in ``spider_phases``.
+@@ -96,6 +96,7 @@ def _phase_gate_label(phase: Any) -> str | None:
+         return None
+ 
+     labels = {
++        Fraction(1): "Z",
+         Fraction(1, 2): "S",
+         Fraction(3, 2): "S",
+         Fraction(1, 4): "T",
+@@ -658,4 +659,4 @@ def format_execution_plan(
+             "IGNORED DIRECT I/O: "
+             + ", ".join(direct_io_text(item) for item in plan.ignored_direct_io)
+         )
+-    return "\n".join(lines)
+\ No newline at end of file
++    return "\n".join(lines)
+diff --git a/src/pyzx_parallelization.py b/src/pyzx_parallelization.py
+index 3c2fee0..f76847d 100644
+--- a/src/pyzx_parallelization.py
++++ b/src/pyzx_parallelization.py
+@@ -352,7 +352,7 @@ class _DAGBuilder:
+         state.epoch_measurements.clear()
+         state.last_lifecycle = node
+ 
+-    def _h_patch(
++    def _local_gate(
+         self,
+         patch: Patch,
+         target_index: int,
+@@ -375,7 +375,8 @@ class _DAGBuilder:
+             ),
+             deps,
+         )
+-        state.orientation ^= 1
++        if kind.startswith("H"):
++            state.orientation ^= 1
+         state.epoch_gate = node
+         state.epoch_measurements.clear()
+ 
+@@ -562,7 +563,7 @@ class _DAGBuilder:
+                         and vertex_tuple
+                         and vertex_tuple[0] in input_h_spiders
+                     ):
+-                        self._h_patch(
++                        self._local_gate(
+                             patch,
+                             index,
+                             kind="H_INPUT",
+@@ -585,13 +586,13 @@ class _DAGBuilder:
+                     raise ParallelizationError("RELEASE must use one patch")
+                 self._release_patch(patches[0], index, vertices)
+ 
+-            elif kind == "H":
++            elif kind in {"H", "Z"}:
+                 if len(patches) != 1:
+-                    raise ParallelizationError("H must use one patch")
+-                self._h_patch(
++                    raise ParallelizationError(f"{kind} must use one patch")
++                self._local_gate(
+                     patches[0],
+                     index,
+-                    kind="H",
++                    kind=kind,
+                     vertices=vertices,
+                     note=getattr(ins, "note", ""),
+                 )
+@@ -656,7 +657,7 @@ class _DAGBuilder:
+                 if spider not in final_by_vertex:
+                     continue
+                 patch = final_by_vertex[spider]
+-                self._h_patch(
++                self._local_gate(
+                     patch,
+                     len(self.instructions),
+                     kind="H_OUTPUT",
+diff --git a/src/pyzx_routing.py b/src/pyzx_routing.py
+index ceee664..9bc16db 100644
+--- a/src/pyzx_routing.py
++++ b/src/pyzx_routing.py
+@@ -550,10 +550,10 @@ def _normalize_schedule(schedule: Any) -> _NormalizedSchedule:
+                         f"Patch q{patch} is prepared while already active"
+                     )
+                 event_active.add(patch)
+-            elif kind.startswith("H"):
++            elif kind.startswith("H") or kind == "Z":
+                 if patch not in event_active:
+                     raise ScheduleAdapterError(
+-                        f"Hadamard targets inactive patch q{patch}"
++                        f"{kind} targets inactive patch q{patch}"
+                     )
+             elif kind == "RELEASE":
+                 if patch not in event_active:
+@@ -2935,7 +2935,7 @@ def _route_parallel_schedule_once(
+                     orientation_state[event.patch] = (
+                         90 - orientation_state[event.patch]
+                     )
+-                elif event.kind != "RELEASE":
++                elif event.kind not in {"RELEASE", "Z"}:
+                     raise ScheduleAdapterError(
+                         f"Unsupported zero-time event {event.kind!r}"
+                     )

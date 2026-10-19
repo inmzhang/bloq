@@ -72,7 +72,8 @@ module = "stim"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["pyzx.*", "topologiq.*", "topols.*"]
+module = ["pyzx.*", "topologiq.*", "topols.*", "pyzx_conversion", "pyzx_execution_order", "pyzx_target_code",
+          "pyzx_parallelization", "pyzx_routing"]
 ignore_missing_imports = true
 
 # Rebuild for workspace manifests, Rust sources, and embedded gallery assets.

@@ -1,0 +1,29 @@
+BLOG 1.0
+
+module main {
+  in in_0: data = 0
+  out out_0: data = 3
+
+  0: Port [0, 0, 0] role=input
+  1: ZXX [0, 0, 3]
+  2: ZXX [0, 0, 6]
+  3: Port [0, 0, 9] role=output
+  4: ZXX [0, 0, 1]
+  5: ZXX [0, 0, 2]
+  6: ZXX [0, 0, 4]
+  7: ZXX [0, 0, 5]
+  8: ZXX [0, 0, 7]
+  9: ZXX [0, 0, 8]
+  0 -> +Z
+  1 -> +Z
+  2 -> +Z
+  4 -> +Z
+  5 -> +Z
+  6 -> +Z
+  7 -> +Z
+  8 -> +Z
+  9 -> +Z
+
+  feedback Z 1 -> +Z
+
+}
