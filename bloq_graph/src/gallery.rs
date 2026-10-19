@@ -882,7 +882,7 @@ mod tests {
     }
 
     #[test]
-    fn test_flip_xz_basis_revalidates_all_gallery_entries() {
+    fn test_flip_xz_basis_revalidates_gallery_entries_without_multiplex_ports() {
         for entry in GalleryItem::iter() {
             let source = entry.build();
             let graph = source
@@ -890,6 +890,20 @@ mod tests {
                 .expect("gallery flat projection");
             let source_only =
                 entry.in_category(GalleryCategory::AnalysisOnly) || !source.instances.is_empty();
+            if graph
+                .blocks()
+                .any(|block| block.port_role() == Some(crate::PortRole::Multiplex))
+            {
+                assert!(
+                    matches!(
+                        graph.flip_xz_basis_lenient(),
+                        Err(crate::BlockGraphError::BasisFlipUnsupportedMultiplexPort(_))
+                    ),
+                    "{} flips a multiplex Port",
+                    entry.id()
+                );
+                continue;
+            }
             let flipped = if source_only {
                 graph.flip_xz_basis_lenient().unwrap()
             } else {

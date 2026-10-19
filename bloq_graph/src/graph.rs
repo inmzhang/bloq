@@ -1540,9 +1540,19 @@ impl BlockGraph {
     ///
     /// # Errors
     ///
-    /// Returns a flatten-required error for an authored module source.
+    /// Returns a flatten-required error for an authored module source, and
+    /// [`BlockGraphError::BasisFlipUnsupportedMultiplexPort`] for a multiplex
+    /// Port: its split stays Z while the flipped computation would meet it in X.
     pub fn flip_xz_basis_lenient(&self) -> Result<Self, BlockGraphError> {
         self.require_flat_source("basis flipping")?;
+        if let Some(port) = self
+            .blocks()
+            .filter(|block| block.port_role() == Some(crate::PortRole::Multiplex))
+            .map(Block::pos)
+            .min_by_key(IVec3::to_array)
+        {
+            return Err(BlockGraphError::BasisFlipUnsupportedMultiplexPort(port));
+        }
         let mut flipped = self.clone();
         for block in flipped.inner.node_weights_mut() {
             block.kind = block.kind.flip_xz_basis();

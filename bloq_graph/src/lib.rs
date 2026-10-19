@@ -247,6 +247,9 @@ pub enum BlockGraphError {
     /// Y blocks require rotations by an even number of quarter turns.
     #[error("block graphs containing Y blocks can only rotate in 180-degree increments")]
     RotationRequiresHalfTurns,
+    /// A multiplex Port's Z split has no X/Z-flipped form.
+    #[error("cannot flip the X/Z basis: the multiplex Port at {0} has a fixed Z split")]
+    BasisFlipUnsupportedMultiplexPort(IVec3),
     /// Walking and patch-rotation blocks support only time-axis rotation.
     #[error("Walking and PatchRotation blocks can only rotate around the time axis")]
     RotationWalkingRequiresTimeAxis,
