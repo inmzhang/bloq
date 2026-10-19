@@ -489,6 +489,9 @@ impl BlockGraph {
     ///
     /// Structural and action-affecting edits refresh this DAG; tag-only edits
     /// leave it intact.
+    /// For a module hierarchy, this contains only this definition's authored
+    /// actions. Use [`Self::analyze_action_graph`] for composed dependencies
+    /// including child actions.
     pub fn action_graph(&self) -> &ActionDag {
         &self.action_graph
     }
@@ -3730,6 +3733,37 @@ mod tests {
         assert!(graph.action_graph_error().is_none());
         graph.set_actions(actions).unwrap();
         assert!(graph.action_graph().is_analyzed());
+    }
+
+    #[test]
+    fn setting_leaf_module_actions_retains_readout_dependencies() {
+        let mut graph = BlockGraph::from_text(
+            r#"BLOG 1.0
+module main {
+  in input: data = 0
+  out result = m
+  0: Port [0, 0, -1] role=input
+  1: ZXZ [0, 0, 0]
+  2: X [0, 0, 1]
+  0 -> +Z
+  1 -> +Z
+  feedback Z 1 -> +Z
+  m = measure 2
+}
+"#,
+        )
+        .unwrap();
+        let actions = graph.actions();
+        graph.set_actions(actions.clone()).unwrap();
+        assert_eq!(graph.actions(), actions);
+        assert!(graph.action_graph().is_analyzed());
+        assert!(
+            graph
+                .action_graph()
+                .dependencies()
+                .any(|edge| { edge == (0, 1, crate::ActionDependency::FeedbackAnticommutation) })
+        );
+        graph.validate().unwrap();
     }
 
     #[test]

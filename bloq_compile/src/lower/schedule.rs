@@ -279,6 +279,7 @@ fn guarded_era_boundary(
     qubit: glam::IVec2,
     neighbors: &EraNeighbors,
     supports: &mut crate::FxMap<bloq_ir::BloqNodeId, LiveQubitUses>,
+    predicates: &mut bloq_ir::lowering::PredicateAnalysis<'_>,
 ) -> Result<bool, crate::CompileError> {
     let outgoing = &neighbors.successors[&left];
     let incoming = &neighbors.predecessors[&right];
@@ -314,7 +315,6 @@ fn guarded_era_boundary(
     let Some(right_guards) = supports[&right].uses.get(&qubit) else {
         return Ok(false);
     };
-    let mut predicates = bloq_ir::lowering::PredicateAnalysis::new(bloq.top());
     for left_guard in left_guards {
         for right_guard in right_guards {
             let required = left_guard
@@ -776,6 +776,7 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
             && !worldline_continues(upper as usize, users, user_slots, Dir::Incoming)
     });
     let mut live_supports = crate::FxMap::default();
+    let mut predicates = bloq_ir::lowering::PredicateAnalysis::new(bloq.top());
     for (lower, upper, span) in conditional_checks {
         if candidate_slots.contains(&(lower, upper)) {
             continue;
@@ -789,12 +790,15 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
                 qubit,
                 &neighbors,
                 &mut live_supports,
+                &mut predicates,
             )? {
                 candidate_slots.insert((lower, upper));
                 break;
             }
         }
     }
+
+    drop(predicates);
 
     /// Whether an edge `from -> to` already exists. An existing edge appears
     /// in both `outgoing(from)` and `incoming(to)`, so scanning the two lists
