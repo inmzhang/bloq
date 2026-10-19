@@ -379,9 +379,11 @@ mod tests {
                     .blocks()
                     .map(|block| {
                         let mut connectivity = BlockSignature::graph_connectivity(block, &graph);
-                        if let Some(port) = ports.get(&block.pos()).filter(|port| port.is_spatial())
+                        if let Some(dir) = ports
+                            .get(&block.pos())
+                            .and_then(|port| port.cube_pipe_dir())
                         {
-                            connectivity = connectivity.with_pipe(port.cube_pipe_dir());
+                            connectivity = connectivity.with_pipe(dir);
                         }
                         (
                             block.pos(),

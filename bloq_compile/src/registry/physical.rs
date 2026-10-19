@@ -265,11 +265,12 @@ impl PhysicalProjection {
                     .map(|signature| (position, signature))
                 })
                 .collect::<Result<crate::signature::BlockSignatureMap, _>>()?;
-            for port in ports.values().filter(|port| port.is_spatial()) {
-                let signature = signatures
-                    .get_mut(&port.source)
-                    .expect("expanded Port cube");
-                signature.connectivity = signature.connectivity.with_pipe(port.cube_pipe_dir());
+            for (source, dir) in ports
+                .values()
+                .filter_map(|port| port.cube_pipe_dir().map(|dir| (port.source, dir)))
+            {
+                let signature = signatures.get_mut(&source).expect("expanded Port cube");
+                signature.connectivity = signature.connectivity.with_pipe(dir);
             }
             let blocks = positions
                 .iter()
@@ -296,11 +297,14 @@ impl PhysicalProjection {
                 t_sides,
             )?
         };
-        for port in ports.values().filter(|port| port.is_spatial()) {
+        for (source, dir) in ports
+            .values()
+            .filter_map(|port| port.cube_pipe_dir().map(|dir| (port.source, dir)))
+        {
             let info = compiled
-                .get_mut(&port.source)
+                .get_mut(&source)
                 .expect("compiled geometry contains every expanded Port source");
-            info.graph_connectivity = info.graph_connectivity.with_pipe(port.cube_pipe_dir());
+            info.graph_connectivity = info.graph_connectivity.with_pipe(dir);
         }
         let input = LinkedPlanInput::from_module_graph(graph, ports, positions.iter().copied());
         let port_templates = context.compile_port_templates(ports)?;

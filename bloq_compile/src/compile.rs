@@ -270,11 +270,14 @@ fn select_link_signatures(
     builds.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let schedules = join_component_layer_schedules(graph)?;
     let mut signatures = block_signatures(graph, &schedules, config.code_distance())?;
-    for expansion in ports.values().filter(|port| port.is_spatial()) {
+    for (source, dir) in ports
+        .values()
+        .filter_map(|port| port.cube_pipe_dir().map(|dir| (port.source, dir)))
+    {
         let signature = signatures
-            .get_mut(&expansion.source)
+            .get_mut(&source)
             .expect("signature map contains the derived cube");
-        signature.connectivity = signature.connectivity.with_pipe(expansion.cube_pipe_dir());
+        signature.connectivity = signature.connectivity.with_pipe(dir);
     }
     for &signature in signatures.values() {
         validate_fixed_bulk(signature)?;
@@ -299,8 +302,11 @@ fn select_module_link_templates_with_schedule(
                 .get_block(site.position)
                 .expect("module relocation names a linked block");
             let mut graph_connectivity = BlockSignature::graph_connectivity(block, graph);
-            if let Some(expansion) = ports.get(&site.position).filter(|port| port.is_spatial()) {
-                graph_connectivity = graph_connectivity.with_pipe(expansion.cube_pipe_dir());
+            let cube_pipe = ports
+                .get(&site.position)
+                .and_then(|port| port.cube_pipe_dir());
+            if let Some(dir) = cube_pipe {
+                graph_connectivity = graph_connectivity.with_pipe(dir);
             }
             let surgery_side = (block.kind() == BlockKind::T).then(|| t_sides[&site.position]);
             let mut linked_signature = derive_block_signature(
@@ -310,10 +316,8 @@ fn select_module_link_templates_with_schedule(
                 crate::signature::layer_schedule_at(schedules, site.position),
                 surgery_side,
             )?;
-            if let Some(expansion) = ports.get(&site.position).filter(|port| port.is_spatial()) {
-                linked_signature.connectivity = linked_signature
-                    .connectivity
-                    .with_pipe(expansion.cube_pipe_dir());
+            if let Some(dir) = cube_pipe {
+                linked_signature.connectivity = linked_signature.connectivity.with_pipe(dir);
             }
             let variant = DefinitionVariantKey {
                 local_position: site.local_position,
@@ -1207,13 +1211,14 @@ impl CompileContext {
         } = self.preflight_proxy()?;
         self.report_progress(CompileStage::Templates)?;
         let mut compiled = self.compile_blocks(&graph, &ordered_blocks(&graph), &signatures)?;
-        for expansion in ports.values().filter(|port| port.is_spatial()) {
+        for (source, dir) in ports
+            .values()
+            .filter_map(|port| port.cube_pipe_dir().map(|dir| (port.source, dir)))
+        {
             let derived = compiled
-                .get_mut(&expansion.source)
+                .get_mut(&source)
                 .expect("derived cube was compiled");
-            derived.graph_connectivity = derived
-                .graph_connectivity
-                .with_pipe(expansion.cube_pipe_dir());
+            derived.graph_connectivity = derived.graph_connectivity.with_pipe(dir);
         }
         let port_templates = self.compile_port_templates(&ports)?;
         for port in ports.values().filter(|port| !port.is_spatial()) {
@@ -1315,11 +1320,9 @@ impl CompileContext {
                 .expect("compiled site belongs to the prepared graph");
             let mut signature = signature;
             let mut exact_graph_connectivity = BlockSignature::graph_connectivity(block, graph);
-            if let Some(expansion) = ports.get(&position).filter(|port| port.is_spatial()) {
-                exact_graph_connectivity =
-                    exact_graph_connectivity.with_pipe(expansion.cube_pipe_dir());
-                signature.connectivity =
-                    signature.connectivity.with_pipe(expansion.cube_pipe_dir());
+            if let Some(dir) = ports.get(&position).and_then(|port| port.cube_pipe_dir()) {
+                exact_graph_connectivity = exact_graph_connectivity.with_pipe(dir);
+                signature.connectivity = signature.connectivity.with_pipe(dir);
             }
             let site = module_sites
                 .get(&position)
@@ -1684,8 +1687,11 @@ fn spatial_hadamard_key(
         let mut connectivity = BlockSignature::template_connectivity(block, graph);
         // The positionless Port half leaves this face open in the cube template.
         // The wall must make the same data-collapse decision as that cube.
-        if let Some(expansion) = ports.get(&block.pos()).filter(|port| port.is_spatial()) {
-            connectivity = connectivity.with_pipe(expansion.cube_pipe_dir());
+        if let Some(dir) = ports
+            .get(&block.pos())
+            .and_then(|port| port.cube_pipe_dir())
+        {
+            connectivity = connectivity.with_pipe(dir);
         }
         WallSide {
             temporal_basis: kind.z(),

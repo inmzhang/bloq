@@ -26,8 +26,9 @@ impl PortExpansion {
         self.pipe_dir == Direction::ZPLUS
     }
 
-    pub(crate) const fn cube_pipe_dir(self) -> Direction {
-        self.pipe_dir.negate()
+    /// Pipe a spatial Port's derived cube opens toward its virtual temporal half.
+    pub(crate) fn cube_pipe_dir(self) -> Option<Direction> {
+        self.cube.map(|_| self.pipe_dir.negate())
     }
 
     pub(crate) fn needs_private_qubit(self) -> bool {

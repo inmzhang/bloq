@@ -205,26 +205,60 @@ pub(crate) fn finish_program(
     schedule::induce_occupancy_order_edges(bloq)?;
     bloq.optimize()
         .map_err(|_| BloqValidationError::CyclicGraph)?;
-    let inputs = logical_inputs(bloq, interface.inputs, interface.distance)?;
-    bloq.set_logical_inputs(inputs);
-    let outputs = logical_outputs(bloq, interface.outputs, interface.distance)?;
-    bloq.set_logical_outputs(outputs);
+    let inputs = logical_boundaries(
+        bloq,
+        interface.inputs,
+        bloq_ir::BoundaryFace::Input,
+        interface.distance,
+    )?;
+    bloq.set_logical_inputs(
+        inputs
+            .into_iter()
+            .map(|(port, instance, x, z)| LogicalInput {
+                port,
+                instance,
+                x,
+                z,
+            })
+            .collect(),
+    );
+    let outputs = logical_boundaries(
+        bloq,
+        interface.outputs,
+        bloq_ir::BoundaryFace::Output,
+        interface.distance,
+    )?;
+    bloq.set_logical_outputs(
+        outputs
+            .into_iter()
+            .map(|(port, instance, x, z)| LogicalOutput {
+                port,
+                instance,
+                x,
+                z,
+            })
+            .collect(),
+    );
     Ok(())
 }
 
-/// Persist the complete input patches an execution hook may initialize.
+/// Persist the complete boundary operators an execution hook may initialize
+/// or read, sorted by port.
 ///
-/// Both ordinary temporal (`+Z`) Ports and compiler-expanded spatial input
-/// Ports land here. The bound interface is the authoritative source→instance
-/// map; the executor must not reconstruct it from fused-node provenance.
-fn logical_inputs(
+/// Ordinary temporal Ports, reversed temporal Port adapters, and
+/// compiler-expanded spatial Ports land here. The bound interface is the
+/// authoritative source→instance map; the executor must not reconstruct it
+/// from fused-node provenance. Compiler geometry stays here; consumers read
+/// only the resulting IR maps.
+fn logical_boundaries(
     bloq: &Bloq,
     ports_by_instance: BoundPorts,
+    face: bloq_ir::BoundaryFace,
     distance: u32,
-) -> Result<Vec<LogicalInput>, CompileError> {
-    let (placements, mut faces) = logical_faces(bloq, bloq_ir::BoundaryFace::Input);
+) -> Result<Vec<(IVec3, TemplateInstanceId, PauliMap, PauliMap)>, CompileError> {
+    let (placements, mut faces) = logical_faces(bloq, face);
 
-    let mut inputs = Vec::new();
+    let mut boundaries = Vec::new();
     for (instance, (port, private)) in ports_by_instance {
         let (template, offset) = placements[&instance];
         let pair = if let Some(qubit) = private {
@@ -233,61 +267,17 @@ fn logical_inputs(
             boundary_operators(
                 &bloq.templates()[template],
                 faces.remove(&instance).unwrap_or_default(),
-                bloq_ir::BoundaryFace::Input,
+                face,
                 offset,
                 distance,
             )?
         };
-        let Some((x, z)) = pair else {
-            continue;
-        };
-
-        inputs.push(LogicalInput {
-            port,
-            instance,
-            x,
-            z,
-        });
+        if let Some((x, z)) = pair {
+            boundaries.push((port, instance, x, z));
+        }
     }
-    inputs.sort_by_key(|input| input.port.to_array());
-    Ok(inputs)
-}
-
-/// Persist the complete terminal logical operators the executor needs.
-/// Compiler geometry stays here; consumers read only the resulting IR maps.
-fn logical_outputs(
-    bloq: &Bloq,
-    ports_by_instance: BoundPorts,
-    distance: u32,
-) -> Result<Vec<LogicalOutput>, CompileError> {
-    let (placements, mut faces) = logical_faces(bloq, bloq_ir::BoundaryFace::Output);
-
-    let mut outputs = Vec::new();
-    for (instance, (port, private)) in ports_by_instance {
-        let (template, offset) = placements[&instance];
-        let pair = if let Some(qubit) = private {
-            Some(private_boundary_pair(bloq, instance, port, qubit, offset)?)
-        } else {
-            boundary_operators(
-                &bloq.templates()[template],
-                faces.remove(&instance).unwrap_or_default(),
-                bloq_ir::BoundaryFace::Output,
-                offset,
-                distance,
-            )?
-        };
-        let Some((x, z)) = pair else {
-            continue;
-        };
-        outputs.push(LogicalOutput {
-            port,
-            instance,
-            x,
-            z,
-        });
-    }
-    outputs.sort_by_key(|output| output.port.to_array());
-    Ok(outputs)
+    boundaries.sort_by_key(|(port, ..)| port.to_array());
+    Ok(boundaries)
 }
 
 fn private_boundary_pair(

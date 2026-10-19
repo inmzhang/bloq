@@ -271,10 +271,7 @@ pub(super) fn resolve_observable_insertions_at_positions_with_ports(
             pauli,
             stabilizer,
             compiled.graph_connectivity,
-            ports
-                .get(&node_pos)
-                .filter(|port| port.is_spatial())
-                .map(|port| port.cube_pipe_dir()),
+            ports.get(&node_pos).and_then(|port| port.cube_pipe_dir()),
         );
         if local_flow == LocalStabilizer::isolated(Pauli::I) {
             continue;
@@ -345,27 +342,20 @@ pub(super) fn resolve_observable_insertions_at_positions_with_ports(
             .get(&node_pos)
             .filter(|port| !port.is_spatial())
             .and_then(|port| port.private_qubit);
-        let external = |map: &PauliMap| {
-            private
-                .and_then(|qubit| map.get(&qubit).map(|&pauli| (qubit, pauli)))
-                .map_or_else(PauliMap::empty, |entry| {
-                    PauliMap::from_unique_entries([entry])
+        // External faces keep only a private adapter qubit or an open temporal face.
+        let face = |map: &PauliMap, dir: Direction| match private {
+            Some(qubit) if external_faces_only => {
+                map.get(&qubit).map_or_else(PauliMap::empty, |&pauli| {
+                    PauliMap::from_unique_entries([(qubit, pauli)])
                 })
+            }
+            None if external_faces_only && compiled.graph_connectivity.has_pipe(dir) => {
+                PauliMap::empty()
+            }
+            _ => map.clone(),
         };
-        let operator_in = if external_faces_only && private.is_some() {
-            external(&entry.operator_in)
-        } else if external_faces_only && compiled.graph_connectivity.has_pipe(Direction::ZMINUS) {
-            PauliMap::empty()
-        } else {
-            entry.operator_in.clone()
-        };
-        let operator_out = if external_faces_only && private.is_some() {
-            external(&entry.operator_out)
-        } else if external_faces_only && compiled.graph_connectivity.has_pipe(Direction::ZPLUS) {
-            PauliMap::empty()
-        } else {
-            entry.operator_out.clone()
-        };
+        let operator_in = face(&entry.operator_in, Direction::ZMINUS);
+        let operator_out = face(&entry.operator_out, Direction::ZPLUS);
         insertions.extend(boundary_operator_insertion(
             graph,
             compiled_blocks,
