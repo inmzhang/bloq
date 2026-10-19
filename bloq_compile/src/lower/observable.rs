@@ -796,7 +796,13 @@ pub(super) fn cancel_seam_operators_in_plan(
                     };
                     let (lower_patch, lower_external) = split(out_idx, true, lower, lower_private)?;
                     let (upper_patch, upper_external) = split(in_idx, false, upper, upper_private)?;
-                    if lower_patch != upper_patch {
+                    let multiplex_output = ports
+                        .get(&seam_pos(lower))
+                        .is_some_and(|port| port.role == bloq_graph::PortRole::Multiplex);
+                    if lower_patch != upper_patch
+                        || (multiplex_output
+                            && lower_external.iter().any(|(_, &pauli)| pauli != Pauli::X))
+                    {
                         return Err(CompileError::ObservableSeamMismatch {
                             observable_index: obs,
                             lower: seam_pos(lower),
@@ -1588,6 +1594,73 @@ mod tests {
                 upper: error_upper,
             } if error_lower == lower && error_upper == upper
         ));
+    }
+
+    #[test]
+    fn multiplex_seam_only_preserves_x_on_the_private_output() {
+        use super::super::plan::LinkedPlanInput;
+        use crate::port::PortExpansion;
+        use bloq_graph::{CubeHeight, PortRole};
+
+        let source = ivec3(0, 0, 0);
+        let private = ivec2(10, 0);
+        let mut graph = BlockGraph::new();
+        graph.add_block(Block::new(source, BlockKind::Cube(CubeKind::ZXZ)));
+        for role in [PortRole::Multiplex, PortRole::Input] {
+            let ports = crate::FxMap::from_iter([(
+                source,
+                PortExpansion {
+                    source,
+                    role,
+                    cube: Some((CubeKind::ZXZ, CubeHeight::default())),
+                    pipe_dir: Direction::ZPLUS,
+                    boundary_basis: Basis::Z,
+                    private_qubit: Some(private),
+                },
+            )]);
+            let input = LinkedPlanInput::from_module_graph(&graph, &ports, [source]);
+            let plan = super::super::LowerPlan::from_linked_input(&input);
+            for pauli in [Pauli::I, Pauli::X, Pauli::Y, Pauli::Z] {
+                let mut external = PauliMap::empty();
+                external.insert(private, pauli);
+                let mut output = external.clone();
+                output.insert(ivec2(0, 0), Pauli::Z);
+                let mut insertions = vec![
+                    ObservableChunkInsertion {
+                        site: ChunkSiteSource::SpatialPort(source),
+                        observable_index: 7,
+                        measurements: Vec::new(),
+                        operator_in: PauliMap::empty(),
+                        operator_out: output,
+                        provenance_in: FaceProvenance::Static,
+                        provenance_out: FaceProvenance::Static,
+                    },
+                    ObservableChunkInsertion {
+                        site: ChunkSiteSource::Block(source),
+                        observable_index: 7,
+                        measurements: Vec::new(),
+                        operator_in: PauliMap::from_unique_entries([(ivec2(0, 0), Pauli::Z)]),
+                        operator_out: PauliMap::empty(),
+                        provenance_in: FaceProvenance::Static,
+                        provenance_out: FaceProvenance::Static,
+                    },
+                ];
+                let result =
+                    cancel_seam_operators_in_plan(&mut insertions, &plan, &graph, &ports, |_| {
+                        Ok(glam::IVec2::ZERO)
+                    });
+                if role == PortRole::Multiplex && matches!(pauli, Pauli::Y | Pauli::Z) {
+                    assert!(
+                        matches!(result, Err(CompileError::ObservableSeamMismatch { .. })),
+                        "Multiplex private output {pauli:?} must be rejected"
+                    );
+                } else {
+                    result.unwrap();
+                    assert_eq!(insertions[0].operator_out, external);
+                    assert!(insertions[1].operator_in.is_empty());
+                }
+            }
+        }
     }
 
     #[test]
