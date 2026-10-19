@@ -805,10 +805,56 @@ fn hadamard_capped_t_preserves_the_source_branch_sign() {
     let graph = BlockGraph::from_blog_text(&HADAMARD_CAPPED_T_BLOG.replacen("0: Port", "0: T", 1))
         .unwrap()
         .fix_shadowed_faces();
+    // The authored mzz bit identifies the signed map even when the native
+    // rewrite exchanges canonical cap arms and resolves XY with !mzz.
+    {
+        use std::collections::BTreeMap;
+
+        use bloq_graph::verify::{LogicalVerifier, QuizxGraph, parse_qasm};
+        use quizx::graph::{BasisElem, GraphLike};
+
+        for source in [&graph, &graph.with_temporal_hadamards().unwrap()] {
+            let verifier = LogicalVerifier::new(source).unwrap();
+            for negative in [false, true] {
+                let correction = if negative { "z q[0];" } else { "" };
+                let mut expected: QuizxGraph = parse_qasm(&format!(
+                    "OPENQASM 2.0; include \"qelib1.inc\"; qreg q[1]; h q[0]; s q[0]; {correction}",
+                ))
+                .unwrap()
+                .to_graph();
+                expected.plug_inputs(&[BasisElem::Z0]);
+                verifier
+                    .verify_branch(&expected, &BTreeMap::from([("mzz".into(), negative)]))
+                    .unwrap();
+            }
+        }
+    }
     let module = graph.clone().with_inferred_interface().unwrap();
     let compiler = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true));
     for artifacts in [compiler.compile(&graph), compiler.compile(&module)] {
-        let bloq = artifacts.unwrap().bloq;
+        let mut bloq = artifacts.unwrap().bloq;
+        let ordinal = graph
+            .actions()
+            .iter()
+            .position(|action| matches!(action, bloq_graph::Action::Measure { name, .. } if name == "mzz"))
+            .unwrap() as u32;
+        let readout = bloq
+            .nodes()
+            .find_map(|(id, node)| matches!(node.provenance, NodeProvenance::Action { ordinal: candidate } if candidate == ordinal).then_some(id))
+            .unwrap();
+        // Expose the existing corrected source value without changing its dataflow.
+        bloq.node_mut(readout).unwrap().provenance = NodeProvenance::BranchSelector {
+            name: "source mzz".into(),
+        };
+        let cap_selector = bloq_graph::selective_selector_name(IVec3::new(1, 0, 2));
+        let source_bit = |context: &bloq_vm::ShotContext<'_>| {
+            context
+                .named_branch_selectors
+                .iter()
+                .find(|(name, _)| *name == "source mzz")
+                .unwrap()
+                .1
+        };
         let ideals = [false, true].map(|negative| {
             ExactChoi::new(&[], &[IVec3::new(0, 0, 2)], |sim| {
                 sim.h(0);
@@ -824,12 +870,16 @@ fn hadamard_capped_t_preserves_the_source_branch_sign() {
             &bloq,
             12,
             0x11,
-            |context| {
-                assert_eq!(context.branch_selectors.len(), 1);
-                &ideals[usize::from(context.branch_selectors[0])]
-            },
+            |context| &ideals[usize::from(source_bit(context))],
             |_, context| {
-                selected.push(context.branch_selectors[0]);
+                let source = source_bit(context);
+                let (_, arm) = context
+                    .named_branch_selectors
+                    .iter()
+                    .find(|(name, _)| *name == cap_selector)
+                    .expect("the cap retains its source block identity");
+                assert_eq!(*arm, !source, "the normalized XY cap swaps ordered arms");
+                selected.push(source);
                 Ok(())
             },
         );
