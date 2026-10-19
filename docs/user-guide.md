@@ -91,6 +91,7 @@ backends/synchronization
 | [T State Cultivation](tutorials/t-cultivation.md) | Preparing a T resource state and its acceptance–quality tradeoff |
 | [Logical T Gate](tutorials/t-gate.md) | Gate teleportation, adaptive measurement, and retries |
 | [Compile Phase Estimation through Topologiq](tutorials/topologiq.md) | Logical QASM, upstream layout, and native non-Clifford controls |
+| [Compile Algorithms through TopoLS](tutorials/topols.md) | Signed magic resources, addition, and spin dynamics |
 | [8T-1CCZ Distillation Factory](tutorials/ccz-factory.md) | Resource errors, circuit noise, and factory response |
 | [Emulate Hardware Synchronization](backends/thth.md) | Backend timing controls, decoder waits, and live-patch protection with THTH |
 
@@ -102,6 +103,7 @@ tutorials/cnot
 tutorials/t-cultivation
 tutorials/t-gate
 tutorials/topologiq
+tutorials/topols
 tutorials/ccz-factory
 backends/thth
 ```

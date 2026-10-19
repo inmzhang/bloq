@@ -39,8 +39,8 @@ dev = [
     "ruff>=0.16.10",
 ]
 docs = ["sphinx>=9,<10", "sphinx-immaterial", "myst-parser"]
-# Headless runtime for the source-pinned, patched Topologiq example. The
-# upstream checkout is installed separately without its GUI dependency set.
+# Headless runtime for source-pinned upstream compiler examples. Upstream
+# checkouts are installed separately without their GUI dependency sets.
 interop = [
     "imageio==2.37.0",
     "matplotlib==3.10.3",
@@ -72,7 +72,7 @@ module = "stim"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["pyzx.*", "topologiq.*"]
+module = ["pyzx.*", "topologiq.*", "topols.*"]
 ignore_missing_imports = true
 
 # Rebuild for workspace manifests, Rust sources, and embedded gallery assets.

@@ -1,0 +1,177 @@
+{
+  "upstream_revision": "e564d350a596cfea3227e09698733210e2e14dcf",
+  "upstream_patch": "bloq_py/examples/topols.patch",
+  "upstream_patch_sha256": "e9f936dca9345062df21129f82e4045075c19a2e5a8b6045c2666add608e7c7c",
+  "input_ports": [
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      6,
+      0,
+      0
+    ],
+    [
+      6,
+      6,
+      0
+    ],
+    [
+      0,
+      6,
+      0
+    ]
+  ],
+  "output_ports": [
+    [
+      0,
+      0,
+      36
+    ],
+    [
+      6,
+      0,
+      36
+    ],
+    [
+      6,
+      6,
+      36
+    ],
+    [
+      0,
+      6,
+      36
+    ]
+  ],
+  "normalized_qasm": "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[4];\nh q[0];\nh q[1];\nh q[2];\nh q[3];\ncx q[2],q[3];\ntdg q[3];\ncx q[0],q[3];\nt q[3];\ncx q[2],q[3];\nt q[2];\ntdg q[3];\ncx q[0],q[3];\ncx q[0],q[2];\nt q[0];\ntdg q[2];\ncx q[0],q[2];\ncx q[0],q[2];\nt q[3];\nh q[3];\ncx q[1],q[3];\n",
+  "t_gadgets": 7,
+  "layout_options": {
+    "seed_init": 2,
+    "seed_step": 1,
+    "time_bound": 0.1,
+    "iter_num": 100,
+    "move_num": 6,
+    "length": 2,
+    "dir_opt": true,
+    "backtrack": 0,
+    "z_floor": 1,
+    "engine": "python",
+    "block_size_max": 20,
+    "zx_opt": 1,
+    "grid_spacing": 3
+  },
+  "algorithm": {
+    "candidate": "adder4",
+    "algorithm": "Coherent two-bit modular addition",
+    "qubits": 4,
+    "candidate_generator_sha256": "949090b306d09c88b7c346e27c3fbc61b4b866e6c126fc969b0aaf38b603a298",
+    "projective_spectral_error": 4.710277376051326e-16,
+    "gate_counts": {
+      "cx": 8,
+      "h": 5,
+      "t": 4,
+      "tdg": 3
+    },
+    "t_count": 7,
+    "expected_probabilities": [
+      0.12499999999999994,
+      0.0,
+      0.0,
+      0.12499999999999994,
+      0.12499999999999994,
+      0.12499999999999994,
+      0.0,
+      0.0,
+      0.0,
+      0.12499999999999994,
+      0.12499999999999994,
+      0.0,
+      0.0,
+      0.0,
+      0.12499999999999994,
+      0.12499999999999994
+    ],
+    "output_pauli_stabilizer_count": 2,
+    "non_stabilizer_output": true,
+    "family": "arithmetic",
+    "a_qubits": [
+      0,
+      1
+    ],
+    "b_qubits": [
+      2,
+      3
+    ],
+    "arithmetic": "|a,b> -> |a,(a+b) mod 4>"
+  },
+  "source_qasm": "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[4];\nh q[0];\nh q[1];\nh q[2];\nccx q[0],q[2],q[3];\ncx q[0],q[2];\ncx q[1],q[3];",
+  "expected_state": [
+    [
+      0.3535533905932737,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.3535533905932737,
+      0.0
+    ],
+    [
+      0.3535533905932737,
+      0.0
+    ],
+    [
+      0.3535533905932737,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.3535533905932737,
+      0.0
+    ],
+    [
+      0.3535533905932737,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.3535533905932737,
+      0.0
+    ],
+    [
+      0.3535533905932737,
+      0.0
+    ]
+  ]
+}

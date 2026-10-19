@@ -1,0 +1,173 @@
+{
+  "upstream_revision": "e564d350a596cfea3227e09698733210e2e14dcf",
+  "upstream_patch": "bloq_py/examples/topols.patch",
+  "upstream_patch_sha256": "e9f936dca9345062df21129f82e4045075c19a2e5a8b6045c2666add608e7c7c",
+  "input_ports": [
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      6,
+      0,
+      0
+    ],
+    [
+      6,
+      6,
+      0
+    ],
+    [
+      0,
+      6,
+      0
+    ]
+  ],
+  "output_ports": [
+    [
+      6,
+      0,
+      84
+    ],
+    [
+      6,
+      6,
+      84
+    ],
+    [
+      0,
+      0,
+      84
+    ],
+    [
+      0,
+      6,
+      84
+    ]
+  ],
+  "normalized_qasm": "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[4];\nh q[0];\ns q[0];\ns q[0];\nh q[0];\nh q[2];\ns q[2];\ns q[2];\nh q[2];\ncx q[0],q[1];\ns q[1];\ncx q[0],q[1];\ncx q[1],q[2];\ns q[2];\ncx q[1],q[2];\ncx q[2],q[3];\ns q[3];\ncx q[2],q[3];\nh q[0];\nt q[0];\nh q[0];\nh q[1];\nt q[1];\nh q[1];\nh q[2];\nt q[2];\nh q[2];\nh q[3];\nt q[3];\nh q[3];\ncx q[0],q[1];\ns q[1];\ncx q[0],q[1];\ncx q[1],q[2];\ns q[2];\ncx q[1],q[2];\ncx q[2],q[3];\ns q[3];\ncx q[2],q[3];\nh q[0];\nt q[0];\nh q[0];\nh q[1];\nt q[1];\nh q[1];\nh q[2];\nt q[2];\nh q[2];\nh q[3];\nt q[3];\nh q[3];\n",
+  "t_gadgets": 8,
+  "layout_options": {
+    "seed_init": 0,
+    "seed_step": 1,
+    "time_bound": 0.1,
+    "iter_num": 100,
+    "move_num": 6,
+    "length": 2,
+    "dir_opt": true,
+    "backtrack": 0,
+    "z_floor": 1,
+    "engine": "python",
+    "block_size_max": 20,
+    "zx_opt": 1,
+    "grid_spacing": 3
+  },
+  "algorithm": {
+    "candidate": "ising4",
+    "algorithm": "Four-spin Ising dynamics, two Trotter steps",
+    "qubits": 4,
+    "candidate_generator_sha256": "949090b306d09c88b7c346e27c3fbc61b4b866e6c126fc969b0aaf38b603a298",
+    "projective_spectral_error": 2.0513162584194247e-15,
+    "gate_counts": {
+      "h": 16,
+      "cx": 12,
+      "t": 8,
+      "s": 6,
+      "x": 2
+    },
+    "t_count": 8,
+    "expected_probabilities": [
+      0.007812499999999998,
+      0.007812499999999994,
+      0.007812499999999998,
+      0.03906249999999996,
+      0.13281249999999994,
+      0.5078125000000001,
+      0.039062499999999986,
+      0.007812499999999986,
+      0.007812500000000002,
+      0.03906250000000001,
+      0.007812500000000002,
+      0.0078124999999999965,
+      0.03906249999999999,
+      0.13281249999999997,
+      0.0078124999999999965,
+      0.007812499999999998
+    ],
+    "output_pauli_stabilizer_count": 1,
+    "non_stabilizer_output": true,
+    "family": "Hamiltonian simulation",
+    "steps": 2,
+    "hamiltonian": "2 sum Z_i Z_(i+1) + sum X_i (open chain)",
+    "evolution_time": "pi/4",
+    "trotter_spectral_error": 1.019645917789858
+  },
+  "source_qasm": "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[4];\nx q[0];\nx q[2];\ncx q[0],q[1];\nrz(pi/2) q[1];\ncx q[0],q[1];\ncx q[1],q[2];\nrz(pi/2) q[2];\ncx q[1],q[2];\ncx q[2],q[3];\nrz(pi/2) q[3];\ncx q[2],q[3];\nrx(pi/4) q[0];\nrx(pi/4) q[1];\nrx(pi/4) q[2];\nrx(pi/4) q[3];\ncx q[0],q[1];\nrz(pi/2) q[1];\ncx q[0],q[1];\ncx q[1],q[2];\nrz(pi/2) q[2];\ncx q[1],q[2];\ncx q[2],q[3];\nrz(pi/2) q[3];\ncx q[2],q[3];\nrx(pi/4) q[0];\nrx(pi/4) q[1];\nrx(pi/4) q[2];\nrx(pi/4) q[3];",
+  "expected_state": [
+    [
+      -0.06249999999999999,
+      0.0625
+    ],
+    [
+      -0.0625,
+      -0.062499999999999944
+    ],
+    [
+      -0.06249999999999999,
+      -0.06249999999999999
+    ],
+    [
+      -0.06249999999999997,
+      -0.1874999999999999
+    ],
+    [
+      -0.31249999999999994,
+      0.18749999999999997
+    ],
+    [
+      0.18749999999999986,
+      -0.6875000000000001
+    ],
+    [
+      0.18749999999999994,
+      0.062499999999999965
+    ],
+    [
+      -0.06249999999999999,
+      -0.0624999999999999
+    ],
+    [
+      -0.0625,
+      -0.06250000000000001
+    ],
+    [
+      0.1875,
+      0.062499999999999986
+    ],
+    [
+      -0.0625,
+      0.0625
+    ],
+    [
+      -0.06249999999999999,
+      -0.062499999999999986
+    ],
+    [
+      0.18749999999999997,
+      0.06249999999999997
+    ],
+    [
+      -0.31249999999999994,
+      0.18750000000000006
+    ],
+    [
+      -0.0625,
+      -0.06249999999999997
+    ],
+    [
+      -0.06249999999999999,
+      0.0625
+    ]
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "upstream_revision": "e564d350a596cfea3227e09698733210e2e14dcf",
+  "upstream_patch": "bloq_py/examples/topols.patch",
+  "upstream_patch_sha256": "e9f936dca9345062df21129f82e4045075c19a2e5a8b6045c2666add608e7c7c",
+  "input_ports": [
+    [
+      0,
+      0,
+      0
+    ]
+  ],
+  "output_ports": [
+    [
+      0,
+      0,
+      9
+    ]
+  ],
+  "normalized_qasm": "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[1];\ns q[0];\n",
+  "t_gadgets": 0,
+  "layout_options": {
+    "seed_init": 0,
+    "seed_step": 1,
+    "time_bound": 0.05,
+    "iter_num": 10,
+    "move_num": 6,
+    "length": 1,
+    "dir_opt": true,
+    "backtrack": 0,
+    "z_floor": 1,
+    "engine": "python",
+    "block_size_max": 20,
+    "zx_opt": 1,
+    "grid_spacing": 3
+  }
+}

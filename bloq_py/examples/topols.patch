@@ -1,0 +1,92 @@
+diff --git a/src/topols/zx_transform/layering.py b/src/topols/zx_transform/layering.py
+index eb5dec2..c2cc16f 100644
+--- a/src/topols/zx_transform/layering.py
++++ b/src/topols/zx_transform/layering.py
+@@ -14,6 +14,7 @@ Node types (`node_type_convert`): 0 = Z spider, 1 = X spider, 2 = idle
+ 
+ import pyzx as zx
+ from collections import deque
++from fractions import Fraction
+ 
+ 
+ def _move_hadamard_flag(hadamard_edges, old_edge, new_edge):
+@@ -426,18 +427,24 @@ def idling_nodes_insertion_block_vanilla(graph, layer_labels, block_range, hadam
+ 
+ def node_type_convert(graph, node):
+     """Embedding type of a vertex: 0 Z spider, 1 X spider, 2 idle, 3 Hadamard
+-    box, 4 S, 5 T; -1 for anything else (boundaries)."""
++    box, 4 S/Sdag, 5 T/Tdag; -1 for anything else (boundaries).
++
++    The embedding type describes geometry; the graph retains the signed phase.
++    """
+     vtype = graph.type(node)
+     phase = graph.phase(node)  # phase is stored as a rational multiplier of π
+ 
+     if vtype == zx.VertexType.Z:
++        if not isinstance(phase, (int, Fraction)):
++            return -1
++        phase %= 2
+         if phase == 0:
+             if len(graph.neighbors(node)) == 2:
+                 return 2
+             return 0
+-        elif phase == 1/2:
++        elif phase in (1/2, 3/2):
+             return 4
+-        elif phase == 1/4:
++        elif phase in (1/4, 7/4):
+             return 5
+     elif vtype == zx.VertexType.X:
+         return 1
+diff --git a/src/topols/zx_transform/simplify.py b/src/topols/zx_transform/simplify.py
+index e44e380..ef6f2e7 100644
+--- a/src/topols/zx_transform/simplify.py
++++ b/src/topols/zx_transform/simplify.py
+@@ -4,6 +4,7 @@ spiders and row spreading for dense circuits.
+ """
+ 
+ import math
++from fractions import Fraction
+ import pyzx as zx
+ from pyzx import settings
+ settings.drawing_backend = "matplotlib"
+@@ -151,12 +152,18 @@ def merge_spiders(graph, v1, v2):
+     graph.remove_vertex(v2)
+ 
+ 
++def _is_resource_spider(graph, node):
++    phase = graph.phase(node)
++    return (graph.vertex_degree(node) == 2 and isinstance(phase, (int, Fraction))
++            and phase % 2 in (1/4, 1/2, 3/2, 7/4))
++
++
+ def zx_optimization(graph, block_dic):
+     """Spider fusion within blocks.
+ 
+     A spider of degree < 4 is fused with a same-type neighbour of degree
+     < 4 in the same block when both are phase 0 (two CNOT halves) or one
+-    is phase 0 and the other a degree-2 S or T (phase 1/2 or 1/4). At most
++    is phase 0 and the other a degree-2 signed S or T. At most
+     one fusion per spider per pass. `block_dic=None` ignores blocks.
+     """
+     vertices_init = list(graph.vertices())
+@@ -175,7 +182,8 @@ def zx_optimization(graph, block_dic):
+                 continue
+             if graph.type(v) == graph.type(n):
+                 # merge one CNOT node with S or T node
+-                if (graph.phase(v) == 0 and (graph.phase(n) == 1/4 or graph.phase(n) == 1/2) and graph.vertex_degree(n) == 2) or (graph.phase(n) == 0 and (graph.phase(v) == 1/4 or graph.phase(v) == 1/2) and graph.vertex_degree(v) == 2):
++                if ((graph.phase(v) == 0 and _is_resource_spider(graph, n))
++                        or (graph.phase(n) == 0 and _is_resource_spider(graph, v))):
+                     try:
+                         merge_spiders(graph, v, n)
+                         break  # Merge only one pair per pass
+@@ -209,7 +217,8 @@ def zx_optimization_block(graph, block_range):
+             if graph.row(n) not in block_range:
+                 continue
+             if graph.type(v) == graph.type(n):
+-                if (graph.phase(v) == 0 and (graph.phase(n) == 1/4 or graph.phase(n) == 1/2) and graph.vertex_degree(n) == 2) or (graph.phase(n) == 0 and (graph.phase(v) == 1/4 or graph.phase(v) == 1/2) and graph.vertex_degree(v) == 2):
++                if ((graph.phase(v) == 0 and _is_resource_spider(graph, n))
++                        or (graph.phase(n) == 0 and _is_resource_spider(graph, v))):
+                     try:
+                         merge_spiders(graph, v, n)
+                         break  # Merge only one pair per pass
