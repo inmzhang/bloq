@@ -890,14 +890,16 @@ impl Program {
             .inputs
             .iter()
             .filter(|input| !input.prepare_before.contains(&input.input_instance))
-            .map(|input| {
+            .filter_map(|input| {
                 let consumers = input
                     .prepare_before
                     .iter()
                     .filter_map(|instance| owners.get(instance))
                     .flat_map(|quantum| quantum.instances.iter().map(|instance| instance.id))
                     .collect::<FxHashSet<_>>();
-                (input.input_instance, consumers)
+                // A fused Port also executes after injection, so no old records cross this cut.
+                (!consumers.contains(&input.input_instance))
+                    .then_some((input.input_instance, consumers))
             })
             .collect::<Vec<_>>();
         detectors.retain(|(_, detector)| {
@@ -3343,6 +3345,78 @@ graph {
             .unwrap();
             assert_eq!(report.discarded, 0);
             assert!(report.all_detectors_constant());
+        }
+    }
+
+    #[test]
+    fn fused_spatial_input_checks_do_not_span_replacement() {
+        for fused in [false, true] {
+            let mut bloq = Bloq::new();
+            let mut circuit = CoordCircuit::new();
+            circuit.do_gate(GateType::RX, [IVec2::ZERO]).unwrap();
+            let measurement = circuit.measure(PauliBasis::X, [IVec2::ZERO])[0];
+            let mut template = BloqTemplate::new(circuit);
+            template.boundary_flows.push(bloq_ir::circuit::Flow::new(
+                Default::default(),
+                [(IVec2::ZERO, CircuitPauli::X)].into_iter().collect(),
+            ));
+            template.detectors.push(TemplateDetector {
+                scope: TemplateDetectorScope::TopLevel,
+                parity: DetectorParity::from_measurements([measurement]),
+                coords: None,
+            });
+            let template = bloq.add_template(template);
+            let port = IVec3::ZERO;
+            let mut input = quantum_node(template, 0, IVec2::ZERO);
+            input.expect_quantum_mut().instances[0].provenance =
+                bloq_ir::InstanceProvenance::SpatialPortSubstitution {
+                    source: port,
+                    role: bloq_ir::PortRole::Input,
+                    part: bloq_ir::SpatialPortPart::TemporalPort,
+                };
+            let mut consumer = quantum_node(template, 1, IVec2::X);
+            consumer.expect_quantum_mut().instances[0].provenance =
+                bloq_ir::InstanceProvenance::SpatialPortSubstitution {
+                    source: port,
+                    role: bloq_ir::PortRole::Input,
+                    part: bloq_ir::SpatialPortPart::Cube,
+                };
+            consumer.expect_quantum_mut().detectors.push(NodeDetector {
+                parity: DetectorParity::from_measurements([0, 1].map(|instance| {
+                    InstanceMeasurement {
+                        instance: TemplateInstanceId(instance),
+                        measurement,
+                    }
+                })),
+                coords: None,
+            });
+            if fused {
+                consumer
+                    .expect_quantum_mut()
+                    .instances
+                    .extend(input.expect_quantum().instances.iter().copied());
+                bloq.add_node(consumer);
+            } else {
+                let input = bloq.add_node(input);
+                let consumer = bloq.add_node(consumer);
+                bloq.add_edge(input, consumer, BloqEdge::Order);
+            }
+            bloq.set_logical_inputs(vec![bloq_ir::LogicalInput {
+                port,
+                instance: TemplateInstanceId(0),
+                x: [(IVec2::ZERO, CircuitPauli::X)].into_iter().collect(),
+                z: [(IVec2::ZERO, CircuitPauli::Z)].into_iter().collect(),
+            }]);
+
+            let report = run_bloq_with_io(&bloq, 4, 0, |_, _| Ok(()), |_, _| Ok(()))
+                .expect("spatial input injection executes");
+            assert_eq!(report.detectors.len(), if fused { 3 } else { 2 });
+            assert!(
+                report
+                    .detectors
+                    .iter()
+                    .all(|detector| detector.per_shot == [false; 4])
+            );
         }
     }
 
