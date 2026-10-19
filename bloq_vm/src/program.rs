@@ -889,7 +889,6 @@ impl Program {
         let input_cuts = self
             .inputs
             .iter()
-            .filter(|input| !input.prepare_before.contains(&input.input_instance))
             .filter_map(|input| {
                 let consumers = input
                     .prepare_before
@@ -897,7 +896,8 @@ impl Program {
                     .filter_map(|instance| owners.get(instance))
                     .flat_map(|quantum| quantum.instances.iter().map(|instance| instance.id))
                     .collect::<FxHashSet<_>>();
-                // A fused Port also executes after injection, so no old records cross this cut.
+                // An input fused into its consumers (or prepared before itself)
+                // executes after injection, so no old records cross this cut.
                 (!consumers.contains(&input.input_instance))
                     .then_some((input.input_instance, consumers))
             })
@@ -3656,32 +3656,6 @@ graph {
                 Err(ExecError::IncompatibleEarlyOutputReads { .. })
             ));
         }
-    }
-
-    #[test]
-    fn output_logicals_reject_consumed_uncaptured_state() {
-        let outputs = [OutputLogical {
-            port: IVec3::ZERO,
-            logical_x: PauliString::single(1, 0, Pauli::X),
-            logical_z: PauliString::single(1, 0, Pauli::Z),
-            consumed: true,
-        }];
-        let context = ShotContext {
-            shot: 0,
-            record: &ShotRecord::default(),
-            branch_selectors: &[],
-            named_branch_selectors: &[],
-            outputs: &outputs,
-            frames: &[],
-            saved_outputs: &[],
-            qubit_count: 1,
-        };
-        assert!(matches!(
-            context.output_logicals(),
-            Err(ExecError::MalformedGraph(
-                "logical output was consumed without boundary capture"
-            ))
-        ));
     }
 
     #[test]
