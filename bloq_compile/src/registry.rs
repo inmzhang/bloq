@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use bloq_graph::{
     BlockGraph, GuardedSurfaceSpace, GuardedTopology, MaterializedModuleSite,
-    PreparedModuleRelations,
+    PreparedModuleRelations, QuantumConnection,
 };
 use bloq_ir::lowering::{InstanceMeasurement, TemplateInstanceId};
 use bloq_ir::{
@@ -42,7 +42,13 @@ fn hierarchy_needs_local_variants(program: &BlockGraph) -> bool {
         if !seen.insert(&module.name) {
             continue;
         }
-        if module.local_body().has_continuing_branches() {
+        if module.local_body().has_continuing_branches()
+            || module.local_body().pipes().any(bloq_graph::Pipe::is_hadamard)
+            || module.quantum_connections.iter().any(|connection| matches!(connection,
+                QuantumConnection::Input { hadamard: true, .. }
+                | QuantumConnection::Output { hadamard: true, .. }
+                | QuantumConnection::Pipe { hadamard: true, .. }))
+        {
             return true;
         }
         pending.extend(module.instances.iter().map(|instance| {
@@ -124,7 +130,12 @@ fn compile_native(
     // One origin for both arms. Subtracting the origin also handles i32::MIN,
     // whose negation cannot be represented as a translation vector.
     let low = source.spans().map_or(0, |(_, _, z)| *z.start());
-    let graph = source.with_zero_min_z()?.fix_shadowed_faces();
+    let fixed = source.with_zero_min_z()?.fix_shadowed_faces();
+    let graph = fixed.with_temporal_hadamards()?;
+    // Composed witnesses refer to the original internal ZX geometry.
+    let geometry_changed = fixed.blocks().any(|block| graph.get_block(block.pos()) != Some(block))
+        || fixed.pipes().any(|pipe| graph.get_pipe(pipe.src(), pipe.dst()) != Some(pipe));
+    let summary = summary.filter(|_| !geometry_changed);
     let (bloq, interface, warnings) = {
         let sites = source_sites
             .iter()

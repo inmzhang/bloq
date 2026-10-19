@@ -572,7 +572,8 @@ enum CliffordProxyPurpose {
 ///
 /// Returns [`CompileError::CliffordProxyPinCount`] unless `pins` has exactly one
 /// bit per selective block in the expanded graph, and any compilation error the
-/// rewritten graph provokes. Pins follow expanded `(z, x, y)` block order.
+/// rewritten graph provokes. Pins follow expanded `(z, x, y)` block order and
+/// select the original source arms, before Hadamard normalization.
 ///
 /// # Examples
 ///
@@ -659,7 +660,8 @@ fn random_proxy_pins(graph: &BlockGraph, seed: u64) -> Result<Vec<bool>, Compile
 ///
 /// Returns [`CompileError::CliffordProxyPinCount`] unless `pins` has exactly one
 /// bit per selective block in the expanded graph, and any compilation error the
-/// rewritten graph provokes. Pins follow expanded `(z, x, y)` block order.
+/// rewritten graph provokes. Pins follow expanded `(z, x, y)` block order and
+/// select the original source arms, before Hadamard normalization.
 pub fn compile_detslice_proxy(
     config: CompileConfig,
     graph: &BlockGraph,
@@ -698,13 +700,29 @@ fn compile_proxy(
         });
     }
     let mut ctx = proxy_context(config);
-    let summary = ctx.summarize(graph, config.certification_limits())?;
+    // Certify the source before rewriting; pins still name its original arms.
+    let source_summary = ctx.summarize(graph, config.certification_limits())?;
+    let rewritten = source.fix_shadowed_faces().with_temporal_hadamards()?;
+    let conditions = |graph: &BlockGraph| graph.actions().into_iter().filter_map(|action| match action {
+        bloq_graph::Action::Resolve { target, condition } => Some((target, condition)),
+        _ => None,
+    }).collect::<crate::FxMap<_, _>>();
+    let before = conditions(source);
+    let after = conditions(&rewritten);
+    let pins = ordered_blocks(source).into_iter().filter(|block| block.kind().is_selective())
+        .zip(pins).map(|(block, pin)| pin ^ (before.get(&block.pos()) != after.get(&block.pos())))
+        .collect();
+    let geometry_changed = source.blocks().any(|block| rewritten.get_block(block.pos()) != Some(block))
+        || source.pipes().any(|pipe| rewritten.get_pipe(pipe.src(), pipe.dst()) != Some(pipe));
+    let summary = if geometry_changed {
+        ctx.summarize(&rewritten, config.certification_limits())?
+    } else { source_summary };
     ctx.clifford_proxy = Some(CliffordProxyPins {
         pins,
         purpose,
         summary,
     });
-    ctx.compile(source)
+    ctx.compile(&rewritten)
 }
 
 static PROXY_CACHE: OnceLock<crate::SharedCompileCache> = OnceLock::new();
@@ -2015,6 +2033,91 @@ mod tests {
                 .unwrap_err()
                 .is_resource_limited()
         );
+    }
+
+    #[rstest]
+    #[case("XY")]
+    #[case("XZ")]
+    #[case("YZ")]
+    fn clifford_proxies_keep_source_arm_pins_through_hadamard_normalization(#[case] kind: &str) {
+        for mixed_spatial in [false, true] {
+            let first = if mixed_spatial {
+                "1: XZX [0,0,0]\n2: XXZ [1,0,0]\n3: ZZX [1,1,0]\n4: ZXZ [2,1,0]\n\
+                 0 -> +Z\n1 -H> +X\n2 -H> +Y\n3 -H> +X\n4 -> +Z\n"
+            } else {
+                "4: ZXZ [2,1,0]\n0 -> +Z\n4 -H> +Z\n"
+            };
+            let input = if mixed_spatial { "0,0,-1" } else { "2,1,-1" };
+            let source = BlockGraph::from_blog_text(&format!(
+                "BLOG 1.0\nmodule main {{\nin control\nin a: data = 0\nin b: data = 6\n\
+                 0: Port [{input}] role=input\n{first}\n5: {kind} [2,1,1]\n\
+                 6: Port [4,0,-1] role=input\n7: ZXZ [4,0,0]\n8: {kind} [4,0,1]\n\
+                 6 -> +Z\n7 -> +Z\nresolve 5 if control\nresolve 8 if control\n}}\n"
+            ))
+            .unwrap();
+            let flat = source.flatten().unwrap();
+            let rewritten = flat.fix_shadowed_faces().with_temporal_hadamards().unwrap();
+            assert!(
+                !rewritten.pipes().any(Pipe::is_hadamard),
+                "{kind} mixed={mixed_spatial}: all walls absorb"
+            );
+            let before = flat.actions();
+            let after = rewritten.actions();
+            assert_ne!(before[0], after[0], "first arm selector is exchanged");
+            assert_eq!(before[1], after[1], "second arm selector is unchanged");
+
+            for pins in [[false, true], [true, false]] {
+                for purpose in [
+                    CliffordProxyPurpose::Distance,
+                    CliffordProxyPurpose::Detslice,
+                ] {
+                    let actual = compile_proxy(CompileConfig::new(3), &source, &pins, purpose)
+                        .unwrap_or_else(|error| {
+                            panic!("{kind} mixed={mixed_spatial} {pins:?}: {error}")
+                        })
+                        .bloq;
+                    let expected = compile_pinned_clifford_proxy(
+                        CompileConfig::new(3),
+                        &rewritten,
+                        &[!pins[0], pins[1]],
+                        purpose,
+                        None,
+                    )
+                    .unwrap()
+                    .bloq;
+                    actual.validate().unwrap();
+                    assert_eq!(
+                        bloq_stim::emit_bloq_stim(&actual).unwrap(),
+                        bloq_stim::emit_bloq_stim(&expected).unwrap(),
+                        "{kind} mixed={mixed_spatial} {pins:?}: original arms are preserved"
+                    );
+                    assert!(
+                        bloq_ir::program_detector_slices(&actual)
+                            .unwrap()
+                            .breaks
+                            .is_empty()
+                    );
+                }
+            }
+            let pins = random_proxy_pins(&flat, 17).unwrap();
+            let random = compile_random_clifford_proxy(CompileConfig::new(3), &source, 17)
+                .unwrap()
+                .bloq;
+            let expected = compile_pinned_clifford_proxy(
+                CompileConfig::new(3),
+                &rewritten,
+                &[!pins[0], pins[1]],
+                CliffordProxyPurpose::Distance,
+                None,
+            )
+            .unwrap()
+            .bloq;
+            assert_eq!(
+                bloq_stim::emit_bloq_stim(&random).unwrap(),
+                bloq_stim::emit_bloq_stim(&expected).unwrap(),
+                "random pins are sampled in original control frames"
+            );
+        }
     }
 
     fn single_cube_runtime_graph() -> BlockGraph {
@@ -4902,6 +5005,19 @@ module main {
         graph.add_pipe(
             bloq_graph::Pipe::new(IVec3::ZERO, bloq_graph::Direction::XPLUS).with_hadamard(),
         );
+
+        assert!(
+            compile_with(&graph, CompileConfig::default())
+                .expect("removable wall compiles")
+                .warnings
+                .is_empty()
+        );
+        // Boundary frames pin both cubes, so this wall must remain physical.
+        for position in [-IVec3::Z, IVec3::X + IVec3::Z] {
+            graph.add_block(Block::new(position, BlockKind::Port));
+        }
+        graph.add_pipe(Pipe::new(-IVec3::Z, Direction::ZPLUS));
+        graph.add_pipe(Pipe::new(IVec3::X, Direction::ZPLUS));
 
         let artifacts = compile_with(&graph, CompileConfig::default()).expect("wall compiles");
 

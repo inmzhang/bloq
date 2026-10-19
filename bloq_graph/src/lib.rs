@@ -32,6 +32,8 @@ mod gallery;
 mod gltf;
 mod graph;
 mod guarded;
+mod hadamard;
+mod hadamard_measurement;
 mod height;
 pub use composition::ModuleJoinOptions;
 mod module_view;
@@ -72,6 +74,7 @@ pub use gltf::{
 };
 pub use graph::{BlockGraph, BlockLayerView};
 pub use guarded::{GuardedProjection, GuardedTopology, GuardedVariable, selective_selector_name};
+pub use hadamard::HadamardPushError;
 pub use height::{CubeHeight, MAX_CUBE_HEIGHT_CELLS};
 pub use module_view::{ModuleView, ModuleViewModule, module_color};
 #[cfg(test)]
@@ -127,6 +130,9 @@ pub mod prelude {
 #[derive(Error, Debug, Clone)]
 #[non_exhaustive]
 pub enum BlockGraphError {
+    /// Protected local frames prevent a supported Hadamard transformation.
+    #[error(transparent)]
+    HadamardPush(Box<HadamardPushError>),
     /// A block already occupies the requested anchor position.
     #[error("block already exists at position {0}")]
     BlockExists(IVec3),

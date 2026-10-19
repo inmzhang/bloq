@@ -111,6 +111,21 @@ A local graph without modules skips the first two steps. The composition
 algorithm is still evolving. [Modules](../modules/index.md) describes the
 authoring model it implements.
 
+Before correlation planning, Bloq pushes spatial Hadamards through ordinary
+zero-phase cubes using ZX color changes. It first tries to remove every spatial
+wall; otherwise it minimizes walls on a single axis per spatial component.
+Resource, port, and control frames constrain the rewrite. An incompatible
+component is rejected. Positions and source provenance are preserved. For
+hierarchies with Hadamards, physical templates are selected from the rewritten
+linked geometry rather than the original definition variants.
+
+Incoming temporal Hadamards at terminal measurement caps are absorbed into
+their bases: X and Z swap, Y receives a sign correction, and selective caps
+also invert their selectors. Existing Pauli feedback is conjugated so named
+outcomes retain their meaning. Preparation endpoints and structural branch
+regions retain their authored frames. Use `graph.with_temporal_hadamards()` to
+inspect the rewrite explicitly; normal compilation applies it automatically.
+
 ## 3. Correlations
 
 This stage computes the logical side of the program. It first builds the
