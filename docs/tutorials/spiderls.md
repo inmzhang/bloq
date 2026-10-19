@@ -22,11 +22,35 @@ SpiderLS is an unpackaged source checkout; only its `src` directory needs to be
 on `PYTHONPATH`. The headless integration uses Bloq's pinned PyZX 0.10.7 rather
 than upstream's declared 0.10.2. Base Bloq does not import or require SpiderLS.
 
-The example also executes `walk5` and `qaoa4`. Each run requires an empty output
+The example also executes larger candidates:
+
+| Candidate | Logical qubits | Source T/T† gates | Algorithm check |
+| --- | ---: | ---: | --- |
+| `simon6` | 6 | 7 | Recover period `101` from the input register's Fourier support |
+| `qaoa5` | 5 | 10 | Five-cycle expected cut 3.75; maximum cut 4 |
+| `ising5` | 5 | 10 | Reproduce two Trotter steps for a five-spin chain |
+| `iqp6` | 6 | 8 | Even output parity and the analytic all-zero probability |
+
+For example, replace `--candidate walk3` above with `--candidate simon6`.
+Simon uses three input and three output qubits with the nonlinear oracle
+`f(x) = (x0 xor x2, x1, (x0 xor x2) and x1)`. Its input marginal is uniform on
+`000`, `010`, `101` and `111`. The report recovers the unique nonzero period
+orthogonal to this support. This recovery uses probabilities derived from the
+VM state, rather than a finite set of computational-basis samples.
+
+Each run requires an empty output
 directory and retains source and Clifford+T QASM, `layout.blog`, an HTML viewer,
 validated `program.bloq`, and JSON results. Independent matrix oracles check
-synthesis and every joint output Pauli expectation. Other candidates are useful
-compatibility probes and may reject.
+synthesis and every joint output Pauli expectation: 1,023 for five outputs and
+4,095 for six. Each shot also records source-ordered `logical_probabilities`
+and applicable `algorithm_checks`. These noiseless state checks are distinct
+from statistical estimates from sampled algorithm outputs. Other candidates
+are useful compatibility probes and may reject.
+
+For Ising dynamics, fidelity is checked against the Trotterized circuit.
+`trotter_spectral_error` separately reports its operator-norm error against
+continuous Hamiltonian evolution. Two coarse steps are a compilation demo,
+not an accurate continuous-evolution approximation.
 
 For direct use:
 

@@ -29,6 +29,7 @@ def test_cli_preserves_checked_algorithm_sources_without_upstream(candidate, tmp
 
 
 def test_shared_runner_retains_topols_diagnostic_without_node_metadata(tmp_path, monkeypatch):
+    monkeypatch.syspath_prepend(str(EXAMPLE.parent))
     from bloq.interop import topols
 
     failure = topols.TopoLSImportError("resource_collision", "T column is occupied")
@@ -51,7 +52,8 @@ def test_shared_runner_retains_topols_diagnostic_without_node_metadata(tmp_path,
     assert result["layout_options"] == options
 
 
-def test_compile_only_preserves_interface_with_a_t_source_before_the_input(tmp_path):
+def test_compile_only_preserves_interface_with_a_t_source_before_the_input(tmp_path, monkeypatch):
+    monkeypatch.syspath_prepend(str(EXAMPLE.parent))
     pytest.importorskip("topols")
     pytest.importorskip("topols_core")
     generate = runpy.run_path(str(EXAMPLE.with_name("_algorithm_candidates.py")))["generate_candidate"]

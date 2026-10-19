@@ -20,15 +20,19 @@ class Candidate:
 
 CANDIDATES = {
     "qpe4": "Four-qubit phase estimation",
+    "simon6": "Six-qubit Simon algorithm with a nonlinear oracle",
     "grover3": "Three-qubit Grover search for 101, one iteration",
     "qaoa3": "QAOA MaxCut on a triangle, one layer",
     "qaoa4": "QAOA MaxCut on a four-cycle, one layer",
+    "qaoa5": "QAOA MaxCut on a five-cycle, one layer",
     "adder4": "Coherent two-bit modular addition",
     "walk3": "Coined walk on a four-cycle, three steps",
     "walk5": "Coined walk on a four-cycle, five steps",
     "qae3": "Three-qubit amplitude estimation",
     "vqe4": "Four-spin Ising variational ansatz, one energy evaluation",
     "ising4": "Four-spin Ising dynamics, two Trotter steps",
+    "ising5": "Five-spin Ising dynamics, two Trotter steps",
+    "iqp6": "Six-qubit IQP sampling with eight interactions",
 }
 _H = np.array([[1, 1], [1, -1]]) / np.sqrt(2)
 _X = np.array([[0, 1], [1, 0]])
@@ -83,6 +87,34 @@ def _finish(name, source, compiled, ideal, **metadata):
     return Candidate(source_qasm, compiled_qasm, ideal, summary)
 
 
+def check_algorithm_probabilities(summary, probabilities):
+    """Check classical algorithm results derived from the VM's logical state."""
+    if summary.get("candidate") == "simon6":
+        marginal = np.asarray(probabilities).reshape(8, 8).sum(axis=0)
+        support = np.flatnonzero(marginal > 1e-7)
+        periods = [s for s in range(1, 8)
+                   if all((s & int(y)).bit_count() % 2 == 0 for y in support)]
+        if periods != [int(summary["hidden_period"], 2)] or not np.allclose(
+                marginal, summary["expected_input_probabilities"], atol=1e-7, rtol=0):
+            raise RuntimeError("Simon output does not identify the hidden period")
+        return dict(input_probabilities=marginal.tolist(), recovered_period=f"{periods[0]:03b}",
+                    recovery="unique nonzero period orthogonal to the VM-supported strings")
+    if "expected_cut" in summary:
+        cuts = [sum(((x >> a) ^ (x >> b)) & 1 for a, b in summary["edges"])
+                for x in range(len(probabilities))]
+        value = float(np.dot(probabilities, cuts))
+        if abs(value - summary["expected_cut"]) > 1e-7:
+            raise RuntimeError("QAOA output has the wrong expected cut")
+        return dict(expected_cut=value, maximum_cut=max(cuts))
+    if summary.get("family") == "IQP sampling":
+        even = sum(p for x, p in enumerate(probabilities) if x.bit_count() % 2 == 0)
+        zero = float(probabilities[0])
+        if abs(even - 1) > 1e-7 or abs(zero - summary["expected_zero_probability"]) > 1e-7:
+            raise RuntimeError("IQP output violates its parity or zero-probability check")
+        return dict(even_parity_probability=float(even), zero_probability=zero)
+    return {}
+
+
 def generate_candidate(name):
     """Construct exact Clifford+T sources and matrix-based algorithm oracles."""
     if name not in CANDIDATES:
@@ -112,6 +144,30 @@ def generate_candidate(name):
         ideal = diffusion @ oracle @ _kron(_H, _H, _H)
         return _finish(name, source, compiled, ideal, family="search", marked_integer=5,
                        expected_success_probability=25/32)
+    if name == "simon6":
+        source = QuantumCircuit(6)
+        source.h(range(3))
+        # Compute u on an input wire, then restore it: the oracle XORs f(x)
+        # into arbitrary output-register contents, not only into |000>.
+        source.cx(2, 0)
+        source.cx(0, 3)
+        source.cx(1, 4)
+        source.ccx(0, 1, 5)
+        source.cx(2, 0)
+        source.h(range(3))
+        compiled = transpile(source, basis_gates=["h", "x", "cx", "t", "tdg"],
+                             optimization_level=0, seed_transpiler=17)
+        oracle = np.zeros((64, 64))
+        for x in range(8):
+            u, v = (x & 1) ^ ((x >> 2) & 1), (x >> 1) & 1
+            value = u | (v << 1) | ((u & v) << 2)
+            for y in range(8):
+                oracle[x + ((y ^ value) << 3), x + (y << 3)] = 1
+        walsh = _kron(np.eye(8), _H, _H, _H)
+        return _finish(name, source, compiled, walsh @ oracle @ walsh,
+                       family="hidden-period finding", input_qubits=[0, 1, 2],
+                       hidden_period="101", oracle="(x0 xor x2, x1, (x0 xor x2) and x1)",
+                       expected_input_probabilities=[1/4, 0, 1/4, 0, 0, 1/4, 0, 1/4])
     if name.startswith("qaoa"):
         qubits = int(name[-1])
         edges = [(i, (i + 1) % qubits) for i in range(qubits)]
@@ -193,38 +249,62 @@ def generate_candidate(name):
         return _finish(name, source, compiled, ideal, family="variational energy estimation",
                        hamiltonian="-sum Z_i Z_(i+1) - sum X_i (open chain)",
                        expected_energy=float(energy), optimized=False)
-    if name == "ising4":
-        source, compiled = QuantumCircuit(4), QuantumCircuit(4)
+    if name.startswith("ising"):
+        qubits = int(name[-1])
+        dimension = 1 << qubits
+        neel = sum(1 << wire for wire in range(0, qubits, 2))
+        source, compiled = QuantumCircuit(qubits), QuantumCircuit(qubits)
         for circuit in (source, compiled):
-            circuit.x([0, 2])
+            circuit.x(range(0, qubits, 2))
         for _ in range(2):
-            for wire in range(3):
+            for wire in range(qubits - 1):
                 source.cx(wire, wire+1)
                 source.rz(np.pi/2, wire+1)
                 source.cx(wire, wire+1)
                 compiled.cx(wire, wire+1)
                 compiled.s(wire+1)
                 compiled.cx(wire, wire+1)
-            for wire in range(4):
+            for wire in range(qubits):
                 source.rx(np.pi/4, wire)
                 compiled.h(wire)
                 compiled.t(wire)
                 compiled.h(wire)
         interaction = np.array([sum((1-2*((x >> q) & 1))*(1-2*((x >> (q+1)) & 1))
-                                    for q in range(3)) for x in range(16)])
-        x_sum = np.zeros((16, 16))
-        for wire in range(4):
-            x_sum[np.arange(16) ^ (1 << wire), np.arange(16)] += 1
+                                    for q in range(qubits - 1)) for x in range(dimension)])
+        x_sum = np.zeros((dimension, dimension))
+        for wire in range(qubits):
+            x_sum[np.arange(dimension) ^ (1 << wire), np.arange(dimension)] += 1
         delta = np.pi/8
         rotation = np.cos(delta)*np.eye(2) - 1j*np.sin(delta)*_X
-        step = _kron(*([rotation]*4)) @ np.diag(np.exp(-2j*delta*interaction))
-        preparation = np.eye(16)[:, np.arange(16) ^ 5]
+        step = _kron(*([rotation]*qubits)) @ np.diag(np.exp(-2j*delta*interaction))
+        preparation = np.eye(dimension)[:, np.arange(dimension) ^ neel]
         ideal = step @ step @ preparation
         energies, eigenvectors = np.linalg.eigh(2*np.diag(interaction)+x_sum)
         exact = (eigenvectors * np.exp(-2j*delta*energies)) @ eigenvectors.conj().T @ preparation
         return _finish(name, source, compiled, ideal, family="Hamiltonian simulation", steps=2,
                        hamiltonian="2 sum Z_i Z_(i+1) + sum X_i (open chain)",
                        evolution_time="pi/4", trotter_spectral_error=float(np.linalg.norm(ideal-exact, ord=2)))
+    if name == "iqp6":
+        edges = [(wire, (wire + 1) % 6) for wire in range(6)] + [(0, 3), (1, 4)]
+        source, compiled = QuantumCircuit(6), QuantumCircuit(6)
+        source.h(range(6))
+        compiled.h(range(6))
+        for a, b in edges:
+            source.cx(a, b)
+            source.rz(np.pi/4, b)
+            source.cx(a, b)
+            compiled.cx(a, b)
+            compiled.t(b)
+            compiled.cx(a, b)
+        source.h(range(6))
+        compiled.h(range(6))
+        interaction = np.array([sum((1-2*((x >> a) & 1))*(1-2*((x >> b) & 1))
+                                    for a, b in edges) for x in range(64)])
+        walsh = _kron(*([_H]*6))
+        ideal = walsh @ np.diag(np.exp(-1j*np.pi/8*interaction)) @ walsh
+        return _finish(name, source, compiled, ideal, family="IQP sampling", edges=edges,
+                       interaction_angle="pi/4", expected_even_parity_probability=1,
+                       expected_zero_probability=float((3+2*np.sqrt(2))/16))
     # Canonical amplitude estimation: A=Ry(pi/4), Q=Ry(pi/2).
     # Two counting qubits give a finite-resolution estimate of sin(pi/8)**2.
     source, compiled = QuantumCircuit(3), QuantumCircuit(3)

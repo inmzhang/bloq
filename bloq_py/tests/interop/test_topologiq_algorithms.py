@@ -12,7 +12,8 @@ import pytest
 np = pytest.importorskip("numpy")
 pytest.importorskip("qiskit", reason="opt-in algorithm environment")
 EXAMPLE = Path(__file__).parents[2] / "examples/topologiq_algorithms.py"
-NAMES = ["qpe4", "grover3", "qaoa3", "qaoa4", "adder4", "walk3", "walk5", "qae3", "vqe4", "ising4"]
+NAMES = ["qpe4", "simon6", "grover3", "qaoa3", "qaoa4", "qaoa5", "adder4", "walk3", "walk5",
+         "qae3", "vqe4", "ising4", "ising5", "iqp6"]
 
 
 @pytest.fixture
@@ -53,11 +54,41 @@ def test_modular_addition_preserves_coherent_integer_pairs(algorithms):
     assert result.ideal_unitary[:, 0] == pytest.approx(expected, abs=1e-12)
 
 
-@pytest.mark.parametrize("name,cut", [("qaoa3", 1.875), ("qaoa4", 3.0)])
+@pytest.mark.parametrize("name,cut", [("qaoa3", 1.875), ("qaoa4", 3.0), ("qaoa5", 3.75)])
 def test_qaoa_cost_exceeds_uniform_cut_baseline(algorithms, name, cut):
     result = algorithms["generate_candidate"](name)
     assert result.summary["expected_cut"] == pytest.approx(cut, abs=1e-12)
     assert cut > len(result.summary["edges"])/2
+
+
+def test_simon_recovers_a_unique_period_from_the_fourier_support(algorithms):
+    result = algorithms["generate_candidate"]("simon6")
+    probabilities = abs(result.ideal_unitary[:, 0])**2
+    marginal = probabilities.reshape(8, 8).sum(axis=0)
+    assert marginal == pytest.approx([1/4, 0, 1/4, 0, 0, 1/4, 0, 1/4], abs=1e-12)
+    rows = np.flatnonzero(marginal > 1e-12)
+    periods = [s for s in range(1, 8) if all((s & int(y)).bit_count() % 2 == 0 for y in rows)]
+    assert periods == [0b101]
+    assert result.summary["t_count"] == 7
+
+
+def test_iqp_has_the_independent_zero_probability_and_even_parity(algorithms):
+    result = algorithms["generate_candidate"]("iqp6")
+    probabilities = abs(result.ideal_unitary[:, 0])**2
+    assert probabilities[0] == pytest.approx((3 + 2*np.sqrt(2))/16, abs=1e-12)
+    assert sum(p for x, p in enumerate(probabilities) if x.bit_count() % 2) == pytest.approx(0, abs=1e-12)
+    assert result.summary["t_count"] == 8
+
+
+@pytest.mark.parametrize("name", ["simon6", "qaoa5", "iqp6"])
+def test_algorithm_results_reject_a_wrong_distribution(algorithms, name):
+    from _algorithm_candidates import check_algorithm_probabilities
+
+    result = algorithms["generate_candidate"](name)
+    probabilities = abs(result.ideal_unitary[:, 0])**2
+    assert check_algorithm_probabilities(result.summary, probabilities)
+    with pytest.raises(RuntimeError):
+        check_algorithm_probabilities(result.summary, np.full(len(probabilities), 1/len(probabilities)))
 
 
 def test_amplitude_estimation_matches_finite_resolution_kernel(algorithms):
@@ -126,6 +157,7 @@ def test_timeout_is_recorded_with_the_interrupted_stage(tmp_path):
 
 
 def test_interrupted_checkpoint_keeps_the_previous_valid_result(tmp_path, monkeypatch):
+    monkeypatch.syspath_prepend(str(EXAMPLE.parent))
     save = runpy.run_path(str(EXAMPLE.with_name("_interop_demo.py")))["save_json"]
     result = tmp_path / "result.json"
     save(result, dict(stage="layout"))

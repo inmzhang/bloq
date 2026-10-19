@@ -12,6 +12,8 @@ import warnings
 import numpy as np
 from qiskit.quantum_info import Pauli, Statevector
 
+from _algorithm_candidates import check_algorithm_probabilities
+
 
 def save_json(path: Path, value):
     # A timed-out worker must leave either the previous checkpoint or the next one.
@@ -101,6 +103,12 @@ def run_demo(source_qasm, clifford_t_qasm, ideal_unitary, output_dir: Path, summ
             return summary
         qubits = len(imported.output_ports)
         state = Statevector(ideal_unitary[:, 0].copy())
+        dimension = 1 << qubits
+        z_words = [sum(3 << (2 * indices[port]) for wire, port in enumerate(imported.output_ports)
+                       if mask & (1 << wire)) for mask in range(1, dimension)]
+        # Invert the Z-moment Walsh transform in source wire order.
+        signs = np.array([[1 - 2 * ((basis & mask).bit_count() % 2)
+                           for mask in range(dimension)] for basis in range(dimension)]) / dimension
         expected = []
         for word in range(1, 4**qubits):
             # VM words use coordinate order; Qiskit labels use reversed source order.
@@ -128,7 +136,12 @@ def run_demo(source_qasm, clifford_t_qasm, ideal_unitary, output_dir: Path, summ
             fidelity = float((1 + np.dot(actual, expected)) / (1 << qubits))
             if abs(fidelity - 1) > 1e-7:
                 raise RuntimeError("joint VM output fails the full-state fidelity check")
+            probabilities = signs @ np.array([1, *(actual[word - 1] for word in z_words)])
+            if not np.allclose(probabilities, state.probabilities(), atol=1e-7, rtol=0):
+                raise RuntimeError("VM measurement probabilities differ from the algorithm")
             verified.append(dict(shot=sample["shot"], joint_state_fidelity=fidelity,
+                                 logical_probabilities=probabilities.tolist(),
+                                 algorithm_checks=check_algorithm_probabilities(summary, probabilities),
                                  logical_bloch=[sample["logical_bloch"][indices[p]] for p in imported.output_ports],
                                  captured_output_ports=sample["captured_output_ports"]))
         summary.update(status="executed", noiseless=True, ideal_boundary_capture=True,

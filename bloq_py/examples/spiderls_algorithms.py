@@ -1,6 +1,7 @@
 """Run exact algorithms through SpiderLS, validated Bloq IR, and the T-proxy VM.
 
-Start with walk3, walk5, or qaoa4. Unsupported layouts fail explicitly.
+Try simon6, qaoa5, ising5, or iqp6 for larger examples; walk3 is a quick smoke run.
+Unsupported layouts fail explicitly.
 Requires the pinned SpiderLS checkout and spiderls.patch; see the interop guide.
 """
 

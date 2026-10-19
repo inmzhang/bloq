@@ -16,7 +16,9 @@ PORTS = ((0, 0, 2), (2, 0, 2))
 
 @pytest.fixture
 def demo(monkeypatch):
-    run = runpy.run_path(str(Path(__file__).parents[2] / "examples/_interop_demo.py"))["run_demo"]
+    example = Path(__file__).parents[2] / "examples/_interop_demo.py"
+    monkeypatch.syspath_prepend(str(example.parent))
+    run = runpy.run_path(str(example))["run_demo"]
 
     def retain(path):
         path.write_text("retained artifact", encoding="utf-8")
@@ -66,4 +68,5 @@ def test_source_output_order_controls_expectations_and_report(demo, tmp_path, mo
     assert result["status"] == "executed"
     assert result["shots"][0]["joint_state_fidelity"] == pytest.approx(1)
     assert result["shots"][0]["logical_bloch"] == [[0, 0, -1], [0, 0, 1]]
+    assert result["shots"][0]["logical_probabilities"] == pytest.approx([0, 1, 0, 0])
     assert json.loads((tmp_path / "execution.json").read_text()) == execution
