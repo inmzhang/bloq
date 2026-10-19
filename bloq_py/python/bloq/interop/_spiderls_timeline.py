@@ -1,7 +1,7 @@
 """Embed SpiderLS's event DAG without joining distinct patch lifetimes."""
 
 from collections import defaultdict
-from graphlib import TopologicalSorter
+from graphlib import CycleError, TopologicalSorter
 
 from bloq.interop._geometry import GeometryError
 
@@ -14,18 +14,33 @@ def _require(condition, message):
 def diagram(source, target, schedule, routed):
     from pyzx_conversion import routing_to_pipe_inputs, _load_local_pipe_module
 
-    raw = (routing_to_pipe_inputs(routed, include_worldlines=False, include_io_ports=False)
-           if routed.layers else {'nodes': {}, 'edges': []})
     events = {e.dag_node_id: e for e in schedule.zero_time_events}
     _require(None not in events and len(events) == len(schedule.zero_time_events), 'Missing or duplicate event DAG IDs')
-    after = {i: layer.time for layer in routed.layers for i in layer.event_node_ids_after}
+    scheduled = [m for slot in schedule.slots for m in slot.measurements]
+    measurements = {m.measurement_id: m for m in scheduled}
+    _require(len(measurements) == len(scheduled), 'Duplicate scheduled measurement IDs')
+    _require(all(m.dag_node_id is not None and m.dag_node_id == m.measurement_id and m.dag_node_id not in events for m in scheduled),
+             'Missing, duplicate, or overlapping measurement DAG IDs')
+    routed_measurements = [c.measurement_id for layer in routed.layers for c in layer.connections]
+    _require(len(routed_measurements) == len(set(routed_measurements))
+             and set(routed_measurements) == measurements.keys(), 'Missing, duplicate, or unknown routed measurements')
+    placements = [(i, layer.time) for layer in routed.layers for i in layer.event_node_ids_after]
+    after = dict(placements)
+    _require(len(after) == len(placements), 'An event was routed more than once')
     _require(set(after) <= events.keys(), 'Routing refers to an unknown event')
+    _require([layer.time for layer in routed.layers] == list(range(1, len(routed.layers) + 1)),
+             'Routed layer times must be contiguous from one')
     grouped = defaultdict(set)
     for i, event in events.items():
         _require(i in after or event.after_time == 0, f'Event {i} has no routed placement')
+        _require(after.get(i, 0) >= event.after_time, f'Event {i} precedes its source boundary')
         grouped[after.get(i, 0)].add(i)
-    order = tuple(TopologicalSorter({i: set(e.dependency_node_ids) & events.keys() for i, e in events.items()}).static_order())
-    measurements = {m.measurement_id: m for slot in schedule.slots for m in slot.measurements}
+    try:
+        order = tuple(TopologicalSorter({i: set(e.dependency_node_ids) & events.keys() for i, e in events.items()}).static_order())
+    except CycleError as error:
+        raise GeometryError('event_order', 'Zero-time events contain a dependency cycle') from error
+    raw = (routing_to_pipe_inputs(routed, include_worldlines=False, include_io_ports=False)
+           if routed.layers else {'nodes': {}, 'edges': []})
     nodes, edges = {}, []
     active: dict[int, int] = {}
     previous: dict[int, str] = {}
@@ -55,6 +70,7 @@ def diagram(source, target, schedule, routed):
         edges.append((last, b))
 
     def data(patch, name, frame, other=None):
+        _require(patch in routed.data_positions, f'Patch {patch} has no routed position')
         n = add(name, (*routed.data_positions[patch], index), frame, other)
         if patch in previous:
             connect(previous[patch], n)
@@ -71,6 +87,7 @@ def diagram(source, target, schedule, routed):
             active[patch] = 0
             other = None
             if kind == 'PREPARE_INPUT':
+                _require(len(event.vertices) == 1, f'Input patch {patch} has no source spider')
                 boundaries = [b for b in source.inputs() if event.vertices[0] in source.neighbors(b)]
                 _require(len(boundaries) == 1, f'Input patch {patch} has no unique source boundary')
                 other = dict(type='input', qubit=list(source.inputs()).index(boundaries[0]))
@@ -119,17 +136,18 @@ def diagram(source, target, schedule, routed):
                     connect(ancillas[patch.gadget_id], n)
                 ancillas[patch.gadget_id] = n
         for connection in layer.connections:
-            _require(connection.measurement_id in measurements, 'Route has no scheduled measurement')
             m = measurements[connection.measurement_id]
-            _require(m.dag_node_id is not None and set(m.dependency_node_ids) <= completed,
+            _require(m.time <= layer.time and set(m.dependency_node_ids) <= completed,
                      f'Measurement {m.measurement_id} precedes a dependency')
         completed.update(measurements[c.measurement_id].dag_node_id for c in layer.connections)
         for i in order:
             if i in grouped[layer.time]:
                 zero(events[i])
-    _require(events.keys() <= completed, 'Some events were not embedded')
+    _require(events.keys() | measurements.keys() == completed, 'Some scheduled operations were not embedded')
     index = max(index + 1, 2)
     mapping = dict(target.final_patch_map)
+    _require(len(mapping) == len(target.final_patch_map) == len(set(mapping.values())),
+             'Final source patches are not unique')
     _require(set(active) == set(mapping.values()), "Active lifetimes disagree with the final source interface")
     for wire, boundary in enumerate(source.outputs()):
         vertex, = source.neighbors(boundary)

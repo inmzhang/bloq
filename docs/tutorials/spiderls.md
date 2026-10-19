@@ -49,6 +49,7 @@ report = bloq.run_noiseless(program, shots=3, input_state="zero", include_signat
 - The patch preserves π phases as ordered Z events. The adapter enables input
   and output Hadamards, retains exact S/S† and T/T† signs, and lowers 3π/4 and
   5π/4 with one signed T and a residual Pauli. No extra S gadgets replace T†.
+  Missing phase stages and incomplete or duplicate routing histories reject.
 - Original ZX boundaries determine port order. Patch IDs can be reused;
   preparation, H, Z, and release events receive ordered time slices. A release
   is an X effect. Separate lifetimes are never joined. Reduced identity/H wires
@@ -58,11 +59,15 @@ report = bloq.run_noiseless(program, shots=3, input_state="zero", include_signat
   differs from SpiderLS's optimized volume. `SpiderLSImport` retains the reduced
   graph, plan, target, schedule, routing, options, revision, and ordered ports.
   Bloq derives readouts and adaptive dependencies from the imported graph.
+  Saved BLOG and viewer files show that source layout; compilation may change
+  cube frames and Hadamard placement while retaining its positions and topology.
 - Unsupported angles, dynamic source control, missing provenance, collisions,
-  unsupported frames, and destructive patch reuse fail explicitly. Several
-  larger candidates, including this corpus's phase estimation, addition,
-  Grover, and Ising dynamics, currently hit Bloq's mixed-axis spatial Hadamard-wall
-  rejection. The adapter does not reroute them or extend that compiler support.
+  unsupported frames, and destructive patch reuse fail explicitly. Normal Bloq
+  compilation moves spatial Hadamards through ordinary cubes while preserving
+  protected resource and control frames. When complete removal is impossible,
+  each spatial component retains walls on at most one axis. Conflicting protected
+  frames still reject with an anchored-path diagnostic; see
+  [compilation](../theory/compilation.md).
 - VM checks use ideal T-source proxies, noiseless physical circuits, ideal input
   preparation, and boundary capture. Spatial Hadamard pipes retain Bloq's
   distance warning; these demonstrations make no fault-tolerant distance claim.

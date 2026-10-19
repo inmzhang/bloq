@@ -5,6 +5,7 @@ Zero-time events become ordered slices; this is a Bloq embedding rather than
 SpiderLS's reported optimized volume. No upstream pickle or bgraph is loaded.
 """
 
+from collections import defaultdict
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
@@ -21,6 +22,11 @@ from bloq.interop._geometry import (
 from bloq.interop._qasm import QASMImportError, parse_qasm
 
 AUDITED_REVISION = '2c8c205ed3b9c707aca8b2f73c1b3bfd9b025bea'
+_PHASES = {
+    'Z': (Fraction(1),),
+    'S': (Fraction(1, 2), Fraction(3, 2)),
+    'T': tuple(Fraction(n, 4) for n in (1, 3, 5, 7)),
+}
 
 
 class SpiderLSImportError(ValueError):
@@ -33,6 +39,8 @@ class SpiderLSImportError(ValueError):
 
 @dataclass(frozen=True)
 class SpiderLSImport:
+    """Imported graph, source-ordered interface, and auditable upstream stages."""
+
     graph: bloq.BlockGraph
     input_ports: tuple[Position, ...]
     output_ports: tuple[Position, ...]
@@ -64,14 +72,77 @@ def _source(qasm):
     return circuit
 
 
+def _phase_history(source, target, schedule):
+    """Bind every reduced source phase to its complete scheduled instrument."""
+    expected = {v: Fraction(source.phase(v)) % 2 for v in source.vertices() if source.phase(v)}
+    emitted, instructions = {}, {}
+    for index, instruction in enumerate(target.instructions):
+        phase = instruction.exact_phase
+        if phase is None and instruction.kind not in ('S', 'T', 'Z'):
+            continue
+        if phase is None or len(instruction.vertices) != 1 or len(instruction.patches) != 1:
+            raise SpiderLSImportError('source_provenance', 'Unbound target phase')
+        phase = Fraction(phase) % 2
+        vertex, = instruction.vertices
+        if phase not in _PHASES.get(instruction.kind, ()) or vertex in emitted:
+            raise SpiderLSImportError('source_provenance', 'Duplicate or misclassified target phase')
+        emitted[vertex] = phase
+        instructions[index] = instruction
+    if emitted != expected:
+        raise SpiderLSImportError('source_provenance', 'Target code lost or changed a source spider phase')
+
+    measurements = [m for slot in schedule.slots for m in slot.measurements]
+    by_instruction = defaultdict(list)
+    for measurement in measurements:
+        index = measurement.target_instruction
+        if not 0 <= index < len(target.instructions):
+            raise SpiderLSImportError('source_provenance', 'Measurement has no target instruction')
+        instruction = target.instructions[index]
+        if instruction.kind in ('S', 'T') or measurement.exact_phase is not None:
+            if instruction.kind not in ('S', 'T') or measurement.exact_phase != instruction.exact_phase:
+                raise SpiderLSImportError('source_provenance', 'Measurement lost or changed its target phase')
+            by_instruction[index].append(measurement)
+    z_events = defaultdict(list)
+    for event in schedule.zero_time_events:
+        if event.kind == 'Z':
+            if event.target_instruction not in instructions or instructions[event.target_instruction].kind != 'Z':
+                raise SpiderLSImportError('source_provenance', 'Z event has no target phase')
+            z_events[event.target_instruction].append(event)
+
+    gadgets = {}
+    for index, instruction in instructions.items():
+        if instruction.kind == 'Z':
+            events = z_events[index]
+            if len(events) != 1 or events[0].patch != instruction.patches[0] or events[0].vertices != instruction.vertices:
+                raise SpiderLSImportError('source_provenance', 'Missing or misbound Z event')
+            continue
+        ms = sorted(by_instruction[index], key=lambda m: m.stage)
+        stages = 2 if instruction.kind == 'S' else 1
+        if [m.stage for m in ms] != list(range(1, stages + 1)) or any(m.stages != stages for m in ms):
+            raise SpiderLSImportError('source_provenance', f'Incomplete {instruction.kind} instrument')
+        gadget = ms[0].gadget_id
+        if gadget in gadgets or any(m.gadget_id != gadget for m in ms):
+            raise SpiderLSImportError('source_provenance', 'Phase instruments share or change gadget IDs')
+        patch, = instruction.patches
+        resource = ms[0].operands[-1] if ms[0].operands else ''
+        expected_resource = re.fullmatch(r'q[A-Z]+', resource) if stages == 2 else re.fullmatch(r'qM\d+', resource)
+        if not expected_resource or ms[0].operands != (f'q{patch}', resource) or ms[0].paulis != ('Z', 'Z'):
+            raise SpiderLSImportError('source_provenance', 'Phase instrument changed its source patch or parity')
+        if stages == 2 and (ms[1].operands != (resource,) or ms[1].paulis != ('Y',)):
+            raise SpiderLSImportError('source_provenance', 'S instrument lost its ancilla Y effect')
+        gadgets[gadget] = (instruction.kind, Fraction(instruction.exact_phase) % 2, ms)
+    return {m.measurement_id: m for m in measurements}, gadgets
+
+
 def _convert(source, target, schedule, routing):
     from bloq.interop._spiderls_timeline import diagram
 
+    measurements, gadgets = _phase_history(source, target, schedule)
     nodes, edges, zs = diagram(source, target, schedule, routing)
     nodes, edges = _space_diagram(nodes,
         {pair: (nodes[pair[0]]['position'], nodes[pair[1]]['position']) for pair in edges})
     edges = list(edges)
-    measurements = {m.measurement_id: m for slot in schedule.slots for m in slot.measurements}
+    routes = {c.measurement_id: (c, layer) for layer in routing.layers for c in layer.connections}
     actions = [bloq.Action.feedback([bloq.FeedbackTarget('Z', nodes[n]['position'], direction='+Z')]) for n in zs]
     resources = []
     s_gadgets = set()
@@ -81,41 +152,36 @@ def _convert(source, target, schedule, routing):
             if match is None or int(match[1]) not in measurements:
                 raise SpiderLSImportError('source_provenance', f'Magic endpoint {n!r} has no measurement')
             m = measurements[int(match[1])]
-            if m.exact_phase is None or target.instructions[m.target_instruction].exact_phase != m.exact_phase:
-                raise SpiderLSImportError('source_provenance', f'Magic endpoint {n!r} lost its exact phase')
-            resources.append((n, Fraction(m.exact_phase) % 2, m.measurement_id))
+            if m.gadget_id not in gadgets or gadgets[m.gadget_id][0] != 'T':
+                raise SpiderLSImportError('source_provenance', f'Magic endpoint {n!r} has no T instrument')
+            resources.append((n, gadgets[m.gadget_id][1], m.measurement_id))
         elif d['other'] == 'S':
             match = re.fullmatch(r'ancilla_g(\d+)_t\d+', n)
             if match is None:
                 raise SpiderLSImportError('source_provenance', f'S endpoint {n!r} has no gadget')
-            ms = [m for m in measurements.values() if m.gadget_id == int(match[1])]
-            if sorted(m.stage for m in ms) != [1, 2] or any(
-                    m.exact_phase != target.instructions[m.target_instruction].exact_phase for m in ms):
-                raise SpiderLSImportError('source_provenance', f'S endpoint {n!r} lost its gadget history')
-            if int(match[1]) in s_gadgets:
+            gadget = int(match[1])
+            if gadget not in gadgets or gadgets[gadget][0] != 'S':
+                raise SpiderLSImportError('source_provenance', f'S endpoint {n!r} has no S instrument')
+            if gadget in s_gadgets:
                 raise SpiderLSImportError('source_provenance', f'Duplicate S endpoint {n!r}')
-            s_gadgets.add(int(match[1]))
-            phases = {Fraction(m.exact_phase) % 2 for m in ms if m.exact_phase is not None}
-            if len(phases) != 1 or not phases <= {Fraction(1, 2), Fraction(3, 2)}:
-                raise SpiderLSImportError('source_provenance', f'S endpoint {n!r} has no signed phase')
+            s_gadgets.add(gadget)
+            _, phase, ms = gadgets[gadget]
             d['tqec'] = 'Y'
-            if phases == {Fraction(1, 2)}:
+            if phase == Fraction(1, 2):
                 # A future Y effect contributes -pi/2. Z on the data leg of
                 # the gadget's Z spider supplies pi and hence positive S.
-                first = next(m for m in ms if m.stage == 1)
-                connection, layer = next((c, routed_layer) for routed_layer in routing.layers for c in routed_layer.connections
-                                          if c.measurement_id == first.measurement_id)
+                first = ms[0]
+                connection, layer = routes[first.measurement_id]
                 terminal = next(t for t in connection.terminals if t.kind == 'data')
                 root = f'q{int(terminal.operand[1:])}_t{layer.time}'
                 p = nodes[root]['position']
                 leg = next(b if a == root else a for a, b in edges if root in (a, b)
                            and nodes[b if a == root else a]['position'][2] > p[2])
                 actions.append(bloq.Action.feedback([bloq.FeedbackTarget('Z', p, direction=_direction(p, nodes[leg]['position']))]))
-    expected_s = {m.gadget_id for m in measurements.values()
-                  if m.exact_phase is not None and Fraction(m.exact_phase) % 2 in (Fraction(1, 2), Fraction(3, 2))}
+    expected_s = {gadget for gadget, (kind, _, _) in gadgets.items() if kind == 'S'}
     if s_gadgets != expected_s:
         raise SpiderLSImportError('source_provenance', 'Missing S endpoint')
-    expected = {m.measurement_id for m in measurements.values() if m.exact_phase is not None and (Fraction(m.exact_phase) * 4) % 2}
+    expected = {ms[0].measurement_id for kind, _, ms in gadgets.values() if kind == 'T'}
     if {mid for _, _, mid in resources} != expected or len(resources) != len(expected):
         raise SpiderLSImportError('source_provenance', 'Missing or duplicate T endpoint')
     for node, phase, mid in resources:
@@ -137,19 +203,11 @@ def from_qasm(qasm: str) -> SpiderLSImport:
     source = circuit.to_graph()
     zx.full_reduce(source)
     plan = execution.extract_execution_order(source)
-    for vertex, phase in plan.spider_phases:
+    for vertex in source.vertices():
+        phase = source.phase(vertex)
         if (Fraction(phase) * 4).denominator != 1:
             raise SpiderLSImportError('unsupported_phase', f'Non-Clifford+T spider {vertex}: {phase}')
     target = generate_target_code(plan)
-    phases = {vertex: Fraction(phase) % 2 for vertex, phase in plan.spider_phases if Fraction(phase) % 2}
-    emitted = {}
-    for instruction in target.instructions:
-        if instruction.exact_phase is not None:
-            if len(instruction.vertices) != 1 or instruction.vertices[0] in emitted:
-                raise SpiderLSImportError('source_provenance', 'Duplicate or unbound target phase')
-            emitted[instruction.vertices[0]] = Fraction(instruction.exact_phase) % 2
-    if emitted != phases:
-        raise SpiderLSImportError('source_provenance', 'Target code lost or changed a source spider phase')
     schedule = parallelize_target_program(target, include_boundary_h=True)
     if target.initial_patch_map or schedule.slots:
         routing = route_parallel_schedule(schedule)

@@ -9,6 +9,7 @@ import pytest
 execution = pytest.importorskip('pyzx_execution_order', reason='optional pinned SpiderLS checkout')
 
 from bloq.interop.spiderls import SpiderLSImportError, _convert, from_qasm  # noqa: E402
+from bloq.interop._geometry import GeometryError  # noqa: E402
 
 
 def source(gates, width=1):
@@ -70,6 +71,52 @@ def test_corrupted_magic_provenance_rejects():
     bad = replace(measurement, exact_phase=Fraction(7, 4))
     schedule = replace(imported.schedule, slots=(replace(slot, external=(bad,)),))
     with pytest.raises(SpiderLSImportError, match='source_provenance'):
+        _convert(imported.reduced_graph, imported.target, schedule, imported.routing)
+
+
+def test_execution_plan_cannot_erase_a_source_phase(monkeypatch):
+    extract = execution.extract_execution_order
+    monkeypatch.setattr(execution, 'extract_execution_order',
+                        lambda graph: replace(extract(graph), spider_phases=(), phase_gates=()))
+    with pytest.raises(SpiderLSImportError, match='source_provenance'):
+        from_qasm(source('s q[0];'))
+
+
+@pytest.mark.parametrize('gate', ['s', 't', 'z'])
+def test_schedule_cannot_drop_a_phase_instrument(gate):
+    imported = from_qasm(source(f'{gate} q[0];'))
+    schedule = replace(imported.schedule, slots=(), zero_time_events=tuple(
+        e for e in imported.schedule.zero_time_events if e.kind != 'Z'))
+    with pytest.raises(SpiderLSImportError, match='source_provenance'):
+        _convert(imported.reduced_graph, imported.target, schedule, imported.routing)
+
+
+def test_magic_parity_cannot_move_to_another_data_patch():
+    imported = from_qasm(source('t q[0];'))
+    slot, = imported.schedule.slots
+    measurement, = slot.external
+    bad = replace(measurement, operands=('q1', measurement.operands[1]))
+    schedule = replace(imported.schedule, slots=(replace(slot, external=(bad,)),))
+    with pytest.raises(SpiderLSImportError, match='source_provenance'):
+        _convert(imported.reduced_graph, imported.target, schedule, imported.routing)
+
+
+@pytest.mark.parametrize('duplicate', [False, True])
+def test_each_scheduled_measurement_is_routed_exactly_once(duplicate):
+    imported = from_qasm(source('t q[0];'))
+    layer, = imported.routing.layers
+    connections = (*layer.connections, *layer.connections) if duplicate else ()
+    routing = replace(imported.routing, layers=(replace(layer, connections=connections),))
+    with pytest.raises(GeometryError, match='routed measurements'):
+        _convert(imported.reduced_graph, imported.target, imported.schedule, routing)
+
+
+def test_zero_time_dependency_cycle_rejects_with_adapter_diagnostic():
+    imported = from_qasm(source('h q[0]; z q[0]; h q[0];'))
+    events = sorted(imported.schedule.zero_time_events, key=lambda e: e.dag_node_id)
+    events[0] = replace(events[0], dependency_node_ids=(events[-1].dag_node_id,))
+    schedule = replace(imported.schedule, zero_time_events=tuple(events))
+    with pytest.raises(GeometryError, match='dependency cycle'):
         _convert(imported.reduced_graph, imported.target, schedule, imported.routing)
 
 
