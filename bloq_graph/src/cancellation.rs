@@ -72,6 +72,14 @@ impl CancellationToken {
         })
     }
 
+    /// Checks the active request, if any, at a safe checkpoint.
+    pub(crate) fn checkpoint() -> Result<(), crate::StabilizerError> {
+        match Self::current() {
+            Some(token) => Ok(token.check()?),
+            None => Ok(()),
+        }
+    }
+
     pub(crate) fn current() -> Option<Self> {
         ACTIVE.with(|active| active.borrow().clone())
     }

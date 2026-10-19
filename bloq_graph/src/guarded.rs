@@ -778,6 +778,7 @@ impl GuardedTopology {
         source: &BlockGraph,
         limits: ModuleCertificationLimits,
     ) -> Result<(Self, AuthoredGeometry), BlockGraphError> {
+        crate::CancellationToken::checkpoint()?;
         source.require_flat_hierarchy("guarded topology")?;
         source.validate_resource_limits(limits)?;
         crate::validate::validate_source(source)?;

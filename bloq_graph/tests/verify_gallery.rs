@@ -235,55 +235,6 @@ fn uma_map(m_anc: bool, m_ikprime: bool) -> QuizxGraph {
     graph
 }
 
-fn one_bit_adder_map(m_anc: bool, m_ikprime: bool) -> QuizxGraph {
-    // q, i_k, i'_k, c_k, t_k, carry, carry duplicate, and two |+> ancillas.
-    let outcome = |basis: BasisElem, value| if value { basis.flipped() } else { basis };
-    let cap_basis = if m_anc { BasisElem::Z0 } else { BasisElem::X0 };
-    let mut gates = vec![
-        ("ccx", vec![0, 1, 2]),
-        ("cx", vec![3, 2]),
-        ("cx", vec![3, 4]),
-        ("ccx", vec![2, 4, 6]),
-        ("cx", vec![3, 6]),
-        ("cx", vec![6, 5]),
-        ("cx", vec![3, 6]),
-        ("cz", vec![7, 8]),
-        ("cx", vec![2, 7]),
-        ("cx", vec![4, 8]),
-        ("cx", vec![3, 2]),
-        ("cx", vec![2, 4]),
-    ];
-    if m_anc ^ m_ikprime {
-        gates.push(("z", vec![4]));
-    }
-    let mut graph = circuit_graph(9, &gates);
-    graph.plug_inputs(&[
-        BasisElem::SKIP,
-        BasisElem::SKIP,
-        BasisElem::Z0,
-        BasisElem::SKIP,
-        BasisElem::SKIP,
-        BasisElem::Z0,
-        BasisElem::Z0,
-        BasisElem::X0,
-        BasisElem::X0,
-    ]);
-    graph.plug_outputs(&[
-        BasisElem::X0,
-        BasisElem::X0,
-        outcome(BasisElem::X0, m_ikprime),
-        BasisElem::X0,
-        BasisElem::SKIP,
-        BasisElem::SKIP,
-        outcome(BasisElem::X0, m_anc),
-        outcome(cap_basis, m_ikprime),
-        outcome(cap_basis, m_anc ^ m_ikprime),
-    ]);
-    let outputs = graph.outputs().clone();
-    graph.set_outputs(vec![outputs[1], outputs[0]]);
-    graph
-}
-
 fn controlled_adder_map(bits: usize) -> QuizxGraph {
     // Independent unitary reference: compute q & i into clean ancillas,
     // add that register with a Cuccaro MAJ/UMA ripple, then uncompute it.
@@ -596,14 +547,6 @@ fn prepared_ccz_prefix_inputs(qubits: usize) -> QuizxGraph {
     graph
 }
 
-fn prepared_two_ccz_prefix_inputs() -> QuizxGraph {
-    let mut graph = circuit_graph(10, &[("ccz", vec![0, 1, 2]), ("ccz", vec![3, 4, 5])]);
-    let mut inputs = vec![BasisElem::SKIP; 10];
-    inputs[..6].fill(BasisElem::X0);
-    graph.plug_inputs(&inputs);
-    graph
-}
-
 fn maj_boundaries() -> BoundaryOrder {
     BoundaryOrder::new(
         vec![
@@ -621,24 +564,6 @@ fn maj_boundaries() -> BoundaryOrder {
             IVec3::new(4, 0, 5),
             IVec3::new(4, 2, 5),
         ],
-    )
-}
-
-fn one_bit_adder_boundaries() -> BoundaryOrder {
-    BoundaryOrder::new(
-        vec![
-            IVec3::new(-1, 0, 0),
-            IVec3::new(-1, 2, 0),
-            IVec3::new(-1, 1, 0),
-            IVec3::new(-1, 0, 5),
-            IVec3::new(-1, 1, 5),
-            IVec3::new(-1, 2, 5),
-            IVec3::new(5, 2, 0),
-            IVec3::new(5, 1, 0),
-            IVec3::new(2, -1, 3),
-            IVec3::new(5, 1, 6),
-        ],
-        vec![IVec3::new(2, 3, 3), IVec3::new(5, 0, 9)],
     )
 }
 
@@ -993,16 +918,14 @@ fn zero_diagram_assignment_is_impossible_not_verified() {
     assert_eq!(branch.status(), BranchStatus::Impossible);
 }
 
-/// Graph-level ZX verification can use an output-anchored frame relation.
+/// A record whose only surface reaches an output is not a valid graph.
 ///
 /// The T gadget on an internally prepared `|+>`: with no input port on the data
-/// worldline, `mzz` has no row that closes on the past, so its only surface is
-/// the transport row `Z(T) . Z(Out)` and its record is a fair coin. The gadget
-/// is correct as a closed ZX map. Compilation rejects the open-output record
-/// because an unknown future continuation may change its parity.
+/// worldline, `mzz` has no row that closes on the past. Its only surface is the
+/// transport row `Z(T) . Z(Out)`, which no physical readout can realize.
 #[test]
-fn output_anchored_measurement_surface_still_drives_a_correct_resolve() {
-    let graph = BlockGraph::from_blog_text(
+fn output_anchored_measurement_surface_is_rejected() {
+    let error = BlockGraph::from_blog_text(
         "BLOG 1.0\n\n\
          1: XZX [0, 0, 1]\n\
          2: Port [0, 0, 2] <Out>\n\
@@ -1016,71 +939,18 @@ fn output_anchored_measurement_surface_still_drives_a_correct_resolve() {
          mzz = measure 1 -> +X\n\
          resolve 5 if mzz\n",
     )
-    .unwrap();
-
-    let stabilizers = graph.stabilizers().unwrap();
-    let mzz = stabilizers
-        .generators
-        .iter()
-        .find(|generator| generator.measurement_name() == Some("mzz"))
-        .expect("the merge parity is a named measurement row");
-    assert_eq!(
-        mzz.stabilizer.port_stabilizer.get(&IVec3::new(0, 0, 2)),
-        Some(&bloq_utils::Pauli::Z),
+    .unwrap_err();
+    let bloq_graph::BlockGraphError::Parse(bloq_graph::ParseError::Graph { source, .. }) = &error
+    else {
+        panic!("{error:?}");
+    };
+    assert!(
+        matches!(
+            source.as_ref(),
+            bloq_graph::BlockGraphError::Stabilizer(
+                bloq_graph::StabilizerError::UnavailableControlParity { mvar, .. }
+            ) if mvar == "mzz"
+        ),
+        "{error:?}"
     );
-    assert!(matches!(
-        stabilizers.validate_measurements_close_before_outputs(),
-        Err(bloq_graph::RuntimeBasisError::Stabilizer(
-            bloq_graph::StabilizerError::MeasurementSurfaceTouchesOutputPort {
-                ref name,
-                port,
-            }
-        )) if name == "mzz" && port == IVec3::new(0, 0, 2)
-    ));
-
-    let mut expected = circuit_graph(1, &[("t", vec![0])]);
-    expected.plug_inputs(&[BasisElem::X0]);
-    LogicalVerifier::new(&graph)
-        .unwrap()
-        .verify(&expected, 32, 0x5eed)
-        .expect("the adaptive resolve reproduces T|+> in every branch");
-}
-
-#[test]
-fn negative_bulk_adder_retains_its_logical_map() {
-    let source = bloq_graph::BlockGraph::from_text(bloq_test::ONE_BIT_ADDER_SOURCE).unwrap();
-    let graph = source.flatten().unwrap();
-    let verifier = LogicalVerifier::with_boundaries(&graph, one_bit_adder_boundaries())
-        .expect("one-bit adder verifier builds");
-    let names = [
-        "and__m1",
-        "and__m2",
-        "maj__mt1",
-        "maj__mt2",
-        "uma__m_ikprime",
-        "uma__m_anc",
-    ];
-    // Only the two UMA outcomes change the reference map.
-    let expected = std::array::from_fn::<_, 4, _>(|outcomes| {
-        contract(&one_bit_adder_map(outcomes & 2 != 0, outcomes & 1 != 0))
-    });
-    for mask in 0..1 << names.len() {
-        let assignment = names
-            .iter()
-            .enumerate()
-            .map(|(bit, name)| ((*name).to_owned(), mask & (1 << bit) != 0))
-            .collect();
-        let (branch, actual) = verifier.instantiate(&assignment).unwrap();
-        assert_eq!(
-            branch.status(),
-            BranchStatus::Instantiated,
-            "branch {mask:06b}"
-        );
-        let mut prepared = prepared_two_ccz_prefix_inputs();
-        prepared.plug(&actual.expect("reachable one-bit-adder branch"));
-        assert!(
-            <TensorF as CompareTensors>::scalar_eq(&contract(&prepared), &expected[mask >> 4],),
-            "one-bit adder branch {mask:06b} differs from its declared map"
-        );
-    }
 }

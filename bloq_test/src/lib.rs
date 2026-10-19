@@ -285,11 +285,7 @@ impl CompileReadyCase {
                         .map_err(|error| error.to_string())
                 })
         } else {
-            graph
-                .clone()
-                .analyze_actions()
-                .map(|(_, rows)| rows)
-                .map_err(|error| error.to_string())
+            graph.stabilizers().map_err(|error| error.to_string())
         };
         rows.map_err(|error| {
             TestCaseError(format!(

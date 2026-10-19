@@ -7,7 +7,6 @@ use glam::IVec3;
 
 use crate::{
     Action, Block, BlockGraph, BlockGraphError, Expr, InvalidActionError, MeasureTarget, Pipe,
-    StabilizerGenerators,
 };
 
 /// Blocks and pipes authored as one arm of a named branch region.
@@ -485,14 +484,6 @@ impl BranchProjection {
     pub fn into_graph(self) -> BlockGraph {
         self.graph
     }
-
-    pub(crate) fn with_analyzed_actions(
-        mut self,
-        stabilizers: &StabilizerGenerators,
-    ) -> Result<Self, BlockGraphError> {
-        self.graph = self.graph.with_analyzed_action_graph(stabilizers)?;
-        Ok(self)
-    }
 }
 
 #[derive(Debug)]
@@ -532,7 +523,7 @@ fn branchless_projection_base(graph: &BlockGraph) -> BlockGraph {
 }
 
 #[derive(Clone, Copy)]
-enum ProjectionContext {
+pub(crate) enum ProjectionContext {
     Graph,
     Definition,
 }
@@ -1428,15 +1419,7 @@ impl BlockGraph {
     pub(crate) fn branch_projections_for_analysis(
         &self,
     ) -> Result<Vec<BranchProjection>, BlockGraphError> {
-        self.branch_projections_for_analysis_up_to_with_limits(usize::MAX, BooleanLimits::DEFAULT)
-    }
-
-    pub(crate) fn branch_projections_for_analysis_up_to_with_limits(
-        &self,
-        limit: usize,
-        boolean_limits: BooleanLimits,
-    ) -> Result<Vec<BranchProjection>, BlockGraphError> {
-        self.branch_projections_impl(limit, true, boolean_limits)
+        self.branch_projections_impl(usize::MAX, true, BooleanLimits::DEFAULT)
     }
 
     fn branch_projections_impl(
@@ -1524,7 +1507,7 @@ impl BlockGraph {
         self.project_branches_impl(assignments, true, ProjectionContext::Definition)
     }
 
-    fn project_branches_impl(
+    pub(crate) fn project_branches_impl(
         &self,
         assignments: impl IntoIterator<Item = (IVec3, bool)>,
         defer_action_analysis: bool,
@@ -1748,7 +1731,7 @@ mod tests {
     use glam::ivec3;
 
     use super::*;
-    use crate::{Basis, BlockKind, CubeKind, Direction, GalleryItem, SelectiveKind};
+    use crate::{Basis, BlockKind, CubeKind, Direction, SelectiveKind};
 
     #[test]
     fn reused_arm_validation_matches_independent_full_graph_copies() {
@@ -2378,14 +2361,14 @@ module main {
             ),
         ] {
             assert!(matches!(
-                graph.branch_projections_for_analysis_up_to_with_limits(2, limits),
+                graph.branch_projections_impl(2, true, limits),
                 Err(BlockGraphError::Stabilizer(crate::StabilizerError::ResourceLimited {
                     phase, limit: 0, ..
                 })) if phase == resource
             ));
         }
         let projections = graph
-            .branch_projections_for_analysis_up_to_with_limits(2, BooleanLimits::UNLIMITED)
+            .branch_projections_impl(2, true, BooleanLimits::UNLIMITED)
             .unwrap();
         assert_eq!(
             projections
@@ -2404,14 +2387,13 @@ module main {
         assert!(!graph.has_continuing_branches());
         for shown_true in [true, false] {
             graph.set_shown_branch_arm("b0", shown_true).unwrap();
-            for (limits, phase, observed) in [
+            for (limits, phase) in [
                 (
                     ModuleCertificationLimits {
                         max_expanded_blocks: 0,
                         ..ModuleCertificationLimits::DEFAULT
                     },
                     "expanded blocks",
-                    1,
                 ),
                 (
                     ModuleCertificationLimits {
@@ -2419,7 +2401,6 @@ module main {
                         ..ModuleCertificationLimits::DEFAULT
                     },
                     "occupied footprint cells",
-                    1,
                 ),
                 (
                     ModuleCertificationLimits {
@@ -2427,16 +2408,15 @@ module main {
                         ..ModuleCertificationLimits::DEFAULT
                     },
                     "local ZX columns",
-                    8,
                 ),
             ] {
                 assert!(matches!(
                     graph.clone().analyze_actions_with_limits(limits),
                     Err(BlockGraphError::Stabilizer(StabilizerError::ResourceLimited {
                         phase: actual_phase,
-                        observed: actual_observed,
+                        observed: 1,
                         limit: 0,
-                    })) if actual_phase == phase && actual_observed == observed
+                    })) if actual_phase == phase
                 ));
             }
             graph
@@ -2545,20 +2525,6 @@ module main {
                     .collect::<Vec<_>>(),
                 ["enabled"]
             );
-        }
-    }
-
-    #[test]
-    fn reused_measurement_prefix_matches_independent_projection_tables() {
-        let graph = GalleryItem::CCZGateTeleport
-            .build()
-            .materialize_root_graph()
-            .expect("gallery flat projection");
-        let (_, _, projections) = graph.analyze_actions_with_projections().unwrap();
-        for (projection, reused) in projections {
-            assert!(projection.graph().action_graph().is_analyzed());
-            let independent = projection.graph().stabilizers().unwrap();
-            assert_eq!(reused.generators, independent.generators);
         }
     }
 

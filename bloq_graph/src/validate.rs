@@ -199,11 +199,6 @@ pub enum InvalidActionError {
         /// Interface mismatch diagnostic.
         reason: String,
     },
-    /// Static stabilizer analysis was requested for continuing branches.
-    #[error(
-        "continuing branches require GuardedSurfaceSpace; select a projection for a static stabilizer table"
-    )]
-    GuardedAnalysisRequired,
     /// A branch selector depends on a measurement inside that branch.
     #[error("branch target {target} is controlled by measurement {controller:?} inside its region")]
     BranchControllerInside {
@@ -242,12 +237,6 @@ pub enum InvalidActionError {
     /// A requested branch projection assigns one branch more than once.
     #[error("branch target {0} has more than one projection value")]
     DuplicateBranchValue(IVec3),
-    /// A named measurement has different stabilizer support across branch arms.
-    #[error("measurement {name:?} has branch-dependent stabilizer support")]
-    BranchDependentMeasurementSurface {
-        /// Measurement record name.
-        name: String,
-    },
     /// A selective block has no resolve action.
     #[error("Selective block at {target} is missing its resolve action")]
     MissingResolveForSelective {
@@ -280,17 +269,9 @@ pub(crate) fn validate_with_limits(
 ) -> Result<(), BlockGraphError> {
     let mut dag = validate_source(graph)?;
     let regions = graph.branch_regions()?;
-    if graph.has_continuing_branches() {
-        return graph.validate_guarded_actions_with_limits(limits);
-    }
     if (!regions.is_empty() || graph.has_actions()) && !graph.action_graph().is_analyzed() {
-        let stabilizers = if regions.is_empty() {
-            graph.stabilizers_with_limits(limits)?
-        } else {
-            graph.stabilizers_for_action_analysis_with_limits(limits)?
-        };
-        stabilizers.validate_selective_decoupling()?;
-        dag.attach_readout_dependencies(&stabilizers.generators, Some(&stabilizers.zx_graph))?;
+        let mut plan = graph.plan_local_readouts(limits)?;
+        dag.attach_guarded_dependencies(plan.action_dependencies()?)?;
     }
     Ok(())
 }

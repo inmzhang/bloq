@@ -1882,7 +1882,7 @@ mod certificate_tests {
             .fix_shadowed_faces();
         let zx = ZXGraph::try_from(&graph).unwrap();
         let composed = summary.materialize_stabilizers(&zx, IVec3::ZERO).unwrap();
-        let flat = graph.analyze_actions().unwrap().1;
+        let flat = graph.stabilizers().unwrap();
         assert_eq!(composed.generators.len(), flat.generators.len());
         for (composed, flat) in composed.generators.iter().zip(&flat.generators) {
             assert_eq!(composed.kind, flat.kind);
@@ -1925,7 +1925,7 @@ mod certificate_tests {
         let graph = program.materialize_root_graph().unwrap();
         let zx = ZXGraph::try_from(&graph).unwrap();
         let composed = summary.materialize_stabilizers(&zx, IVec3::ZERO).unwrap();
-        let flat = graph.analyze_actions().unwrap().1;
+        let flat = graph.stabilizers().unwrap();
 
         assert_eq!(composed.generators.len(), flat.generators.len());
         for (composed, flat) in composed.generators.iter().zip(&flat.generators) {
@@ -1999,7 +1999,7 @@ mod certificate_tests {
         let graph = program.materialize_root_graph().unwrap();
         let zx = ZXGraph::try_from(&graph).unwrap();
         let composed = summary.materialize_stabilizers(&zx, IVec3::ZERO).unwrap();
-        let flat = graph.analyze_actions().unwrap().1;
+        let flat = graph.stabilizers().unwrap();
 
         assert_eq!(composed.generators.len(), flat.generators.len());
         for (composed, flat) in composed.generators.iter().zip(&flat.generators) {
@@ -2056,7 +2056,7 @@ mod certificate_tests {
                 phases.insert(witnessed.phase());
             }
             let composed = summary.materialize_stabilizers(&zx, IVec3::ZERO).unwrap();
-            let flat = graph.analyze_actions().unwrap().1;
+            let flat = graph.stabilizers().unwrap();
             assert_eq!(composed.generators.len(), flat.generators.len());
             for (composed, flat) in composed.generators.iter().zip(&flat.generators) {
                 assert_eq!(composed.kind, flat.kind);
@@ -2163,57 +2163,5 @@ mod certificate_tests {
             )
             .unwrap_err();
         assert!(error.to_string().contains("Missing"), "{error}");
-    }
-
-    #[test]
-    fn mismatched_prepared_definition_cannot_hide_invalid_child_readout() {
-        let program = |actions| {
-            crate::parse_inline_graph(&format!(
-                "BLOG 1.0\nmodule Child {{
-                    in enable
-                    out q: data = 2
-                    1: XZX [0,0,1]
-                    2: Port [0,0,2] role=output
-                    3: T [1,0,0]
-                    4: XZX [1,0,1]
-                    5: YX [1,0,2]
-                    1 -> +Z\n1 -> +X\n3 -> +Z\n5 -> -Z
-                    {actions}
-                }}
-                module main {{
-                    in enable
-                    child: Child @ [0,0,0]
-                    enable => child.enable
-                    10: Z [0,0,2]
-                    child.q -> 10
-                }}"
-            ))
-            .unwrap()
-        };
-        let limits = ModuleCertificationLimits::DEFAULT;
-        let valid = program("resolve 5 if enable");
-        let cached = valid
-            .prepare_module_relations_with_cache(limits, NonZeroUsize::MIN, |_| None)
-            .unwrap();
-        let child = cached
-            .definitions()
-            .into_iter()
-            .find(|definition| definition.name() == "Child")
-            .unwrap();
-        let invalid = program("mzz = measure 1 -> +X\nresolve 5 if mzz");
-        let key = invalid.module_definition_cache_keys()["Child"].clone();
-        let reused = HashMap::from([(key, child)]);
-        assert!(matches!(
-            invalid.prepare_module_relations_with_cache(limits, NonZeroUsize::MIN, |key| {
-                reused.get(key).cloned()
-            }),
-            Err(ModuleCertificationError::Graph { module, .. }) if module == "Child"
-        ));
-        assert!(matches!(
-            invalid.prepare_module_summary_with_cache(limits, NonZeroUsize::MIN, |key| {
-                reused.get(key).cloned()
-            }),
-            Err(ModuleCertificationError::Graph { module, .. }) if module == "Child"
-        ));
     }
 }

@@ -340,39 +340,6 @@ module main {
     }
 
     #[test]
-    fn distance_relation_validates_source_closure_before_pin_count() {
-        let source = crate::parse_inline_graph(
-            r#"BLOG 1.0
-module main {
-    out q: data = 2
-    1: XZX [0,0,1]
-    2: Port [0,0,2] role=output
-    3: T [1,0,0]
-    4: XZX [1,0,1]
-    5: YX [1,0,2]
-    1 -> +Z
-    1 -> +X
-    3 -> +Z
-    5 -> -Z
-    mzz = measure 1 -> +X
-    resolve 5 if mzz
-}
-"#,
-        )
-        .unwrap();
-        let summary = source
-            .summarize_root(ModuleCertificationLimits::DEFAULT)
-            .unwrap();
-        for pins in [&[][..], &[false][..], &[true][..]] {
-            assert!(matches!(
-                summary.materialize_clifford_distance_relation(pins),
-                Err(ModuleCertificationError::Runtime { .. }
-                    | ModuleCertificationError::Graph { .. })
-            ));
-        }
-    }
-
-    #[test]
     fn distance_relation_keeps_explicit_source_boolean_limit() {
         let mut summary = correlated_source()
             .summarize_root(ModuleCertificationLimits::DEFAULT)

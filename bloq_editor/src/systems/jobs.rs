@@ -684,13 +684,14 @@ fn displayed_surfaces(
     source.planned_surfaces(&assignments, bloq_graph::ModuleCertificationLimits::DEFAULT)
 }
 
-/// Validates without computing action metadata twice.
+/// Validates without computing action metadata twice. A hierarchy analyzes
+/// its linked actions during validation instead.
 fn validate_graph_for_editor(graph: BlockGraph) -> Result<BlockGraph, BlockGraphError> {
-    if !graph.has_actions() || graph.has_continuing_branches() {
+    if !graph.has_actions() || !graph.instances.is_empty() {
         graph.validate()?;
         return Ok(graph);
     }
-    graph.analyze_actions().map(|(graph, _)| graph)
+    graph.analyze_actions()
 }
 
 /// Spawns a background job parsing `blog_buffer` into a graph, optionally

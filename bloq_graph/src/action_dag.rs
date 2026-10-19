@@ -446,6 +446,23 @@ impl ActionDag {
         Ok(())
     }
 
+    /// Records each named readout's surface on its measurement node.
+    pub(crate) fn attach_measurement_surfaces(&mut self, surfaces: Vec<StabilizerGenerator>) {
+        let mut surfaces = surfaces
+            .into_iter()
+            .filter_map(|row| match row.kind {
+                crate::StabilizerRowKind::Measurement { name } => Some((name, row.stabilizer)),
+                _ => None,
+            })
+            .collect::<HashMap<_, _>>();
+        for &node in &self.ordered {
+            let node = &mut self.graph[node];
+            if let Action::Measure { name, .. } = &node.action {
+                node.measurement_stabilizer = surfaces.remove(name);
+            }
+        }
+    }
+
     /// Returns the node at the given source ordinal, if any.
     pub fn node_by_ordinal(&self, ordinal: usize) -> Option<&ActionNode> {
         self.ordered.get(ordinal).map(|&idx| &self.graph[idx])

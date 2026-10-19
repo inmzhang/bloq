@@ -905,7 +905,10 @@ pub(crate) mod tests {
         );
         let (inserted, _) = crate::systems::input::insert_graph_without_overlap(
             &edited.flatten().unwrap(),
-            &crate::utils::one_bit_adder_fixture().flatten().unwrap(),
+            &bloq_graph::GalleryItem::ThreeBitAdder
+                .build()
+                .flatten()
+                .unwrap(),
         )
         .unwrap();
         let action_count = inserted.actions().len();

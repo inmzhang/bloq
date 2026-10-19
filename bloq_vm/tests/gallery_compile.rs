@@ -201,19 +201,18 @@ fn multiplex_port_lowers_to_a_corrected_physical_output() {
     assert!(stim.contains("CX rec[-1]"));
     assert_eq!(run_bloq(&bloq, 8, 0x5A).unwrap().discarded, 0);
 
-    graph
+    let error = graph
         .set_actions(vec![Action::Measure {
             target: MeasureTarget::Node(second + glam::IVec3::X),
             name: "x_at_multiplex".into(),
         }])
-        .unwrap();
-    let error = bloq_compile::compile(&graph, 3).unwrap_err();
+        .unwrap_err();
     assert!(
         matches!(
             error,
-            bloq_compile::CompileError::BlockGraph(bloq_graph::BlockGraphError::Stabilizer(
+            bloq_graph::BlockGraphError::Stabilizer(
                 bloq_graph::StabilizerError::UnavailableControlParity { .. }
-            ))
+            )
         ),
         "{error:?}"
     );

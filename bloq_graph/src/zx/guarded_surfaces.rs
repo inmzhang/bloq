@@ -467,6 +467,7 @@ impl GuardedSurfaceSpace {
         limits: ModuleCertificationLimits,
         relations: &HashMap<String, Arc<crate::summary::relations::ModuleRelations>>,
     ) -> Result<Self, BlockGraphError> {
+        crate::CancellationToken::checkpoint()?;
         // Intern components once, including empty ancestors. Numeric parents
         // avoid cloning and comparing every shared prefix during composition.
         let mut scopes = ModuleScopes::new();
@@ -941,6 +942,7 @@ impl GuardedSurfaceSpace {
         let mut available_rows = BooleanRowSpace::default();
         let mut readout_pivots = GuardedPivots::default();
         while names.iter().any(|(name, _)| !known.contains(name)) {
+            crate::CancellationToken::checkpoint()?;
             if available_values.is_none() {
                 self.topology.diagram.charge(
                     self.topology

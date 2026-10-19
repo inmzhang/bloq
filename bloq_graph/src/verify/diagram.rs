@@ -1289,7 +1289,7 @@ mod tests {
     }
 
     #[test]
-    fn cancelled_named_measurement_normalization_keeps_its_typed_cause() {
+    fn cancelled_verification_keeps_its_typed_cause() {
         let source = crate::GalleryItem::ThreeBitAdder.build().flatten().unwrap();
         let token = crate::CancellationToken::new();
         let error = token.scope(|| {
@@ -1688,7 +1688,7 @@ mod tests {
             .materialize_root_graph()
             .expect("gallery flat projection");
         source
-            .set_actions(vec![
+            .set_actions_lenient(vec![
                 Action::Measure {
                     target: MeasureTarget::Node(IVec3::Z),
                     name: "a".into(),
@@ -1724,7 +1724,7 @@ mod tests {
                 pipe.clone()
             });
         }
-        reversed.set_actions(source.actions()).unwrap();
+        reversed.set_actions_lenient(source.actions()).unwrap();
         for mut source in [source, reversed] {
             // The X-readout spur is identity when unnamed outcomes are zero,
             // but its nonzero terminal outcome needs an output correction.
@@ -1798,12 +1798,12 @@ mod tests {
                 IVec3::new(5, 0, 0),
                 BlockKind::Cube(CubeKind::ZXZ),
             ));
-            source
-                .add_action(Action::Measure {
-                    target: MeasureTarget::Node(IVec3::new(5, 0, 0)),
-                    name: "closed".into(),
-                })
-                .unwrap();
+            let mut actions = source.actions();
+            actions.push(Action::Measure {
+                target: MeasureTarget::Node(IVec3::new(5, 0, 0)),
+                name: "closed".into(),
+            });
+            source.set_actions_lenient(actions).unwrap();
             let branch = LogicalVerifier::new(&source)
                 .unwrap()
                 .verify_branch(
@@ -1826,7 +1826,7 @@ mod tests {
             .materialize_root_graph()
             .expect("gallery flat projection");
         source
-            .set_actions(vec![
+            .set_actions_lenient(vec![
                 Action::Measure {
                     target: MeasureTarget::Node(IVec3::X + IVec3::Z),
                     name: "b".into(),
@@ -1892,12 +1892,12 @@ mod tests {
                         (edge.src(), edge.dir())
                     };
                     source
-                        .set_actions(vec![Action::Measure {
+                        .set_actions_lenient(vec![Action::Measure {
                             target: MeasureTarget::Edge { src, dir },
                             name: "m".into(),
                         }])
                         .unwrap();
-                    source.validate().unwrap();
+                    source.validate_source().unwrap();
                     for value in [false, true] {
                         let expected = if value {
                             circuit_graph(2, &[("cz", vec![0, 1]), ("z", vec![1])])

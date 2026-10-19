@@ -241,7 +241,8 @@ fn named_hadamard_and_spatial_records_survive_storage_reordering() {
                 name: format!("m{index}"),
             })
             .collect::<Vec<_>>();
-        source.set_actions(actions.clone()).unwrap();
+        // The open source's records reach its outputs until a fill closes them.
+        source.set_actions_lenient(actions.clone()).unwrap();
         let filled = source
             .filled_graphs()
             .unwrap()

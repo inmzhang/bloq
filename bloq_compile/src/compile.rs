@@ -1090,14 +1090,14 @@ impl CompileContext {
             .transpose()?
             .unwrap_or(IVec3::ZERO);
         let graph = graph.with_zero_min_z()?.fix_shadowed_faces();
-        let (source_graph, mut stabilizers) = if let Some(summary) = module_summary {
+        let mut stabilizers = if let Some(summary) = module_summary {
             let zx = bloq_graph::ZXGraph::from_block_graph_for_analysis(&graph)
                 .map_err(bloq_graph::RuntimeBasisError::from)?;
-            let stabilizers = summary.materialize_stabilizers(&zx, linked_offset)?;
-            (graph.with_analyzed_action_graph(&stabilizers)?, stabilizers)
+            summary.materialize_stabilizers(&zx, linked_offset)?
         } else {
-            graph.analyze_actions_with_limits(self.config.certification_limits())?
+            graph.stabilizers_with_limits(self.config.certification_limits())?
         };
+        let source_graph = graph.with_analyzed_action_graph(&stabilizers)?;
         let (graph, spatial_ports) =
             expand_spatial_ports(&source_graph, self.config.code_distance(), &stabilizers)?;
         // Module materialization already certifies this on its composed rows.
@@ -2174,48 +2174,6 @@ mod tests {
     }
 
     #[test]
-    fn clifford_distance_rejects_invalid_child_before_pinning() {
-        let graph = BlockGraph::from_text(
-            r#"BLOG 1.0
-module Child {
-    out q: data = 2
-    1: XZX [0,0,1]
-    2: Port [0,0,2] role=output
-    3: T [1,0,0]
-    4: XZX [1,0,1]
-    5: YX [1,0,2]
-    1 -> +Z
-    1 -> +X
-    3 -> +Z
-    5 -> -Z
-    mzz = measure 1 -> +X
-    resolve 5 if mzz
-}
-module main {
-    child: Child @ [0,0,0]
-    10: Z [0,0,2]
-    child.q -> 10
-}
-"#,
-        )
-        .unwrap();
-        for pin in [false, true] {
-            let error =
-                compile_clifford_distance(CompileConfig::new(3), &graph, &[pin]).unwrap_err();
-            assert!(
-                matches!(
-                    error,
-                    CompileError::ModuleCertification(
-                        bloq_graph::ModuleCertificationError::Graph { ref module, .. }
-                        | bloq_graph::ModuleCertificationError::Runtime { ref module, .. }
-                    ) if module == "Child"
-                ),
-                "{error:?}"
-            );
-        }
-    }
-
-    #[test]
     fn clifford_distance_requires_explicit_structural_projection() {
         assert!(matches!(
             compile_clifford_distance(CompileConfig::new(3), &structural_branch_graph(), &[],),
@@ -2626,7 +2584,9 @@ module main {
 
     #[test]
     fn compilation_rejects_measurement_surface_on_output_port() {
-        let graph = BlockGraph::from_blog_text(
+        // Validation rejects this source, so lower it without analysis to
+        // reach each compiler entry point.
+        let source = bloq_graph::parse_blog_to_ast(
             "BLOG 1.0\n\n\
              1: XZX [0,0,1]\n\
              2: Port [0,0,2]\n\
@@ -2641,25 +2601,7 @@ module main {
              resolve 5 if mzz\n",
         )
         .unwrap();
-        let stabilizers = graph.stabilizers().unwrap();
-        let measurement = stabilizers
-            .generators
-            .iter()
-            .find(|row| row.measurement_name() == Some("mzz"))
-            .expect("the merge supplies the named measurement");
-        assert_eq!(
-            measurement.stabilizer.port_stabilizer.get(&ivec3(0, 0, 2)),
-            Some(&bloq_graph::Pauli::Z),
-        );
-        assert!(matches!(
-            stabilizers.validate_measurements_close_before_outputs(),
-            Err(bloq_graph::RuntimeBasisError::Stabilizer(
-                bloq_graph::StabilizerError::MeasurementSurfaceTouchesOutputPort {
-                    ref name,
-                    port,
-                }
-            )) if name == "mzz" && port == ivec3(0, 0, 2)
-        ));
+        let graph = bloq_graph::lower_blog_ast_deferred(&source, []).unwrap();
         assert!(matches!(
             compile_clifford_proxy(CompileConfig::default(), &graph, &[false]),
             Err(CompileError::RuntimeBasis(

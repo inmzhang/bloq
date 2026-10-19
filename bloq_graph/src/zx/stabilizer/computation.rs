@@ -1,7 +1,5 @@
 //! Canonical stabilizer-table construction and bounded fallback search.
 
-use std::cell::LazyCell;
-
 use bloq_utils::{Pauli, PauliString, PhasedPauliString};
 
 use super::super::{NodeKind, ZXGraph, graph::pauli_at_small_node};
@@ -10,15 +8,14 @@ use super::affine::{
     solve_affine_tracked, solve_affine_tracked_components, visit_affine_coefficients,
 };
 use super::basis::{
-    CoeffSpan, CoeffVec, PauliCombinationBasis, PauliSpan, TrackedBasis,
-    complete_from_initial_basis_fast, row_rank,
+    CoeffSpan, CoeffVec, PauliSpan, TrackedBasis, complete_from_initial_basis_fast, row_rank,
 };
 use super::engine::StabilizerBasis;
 use super::measurement::{
     MeasurementMetadata, MeasurementSpec, MeasurementSurfaceRow, accepted_surface_deadline,
     diagonalize_measurement_columns, extract_measurement_prefix_with_constraints,
     extract_temporal_measurement_prefix, materialize_measurement_first_basis, measurement_specs,
-    measurement_surface_row_matches_acceptance, temporal_projection_layout,
+    temporal_projection_layout,
 };
 use super::selective::{
     SelectiveConstraint, add_selective_fixing_rows, canonicalize_boundary_suffix,
@@ -110,72 +107,6 @@ pub(crate) fn canonicalize_stabilizer_table_with_external_basis(
     budget: &mut SearchBudget,
 ) -> Result<CanonicalStabilizerTable, StabilizerError> {
     canonicalize_stabilizer_table_inner(zx, raw_external, Some(external_basis), true, true, budget)
-}
-
-pub(crate) fn canonicalize_stabilizer_table_with_measurement_prefix(
-    zx: &ZXGraph,
-    raw_external: &[PauliString],
-    external_basis: &[PhasedPauliString],
-    cached: &[(&str, PauliString)],
-    budget: &mut SearchBudget,
-) -> Result<Option<CanonicalStabilizerTable>, StabilizerError> {
-    budget.check_matrix(
-        raw_external.len().saturating_mul(4),
-        zx.total_ids(),
-        raw_external.len().saturating_mul(4),
-        raw_external.len(),
-    )?;
-    let selective_constraints = collect_selective_constraints(zx);
-    let metadata = MeasurementMetadata::collect(zx);
-    let measurement_cols = metadata.sorted_columns();
-    let specs = measurement_specs(zx);
-    if specs.len() != cached.len()
-        || specs
-            .iter()
-            .zip(cached)
-            .any(|(spec, (name, _))| spec.name != *name)
-    {
-        return Ok(None);
-    }
-    let combinations = LazyCell::new(|| PauliCombinationBasis::new(raw_external));
-    let mut measurement_rows = Vec::with_capacity(specs.len());
-    for (spec, (_, row)) in specs.iter().zip(cached) {
-        budget.visit("cached measurement presentation states")?;
-        let mut row = row.clone();
-        zx.clear_cross_centers(std::slice::from_mut(&mut row));
-        let Some(combination) = combinations.solve(&row) else {
-            return Ok(None);
-        };
-        zx.reconstruct_cross_center(std::slice::from_mut(&mut row));
-        if !measurement_surface_row_matches_acceptance(zx, &metadata, &spec.name, &row, true)
-            || selective_constraints
-                .iter()
-                .any(|constraint| row.get(constraint.col) == constraint.forbidden)
-        {
-            return Ok(None);
-        }
-        measurement_rows.push(MeasurementSurfaceRow {
-            name: spec.name.clone(),
-            deadline: accepted_surface_deadline(zx, &selective_constraints, spec, &row),
-            row,
-            combination,
-        });
-    }
-    match finish_canonical_stabilizer_table(
-        zx,
-        raw_external,
-        Some(external_basis),
-        &selective_constraints,
-        &metadata,
-        &measurement_cols,
-        specs,
-        &measurement_rows,
-        budget,
-    ) {
-        Ok(table) => Ok(Some(table)),
-        Err(error) if error.is_interrupted() => Err(error),
-        Err(_) => Ok(None),
-    }
 }
 
 pub(crate) fn canonicalize_stabilizer_table_legacy(
@@ -1763,54 +1694,6 @@ mod tests {
         }
         assert!(checked > 0, "no closed rigid gallery entry was checked");
     }
-
-    #[test]
-    fn measurement_search_can_cancel_selective_support_with_generator_product() {
-        use crate::{Action, Expr, FeedbackTarget, MeasureTarget, PauliBasis};
-        use bloq_utils::Direction;
-        use glam::ivec3;
-
-        let mut graph = BlockGraph::from_blog_text(
-            "BLOG 1.0\n\n  0: Y [0,0,2]\n  1: XZZ [0,0,3]\n  4: Y [0,1,2]\n  5: XZZ [0,1,3]\n  6: ZXX [0,1,5]\n  7: Port [0,1,6] <q0_out>\n  8: T [0,0,4]\n  9: ZXX [0,0,5]\n  10: XY [0,0,6]\n  11: ZXZ [0,1,4]\n  [0,0,2] -> +Z\n  [0,0,3] -> +Y\n  [0,1,2] -> +Z\n  [0,1,3] -H> +Z\n  [0,1,5] -> +Z\n  [0,0,4] -> +Z\n  [0,0,5] -> +Y\n  [0,0,6] -> -Z\n  [0,1,4] -> +Z\n",
-        )
-        .unwrap();
-        graph
-            .set_actions(vec![
-                Action::Feedback {
-                    targets: vec![FeedbackTarget {
-                        pauli: PauliBasis::Z,
-                        target: ivec3(0, 1, 4),
-                        direction: None,
-                    }],
-                    condition: None,
-                },
-                Action::Measure {
-                    target: MeasureTarget::Edge {
-                        src: ivec3(0, 1, 5),
-                        dir: Direction::YMINUS,
-                    },
-                    name: "t_2_mzz".into(),
-                },
-                Action::Resolve {
-                    target: ivec3(0, 0, 6),
-                    condition: Expr::Not(Box::new(Expr::Var("t_2_mzz".into()))),
-                },
-            ])
-            .unwrap();
-
-        let surface = graph
-            .action_graph()
-            .node_by_ordinal(1)
-            .unwrap()
-            .measurement_stabilizer
-            .as_ref()
-            .unwrap();
-        assert!(!surface.interior_nodes.contains_key(&ivec3(0, 0, 6)));
-        assert_eq!(
-            surface.port_stabilizer.get(&ivec3(0, 1, 6)),
-            Some(&Pauli::Z)
-        );
-    }
 }
 #[cfg(test)]
 mod merge_records {
@@ -1838,173 +1721,33 @@ mod merge_records {
         )
         .unwrap();
         graph.validate().unwrap();
-        let (graph, stabilizers) = graph.analyze_actions().unwrap();
+        let graph = graph.analyze_actions().unwrap();
 
-        let record = stabilizers
-            .generators
-            .iter()
-            .find(|generator| generator.measurement_name() == Some("m"))
-            .expect("the merge record has a surface");
-        assert!(record.stabilizer.sign, "the closed parity has constant 1");
-        assert_eq!(record.stabilizer.interior_nodes.len(), 4);
-        assert!(
-            record
-                .stabilizer
-                .interior_nodes
-                .values()
-                .all(|&pauli| pauli == Pauli::Y)
-        );
-        assert_eq!(record.stabilizer.interior_edges.len(), 3);
-        assert!(
-            record
-                .stabilizer
-                .interior_edges
-                .values()
-                .all(|&pauli| pauli == Pauli::Y)
-        );
-        assert_eq!(
-            record.stabilizer.interior_edges[&(ivec3(0, 0, 1), ivec3(1, 0, 1))],
-            Pauli::Y
-        );
-        assert!(
-            graph
-                .action_graph()
-                .node_by_ordinal(0)
-                .unwrap()
-                .measurement_stabilizer
-                .is_some(),
-            "the action DAG carries the record's surface"
-        );
-    }
-}
-#[cfg(test)]
-mod self_dependent_feedback {
-    use bloq_utils::{Direction, Pauli, PauliBasis};
-    use glam::ivec3;
-
-    use crate::{Action, BlockGraph, Expr, FeedbackTarget, GalleryItem, MeasureTarget};
-
-    /// Prefer a commuting component witness over a cyclic exact witness.
-    #[test]
-    fn self_gated_feedback_sends_the_search_to_a_commuting_witness() {
-        let mut graph = BlockGraph::from_blog_text(
-            "BLOG 1.0\n\n  0: Y [0,0,2]\n  1: XZZ [0,0,3]\n  4: Y [0,1,2]\n  5: XZZ [0,1,3]\n  6: ZXX [0,1,5]\n  7: Port [0,1,6] <q0_out>\n  8: T [0,0,4]\n  9: ZXX [0,0,5]\n  10: XY [0,0,6]\n  11: ZXZ [0,1,4]\n  12: ZXZ [2,0,2]\n  13: ZXZ [2,0,3]\n  [0,0,2] -> +Z\n  [0,0,3] -> +Y\n  [0,1,2] -> +Z\n  [0,1,3] -H> +Z\n  [0,1,5] -> +Z\n  [0,0,4] -> +Z\n  [0,0,5] -> +Y\n  [0,0,6] -> -Z\n  [0,1,4] -> +Z\n  [2,0,2] -> +Z\n",
-        )
-        .unwrap();
-        graph
-            .set_actions(vec![
-                Action::Measure {
-                    target: MeasureTarget::Edge {
-                        src: ivec3(0, 1, 5),
-                        dir: Direction::YMINUS,
-                    },
-                    name: "m".into(),
-                },
-                Action::Feedback {
-                    targets: vec![FeedbackTarget {
-                        pauli: PauliBasis::Y,
-                        target: ivec3(0, 1, 5),
-                        direction: None,
-                    }],
-                    condition: Some(Expr::Var("m".into())),
-                },
-                Action::Measure {
-                    target: MeasureTarget::Node(ivec3(2, 0, 3)),
-                    name: "a".into(),
-                },
-                Action::Resolve {
-                    target: ivec3(0, 0, 6),
-                    condition: Expr::Var("a".into()),
-                },
-            ])
-            .unwrap();
-        graph.validate().unwrap();
-
-        let surface = graph
+        let record = graph
             .action_graph()
             .node_by_ordinal(0)
             .unwrap()
             .measurement_stabilizer
             .as_ref()
-            .unwrap();
-        assert_eq!(surface.interior_nodes.get(&ivec3(0, 1, 5)), Some(&Pauli::Y));
-    }
-
-    /// Avoid a cycle reached through a selective fixing row.
-    #[test]
-    fn self_gated_feedback_avoids_reachable_selective_fixing_rows() {
-        let mut graph = GalleryItem::THTH
-            .build()
-            .materialize_root_graph()
-            .expect("gallery flat projection");
-        let mut actions = graph.actions();
-        let feedback = actions.len();
-        actions.push(Action::Feedback {
-            targets: vec![FeedbackTarget {
-                pauli: PauliBasis::Z,
-                target: ivec3(2, 1, 1),
-                direction: None,
-            }],
-            condition: Some(Expr::Var("mzz2".into())),
-        });
-        graph.set_actions_lenient(actions).unwrap();
-        let (graph, stabilizers) = graph.analyze_actions().unwrap();
-
-        let row = stabilizers
-            .generators
-            .iter()
-            .find(|generator| generator.measurement_name() == Some("mzz2"))
-            .unwrap();
-        assert!(!row.stabilizer.interior_nodes.contains_key(&ivec3(2, 1, 2)));
+            .expect("the action DAG carries the merge record's surface");
+        assert!(record.sign, "the closed parity has constant 1");
+        assert_eq!(record.interior_nodes.len(), 4);
         assert!(
-            graph
-                .action_graph()
-                .dependencies()
-                .all(|(from, to, _)| (from, to) != (feedback, 1))
+            record
+                .interior_nodes
+                .values()
+                .all(|&pauli| pauli == Pauli::Y)
         );
-    }
-
-    /// Backtrack when one record's witness cycles through an earlier record.
-    #[test]
-    fn witness_search_does_not_close_a_cycle_through_an_earlier_record() {
-        let mut graph = GalleryItem::THTH
-            .build()
-            .materialize_root_graph()
-            .expect("gallery flat projection");
-        let mut actions = graph.actions();
-        // The gallery now corrects its Y resources at initialization. Retain
-        // this internal conditional action to exercise the historical cycle.
-        let earlier_feedback = actions.len();
-        actions.push(Action::Feedback {
-            targets: vec![FeedbackTarget {
-                pauli: PauliBasis::Z,
-                target: ivec3(-1, 0, 1),
-                direction: None,
-            }],
-            condition: Some(Expr::Var("mzz1".into())),
-        });
-        let feedback = actions.len();
-        actions.push(Action::Feedback {
-            targets: vec![FeedbackTarget {
-                pauli: PauliBasis::X,
-                target: ivec3(0, 0, 0),
-                direction: None,
-            }],
-            condition: Some(Expr::Var("mzz2".into())),
-        });
-        graph.set_actions_lenient(actions).unwrap();
-        let (graph, _) = graph.analyze_actions().unwrap();
-
-        let dependencies = graph.action_graph().dependencies().collect::<Vec<_>>();
+        assert_eq!(record.interior_edges.len(), 3);
         assert!(
-            dependencies
-                .iter()
-                .any(|&(from, to, _)| (from, to) == (feedback, 0))
+            record
+                .interior_edges
+                .values()
+                .all(|&pauli| pauli == Pauli::Y)
         );
-        assert!(
-            dependencies
-                .iter()
-                .all(|&(from, to, _)| (from, to) != (earlier_feedback, 1))
+        assert_eq!(
+            record.interior_edges[&(ivec3(0, 0, 1), ivec3(1, 0, 1))],
+            Pauli::Y
         );
     }
 }

@@ -211,7 +211,7 @@ mod tests {
     #[test]
     fn svg_labels_analyzed_graph_and_rejects_cycles() {
         let flat = GalleryItem::T.build().flatten().unwrap();
-        let (analyzed, _) = flat.analyze_actions().unwrap();
+        let analyzed = flat.analyze_actions().unwrap();
         let svg = analyzed.action_graph().to_svg().unwrap();
         assert!(svg.contains("Analyzed action DAG"));
         let mut cyclic = analyzed.action_graph().clone();

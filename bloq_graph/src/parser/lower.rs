@@ -885,9 +885,6 @@ fn action_error_span(
                 _ => false,
             })
         }
-        InvalidActionError::BranchDependentMeasurementSurface { name } => {
-            find_measure_name_span(statements, name)
-        }
         InvalidActionError::MissingResolveForSelective { target } => find_block_span(data, *target),
         InvalidActionError::MissingResolveForBranch(name) => find_branch_span(data, name),
         _ => None,
@@ -1141,8 +1138,8 @@ mod tests {
     use crate::action::{BinaryOp, Expr};
     use crate::parser::{ParseError, parse_actions, parse_blog_body as parse_blog_to_graph};
     use crate::{
-        Action, Basis, Block, BlockKind, CubeKind, Direction, InvalidActionError, MeasureTarget,
-        PatchRotationKind, SelectiveKind, WalkingBoundaryKind, WalkingKind,
+        Action, Basis, Block, BlockKind, CubeKind, Direction, MeasureTarget, PatchRotationKind,
+        SelectiveKind, WalkingBoundaryKind, WalkingKind,
     };
     use glam::IVec3;
     use std::collections::HashMap;
@@ -1191,35 +1188,26 @@ mod tests {
     }
 
     #[test]
-    fn physical_measurement_errors_keep_the_measure_span() {
+    fn physical_measurement_error_keeps_the_measure_span() {
         let source = "BLOG 1.0\n\n0: XZZ [0,0,0]\nm = measure 0\n";
         let ast = crate::parse_blog_to_ast(source).unwrap();
-        let errors = [
-            crate::BlockGraphError::InvalidAction(
-                InvalidActionError::BranchDependentMeasurementSurface {
-                    name: "m".to_string(),
-                },
-            ),
-            crate::BlockGraphError::Stabilizer(
-                crate::StabilizerError::MeasurementSurfaceUnavailable {
-                    mvar: "m".to_string(),
-                },
-            ),
-        ];
-        for error in errors {
-            let span = action_error_span(
-                &error,
-                &ast.action_stmts,
-                &ast.data_stmts,
-                &|_, _| None,
-                &HashMap::new(),
-            )
-            .unwrap();
-            assert_eq!(
-                &source[span.start as usize..span.end as usize],
-                "m = measure 0"
-            );
-        }
+        let error = crate::BlockGraphError::Stabilizer(
+            crate::StabilizerError::MeasurementSurfaceUnavailable {
+                mvar: "m".to_string(),
+            },
+        );
+        let span = action_error_span(
+            &error,
+            &ast.action_stmts,
+            &ast.data_stmts,
+            &|_, _| None,
+            &HashMap::new(),
+        )
+        .unwrap();
+        assert_eq!(
+            &source[span.start as usize..span.end as usize],
+            "m = measure 0"
+        );
     }
 
     #[test]

@@ -224,8 +224,11 @@ def test_set_actions_matches_text_path():
 
 
 def test_add_action_appends_and_validates():
-    g = bloq.GalleryItem("bell_state").load()
-    g.add_action(bloq.Action.measure((0, 0, 0), "m"))
+    # A Z cap on a Z-initialized patch closes the record before any output.
+    g = bloq.BlockGraph.from_text(
+        "BLOG 1.0\n0: ZXZ [0,0,0]\n1: Z [0,0,1]\n[0,0,0] -> +Z\n"
+    )
+    g.add_action(bloq.Action.measure((0, 0, 1), "m"))
     assert [a.kind for a in g.actions()] == ["measure"]
     g.add_action(bloq.Action.discard_if("m"))
     assert [a.kind for a in g.actions()] == ["measure", "discard_if"]

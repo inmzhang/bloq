@@ -683,15 +683,18 @@ mod tests {
             composite
                 .validate()
                 .unwrap_or_else(|err| panic!("{label}: {err}"));
-            let (composite, stabilizers) = composite
+            let composite = composite
                 .analyze_actions()
                 .unwrap_or_else(|err| panic!("{label}: {err}"));
-            let zx = &stabilizers.zx_graph;
-            for generator in &stabilizers.generators {
-                let Some(name) = generator.measurement_name() else {
+            let zx = &crate::ZXGraph::from_block_graph_for_analysis(&composite).unwrap();
+            for node in composite.action_graph().ordered_nodes() {
+                let Action::Measure { name, .. } = &node.action else {
                     continue;
                 };
-                let stabilizer = &generator.stabilizer;
+                let stabilizer = node
+                    .measurement_stabilizer
+                    .as_ref()
+                    .unwrap_or_else(|| panic!("{label}: {name} has no surface"));
                 assert!(
                     zx.nodes()
                         .iter()

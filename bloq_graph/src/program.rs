@@ -3783,66 +3783,6 @@ module main {
     }
 
     #[test]
-    fn leaf_certification_bounds_closure_searches() {
-        let source = r#"BLOG 1.0
-
-module main {
-  out out: data = 2
-  1: XZX [0, 0, 1]
-  2: Port [0, 0, 2] role=output <out>
-  3: T [1, 0, 0]
-  4: XZX [1, 0, 1]
-  5: YX [1, 0, 2]
-  [0, 0, 1] -> +Z
-  [0, 0, 1] -> +X
-  [1, 0, 0] -> +Z
-  [1, 0, 2] -> -Z
-  mzz = measure 1 -> +X
-  resolve 5 if mzz
-}
-
-"#;
-        let program = parse_inline_graph(source).unwrap();
-        let error = program
-            .certify_leaf(
-                "main",
-                ModuleCertificationLimits {
-                    max_guarded_domain_size: 1,
-                    ..ModuleCertificationLimits::UNLIMITED
-                },
-            )
-            .unwrap_err();
-        assert!(matches!(
-            error,
-            ModuleCertificationError::ResourceLimited {
-                phase: "guarded-domain branches",
-                observed: 2,
-                limit: 1,
-                ..
-            }
-        ));
-
-        let error = program
-            .certify_leaf(
-                "main",
-                ModuleCertificationLimits {
-                    max_normalization_states: 0,
-                    ..ModuleCertificationLimits::UNLIMITED
-                },
-            )
-            .unwrap_err();
-        assert!(matches!(
-            error,
-            ModuleCertificationError::ResourceLimited {
-                phase: "selective fixing setup states",
-                observed: 1,
-                limit: 0,
-                ..
-            }
-        ));
-    }
-
-    #[test]
     fn child_summaries_compose_bind_and_direct_seams() {
         let summary = parse_inline_graph(&pair_source(STAGE))
             .unwrap()

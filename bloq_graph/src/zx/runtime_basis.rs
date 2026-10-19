@@ -1353,25 +1353,6 @@ mod tests {
     }
 
     #[test]
-    fn measurement_derivation_preserves_observable_and_readout_identity() {
-        for (kind, expected) in [("XZX", Pauli::X), ("ZXZ", Pauli::Z)] {
-            let graph = BlockGraph::from_blog_text(&format!(
-                "BLOG 1.0\n0: Port [0,0,-1]\n1: {kind} [0,0,0]\n2: Port [0,0,1]\n0 -> +Z\n1 -> +Z\nm = measure 1\n"
-            )).unwrap();
-            let stabilizers = graph.stabilizers().unwrap();
-            let ordinal = stabilizers
-                .generators
-                .iter()
-                .position(|generator| generator.measurement_name() == Some("m"))
-                .unwrap();
-            let basis = RuntimeStabilizerBasis::from_generators(&stabilizers);
-            let derived = basis.derive_measurement_surface("m", 2).unwrap();
-            assert_eq!(derived.stabilizer.interior_nodes[&ivec3(0, 0, 0)], expected);
-            assert_eq!(derived.readout_ordinals, vec![ordinal]);
-        }
-    }
-
-    #[test]
     fn runtime_basis_uses_measurement_actions() {
         let graph = GalleryItem::T
             .build()

@@ -3,11 +3,10 @@
 use super::ZXLayerView;
 use super::modular::{StabilizerPhaseBasis, canonical_external_basis};
 use super::stabilizer::{
-    CanonicalStabilizerTable, SearchBudget, Stabilizer, StabilizerError, StabilizerGenerator,
-    StabilizerGenerators, canonicalize_stabilizer_table, canonicalize_stabilizer_table_legacy,
-    canonicalize_stabilizer_table_with_external_basis,
-    canonicalize_stabilizer_table_with_measurement_prefix, complete_stabilizer_search,
-    contracted_sign, has_forced_direct_action_cycle, stabilizers_satisfy_global_constraints,
+    CanonicalStabilizerTable, SearchBudget, Stabilizer, StabilizerError, StabilizerGenerators,
+    canonicalize_stabilizer_table, canonicalize_stabilizer_table_legacy,
+    canonicalize_stabilizer_table_with_external_basis, complete_stabilizer_search, contracted_sign,
+    has_forced_direct_action_cycle, stabilizers_satisfy_global_constraints,
 };
 use crate::{
     Action, ActionDag, BlockGraphError, CubeKind, FeedbackTarget, MeasureTarget,
@@ -1121,60 +1120,6 @@ impl ZXGraph {
         self.stabilizers_with_limits(ModuleCertificationLimits::DEFAULT)
     }
 
-    pub(crate) fn stabilizers_reusing_measurements(
-        &self,
-        measurements: &[&StabilizerGenerator],
-        limits: ModuleCertificationLimits,
-    ) -> Result<Option<StabilizerGenerators>, StabilizerError> {
-        self.validate_feedback_targets()?;
-        let mut budget = SearchBudget::with_limits(limits);
-        budget.check_matrix(measurements.len(), self.total_ids(), 0, 0)?;
-        let cached = measurements
-            .iter()
-            .map(|generator| {
-                Some((
-                    generator.measurement_name()?,
-                    self.remap_stabilizer_row(&generator.stabilizer)?,
-                ))
-            })
-            .collect::<Option<Vec<_>>>();
-        let Some(cached) = cached.filter(|cached| !cached.is_empty()) else {
-            return Ok(None);
-        };
-        self.check_external_table_limits(limits)?;
-        let (raw_external, signed_external) = self.to_external_generator_table_with_signed();
-        let Some(table) = canonicalize_stabilizer_table_with_measurement_prefix(
-            self,
-            &raw_external,
-            &signed_external,
-            &cached,
-            &mut budget,
-        )?
-        else {
-            return Ok(None);
-        };
-        let candidate = match table.into_stabilizers(self) {
-            Ok(candidate) => candidate,
-            Err(error) if error.is_interrupted() => return Err(error),
-            Err(_) => return Ok(None),
-        };
-        Ok(stabilizers_satisfy_global_constraints(self, &candidate)?.then_some(candidate))
-    }
-
-    fn remap_stabilizer_row(&self, stabilizer: &Stabilizer) -> Option<PauliString> {
-        let mut row = PauliString::new(self.total_ids);
-        for (&pos, &pauli) in &stabilizer.interior_nodes {
-            row.set(self.node_at(pos)?.id, pauli);
-        }
-        for (&(src, dst), &pauli) in &stabilizer.interior_edges {
-            let src = self.node_at(src)?.id;
-            let dst = self.node_at(dst)?.id;
-            row.set(self.edge_id(src, dst)?, pauli);
-            row.set(self.edge_id(dst, src)?, pauli);
-        }
-        Some(row)
-    }
-
     /// Computes generators under explicit certification limits.
     ///
     /// # Errors
@@ -1708,36 +1653,6 @@ mod tests {
                 assert_eq!(rows, expected);
             }
         }
-    }
-
-    #[test]
-    fn stale_measurement_prefix_is_rejected() {
-        let graph = GalleryItem::CCZGateTeleport
-            .build()
-            .materialize_root_graph()
-            .expect("gallery flat projection");
-        let baseline = ZXGraph::from_block_graph_for_analysis(&graph)
-            .unwrap()
-            .stabilizers()
-            .unwrap();
-        let projection = graph.branch_projections().unwrap().pop().unwrap();
-        let zx = ZXGraph::from_block_graph_for_analysis(projection.graph()).unwrap();
-        let mut measurements = baseline
-            .generators
-            .into_iter()
-            .filter(crate::StabilizerGenerator::is_measurement)
-            .collect::<Vec<_>>();
-        measurements[0]
-            .stabilizer
-            .interior_nodes
-            .insert(ivec3(i32::MAX, 0, 0), Pauli::X);
-        let measurements = measurements.iter().collect::<Vec<_>>();
-
-        assert!(
-            zx.stabilizers_reusing_measurements(&measurements, ModuleCertificationLimits::DEFAULT)
-                .unwrap()
-                .is_none()
-        );
     }
 
     #[test]

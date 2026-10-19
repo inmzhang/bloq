@@ -74,7 +74,7 @@ pub use gltf::{
     block_graph_as_gltf_data_with_popped_faces, pipe_as_gltf_data,
     pipe_between_positions_as_gltf_data, stabilizer_as_gltf_data,
 };
-pub use graph::{AnalyzedBranchProjections, BlockGraph, BlockLayerView};
+pub use graph::{BlockGraph, BlockLayerView};
 pub use guarded::{GuardedProjection, GuardedTopology, GuardedVariable, selective_selector_name};
 pub use height::{CubeHeight, MAX_CUBE_HEIGHT_CELLS};
 pub use module_view::{ModuleView, ModuleViewModule, module_color};
