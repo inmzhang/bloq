@@ -50,14 +50,16 @@ impl BlockGraph {
     /// Ordinary cube color changes toggle every incident pipe's Hadamard.
     /// Positions, topology, tags, interfaces, and named outcomes are retained.
     /// Zero spatial walls are preferred; otherwise each spatial component uses
-    /// an exact minimum cut restricted to X walls or to Y walls. Temporal-wall
-    /// and cube-flip counts only break ties; their global minimum is not claimed.
+    /// an exact minimum cut restricted to X walls or to Y walls, preferring X
+    /// on a tie. Unanchored zero-wall frames use temporal-wall and cube-flip
+    /// counts to break ties; their global minimum is not claimed.
     /// Terminal measurement bases absorb temporal Hadamards where their signs
     /// can be preserved, conjugating their feedback and selector conditions.
     /// Resource-edge frames retain their existing physical handling.
     /// Other graphs without spatial Hadamards, and sources
     /// with structural branch regions, are returned unchanged. Extended and
     /// moving blocks keep their local frames.
+    /// Spatial components without cube-to-cube Hadamards keep their cube colors.
     ///
     /// # Errors
     ///
@@ -122,7 +124,7 @@ impl BlockGraph {
                         && index.contains_key(&pipe.dst())
                 })
                 .collect::<Vec<_>>();
-            if spatial.is_empty() {
+            if !spatial.iter().any(|pipe| pipe.is_hadamard()) {
                 continue;
             }
             let old = component
@@ -184,13 +186,10 @@ impl BlockGraph {
                 match (x, y) {
                     (Ok(x), Ok(y)) => {
                         let cost = |colors: &[bool]| {
-                            (
-                                edges
-                                    .iter()
-                                    .filter(|edge| colors[edge.left] != colors[edge.right])
-                                    .count(),
-                                score(colors),
-                            )
+                            edges
+                                .iter()
+                                .filter(|edge| colors[edge.left] != colors[edge.right])
+                                .count()
                         };
                         if cost(&x) <= cost(&y) { x } else { y }
                     }
@@ -496,6 +495,82 @@ mod tests {
         let error = protected.with_temporal_hadamards().unwrap_err();
         assert!(matches!(error, BlockGraphError::HadamardPush(_)));
         assert_eq!(protected.to_blog_text(), before);
+    }
+
+    #[test]
+    fn remaining_walls_do_not_recolor_unrelated_wall_free_components_on_repeated_calls() {
+        let mut source = corner_path();
+        for (x, kind) in [
+            (-10, crate::CubeKind::XZX),
+            (-9, crate::CubeKind::XZX),
+            (-7, crate::CubeKind::ZXZ),
+            (-6, crate::CubeKind::ZXZ),
+        ] {
+            source.add_block(Block::new(ivec3(x, 0, 0), BlockKind::Cube(kind)));
+        }
+        for x in -10..=-6 {
+            let kind = if x < -8 {
+                crate::CubeKind::XZX
+            } else {
+                crate::CubeKind::ZXZ
+            };
+            source.add_block(Block::new(ivec3(x, 0, 1), BlockKind::Cube(kind)));
+        }
+        for x in [-10, -7] {
+            source
+                .try_add_pipe(Pipe::new(ivec3(x, 0, 0), Direction::XPLUS))
+                .unwrap();
+        }
+        for x in -10..-6 {
+            let pipe = Pipe::new(ivec3(x, 0, 1), Direction::XPLUS);
+            source
+                .try_add_pipe(if x == -9 { pipe.with_hadamard() } else { pipe })
+                .unwrap();
+        }
+        for x in [-10, -9, -7, -6] {
+            source
+                .try_add_pipe(Pipe::new(ivec3(x, 0, 0), Direction::ZPLUS))
+                .unwrap();
+        }
+        source.validate().unwrap();
+        let normalized = source.with_temporal_hadamards().unwrap();
+        assert_eq!(wall_axes(&normalized), (1, 0));
+        for x in [-10, -9, -7, -6] {
+            assert_eq!(
+                normalized.get_block(ivec3(x, 0, 0)),
+                source.get_block(ivec3(x, 0, 0))
+            );
+        }
+        assert_eq!(
+            normalized.to_blog_text(),
+            normalized.with_temporal_hadamards().unwrap().to_blog_text()
+        );
+    }
+
+    #[test]
+    fn equal_spatial_cut_counts_use_a_stable_axis_despite_temporal_neighbors() {
+        let text = "BLOG 1.0\nmodule main {\n\
+            in input: data = 0\nout output: data = 7\nout auxiliary: data = 9\n\
+            0: Port [0, 0, -1] role=input\n1: XZX [0, 0, 0]\n\
+            2: XZX [1, 0, 0]\n3: ZZX [2, 0, 0]\n4: ZZX [2, 1, 0]\n\
+            5: XZX [3, 1, 0]\n6: ZXZ [4, 1, 0]\n\
+            7: Port [4, 1, 1] role=output\n\
+            8: XZX [1, 0, 1]\n9: Port [1, 0, 2] role=output\n\
+            0 -> +Z\n1 -> +X\n2 -> +X\n3 -> +Y\n4 -> +X\n5 -H> +X\n\
+            6 -> +Z\n2 -> +Z\n8 -> +Z\n}\n";
+        for text in [
+            text.to_owned(),
+            text.replace("8: XZX", "8: ZXZ")
+                .replace("2 -> +Z", "2 -H> +Z"),
+        ] {
+            let source = BlockGraph::from_blog_text(&text).unwrap();
+            let normalized = source.with_temporal_hadamards().unwrap();
+            assert_eq!(wall_axes(&normalized), (1, 0));
+            assert_eq!(
+                normalized.to_blog_text(),
+                normalized.with_temporal_hadamards().unwrap().to_blog_text()
+            );
+        }
     }
 
     #[test]
