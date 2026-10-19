@@ -1768,7 +1768,6 @@ fn order_linked_actions(
 
     let mut actions = Vec::new();
     let mut action_scopes = Vec::new();
-    let mut ordered_ranges = Vec::new();
     for (instance, child, child_scopes) in child_actions {
         let bindings = bindings_by_target.remove(&instance).unwrap_or_default();
         action_scopes.extend(std::iter::repeat_n(
@@ -1776,36 +1775,24 @@ fn order_linked_actions(
             bindings.len(),
         ));
         actions.extend(bindings);
-        let start = actions.len();
         debug_assert_eq!(child.len(), child_scopes.len());
         actions.extend(child);
         action_scopes.extend(child_scopes);
-        ordered_ranges.push(start..actions.len());
     }
     debug_assert!(bindings_by_target.is_empty());
-    let start = actions.len();
     action_scopes.extend(std::iter::repeat_n(prefix.to_string(), local_actions.len()));
     actions.extend(local_actions);
-    ordered_ranges.push(start..actions.len());
 
     let mut successors = vec![BTreeSet::new(); actions.len()];
     for (predecessor, consumer, _) in crate::ActionDag::from_actions(&actions).dependencies() {
         successors[predecessor].insert(consumer);
     }
-    for range in ordered_ranges {
-        for (predecessor, consumers) in successors
-            .iter_mut()
-            .enumerate()
-            .take(range.end.saturating_sub(1))
-            .skip(range.start)
-        {
-            consumers.insert(predecessor + 1);
-        }
-    }
     let mut incoming = vec![0usize; actions.len()];
     for consumer in successors.iter().flatten() {
         incoming[*consumer] += 1;
     }
+    // Preserve declaration order only between ready actions. Serializing all
+    // declarations would turn valid forward references into dependency cycles.
     let mut ready = incoming
         .iter()
         .enumerate()
@@ -3947,6 +3934,35 @@ module main {
         assert!(matches!(&actions[2], Action::Let { name, .. } if name == "c__enable"));
         assert!(matches!(&actions[3], Action::DiscardIf(_)));
         assert_eq!(linked.action_scopes, ["p", "p", "c", "c"]);
+    }
+
+    #[test]
+    fn forward_measurement_references_survive_module_linking() {
+        for nested in [false, true] {
+            let module = if nested { "Leaf" } else { "main" };
+            let mut source = format!(
+                "BLOG 1.0\nmodule {module} {{\n\
+                 0: ZXZ [0, 0, 0]\n1: ZXZ [2, 0, 0]\n\
+                 b = measure 1\ndiscard if a\na = measure 0\n}}\n"
+            );
+            if nested {
+                source.push_str("module main {\n c: Leaf @ [0, 0, 0]\n}\n");
+            }
+            let program = parse_inline_graph(&source).unwrap();
+            let linked = flatten_module_definition(&program, program.root(), "").unwrap();
+            let actions = linked.graph.actions();
+            let prefix = if nested { "c__" } else { "" };
+            assert!(
+                matches!(&actions[0], Action::Measure { name, .. } if name == &format!("{prefix}b"))
+            );
+            assert!(
+                matches!(&actions[1], Action::Measure { name, .. } if name == &format!("{prefix}a"))
+            );
+            assert!(
+                matches!(&actions[2], Action::DiscardIf(Expr::Var(name)) if name == &format!("{prefix}a"))
+            );
+            assert_eq!(linked.action_scopes, vec![if nested { "c" } else { "" }; 3]);
+        }
     }
 
     #[test]
