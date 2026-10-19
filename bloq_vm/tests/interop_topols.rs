@@ -177,7 +177,7 @@ fn ideal(name: &str, simulator: &mut Simulator) -> Result<(), ExecError> {
             simulator.t(0)?;
             simulator.cx(0, 1)?;
         }
-        "adder4" => {
+        "adder4" | "adder4_early_t" => {
             for qubit in 0..3 {
                 simulator.h(qubit);
             }
@@ -202,6 +202,33 @@ fn ideal(name: &str, simulator: &mut Simulator) -> Result<(), ExecError> {
                     simulator.h(qubit);
                 }
             }
+        }
+        "qae3" => {
+            let rotate = |sim: &mut Simulator, angle: f64| {
+                sim.pauli_rotation(
+                    &EnginePauliString::single(sim.num_qubits(), 2, EnginePauli::Y),
+                    angle / 2.0,
+                )
+            };
+            let pi = std::f64::consts::PI;
+            simulator.h(0);
+            simulator.h(1);
+            rotate(simulator, pi / 4.0)?;
+            // Controlled powers of Ry(pi/2), followed by the inverse QFT.
+            for (control, angle) in [(0, pi / 2.0), (1, pi)] {
+                rotate(simulator, angle / 2.0)?;
+                simulator.cx(control, 2)?;
+                rotate(simulator, -angle / 2.0)?;
+                simulator.cx(control, 2)?;
+            }
+            simulator.swap(0, 1);
+            simulator.h(0);
+            simulator.t_dag(1)?;
+            simulator.t_dag(0)?;
+            simulator.cx(1, 0)?;
+            simulator.t(0)?;
+            simulator.cx(1, 0)?;
+            simulator.h(1);
         }
         _ => panic!("no independent physical ideal for {name}"),
     }
@@ -311,24 +338,27 @@ fn real_topols_layout_has_the_source_channel_at_d3(#[case] name: &str) {
 }
 
 #[rstest::rstest]
-#[case("ising4", 8)]
-#[case("adder4", 7)]
+#[case("ising4", 8, 4)]
+#[case("adder4", 7, 4)]
+#[case("adder4_early_t", 7, 4)]
+#[case("qae3", 6, 3)]
 fn topols_algorithm_has_the_expected_prepared_state_at_d3(
     #[case] name: &str,
     #[case] t_gadgets: usize,
+    #[case] qubits: usize,
 ) {
     let fixture = fixture(name);
     verify_source(&fixture);
-    assert_eq!(fixture.inputs.len(), 4);
-    assert_eq!(fixture.outputs.len(), 4);
+    assert_eq!(fixture.inputs.len(), qubits);
+    assert_eq!(fixture.outputs.len(), qubits);
     assert_eq!(fixture.t_gadgets, t_gadgets);
     let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
         .compile(&fixture.graph)
         .expect("algorithm compiles at distance three")
         .bloq;
     bloq.validate().expect("compiled algorithm IR validates");
-    // No reference halves are needed for a known |0000> input: this checks
-    // every one of the 255 nonidentity joint output Pauli expectations.
+    // A known zero input needs no reference halves. The oracle checks every
+    // nonidentity joint output Pauli expectation (255 for four qubits).
     let oracle = ExactChoi::new(&[], &fixture.outputs, |sim| ideal(name, sim));
     let mut selectors = BTreeMap::<String, BTreeSet<bool>>::new();
     for seed in SEEDS {

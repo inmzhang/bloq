@@ -1,6 +1,6 @@
 """Run an exact algorithm through TopoLS, validated Bloq IR, and the noiseless VM.
 
-Start with ising4 or qpe4; adder4 works with --layout-seed 2. All candidates use independent
+Start with ising4, qpe4, or adder4. All candidates use independent
 matrix oracles and ideal T-source proxies. Unsupported layouts fail explicitly.
 """
 

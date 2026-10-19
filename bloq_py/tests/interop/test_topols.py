@@ -59,6 +59,25 @@ def test_fixture_exporter_rejects_an_unrelated_upstream_checkout(tmp_path):
         check(Path(__file__).resolve().parents[3], tmp_path)
 
 
+def test_s_measurement_stub_cannot_reenter_a_finished_time_layer():
+    from topols.embedding.hadamard import HTable
+    from topols.embedding.state import EmbeddingState
+
+    state = EmbeddingState(
+        embed_node_pos={14: (1, 2, 6)}, embed_node_ori={14: "i"},
+        embed_node_type={14: 0}, embed_path=(), occupied={(1, 2, 6)},
+        z_floor=5, x_min_floor=-10, x_max_floor=10, y_min_floor=-10, y_max_floor=10,
+        idle_h_track={}, idle_place={}, t_track={}, node_type={17: 4},
+        input_connect={17: [14]}, inter_connect=(), output_connect={17: 1},
+        order=[17], z_length=1, hadamard_edges=HTable(),
+    )
+    # The downward incoming wire would put the stub endpoint at z=4.
+    assert state.next_state((1, 2, 5)) is None
+    legal = state.next_state((1, 2, 7))
+    assert legal is not None
+    assert all(p[2] >= state.z_floor for path in legal.embed_path for p in path)
+
+
 @pytest.mark.parametrize("gates", [
     "tdg q[0];", "sdg q[0];", "z q[0];", "x q[0];", "y q[0];",
     "rx(-pi/4) q[0];", "rz(3*pi/4) q[0];", "ry(pi/2) q[0];",
@@ -157,7 +176,9 @@ def test_declared_source_interface_cannot_lose_a_wire(t_import):
 
 @pytest.mark.parametrize("options", [
     {"engine": "auto"}, {"iterations": 0}, {"time_bound": float("nan")},
-    {"time_bound": float("inf")}, {"seed": True},
+    {"time_bound": float("inf")}, {"seed": True}, {"seed": -1},
+    {"seed": 2**64 - 1}, {"iterations": 2**64}, {"time_bound": True},
+    {"time_bound": 2**10000}, {"time_bound": "0.1"},
 ])
 def test_invalid_options_reject_before_routing(options):
     with pytest.raises(ValueError):

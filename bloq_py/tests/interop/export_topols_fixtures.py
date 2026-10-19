@@ -2,7 +2,7 @@
 
 Requires the pinned checkout and its matching topols_core extension. Run from
 the repository root with --upstream-root /path/to/TopoLS; no upstream pickle
-is loaded. The checkout must contain exactly the checked-in signed-phase patch.
+is loaded. The checkout must contain exactly the checked-in integration patch.
 """
 
 import argparse
@@ -62,8 +62,9 @@ def fixture_sources(repository):
         for name, (width, gates) in SOURCES.items()
     }
     generate = runpy.run_path(str(repository / "bloq_py/examples/_algorithm_candidates.py"))["generate_candidate"]
-    for name, seed in (("ising4", 0), ("adder4", 2)):
-        candidate = generate(name)
+    for name, algorithm, seed in (("ising4", "ising4", 0), ("adder4", "adder4", 0),
+                                  ("adder4_early_t", "adder4", 1), ("qae3", "qae3", 0)):
+        candidate = generate(algorithm)
         sources[name] = dict(
             qasm=candidate.clifford_t_qasm + "\n", seed=seed, algorithm=candidate.summary,
             source_qasm=candidate.source_qasm,

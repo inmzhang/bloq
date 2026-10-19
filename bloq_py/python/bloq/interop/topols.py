@@ -165,7 +165,10 @@ def _convert(embedding: dict[str, Any], qubits: int) -> tuple[bloq.BlockGraph, t
     nodes, edges = _pipe_diagram(embedding)
     nodes, pipes = _space_diagram(nodes, edges)
     edges = list(pipes)
-    neighbors = {n: [b if a == n else a for a, b in edges if n in (a, b)] for n in nodes}
+    neighbors: dict[Any, list[Any]] = {n: [] for n in nodes}
+    for a, b in edges:
+        neighbors[a].append(b)
+        neighbors[b].append(a)
     actions = []
     occupied = {_position(data["position"]) for data in nodes.values()}
     resources = {"S": 0, "T": 0}
@@ -242,8 +245,18 @@ def from_qasm(qasm: str, *, seed: int = 0, engine: str = "python",
     """
     if engine not in ("python", "rust"):
         raise ValueError("engine must be 'python' or 'rust'")
-    if type(seed) is not int or type(iterations) is not int or iterations < 1 or not 0 < time_bound < float("inf"):
-        raise ValueError("Expected an integer seed, positive iterations, and a finite positive time_bound")
+    # The Rust engine adds one to its u64 seed and parses iterations as u64.
+    if (type(seed) is not int or not 0 <= seed < 2**64 - 1
+            or type(iterations) is not int or not 0 < iterations < 2**64):
+        raise ValueError("Expected a seed in [0, 2**64-2] and iterations in [1, 2**64-1]")
+    if type(time_bound) not in (int, float):
+        raise ValueError("Expected a finite positive time_bound")
+    try:
+        time_bound = float(time_bound)
+    except OverflowError as error:
+        raise ValueError("Expected a finite positive time_bound") from error
+    if not 0 < time_bound < float("inf"):
+        raise ValueError("Expected a finite positive time_bound")
     normalized, qubits = _normalize_qasm(qasm)
     from topols.pipeline import prepare_graph
 

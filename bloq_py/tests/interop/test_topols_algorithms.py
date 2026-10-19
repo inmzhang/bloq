@@ -51,16 +51,24 @@ def test_shared_runner_retains_topols_diagnostic_without_node_metadata(tmp_path,
     assert result["layout_options"] == options
 
 
-def test_compile_only_rejects_an_inconsistent_output_interface(tmp_path):
+def test_compile_only_preserves_interface_with_a_t_source_before_the_input(tmp_path):
     pytest.importorskip("topols")
     pytest.importorskip("topols_core")
     generate = runpy.run_path(str(EXAMPLE.with_name("_algorithm_candidates.py")))["generate_candidate"]
     candidate = generate("adder4")
     runner = runpy.run_path(str(EXAMPLE.with_name("_interop_demo.py")))["run_demo"]
-    with pytest.raises(RuntimeError, match="output interface differs"):
-        runner(candidate.source_qasm, candidate.clifford_t_qasm, candidate.ideal_unitary,
-               tmp_path, candidate.summary, compiler="topols", compile_only=True,
-               layout_options=dict(engine="rust", seed=1))
+    runner(candidate.source_qasm, candidate.clifford_t_qasm, candidate.ideal_unitary,
+           tmp_path, candidate.summary, compiler="topols", compile_only=True,
+           layout_options=dict(engine="rust", seed=1))
     result = json.loads((tmp_path / "result.json").read_text())
-    assert result["status"] == "failed"
-    assert result["failed_stage"] == "compile"
+    assert result["status"] == "compiled"
+    # The resource precedes the original input origin, which therefore shifts.
+    assert min(p[2] for p in result["input_ports"]) > 0
+    import bloq
+
+    graph = bloq.BlockGraph.load(tmp_path / "layout.blog")
+    program = bloq.Bloq.load(tmp_path / "program.bloq")
+    assert min(block.pos[2] for block in graph.flatten().blocks()) == 0
+    assert {output.port for output in program.logical_outputs()} == {
+        tuple(port) for port in result["output_ports"]
+    }

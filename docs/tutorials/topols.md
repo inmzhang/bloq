@@ -9,7 +9,7 @@ Logical circuit → Clifford+T OpenQASM 2 → TopoLS → BlockGraph → Bloq IR 
 ## Install
 
 Use a Bloq source checkout and Python 3.11–3.14. Install the headless dependencies
-and the pinned upstream with its signed-phase patch:
+and the pinned upstream with its integration patch:
 
 ```sh
 uv sync --project bloq_py --locked --group dev --group interop --inexact
@@ -64,9 +64,9 @@ uv run --project bloq_py --no-sync python bloq_py/examples/topols_algorithms.py 
 ```
 
 The same runner supports phase estimation, Grover search, QAOA, quantum walks,
-amplitude estimation, a variational ansatz, and coherent addition. For addition,
-use `--candidate adder4 --layout-seed 2`. Add `--engine python` to use the reference
-engine. Each run needs an empty output directory and retains source/normalized
+amplitude estimation, a variational ansatz, and coherent addition. Add
+`--engine python` to use the reference engine. Each run needs an empty output
+directory and retains source/normalized
 QASM, BLOG, a viewer, validated IR, and JSON results. Independent matrix oracles
 check synthesis; execution checks every joint output Pauli expectation.
 
@@ -76,8 +76,10 @@ check synthesis; execution checks every joint output Pauli expectation.
   with denominator at most four are lowered; synthesize other angles first.
   Measurements, resets, classical control, and identity-only sources are rejected.
 - The upstream patch recognizes signed S/S† and T/T† and preserves their exact
-  phases through spider fusion. Bloq binds each routed resource to its prepared
-  or fallback source vertex. T† uses one T resource, with no extra S gadgets.
+  phases through spider fusion. It also retains only live output boundaries and
+  keeps S-resource stubs above finished layers and clear of routed inputs.
+  Bloq binds each routed resource to its prepared or fallback source vertex.
+  T† uses one T resource, with no extra S gadgets.
 - S endpoints become signed Y preparations/measurements. T endpoints receive
   Bloq's positive T source and adaptive X/Y measurement. For corrected ZZ bit
   `b`, T reads X when `b=0` and Y when `b=1`; T† exchanges them. Bloq computes
@@ -87,11 +89,9 @@ check synthesis; execution checks every joint output Pauli expectation.
   and enlarges the layout. The original compact embedding remains available for
   provenance; adapted volume is not TopoLS's optimized volume.
 - Routing success does not guarantee compatibility. Unsupported frames,
-  inconsistent interfaces, mixed-axis spatial Hadamard walls, or destructive patch
-  reuse fail explicitly. In particular, adder seed zero currently produces
-  duplicate output metadata, and amplitude-estimation seed zero exports overlapping
-  nodes. The example also checks the compiled output interface before execution.
-  The adapter performs no lifetime-aware rerouting.
+  inconsistent interfaces, protected frames that still require mixed spatial wall axes, or destructive patch
+  reuse fail explicitly. The example also checks the compiled output interface
+  before execution. The adapter performs no lifetime-aware rerouting.
 - VM checks use ideal T-source proxies, noiseless physical circuits, ideal input
   preparation, and ideal boundary capture. They do not claim cultivation
   acceptance, hardware timing, or fault-tolerant distance.

@@ -1,3 +1,107 @@
+diff --git a/rust/topols_core/src/driver.rs b/rust/topols_core/src/driver.rs
+index 11b2aed..175f93b 100644
+--- a/rust/topols_core/src/driver.rs
++++ b/rust/topols_core/src/driver.rs
+@@ -352,6 +352,12 @@ fn seal(
+             }
+         }
+     }
++    // Earlier fallback wire ends remain in history, but are not outputs.
++    io_info.retain(|(key, entry)| entry.kind != "output" || if brute_last {
++        best.idle_h_track.contains_key(key)
++    } else {
++        pre_ceiling_track.contains_key(key)
++    });
+     let (x_length, y_length, z_length, volume) = crate::embedding::ports::calculate_space_time(&hist.pos, &hist.paths, &floors);
+     CompileOutput {
+         pos: std::mem::take(&mut hist.pos), ori: std::mem::take(&mut hist.ori), typ: std::mem::take(&mut hist.typ), paths: std::mem::take(&mut hist.paths),
+diff --git a/rust/topols_core/src/embedding/state.rs b/rust/topols_core/src/embedding/state.rs
+index 0f2aad5..cdacacd 100644
+--- a/rust/topols_core/src/embedding/state.rs
++++ b/rust/topols_core/src/embedding/state.rs
+@@ -632,7 +632,9 @@ impl EmbeddingState {
+                     let od = Cell::new(sign * od.x, sign * od.y, sign * od.z);
+                     let p0 = coord.add(od);
+                     let p1 = p0.add(last_vec);
+-                    if !view.contains(&p0) && !view.contains(&p1) && !self.floors.outside(p0) && !self.floors.outside(p1) {
++                    if !view.contains(&p0) && !view.contains(&p1)
++                        && (p0.z as f64) >= self.z_floor && (p1.z as f64) >= self.z_floor
++                        && !self.floors.outside(p0) && !self.floors.outside(p1) {
+                         found = Some((p0, p1));
+                         break;
+                     }
+@@ -808,3 +810,31 @@ impl EmbeddingState {
+ pub fn occ_from(cells: impl IntoIterator<Item = Cell>) -> Occ {
+     cells.into_iter().collect()
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn s_stub_stays_above_the_finished_layer() {
++        let input = NodeId::int(14);
++        let node = NodeId::int(17);
++        let state = EmbeddingState::new(
++            NodeMap::from([(input, Cell::new(1, 2, 6))]),
++            NodeMap::from([(input, Axis::I)]), NodeMap::from([(input, 0)]),
++            Paths::new(), i32::MIN, occ_from([Cell::new(1, 2, 6)]),
++            5.0, Floors::all(-10.0, 10.0, -10.0, 10.0),
++            NodeMap::new(), NodeMap::new(), NodeMap::new(),
++            Arc::new(Layer {
++                node_type: NodeMap::from([(node, 4)]),
++                output_connect: NodeMap::from([(node, 1)]),
++                inter_connect: vec![],
++            }),
++            Arc::new(NodeMap::from([(node, vec![input])])), Arc::new(vec![node]),
++            1.0, Arc::new(HTable::default()), 0,
++        );
++        assert!(state.next_state(Cell::new(1, 2, 5)).is_none());
++        let legal = state.next_state(Cell::new(1, 2, 7)).unwrap();
++        assert!(legal.paths.iter().flatten().all(|p| p.z >= 5));
++    }
++}
+diff --git a/src/topols/driver.py b/src/topols/driver.py
+index e7c6340..49c121c 100644
+--- a/src/topols/driver.py
++++ b/src/topols/driver.py
+@@ -302,6 +302,12 @@ def _seal(hist, brute_last, pre_brute_state, pre_state, pre_ceiling_track, pre_n
+     hist.record(best_state)
+     if io_extra:
+         io_info.update({k: v for k, v in io_extra.items() if k in best_state.embed_node_pos})
++    # Fallback metadata also names earlier wire ends that are internal now.
++    # Only the sealed live frontier supplies the circuit's output boundary.
++    frontier = best_state.idle_h_track if brute_last else pre_ceiling_track
++    for key in list(io_info):
++        if io_info[key]["type"] == "output" and key not in frontier:
++            del io_info[key]
+     return best_state, hist.pos, hist.ori, hist.paths, hist.typ
+ 
+ 
+diff --git a/src/topols/embedding/state.py b/src/topols/embedding/state.py
+index aff7bc1..2558caf 100644
+--- a/src/topols/embedding/state.py
++++ b/src/topols/embedding/state.py
+@@ -1208,8 +1208,8 @@ class EmbeddingState:
+                 return None
+             path, occ_tmp, input = result
+ 
+-            occ_tmp.add(pos[input])
+-            occ_tmp.add(coord)
++            # Include the just-routed inputs as well as their temporary masks.
++            occ_tmp.update(occ)
+             axis_map = {'i': np.array([1, 0, 0]), 'j': np.array([0, 1, 0]), 'k': np.array([0, 0, 1])}
+             ori_vec = axis_map[ori[node]]
+             last_vec = vector(path[1], path[0])
+@@ -1223,6 +1223,7 @@ class EmbeddingState:
+                 if all(pt not in occ_tmp for pt in offset_pts):
+                     # Add the path in the correct order
+                     if all(
++                        pt[2] >= self.z_floor and
+                         (self.x_min_floor is None or pt[0] >= self.x_min_floor) and
+                         (self.x_max_floor is None or pt[0] <= self.x_max_floor) and
+                         (self.y_min_floor is None or pt[1] >= self.y_min_floor) and
 diff --git a/src/topols/zx_transform/layering.py b/src/topols/zx_transform/layering.py
 index eb5dec2..c2cc16f 100644
 --- a/src/topols/zx_transform/layering.py
