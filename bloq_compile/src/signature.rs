@@ -166,7 +166,8 @@ pub(crate) struct BlockSignature {
     /// Steane cultivation spill — picked deterministically from graph
     /// occupancy by `t_surgery_sides`, so it is part of the signature (and thus
     /// the template cache key: the surgery geometry is a rigid transform per
-    /// side). `None` for every other kind.
+    /// side). Ideal T sources use the canonical side without reserving a cell.
+    /// `None` for every other kind.
     pub surgery_side: Option<Direction>,
 }
 
@@ -326,9 +327,9 @@ pub(crate) fn derive_block_signature(
 pub(crate) fn block_signatures(
     graph: &BlockGraph,
     layer_schedules: &LayerScheduleMap,
-    distance: u32,
+    config: crate::CompileConfig,
 ) -> Result<BlockSignatureMap, CompileError> {
-    let t_surgery_sides = t_surgery_sides(graph)?;
+    let t_surgery_sides = t_surgery_sides(graph, config.prepare_t_with_mpps())?;
 
     graph
         .blocks()
@@ -336,7 +337,7 @@ pub(crate) fn block_signatures(
             let signature = derive_block_signature(
                 graph,
                 block,
-                distance,
+                config.code_distance(),
                 layer_schedule_at(layer_schedules, block.pos()),
                 t_surgery_sides.get(&block.pos()).copied(),
             )?;
@@ -386,16 +387,32 @@ pub(crate) fn relocatable_block_signatures(
 /// block nor claimed as another T block's spill. The whole neighbor cell is
 /// reserved — conservative (the spill is only a margin strip), but it keeps two
 /// adjacent T blocks from silently sharing spill space.
+/// Ideal preparations need no spill and use one canonical signature side.
 ///
 /// Assignment is deterministic bipartite matching. An augmenting path may move
 /// an earlier T off its first choice when a later T needs that cell; unlike
 /// backtracking, work stays polynomial in the linked layout size.
-fn t_surgery_sides(graph: &BlockGraph) -> Result<crate::FxMap<IVec3, Direction>, CompileError> {
+pub(crate) fn t_surgery_sides(
+    graph: &BlockGraph,
+    prepare_t_with_mpps: bool,
+) -> Result<crate::FxMap<IVec3, Direction>, CompileError> {
     let t_positions: Vec<IVec3> = graph
         .blocks()
         .filter(|block| block.kind() == BlockKind::T)
         .map(Block::pos)
         .collect();
+    if prepare_t_with_mpps {
+        // Compact preparation occupies only the normal patch; the side is a cache identity.
+        return Ok(t_positions
+            .into_iter()
+            .map(|position| {
+                (
+                    position,
+                    crate::block::fixed_bulk::t::SurgeryLayout::SIDE_PRIORITY[0],
+                )
+            })
+            .collect());
+    }
     assign_linked_t_surgery_sides(t_positions, occupied_branch_positions(graph)?)
 }
 
@@ -643,7 +660,7 @@ mod tests {
         let signatures = block_signatures(
             &graph,
             &join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls"),
-            3,
+            CompileConfig::new(3),
         )
         .expect("valid graph");
 
@@ -795,7 +812,7 @@ mod tests {
         let signature = block_signatures(
             &graph,
             &join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls"),
-            3,
+            CompileConfig::new(3),
         )
         .expect("valid graph")[&IVec3::ZERO];
 
@@ -822,7 +839,7 @@ mod tests {
         let signatures = block_signatures(
             &graph,
             &join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls"),
-            3,
+            CompileConfig::new(3),
         )
         .expect("valid graph");
 
@@ -850,7 +867,7 @@ mod tests {
             block_signatures(
                 &graph,
                 &join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls"),
-                3
+                CompileConfig::new(3)
             )
             .expect("valid graph")[&IVec3::new(0, 0, 0)]
                 .boundary_basis,
@@ -871,7 +888,7 @@ mod tests {
         let signatures = block_signatures(
             &graph,
             &join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls"),
-            3,
+            CompileConfig::new(3),
         )
         .expect("valid graph");
         assert_eq!(signatures[&IVec3::Z].boundary_basis, Some(Basis::Z));
@@ -900,7 +917,7 @@ mod tests {
             block_signatures(
                 &graph,
                 &join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls"),
-                3
+                CompileConfig::new(3)
             )
             .expect("valid graph")[&IVec3::new(0, 0, 2)]
                 .boundary_basis,
@@ -921,7 +938,7 @@ mod tests {
             block_signatures(
                 &graph,
                 &join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls"),
-                3
+                CompileConfig::new(3)
             )
             .expect("valid graph")[&IVec3::ZERO]
                 .boundary_basis,
@@ -944,7 +961,7 @@ mod tests {
             block_signatures(
                 &graph,
                 &join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls"),
-                3
+                CompileConfig::new(3)
             )
             .expect("valid graph")[&IVec3::ZERO]
                 .boundary_basis,
@@ -966,7 +983,7 @@ mod tests {
         let signature = block_signatures(
             &graph,
             &join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls"),
-            3,
+            CompileConfig::new(3),
         )
         .expect("valid graph")[&IVec3::ZERO];
 
@@ -997,7 +1014,7 @@ mod tests {
         block_signatures(
             graph,
             &join_component_layer_schedules(graph).expect("no mixed spatial Hadamard walls"),
-            3,
+            CompileConfig::new(3),
         )
         .expect("valid graph")[&pos]
             .surgery_side
@@ -1065,7 +1082,7 @@ mod tests {
         }
 
         assert!(matches!(
-            block_signatures(&graph, &join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls"), 3).unwrap_err(),
+            block_signatures(&graph, &join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls"), CompileConfig::new(3)).unwrap_err(),
             CompileError::TBlockNeedsFreeNeighbor { pos } if pos == IVec3::new(2, 0, 0)
         ));
     }
@@ -1112,7 +1129,7 @@ mod tests {
             ],
         );
         assert!(matches!(
-            block_signatures(&graph, &join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls"), 3).unwrap_err(),
+            block_signatures(&graph, &join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls"), CompileConfig::new(3)).unwrap_err(),
             CompileError::TBlockNeedsFreeNeighbor { pos: p } if p == pos
         ));
     }
@@ -1124,7 +1141,7 @@ mod tests {
             block_signatures(
                 &plain,
                 &join_component_layer_schedules(&plain).expect("no mixed spatial Hadamard walls"),
-                3
+                CompileConfig::new(3)
             )
             .expect("valid graph")[&IVec3::ZERO]
                 .boundary_basis,
@@ -1143,7 +1160,7 @@ mod tests {
                 &hadamard,
                 &join_component_layer_schedules(&hadamard)
                     .expect("no mixed spatial Hadamard walls"),
-                3
+                CompileConfig::new(3)
             )
             .expect("valid graph")[&IVec3::ZERO]
                 .boundary_basis,

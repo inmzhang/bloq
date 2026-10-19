@@ -269,7 +269,7 @@ fn select_link_signatures(
     #[cfg(test)]
     builds.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let schedules = join_component_layer_schedules(graph)?;
-    let mut signatures = block_signatures(graph, &schedules, config.code_distance())?;
+    let mut signatures = block_signatures(graph, &schedules, config)?;
     for (source, dir) in ports
         .values()
         .filter_map(|port| port.cube_pipe_dir().map(|dir| (port.source, dir)))
@@ -1382,7 +1382,7 @@ impl CompileContext {
                 if schedules.is_empty() {
                     let mut candidate = signature;
                     candidate.connectivity = template_connectivity;
-                    if candidate.kind == BlockKind::T {
+                    if candidate.kind == BlockKind::T && !self.config.prepare_t_with_mpps() {
                         for side in [
                             bloq_graph::Direction::YMINUS,
                             bloq_graph::Direction::XPLUS,
@@ -2207,6 +2207,10 @@ mod tests {
             bloq_ir::NodeProvenance::BranchSelector { .. }
         )));
 
+        let program = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
+            .compile_and_validate(&graph)
+            .unwrap()
+            .bloq;
         let report = bloq_vm::run_bloq(&program, 8, 7).unwrap();
         assert_eq!(report.discarded, 0);
         assert!(report.all_detectors_constant());
@@ -2321,7 +2325,10 @@ mod tests {
                     },
                 ])
                 .unwrap();
-            let context = CompileContext::new(CompileConfig::new(3));
+            CompileContext::new(CompileConfig::new(3))
+                .compile_and_validate(&graph)
+                .expect("cultivation spill avoids both structural arms");
+            let context = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true));
             for module in [false, true] {
                 let program = if module {
                     context.compile(&graph.clone().with_inferred_interface().unwrap())
@@ -2938,7 +2945,7 @@ mod tests {
         let signatures = block_signatures(
             graph,
             &join_component_layer_schedules(graph).expect("no mixed spatial Hadamard walls"),
-            ctx.config.code_distance(),
+            ctx.config,
         )
         .expect("valid graph");
         let blocks = ordered_blocks(graph);
@@ -3946,7 +3953,7 @@ mod tests {
         let signature_of = |graph: &BlockGraph| {
             let schedules =
                 join_component_layer_schedules(graph).expect("no mixed spatial Hadamard walls");
-            block_signatures(graph, &schedules, DISTANCE).expect("valid graph")[&ivec3(0, 0, 0)]
+            block_signatures(graph, &schedules, config).expect("valid graph")[&ivec3(0, 0, 0)]
         };
         assert_eq!(signature_of(&two_cell), signature_of(&one_cell));
 

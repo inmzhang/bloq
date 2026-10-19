@@ -3,9 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::Arc;
 
-use bloq_graph::{
-    Block, BlockGraph, BlockKind, GuardedTopology, ModuleCertificationLimits, UDirection,
-};
+use bloq_graph::{Block, BlockGraph, BlockKind, GuardedTopology, UDirection};
 use bloq_ir::Bloq;
 use bloq_utils::boolean::{
     BooleanDecisionDiagram, BooleanOp, DECISION_FALSE as ZERO, DECISION_TRUE as ONE, DecisionId,
@@ -124,9 +122,10 @@ fn reference_geometry(
 impl ScheduledFamily {
     pub(super) fn new(
         topology: &mut GuardedTopology,
-        distance: u32,
-        limits: ModuleCertificationLimits,
+        config: crate::CompileConfig,
     ) -> Result<Self, CompileError> {
+        let distance = config.code_distance();
+        let limits = config.certification_limits();
         let anchors = GuardedDynamicAnchors::new(topology, limits)?;
         let (source, reference) = reference_geometry(topology, distance)?;
         let mut expanded = crate::FxMap::default();
@@ -136,6 +135,7 @@ impl ScheduledFamily {
             &mut expanded,
             &source,
             &reference,
+            config.prepare_t_with_mpps(),
         )?;
         let variables = topology
             .witness(ONE)?
@@ -486,6 +486,7 @@ impl ScheduleEnvelope {
         expanded: &mut crate::FxMap<(usize, IVec3), Arc<PhysicalGeometry>>,
         reference_source: &Arc<BlockGraph>,
         reference: &PhysicalGeometry,
+        prepare_t_with_mpps: bool,
     ) -> Result<Self, CompileError> {
         let positions = topology
             .sites
@@ -507,13 +508,14 @@ impl ScheduleEnvelope {
                 incidence.add_variant(&mut topology.diagram, position, variant.guard, &geometry)?;
             }
         }
-        Self::from_incidence(topology, incidence, limit)
+        Self::from_incidence(topology, incidence, limit, prepare_t_with_mpps)
     }
 
     fn from_incidence(
         topology: &mut GuardedTopology,
         incidence: ScheduleIncidence,
         limit: usize,
+        prepare_t_with_mpps: bool,
     ) -> Result<Self, CompileError> {
         let ScheduleIncidence {
             positions,
@@ -617,16 +619,8 @@ impl ScheduleEnvelope {
                 },
             );
         }
-        // A common T region reserves one spill cell valid in both source arms.
-        let t_sides = crate::signature::assign_linked_t_surgery_sides(
-            topology
-                .source
-                .blocks()
-                .filter(|block| block.kind() == BlockKind::T)
-                .map(Block::pos)
-                .collect(),
-            crate::signature::occupied_branch_positions(&topology.source)?,
-        )?;
+        // Cultivation reserves one spill cell valid in both source arms.
+        let t_sides = crate::signature::t_surgery_sides(&topology.source, prepare_t_with_mpps)?;
         Ok(Self { choices, t_sides })
     }
 
@@ -683,6 +677,8 @@ impl ScheduleEnvelope {
 
 #[cfg(test)]
 mod tests {
+    use bloq_graph::ModuleCertificationLimits;
+
     use super::*;
 
     #[test]
@@ -690,8 +686,7 @@ mod tests {
         let graph = bloq_test::benchmark::structural_branch_workload(40);
         let mut topology =
             GuardedTopology::new(&graph, bloq_graph::ModuleCertificationLimits::DEFAULT).unwrap();
-        let family =
-            ScheduledFamily::new(&mut topology, 3, ModuleCertificationLimits::DEFAULT).unwrap();
+        let family = ScheduledFamily::new(&mut topology, crate::CompileConfig::new(3)).unwrap();
         assert!(family.cases.len() > 1);
         assert!(family.reference.positions.len() > 40);
         assert!(Arc::ptr_eq(&family.cases[0].geometry, &family.reference));
@@ -710,8 +705,7 @@ mod tests {
         let mut topology =
             GuardedTopology::new(&graph, ModuleCertificationLimits::DEFAULT).unwrap();
         let source = topology.project(ONE).unwrap();
-        let family =
-            ScheduledFamily::new(&mut topology, 3, ModuleCertificationLimits::DEFAULT).unwrap();
+        let family = ScheduledFamily::new(&mut topology, crate::CompileConfig::new(3)).unwrap();
         assert!(!family.reference.ports.is_empty());
         let mut cache = crate::FxMap::default();
         for &position in family.reference.ports.keys() {

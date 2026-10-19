@@ -145,7 +145,7 @@ fn compile_native(
         let mut readout_plan = relation.plan_readouts()?;
         context.report_progress(super::CompileStage::Placement)?;
         let mut family =
-            physical::ScheduledFamily::new(&mut readout_plan.topology, distance, limits)?;
+            physical::ScheduledFamily::new(&mut readout_plan.topology, context.config)?;
         let mut assembly = assembly::Assembly::new();
         let mut imported = Vec::new();
         // Physical template compilation follows the existing worker budget. Signed
