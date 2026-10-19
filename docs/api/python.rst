@@ -11,6 +11,8 @@ first program, use the :doc:`quickstart <../getting-started/quickstart>`.
 
 .. currentmodule:: bloq
 
+.. automodule:: bloq.interop
+
 .. automodule:: bloq.ir
 
 Compilation

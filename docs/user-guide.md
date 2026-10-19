@@ -90,6 +90,7 @@ backends/synchronization
 | [Logical CNOT](tutorials/cnot.md) | API authoring, correlations, filling, Stim emission, and decoding |
 | [T State Cultivation](tutorials/t-cultivation.md) | Preparing a T resource state and its acceptance–quality tradeoff |
 | [Logical T Gate](tutorials/t-gate.md) | Gate teleportation, adaptive measurement, and retries |
+| [Compile Phase Estimation through Topologiq](tutorials/topologiq.md) | Logical QASM, upstream layout, and native non-Clifford controls |
 | [8T-1CCZ Distillation Factory](tutorials/ccz-factory.md) | Resource errors, circuit noise, and factory response |
 | [Emulate Hardware Synchronization](backends/thth.md) | Backend timing controls, decoder waits, and live-patch protection with THTH |
 
@@ -100,6 +101,7 @@ backends/synchronization
 tutorials/cnot
 tutorials/t-cultivation
 tutorials/t-gate
+tutorials/topologiq
 tutorials/ccz-factory
 backends/thth
 ```

@@ -1,0 +1,50 @@
+{
+  "frontend": {
+    "flow_module": "bloq.interop._topologiq_flow",
+    "parser_module": "bloq.interop._topologiq_qasm",
+    "pyzx": "0.10.7"
+  },
+  "graph": "direct_cap_padding_t.blog",
+  "input_ports": [
+    [
+      -1,
+      3,
+      1
+    ]
+  ],
+  "layout": {
+    "a_star_max_visits_standard": 20000,
+    "animate": false,
+    "debug": 0,
+    "graph_traverse_mode": "tfs",
+    "gravity": 7,
+    "seed": 1330,
+    "temporal_hadamards_only": false,
+    "z_stretch": 2
+  },
+  "local_frame": {
+    "dagger": false,
+    "input_h": false,
+    "output_h": true
+  },
+  "origin": {
+    "root": 35,
+    "source": "qaoa4.qasm",
+    "source_sha256": "6c96044efcfe01d148ba862989287a9cc25060aa16933b93c2a9e1343a1b3ac8"
+  },
+  "output_ports": [
+    [
+      -1,
+      5,
+      1
+    ]
+  ],
+  "source_qasm": "direct_cap_padding_t.qasm",
+  "t_gadgets": 1,
+  "upstream": {
+    "patch": "bloq_py/examples/topologiq.patch",
+    "patch_sha256": "bdd5fa2c718c14a0347e2ab1b2d9e0fc548a166840d9cf47f874df3f5532660d",
+    "repository": "https://github.com/tqec/topologiq",
+    "revision": "d010bd3e63686c93c12c922a84a944a3386ac785"
+  }
+}

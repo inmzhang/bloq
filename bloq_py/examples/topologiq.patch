@@ -1,0 +1,317 @@
+diff --git a/src/topologiq/core/beams.py b/src/topologiq/core/beams.py
+index 619570b..e5808d3 100644
+--- a/src/topologiq/core/beams.py
++++ b/src/topologiq/core/beams.py
+@@ -135,7 +135,7 @@ class SingleBeam:
+         # No clashes possible if beams are parallel
+         d1 = self.direction()
+         d2 = other.direction()
+-        orientation = np.dot(d1, d2)
++        orientation = sum(a * b for a, b in zip(d1, d2))
+ 
+         if orientation != 0:
+             return False
+@@ -143,10 +143,10 @@ class SingleBeam:
+         # Evaluate clash if beams are orthogonal
+         # Source of the other beam must be in the positive quadrant of the span of {d1, -d2}
+         # Sigma is the position of the source of the other beam relative to the source of this beam
+-        sigma = np.subtract(p2, p1)
+-        basis = np.subtract(d1, d2)
++        sigma = (b - a for a, b in zip(p1, p2))
++        basis = (a - b for a, b in zip(d1, d2))
+ 
+-        return np.all((sigma == 0) | (np.sign(sigma) == np.sign(basis)))
++        return all(s == 0 or s * b > 0 for s, b in zip(sigma, basis))
+ 
+ 
+ CubeBeams = list[SingleBeam]
+diff --git a/src/topologiq/core/blocks.py b/src/topologiq/core/blocks.py
+index 0eac5f4..8059fb7 100644
+--- a/src/topologiq/core/blocks.py
++++ b/src/topologiq/core/blocks.py
+@@ -168,18 +168,29 @@ class ZXBlock:
+         return valid_move_vectors
+ 
+     @lru_cache
+-    def nxt_kinds(self, move: StandardCoord, is_hadamard: bool = False) -> list[str]:
++    def nxt_kinds(
++        self,
++        move: StandardCoord,
++        is_hadamard: bool = False,
++        *,
++        temporal_hadamards_only: bool = False,
++    ) -> list[str]:
+         """Reduce the number of possible kinds for next block.
+ 
+         Args:
+             move: The (x, y, z) displacement between current and target position.
+             is_hadamard: True if edge being after this ZX cube is a Hadamard.
++            temporal_hadamards_only: Restrict Hadamard pipes to the Z axis.
+ 
+         Returns:
+             ok_kinds: A list kinds that would constitute a topologically-correct placement.
+ 
+         """
+ 
++        # Keep Hadamard transitions on the requested temporal axis.
++        if temporal_hadamards_only and is_hadamard and move[2] == 0:
++            return []
++
+         # All kinds
+         all_zx_blocks = [
+             ZXBlockRegistry.get_create(kind=kind)
+diff --git a/src/topologiq/core/graph_manager/first_cube.py b/src/topologiq/core/graph_manager/first_cube.py
+index 5576759..3e56f54 100644
+--- a/src/topologiq/core/graph_manager/first_cube.py
++++ b/src/topologiq/core/graph_manager/first_cube.py
+@@ -29,6 +29,7 @@ def get_first_cube_data(
+     s_gates: dict[int, list[tuple[int, int] | None]] | None = None,
+     t_gates: dict[int, list[tuple[int, int] | None]] | None = None,
+     random_seed: int | None = None,
++    temporal_hadamards_only: bool = False,
+ ) -> tuple[int, ZXBlock, CubeBeams, CubeBeams]:
+     """Define and place the very first cube of the blockgraph.
+ 
+@@ -46,6 +47,7 @@ def get_first_cube_data(
+         s_gates (optional): A dictionary containing all IDs and edges in S-gate patterns.
+         t_gates (optional): A dictionary containing all IDs and edges in T-gate patterns.
+         random_seed: random_seed (optional): Typically `None`, but used to pass a seed across the entire algorithm.
++        temporal_hadamards_only: Reserve temporal exits for Hadamard pipes.
+ 
+     Returns:
+         first_id: The ID of the first cube.
+@@ -67,6 +69,7 @@ def get_first_cube_data(
+         s_gates=s_gates,
+         t_gates=t_gates,
+         random_seed=random_seed,
++        temporal_hadamards_only=temporal_hadamards_only,
+     )
+ 
+     # Create ZXBlock corresponding to chosen kind
+@@ -94,6 +97,7 @@ def pick_id_and_kind(
+     s_gates: dict[int, list[tuple[int, int] | None]] | None = None,
+     t_gates: dict[int, list[tuple[int, int] | None]] | None = None,
+     random_seed: int | None = None,
++    temporal_hadamards_only: bool = False,
+ ) -> tuple[int, str, list[int]]:
+     """Determine the iID and kind of the first block to place in 3D space.
+ 
+@@ -109,6 +113,7 @@ def pick_id_and_kind(
+         s_gates (optional): A dictionary containing all IDs and edges in S-gate patterns.
+         t_gates (optional): A dictionary containing all IDs and edges in T-gate patterns.
+         random_seed: Typically `None`, but can be used to pass a specific seed across the entire algorithm.
++        temporal_hadamards_only: Reserve temporal exits for Hadamard pipes.
+ 
+     Returns:
+         first_id: ID of the first block to place in 3D space
+@@ -144,6 +149,14 @@ def pick_id_and_kind(
+             tentative_kinds = [proper_kind]
+         else:
+             tentative_kinds = bgraph.nodes[first_id].get("zx_block").get_fulfillment_kinds
++        if temporal_hadamards_only and any(
++            edge["edge_type"] == "HADAMARD" for edge in bgraph[first_id].values()
++        ):
++            tentative_kinds = [
++                kind
++                for kind in tentative_kinds
++                if ZXBlockRegistry.get_create(kind=kind).get_open_axes[2]
++            ]
+         first_kind = tentative_kinds[0] if deterministic else random.choice(tentative_kinds)
+ 
+     return first_id, first_kind, other_ids
+diff --git a/src/topologiq/core/graph_manager/graph_manager.py b/src/topologiq/core/graph_manager/graph_manager.py
+index f67c229..ed8004a 100644
+--- a/src/topologiq/core/graph_manager/graph_manager.py
++++ b/src/topologiq/core/graph_manager/graph_manager.py
+@@ -67,9 +67,15 @@ class BlockGraphManager:
+         self,
+         aug_zx: AugmentedZXGraph,
+         graph_name: str = "computation",
++        *,
++        temporal_hadamards_only: bool = False,
+         **kwargs,
+     ):
+-        """Initialise with empty blockgraph."""
++        """Initialise with empty blockgraph.
++
++        Set temporal_hadamards_only to route Hadamard pipes along Z while keeping
++        spatial SIMPLE routing available. The default preserves upstream routing.
++        """
+ 
+         # Delete any temporary files that may have survived previous builds
+         rm_temp_files(MEDIA_DIR / "temp")
+@@ -79,7 +85,9 @@ class BlockGraphManager:
+         self.aug_zx: AugmentedZXGraph = aug_zx
+ 
+         # Pad (if some given) or build (if none given) kwargs
+-        self._kwargs = check_assemble_kwargs(**kwargs)
++        self._kwargs = check_assemble_kwargs(
++            temporal_hadamards_only=temporal_hadamards_only, **kwargs
++        )
+ 
+         # Set seed if KWARGs has one (used for testing)
+         if self._kwargs["seed"]:
+@@ -361,6 +369,7 @@ class BlockGraphManager:
+                 s_gates=self.s_gates,
+                 t_gates=self.t_gates,
+                 random_seed=self._kwargs["seed"],
++                temporal_hadamards_only=self._kwargs.get("temporal_hadamards_only", False),
+             )
+         )
+ 
+diff --git a/src/topologiq/core/graph_manager/spatial.py b/src/topologiq/core/graph_manager/spatial.py
+index 7a61577..ce74418 100644
+--- a/src/topologiq/core/graph_manager/spatial.py
++++ b/src/topologiq/core/graph_manager/spatial.py
+@@ -251,18 +251,29 @@ def gen_tent_tgt_coords(
+     def _manhattan_sphere(point, step):
+         k = len(point)
+         for differences in _sums(step, k):
+-            signed_differences = [[-d, d] if d != 0 else [d] for d in differences]
++            dz = differences[-1]
++            z_steps = [-dz, dz] if dz else [0]
++            z_steps = [
++                d
++                for d in z_steps
++                if (z_bounds.get("min") is None or point[-1] + d >= z_bounds["min"])
++                and (z_bounds.get("max") is None or point[-1] + d <= z_bounds["max"])
++            ]
++            if not z_steps:
++                continue
++            signed_differences = [[-d, d] if d else [d] for d in differences[:-1]]
++            signed_differences.append(z_steps)
+             for p in itertools.product(*signed_differences):
+                 yield [x + d for x, d in zip(point, p)]
+ 
+     def _approve_target(t: StandardCoord):
+-        min_z_ok = t[2] >= z_bounds["min"] if z_bounds.get("min") else True
+-        max_z_ok = t[2] <= z_bounds["max"] if z_bounds.get("max") else True
++        min_z_ok = t[2] >= z_bounds["min"] if z_bounds.get("min") is not None else True
++        max_z_ok = t[2] <= z_bounds["max"] if z_bounds.get("max") is not None else True
+         bounds_ok = True
+         if twin_mode and graph_bounds:
+-            if z_bounds.get("min"):
++            if z_bounds.get("min") is not None:
+                 bounds_ok = t[2] > src_c[2]
+-            if z_bounds.get("max"):
++            if z_bounds.get("max") is not None:
+                 bounds_ok = t[2] < src_c[2]
+         return t not in taken and t != src_c and min_z_ok and max_z_ok and bounds_ok
+ 
+@@ -324,9 +335,9 @@ def gen_tent_tgt_coords(
+ 
+     # Manhattan sphere for max Manhattan > 3
+     if max_manhattan > 3:
+-        tgts = [
+-            (int(c[0]), int(c[1]), int(c[2])) for c in list(_manhattan_sphere(src_c, max_manhattan))
+-        ]
++        tgts = (
++            (int(c[0]), int(c[1]), int(c[2])) for c in _manhattan_sphere(src_c, max_manhattan)
++        )
+         tent_coords[max_manhattan] = [t for t in tgts if _approve_target(t)]
+ 
+     # Concatenate coords for overloaded returns
+diff --git a/src/topologiq/core/pathfinder/pathfinder.py b/src/topologiq/core/pathfinder/pathfinder.py
+index 318e45b..77ae378 100644
+--- a/src/topologiq/core/pathfinder/pathfinder.py
++++ b/src/topologiq/core/pathfinder/pathfinder.py
+@@ -175,7 +175,11 @@ class PathFinderManager:
+                         continue
+ 
+                 # Create a list of kinds that are valid for the next block
+-                possible_nxt_zx_blocks = self.curr_zx_block.nxt_kinds(move, is_hadamard=hdm)
++                possible_nxt_zx_blocks = self.curr_zx_block.nxt_kinds(
++                    move,
++                    is_hadamard=hdm,
++                    temporal_hadamards_only=self.s._kwargs.get("temporal_hadamards_only", False),
++                )
+ 
+                 # Loop over all possible next types
+                 for possible_nxt_zx_block in possible_nxt_zx_blocks:
+@@ -212,6 +216,25 @@ class PathFinderManager:
+             else:
+                 self.parametrised_taken[z] = set([(x, y)])
+ 
++        self.pending_h_exits = []
++        if not self.s._kwargs.get("temporal_hadamards_only", False):
++            return
++        for node_id, data in self.s.bgraph.nodes(data=True):
++            coords = data.get("coords")
++            if coords is None:
++                continue
++            pending = sum(
++                edge["edge_type"] == "HADAMARD"
++                and edge.get("kind") is None
++                and {node_id, neighbour} != {self.s.curr_src_id, self.s.curr_tgt_id}
++                for neighbour, edge in self.s.bgraph[node_id].items()
++            )
++            if pending:
++                exits = {
++                    (coords[0], coords[1], coords[2] + dz) for dz in (1, -1)
++                } - self.s.pruned_taken
++                self.pending_h_exits.append((exits, pending))
++
+     def _gen_bounding_box(self):
+         """Determine min/max coordinates for any second pass search."""
+         self.bounding_box, self.max_span = gen_bounding_box(
+@@ -326,6 +349,10 @@ class PathFinderManager:
+         self, nxt_coords: StandardCoord, curr_path_coords: list[StandardCoord]
+     ) -> bool:
+         """Check if a particular move can be skipped altogether."""
++        for exits, pending in self.pending_h_exits:
++            available = exits.difference(curr_path_coords)
++            if nxt_coords in available and len(available) <= pending:
++                return True
+         return check_skip_move(
+             nxt_coords, curr_path_coords, self.parametrised_taken, bounding_box=self.bounding_box
+         )
+@@ -394,15 +421,34 @@ class PathFinderManager:
+         fail_special_cube_constraints = False
+ 
+         # Check time constraints
+-        if self.s.z_bounds.get("min"):
++        if self.s.z_bounds.get("min") is not None:
+             fail_time_constraints = self.s.z_bounds["min"] >= nxt_coords[2]
+ 
+-        if not fail_time_constraints and self.s.z_bounds.get("max"):
++        if not fail_time_constraints and self.s.z_bounds.get("max") is not None:
+             fail_time_constraints = self.s.z_bounds["max"] <= nxt_coords[2]
+ 
+         if fail_time_constraints:
+             return False
+ 
++        # Reserve temporal exits for Hadamard edges still to be routed.
++        pending_hadamards = 0
++        if self.s._kwargs.get("temporal_hadamards_only", False):
++            pending_hadamards = sum(
++                neighbour != self.s.curr_src_id
++                and edge["edge_type"] == "HADAMARD"
++                and edge.get("kind") is None
++                for neighbour, edge in self.s.bgraph[self.s.curr_tgt_id].items()
++            )
++        if pending_hadamards and self.tgt_zx_block.zx_type in ["X", "Z"]:
++            occupied = self.s.pruned_taken | {
++                coords for coords, _ in self.path[nxt_block_positioned]
++            }
++            available = sum(
++                (nxt_coords[0], nxt_coords[1], nxt_coords[2] + dz) not in occupied for dz in (1, -1)
++            )
++            if not nxt_block_positioned[1].get_open_axes[2] or available < pending_hadamards:
++                return False
++
+         # Check special cube conditions
+         if self.tgt_zx_block.zx_type in ["Y", "T", "XZ", "O"]:
+             fail_special_cube_constraints = nxt_coords in list(
+@@ -562,7 +608,11 @@ class PathFinderManager:
+                         continue
+ 
+                 # Create a list of kinds that are valid for the next block
+-                possible_nxt_zx_blocks = self.curr_zx_block.nxt_kinds(move, is_hadamard=hdm)
++                possible_nxt_zx_blocks = self.curr_zx_block.nxt_kinds(
++                    move,
++                    is_hadamard=hdm,
++                    temporal_hadamards_only=self.s._kwargs.get("temporal_hadamards_only", False),
++                )
+ 
+                 # Loop over all possible next types
+                 for possible_nxt_zx_block in possible_nxt_zx_blocks:

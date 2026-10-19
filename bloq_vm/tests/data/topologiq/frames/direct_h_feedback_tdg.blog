@@ -1,0 +1,21 @@
+BLOG 1.0
+
+module main {
+  in in_0: data = 3
+  out out_0: data = 0
+
+  0: Port [4, 1, 1] role=output
+  1: T [3, 1, 0]
+  2: XY [3, 1, 2]
+  3: Port [2, 1, 1] role=input
+  4: XZX [3, 1, 1]
+  1 -> +Z
+  3 -> +X
+  4 -H> +X
+  4 -> +Z
+
+  topologiq_t_25 = measure 3 -> +X
+  resolve 2 if topologiq_t_25
+  feedback X 4 -> +X if topologiq_t_25
+
+}

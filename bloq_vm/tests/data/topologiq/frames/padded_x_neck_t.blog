@@ -1,0 +1,33 @@
+BLOG 1.0
+
+module main {
+  in in_0: data = 9
+  out out_0: data = 8
+
+  0: T [3, 1, 0]
+  1: XY [1, 1, 3]
+  2: XXZ [2, 1, 2]
+  3: XZZ [2, 2, 2]
+  4: ZXZ [3, 1, 2]
+  5: ZXX [3, 1, 1]
+  6: ZXZ [1, 1, 2]
+  7: XXZ [2, 0, 2]
+  8: Port [2, -1, 2] role=output
+  9: Port [1, 2, 1] role=input
+  10: XZX [2, 2, 1]
+  0 -> +Z
+  2 -> +Y
+  2 -> +X
+  5 -> +Z
+  6 -> +Z
+  6 -> +X
+  7 -> +Y
+  8 -> +Y
+  9 -> +X
+  10 -> +Z
+
+  topologiq_t_30 = measure 4
+  resolve 1 if !topologiq_t_30
+  feedback Z 2 -> -X if topologiq_t_30
+
+}

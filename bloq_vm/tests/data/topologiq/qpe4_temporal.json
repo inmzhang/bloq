@@ -1,0 +1,83 @@
+{
+  "frontend": {
+    "flow_module": "bloq.interop._topologiq_flow",
+    "parser_module": "bloq.interop._topologiq_qasm",
+    "pyzx": "0.10.7"
+  },
+  "graph": "qpe4_temporal.blog",
+  "input_ports": [
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      2,
+      0,
+      18
+    ],
+    [
+      1,
+      1,
+      2
+    ],
+    [
+      0,
+      2,
+      12
+    ]
+  ],
+  "layout": {
+    "a_star_max_visits_standard": 20000,
+    "animate": false,
+    "debug": 0,
+    "graph_traverse_mode": "tfs",
+    "gravity": 7,
+    "seed": 1330,
+    "temporal_hadamards_only": true,
+    "z_stretch": 2
+  },
+  "output_ports": [
+    [
+      4,
+      0,
+      31
+    ],
+    [
+      4,
+      2,
+      30
+    ],
+    [
+      1,
+      2,
+      19
+    ],
+    [
+      2,
+      0,
+      19
+    ]
+  ],
+  "source_phases": {
+    "10": "1/4",
+    "13": "3/2",
+    "18": "7/4",
+    "23": "7/4",
+    "30": "1/4",
+    "44": "7/4",
+    "47": "1/4",
+    "50": "7/4",
+    "8": "1/2",
+    "9": "1/2"
+  },
+  "source_qasm": "qpe4_temporal.qasm",
+  "source_sha256": "8b6b740644e735315fcfaa98585ae969743393b9805be03fc11b30719c819344",
+  "t_gadgets": 7,
+  "upstream": {
+    "patch": "bloq_py/examples/topologiq.patch",
+    "patch_sha256": "bdd5fa2c718c14a0347e2ab1b2d9e0fc548a166840d9cf47f874df3f5532660d",
+    "repository": "https://github.com/tqec/topologiq",
+    "revision": "d010bd3e63686c93c12c922a84a944a3386ac785"
+  }
+}

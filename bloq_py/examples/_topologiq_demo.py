@@ -1,0 +1,138 @@
+"""Shared artifact retention and complete-state checks for exact algorithm demos."""
+
+from hashlib import sha256
+from importlib.metadata import version
+import json
+from pathlib import Path
+import sys
+import time
+import warnings
+
+import numpy as np
+from qiskit.quantum_info import Pauli, Statevector
+
+
+def save_json(path: Path, value):
+    # A timed-out worker must leave either the previous checkpoint or the next one.
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(path)
+
+
+def run_demo(source_qasm, clifford_t_qasm, ideal_unitary, output_dir: Path, summary,
+             *, shots=3, synthesis_only=False, compile_only=False, seed=17, layout_seed=1330):
+    """Retain each stage; verify every output correlation against an ideal matrix.
+
+    The caller checks the exported source and Clifford+T channels against the
+    independent matrix. Every circuit includes its preparation from zero inputs.
+    """
+    if shots < 1:
+        raise ValueError("shots must be positive")
+    if output_dir.exists() and any(output_dir.iterdir()):
+        raise ValueError("--output-dir must be empty; each run retains its own artifacts")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for name, text in (("source.qasm", source_qasm), ("clifford_t.qasm", clifford_t_qasm)):
+        (output_dir / name).write_text(text + "\n", encoding="utf-8")
+    summary.update(input_state="zero", qiskit_version=version("qiskit"), status="synthesized",
+                   clifford_t_sha256=sha256((clifford_t_qasm + "\n").encode()).hexdigest())
+
+    def save():
+        save_json(output_dir / "result.json", summary)
+
+    save()
+    if synthesis_only:
+        return summary
+
+    import bloq
+    from bloq.interop.topologiq import AUDITED_REVISION, from_qasm
+
+    stage = "layout"
+    try:
+        summary.update(status="running", stage=stage)
+        save()
+        print("Routing with Topologiq...", file=sys.stderr, flush=True)
+        started = time.perf_counter()
+        imported = from_qasm(clifford_t_qasm, seed=layout_seed)
+        imported.graph.save(output_dir / "layout.blog")
+        imported.graph.export_html_viewer(output_dir / "layout.html")
+        flat = imported.graph.flatten()
+        hadamards = {axis: sum(pipe.hadamard and pipe.src[i] != pipe.dst[i]
+                               for pipe in flat.pipes()) for i, axis in enumerate("XYZ")}
+        summary.update(
+            layout_seconds=time.perf_counter() - started, layout_options=imported.layout_options,
+            layout_blocks=flat.block_count, hadamard_pipes_by_axis=hadamards,
+            audited_topologiq_revision=AUDITED_REVISION, detected_topologiq_revision=imported.upstream_revision,
+            pyzx_version=version("pyzx"), bloq_version=bloq.__version__,
+            input_ports=imported.input_ports, output_ports=imported.output_ports,
+        )
+        stage = "compile"
+        summary["stage"] = stage
+        save()
+        print("Compiling validated IR with ideal T-source proxies...", file=sys.stderr, flush=True)
+        started = time.perf_counter()
+        with warnings.catch_warnings(record=True) as compile_warnings:
+            warnings.simplefilter("always")
+            program = bloq.compile(imported.graph, distance=3, prepare_t_with_mpps=True, validate=True)
+        for warning in compile_warnings:
+            warnings.showwarning(warning.message, warning.category, warning.filename, warning.lineno)
+        program.save(output_dir / "program.bloq")
+        summary.update(
+            compile_seconds=time.perf_counter() - started, distance=3, t_preparation="ideal_t_proxy",
+            physical_qubits=program.qubit_count, ir_nodes=program.stats().node_count,
+            compile_warnings=[str(w.message) for w in compile_warnings], status="compiled",
+        )
+        save()
+        if compile_only:
+            return summary
+        indices = {output.port: i for i, output in enumerate(program.logical_outputs())}
+        if len(indices) != len(imported.output_ports) or set(indices) != set(imported.output_ports):
+            raise RuntimeError("VM output interface differs from the source circuit")
+        qubits = len(imported.output_ports)
+        state = Statevector(ideal_unitary[:, 0].copy())
+        expected = []
+        for word in range(1, 4**qubits):
+            # VM words use coordinate order; Qiskit labels use reversed source order.
+            label = ["IXYZ"[(word >> (2 * indices[port])) & 3] for port in imported.output_ports]
+            expected.append(float(state.expectation_value(Pauli("".join(reversed(label)))).real))
+        stage = "vm_execution"
+        summary["stage"] = stage
+        save()
+        print(f"Executing {shots} noiseless VM shots...", file=sys.stderr, flush=True)
+        started = time.perf_counter()
+        execution = bloq.run_noiseless(program, shots=shots, seed=seed,
+                                      input_state="zero", include_signature=True)
+        summary["execution_seconds"] = time.perf_counter() - started
+        (output_dir / "execution.json").write_text(json.dumps(execution, indent=2) + "\n", encoding="utf-8")
+        stage = "vm_verification"
+        if not execution["all_detectors_constant"]:
+            raise RuntimeError("noiseless VM execution has nonconstant detectors")
+        if execution["discarded"] or len(execution["samples"]) != shots:
+            raise RuntimeError("unitary demo execution unexpectedly discarded shots")
+        verified = []
+        for sample in execution["samples"]:
+            actual = sample["logical_signature"]
+            if not np.allclose(actual, expected, atol=1e-7, rtol=0):
+                raise RuntimeError("joint VM output differs from the independent algorithm state")
+            fidelity = float((1 + np.dot(actual, expected)) / (1 << qubits))
+            if abs(fidelity - 1) > 1e-7:
+                raise RuntimeError("joint VM output fails the full-state fidelity check")
+            verified.append(dict(shot=sample["shot"], joint_state_fidelity=fidelity,
+                                 logical_bloch=[sample["logical_bloch"][indices[p]] for p in imported.output_ports],
+                                 captured_output_ports=sample["captured_output_ports"]))
+        summary.update(status="executed", noiseless=True, ideal_boundary_capture=True,
+                       execution_model="noiseless physical circuits with ideal T sources and boundary capture",
+                       attempted_shots=execution["shots"], discarded_shots=execution["discarded"],
+                       root_seed=seed, peak_rank=execution["peak_rank"], shots=verified,
+                       vm_verification=f"all {4**qubits - 1} joint Pauli expectations and full-state fidelity")
+        summary.pop("stage", None)
+        save()
+        return summary
+    except Exception as error:
+        summary.update(status="failed", failed_stage=stage, error=str(error), error_type=type(error).__name__)
+        if hasattr(error, "code"):
+            summary.update(error_code=error.code, error_nodes=error.nodes)
+            summary["failure_layer"] = "upstream" if error.code == "upstream_layout" else "adapter"
+        else:
+            summary["failure_layer"] = stage
+        save()
+        raise

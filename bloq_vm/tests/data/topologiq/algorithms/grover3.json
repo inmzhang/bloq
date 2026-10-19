@@ -1,0 +1,122 @@
+{
+  "algorithm": {
+    "algorithm": "Three-qubit Grover search for 101, one iteration",
+    "candidate": "grover3",
+    "candidate_generator_sha256": "4ee479762decce5f649c96beea4c093512331e68d0b5e6180743c2305586a091",
+    "expected_probabilities": [
+      0.031249999999999993,
+      0.031249999999999986,
+      0.031249999999999986,
+      0.031249999999999976,
+      0.031249999999999986,
+      0.7812499999999994,
+      0.031249999999999986,
+      0.031249999999999993
+    ],
+    "expected_success_probability": 0.78125,
+    "family": "search",
+    "gate_counts": {
+      "cx": 12,
+      "h": 17,
+      "t": 8,
+      "tdg": 6,
+      "x": 8
+    },
+    "marked_integer": 5,
+    "non_stabilizer_output": true,
+    "output_pauli_stabilizer_count": 1,
+    "projective_spectral_error": 1.9556585519203298e-15,
+    "qubits": 3,
+    "t_count": 14
+  },
+  "expected_state": [
+    [
+      0.17677669529663687,
+      0.0
+    ],
+    [
+      0.17677669529663684,
+      0.0
+    ],
+    [
+      0.17677669529663684,
+      0.0
+    ],
+    [
+      0.1767766952966368,
+      0.0
+    ],
+    [
+      0.17677669529663684,
+      0.0
+    ],
+    [
+      0.8838834764831841,
+      0.0
+    ],
+    [
+      0.17677669529663684,
+      0.0
+    ],
+    [
+      0.17677669529663687,
+      0.0
+    ]
+  ],
+  "frontend": {
+    "flow_module": "bloq.interop._topologiq_flow",
+    "parser_module": "bloq.interop._topologiq_qasm",
+    "pyzx": "0.10.7"
+  },
+  "input_ports": [
+    [
+      0,
+      0,
+      8
+    ],
+    [
+      -1,
+      2,
+      7
+    ],
+    [
+      0,
+      0,
+      0
+    ]
+  ],
+  "layout": {
+    "a_star_max_visits_standard": 20000,
+    "animate": false,
+    "debug": 0,
+    "graph_traverse_mode": "tfs",
+    "gravity": 7,
+    "seed": 1330,
+    "temporal_hadamards_only": true,
+    "z_stretch": 2
+  },
+  "output_ports": [
+    [
+      0,
+      0,
+      42
+    ],
+    [
+      1,
+      0,
+      44
+    ],
+    [
+      -4,
+      0,
+      22
+    ]
+  ],
+  "t_gadgets": 14,
+  "upstream": {
+    "patch": "bloq_py/examples/topologiq.patch",
+    "patch_sha256": "bdd5fa2c718c14a0347e2ab1b2d9e0fc548a166840d9cf47f874df3f5532660d",
+    "repository": "https://github.com/tqec/topologiq",
+    "revision": "d010bd3e63686c93c12c922a84a944a3386ac785"
+  }
+}

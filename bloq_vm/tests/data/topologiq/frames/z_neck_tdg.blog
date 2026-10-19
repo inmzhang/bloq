@@ -1,0 +1,30 @@
+BLOG 1.0
+
+module main {
+  in in_0: data = 7
+  out out_0: data = 3
+
+  0: ZZX [-1, 1, 2]
+  1: XZX [0, 1, 2]
+  2: ZXX [-1, 0, 3]
+  3: Port [-1, -1, 3] role=output
+  4: ZXX [-1, 0, 0]
+  5: T [0, 1, 1]
+  6: ZXX [-1, 0, 1]
+  7: Port [-1, -1, 0] role=input
+  8: XY [-1, 0, 4]
+  9: ZXX [-1, 0, 2]
+  0 -> +X
+  2 -> +Z
+  3 -> +Y
+  4 -> +Z
+  5 -> +Z
+  6 -> +Z
+  7 -> +Y
+  9 -> +Y
+  9 -> +Z
+
+  topologiq_t_18 = measure 0 -> +X
+  resolve 8 if topologiq_t_18
+
+}

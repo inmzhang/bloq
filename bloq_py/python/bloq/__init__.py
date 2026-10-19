@@ -15,7 +15,7 @@ Examples:
     True
 """
 
-from bloq import ir
+from bloq import interop, ir
 from bloq._core import (
     HONEST_T_TAG,
     Action,
@@ -145,6 +145,7 @@ __all__ = [
     "emit_stim",
     "emit_stim_segments",
     "emit_stim_segments_pair",
+    "interop",
     "ir",
     "is_valid_distance",
     "lower_vm",
