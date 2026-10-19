@@ -15,7 +15,7 @@ from topologiq.core.graph_manager.graph_manager import BlockGraphManager  # noqa
 from topologiq.core.pathfinder.pathfinder import PathfinderInitState, PathFinderManager  # noqa: E402
 
 from bloq.interop._topologiq_flow import prepare_graph  # noqa: E402
-from bloq.interop._topologiq_qasm import parse_qasm  # noqa: E402
+from bloq.interop._qasm import parse_qasm  # noqa: E402
 from bloq.interop.topologiq import TopologiqImportError, _routed_path, from_qasm  # noqa: E402
 
 

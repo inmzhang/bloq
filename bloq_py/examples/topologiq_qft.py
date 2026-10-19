@@ -201,7 +201,7 @@ def main() -> None:
         "pygridsynth_version": version("pygridsynth"),
         "synthesis_seconds": time.perf_counter() - started,
     }
-    from _topologiq_demo import run_demo
+    from _interop_demo import run_demo
 
     # The source error is bounded against the Fourier matrix above; execution
     # must reproduce the synthesized circuit, including its X input preparation.

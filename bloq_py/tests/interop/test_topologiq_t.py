@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from bloq.interop._topologiq_qasm import parse_qasm
+from bloq.interop._qasm import parse_qasm
 from bloq.interop._topologiq_t import lower_t_gadgets
 from bloq.interop.topologiq import TopologiqImportError, _from_qasm, _routed_path, from_qasm
 

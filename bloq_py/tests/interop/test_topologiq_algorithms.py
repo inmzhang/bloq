@@ -23,7 +23,7 @@ def algorithms(monkeypatch):
 
 @pytest.mark.parametrize("name", NAMES)
 def test_candidate_checks_exported_channels_and_has_non_stabilizer_output(algorithms, name):
-    from bloq.interop._topologiq_qasm import parse_qasm
+    from bloq.interop._qasm import parse_qasm
 
     result = algorithms["generate_candidate"](name)
     # Generation checks both exported channels against the algorithm matrix.
@@ -125,7 +125,7 @@ def test_timeout_is_recorded_with_the_interrupted_stage(tmp_path):
 
 
 def test_interrupted_checkpoint_keeps_the_previous_valid_result(tmp_path, monkeypatch):
-    save = runpy.run_path(str(EXAMPLE.with_name("_topologiq_demo.py")))["save_json"]
+    save = runpy.run_path(str(EXAMPLE.with_name("_interop_demo.py")))["save_json"]
     result = tmp_path / "result.json"
     save(result, dict(stage="layout"))
     write_text = Path.write_text

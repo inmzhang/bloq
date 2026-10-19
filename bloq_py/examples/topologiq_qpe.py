@@ -113,7 +113,7 @@ def main() -> None:
         parser.error("--output-dir must be empty; each run retains its own artifacts")
     started = time.perf_counter()
     circuit = generate_phase_estimation()
-    from _topologiq_demo import run_demo
+    from _interop_demo import run_demo
 
     summary = dict(
         algorithm="four-qubit phase estimation", counting_qubits=[0, 1], target_qubits=[2, 3],

@@ -1,6 +1,7 @@
 """Shared artifact retention and complete-state checks for exact algorithm demos."""
 
 from hashlib import sha256
+from importlib import import_module
 from importlib.metadata import version
 import json
 from pathlib import Path
@@ -20,7 +21,8 @@ def save_json(path: Path, value):
 
 
 def run_demo(source_qasm, clifford_t_qasm, ideal_unitary, output_dir: Path, summary,
-             *, shots=3, synthesis_only=False, compile_only=False, seed=17, layout_seed=1330):
+             *, shots=3, synthesis_only=False, compile_only=False, seed=17, layout_seed=1330,
+             compiler="topologiq", layout_options=None):
     """Retain each stage; verify every output correlation against an ideal matrix.
 
     The caller checks the exported source and Clifford+T channels against the
@@ -28,12 +30,14 @@ def run_demo(source_qasm, clifford_t_qasm, ideal_unitary, output_dir: Path, summ
     """
     if shots < 1:
         raise ValueError("shots must be positive")
+    if compiler not in ("topologiq", "topols"):
+        raise ValueError("compiler must be 'topologiq' or 'topols'")
     if output_dir.exists() and any(output_dir.iterdir()):
         raise ValueError("--output-dir must be empty; each run retains its own artifacts")
     output_dir.mkdir(parents=True, exist_ok=True)
     for name, text in (("source.qasm", source_qasm), ("clifford_t.qasm", clifford_t_qasm)):
         (output_dir / name).write_text(text + "\n", encoding="utf-8")
-    summary.update(input_state="zero", qiskit_version=version("qiskit"), status="synthesized",
+    summary.update(compiler=compiler, input_state="zero", qiskit_version=version("qiskit"), status="synthesized",
                    clifford_t_sha256=sha256((clifford_t_qasm + "\n").encode()).hexdigest())
 
     def save():
@@ -44,15 +48,19 @@ def run_demo(source_qasm, clifford_t_qasm, ideal_unitary, output_dir: Path, summ
         return summary
 
     import bloq
-    from bloq.interop.topologiq import AUDITED_REVISION, from_qasm
 
     stage = "layout"
     try:
-        summary.update(status="running", stage=stage)
+        options = dict(layout_options or {})
+        options.setdefault("seed", layout_seed)
+        summary.update(status="running", stage=stage, layout_options=options)
         save()
-        print("Routing with Topologiq...", file=sys.stderr, flush=True)
+        print(f"Routing with {'TopoLS' if compiler == 'topols' else 'Topologiq'}...", file=sys.stderr, flush=True)
         started = time.perf_counter()
-        imported = from_qasm(clifford_t_qasm, seed=layout_seed)
+        adapter = import_module(f"bloq.interop.{compiler}")
+        imported = adapter.from_qasm(clifford_t_qasm, **options)
+        if compiler == "topols":
+            (output_dir / "normalized.qasm").write_text(imported.normalized_qasm, encoding="utf-8")
         imported.graph.save(output_dir / "layout.blog")
         imported.graph.export_html_viewer(output_dir / "layout.html")
         flat = imported.graph.flatten()
@@ -61,10 +69,11 @@ def run_demo(source_qasm, clifford_t_qasm, ideal_unitary, output_dir: Path, summ
         summary.update(
             layout_seconds=time.perf_counter() - started, layout_options=imported.layout_options,
             layout_blocks=flat.block_count, hadamard_pipes_by_axis=hadamards,
-            audited_topologiq_revision=AUDITED_REVISION, detected_topologiq_revision=imported.upstream_revision,
             pyzx_version=version("pyzx"), bloq_version=bloq.__version__,
             input_ports=imported.input_ports, output_ports=imported.output_ports,
         )
+        summary.update({f"audited_{compiler}_revision": adapter.AUDITED_REVISION,
+                        f"detected_{compiler}_revision": imported.upstream_revision})
         stage = "compile"
         summary["stage"] = stage
         save()
@@ -82,11 +91,11 @@ def run_demo(source_qasm, clifford_t_qasm, ideal_unitary, output_dir: Path, summ
             compile_warnings=[str(w.message) for w in compile_warnings], status="compiled",
         )
         save()
-        if compile_only:
-            return summary
         indices = {output.port: i for i, output in enumerate(program.logical_outputs())}
         if len(indices) != len(imported.output_ports) or set(indices) != set(imported.output_ports):
             raise RuntimeError("VM output interface differs from the source circuit")
+        if compile_only:
+            return summary
         qubits = len(imported.output_ports)
         state = Statevector(ideal_unitary[:, 0].copy())
         expected = []
@@ -130,7 +139,7 @@ def run_demo(source_qasm, clifford_t_qasm, ideal_unitary, output_dir: Path, summ
     except Exception as error:
         summary.update(status="failed", failed_stage=stage, error=str(error), error_type=type(error).__name__)
         if hasattr(error, "code"):
-            summary.update(error_code=error.code, error_nodes=error.nodes)
+            summary.update(error_code=error.code, error_nodes=getattr(error, "nodes", ()))
             summary["failure_layer"] = "upstream" if error.code == "upstream_layout" else "adapter"
         else:
             summary["failure_layer"] = stage

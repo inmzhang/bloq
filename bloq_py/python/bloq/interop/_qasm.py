@@ -9,14 +9,20 @@ from typing import Any, NoReturn
 from pyzx.circuit.gates import qasm_gate_table
 from pyzx.circuit.qasmparser import QASMParser
 
-from .topologiq import TopologiqImportError
+class QASMImportError(ValueError):
+    """A source feature that the exact QASM frontend cannot preserve."""
+
+    def __init__(self, code: str, message: str):
+        self.code = code
+        self.message = message
+        super().__init__(f"{code}: {message}")
 
 
 def _phase(expression: str, parameters: dict[str, Fraction] | None) -> Fraction:
     expression = expression.strip()
 
     def fail(reason: str) -> NoReturn:
-        raise TopologiqImportError("unsupported_angle", f"Angle {expression!r}: {reason}")
+        raise QASMImportError("unsupported_angle", f"Angle {expression!r}: {reason}")
 
     def evaluate(node: ast.AST) -> tuple[Fraction, Fraction]:
         # Keep rational radians separate from rational multiples of pi.
@@ -73,15 +79,15 @@ class _ExactQASMParser(QASMParser):
         name, phases, operands = self.extract_command_parts(c)
         if name in ("qreg", "creg"):
             if phases or len(operands) != 1 or registers is not self.registers:
-                raise TopologiqImportError("qasm_register", f"Invalid register declaration: {c}")
+                raise QASMImportError("qasm_register", f"Invalid register declaration: {c}")
             register, _ = self._parse_register_declaration(operands[0])
             if register in registers or register in self.cregisters:
-                raise TopologiqImportError("qasm_register", f"Register {register!r} is already declared: {c}")
+                raise QASMImportError("qasm_register", f"Register {register!r} is already declared: {c}")
             return super().parse_command(c, registers)
         if name in ("measure", "reset"):
             return super().parse_command(c, registers)
         if name in ("id", "barrier") and phases:
-            raise TopologiqImportError("qasm_operand", f"Operation {name!r} takes no angles: {c}")
+            raise QASMImportError("qasm_operand", f"Operation {name!r} takes no angles: {c}")
         if name in self.parametrized_gates:
             arity = len(self.parametrized_gates[name][1])
         elif name in self.custom_gates:
@@ -99,22 +105,22 @@ class _ExactQASMParser(QASMParser):
         else:
             arity = None
         if arity is not None and len(operands) != arity:
-            raise TopologiqImportError(
+            raise QASMImportError(
                 "qasm_operand", f"Gate {name!r} requires {arity} qubit operands: {c}",
             )
         ranges: list[tuple[int, int]] = []
         for operand in operands:
             match = re.fullmatch(r"([A-Za-z][A-Za-z0-9_]*)(?:\[([0-9]+)\])?", operand)
             if match is None or match[1] not in registers:
-                raise TopologiqImportError("qasm_operand", f"Invalid qubit operand {operand!r}: {c}")
+                raise QASMImportError("qasm_operand", f"Invalid qubit operand {operand!r}: {c}")
             if match[2] is not None and int(match[2]) >= registers[match[1]][1]:
-                raise TopologiqImportError("qasm_operand", f"Qubit operand {operand!r} is out of range: {c}")
+                raise QASMImportError("qasm_operand", f"Qubit operand {operand!r} is out of range: {c}")
             start, size = registers[match[1]]
             if match[2] is not None:
                 start, size = start + int(match[2]), 1
             # Register broadcasting repeats indexed operands in every lane.
             if name != "barrier" and any(start < end and begin < start + size for begin, end in ranges):
-                raise TopologiqImportError("qasm_operand", f"Gate operands overlap: {c}")
+                raise QASMImportError("qasm_operand", f"Gate operands overlap: {c}")
             ranges.append((start, start + size))
         return super().parse_command(c, registers)
 
@@ -122,5 +128,5 @@ class _ExactQASMParser(QASMParser):
 def parse_qasm(qasm: str) -> Any:
     """Parse without PyZX's float conversion or denominator rounding."""
     if version("pyzx") != "0.10.7":
-        raise TopologiqImportError("pyzx_version", "Exact QASM parsing requires pyzx==0.10.7")
+        raise QASMImportError("pyzx_version", "Exact QASM parsing requires pyzx==0.10.7")
     return _ExactQASMParser().parse(qasm).to_basic_gates()

@@ -249,10 +249,13 @@ def _from_qasm(qasm: str, *, seed: int, temporal_hadamards_only: bool) -> Topolo
     try:
         from topologiq.core.graph_manager.graph_manager import BlockGraphManager
         from bloq.interop._topologiq_flow import prepare_graph
-        from bloq.interop._topologiq_qasm import parse_qasm
+        from bloq.interop._qasm import QASMImportError, parse_qasm
     except ImportError as error:
         raise ImportError("Install the pinned Topologiq integration dependencies; base Bloq needs none of them") from error
-    circuit = parse_qasm(clean)
+    try:
+        circuit = parse_qasm(clean)
+    except QASMImportError as error:
+        raise TopologiqImportError(error.code, error.message) from error
     source = circuit.to_graph()
     phases = {}
     normalized = source.copy()

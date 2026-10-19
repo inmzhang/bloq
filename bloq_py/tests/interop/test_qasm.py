@@ -6,8 +6,8 @@ import pytest
 
 pytest.importorskip("pyzx", reason="opt-in pinned PyZX integration environment")
 
-from bloq.interop import _topologiq_qasm as frontend  # noqa: E402
-from bloq.interop.topologiq import TopologiqImportError  # noqa: E402
+from bloq.interop import _qasm as frontend  # noqa: E402
+from bloq.interop._qasm import QASMImportError  # noqa: E402
 
 
 def source(gates):
@@ -23,7 +23,7 @@ def source(gates):
     ],
 )
 def test_lossy_or_unsupported_angles_reject(expression):
-    with pytest.raises(TopologiqImportError) as error:
+    with pytest.raises(QASMImportError) as error:
         frontend.parse_qasm(source(f"rz({expression}) q[0];"))
     assert error.value.code == "unsupported_angle"
     assert expression in str(error.value)
@@ -70,7 +70,7 @@ def test_source_and_global_parser_remain_unchanged():
 
 def test_version_guard_precedes_source_parsing(monkeypatch):
     monkeypatch.setattr(frontend, "version", lambda _: "0.0.0")
-    with pytest.raises(TopologiqImportError, match="pyzx_version"):
+    with pytest.raises(QASMImportError, match="pyzx_version"):
         frontend.parse_qasm("not QASM")
 
 
@@ -87,7 +87,7 @@ def test_version_guard_precedes_source_parsing(monkeypatch):
 ])
 def test_invalid_operands_cannot_spill_registers_or_be_dropped(operation):
     text = 'OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg a[1];\nqreg b[1];\n' + operation
-    with pytest.raises(TopologiqImportError) as caught:
+    with pytest.raises(QASMImportError) as caught:
         frontend.parse_qasm(text)
     assert caught.value.code == "qasm_operand"
 
@@ -99,7 +99,7 @@ def test_invalid_operands_cannot_spill_registers_or_be_dropped(operation):
 ])
 def test_invalid_register_declarations_reject(declarations):
     text = 'OPENQASM 2.0;\ninclude "qelib1.inc";\n' + declarations
-    with pytest.raises(TopologiqImportError, match="qasm_register"):
+    with pytest.raises(QASMImportError, match="qasm_register"):
         frontend.parse_qasm(text)
 
 

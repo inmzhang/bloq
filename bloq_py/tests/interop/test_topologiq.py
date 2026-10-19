@@ -34,6 +34,18 @@ def require_upstream():
     pytest.importorskip("pyzx")
 
 
+def test_frontend_error_preserves_public_error_type_and_message(monkeypatch):
+    require_upstream()
+    from bloq.interop import _qasm
+
+    monkeypatch.setattr(_qasm, "version", lambda _: "0.0.0")
+    with pytest.raises(TopologiqImportError) as caught:
+        from_qasm(qasm("h q[0];"))
+    assert caught.value.code == "pyzx_version"
+    assert str(caught.value) == "pyzx_version: Exact QASM parsing requires pyzx==0.10.7"
+    assert isinstance(caught.value.__cause__, _qasm.QASMImportError)
+
+
 @pytest.mark.parametrize(
     "gates,width,input_state,expected",
     [

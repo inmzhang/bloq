@@ -21,7 +21,7 @@ from unittest.mock import patch
 
 import topologiq
 
-from bloq.interop._topologiq_qasm import parse_qasm
+from bloq.interop._qasm import parse_qasm
 from bloq.interop._topologiq_t import lower_t_gadgets
 from bloq.interop.topologiq import AUDITED_REVISION, _CUBES, _convert_geometry, _direction, _routed_path, _from_qasm
 
@@ -213,7 +213,7 @@ def export_t_frames(repository: Path, common: dict) -> None:
 def export_direct_t_frames(repository: Path, common: dict) -> None:
     from topologiq.core.graph_manager.graph_manager import BlockGraphManager
 
-    generate = runpy.run_path(str(repository / "bloq_py/examples/topologiq_algorithms.py"))["generate_candidate"]
+    generate = runpy.run_path(str(repository / "bloq_py/examples/_algorithm_candidates.py"))["generate_candidate"]
     destination = repository / "bloq_vm/tests/data/topologiq/frames"
     selections = {
         "grover3": {11: "direct_twins_input", 47: "direct_tree_input"},
@@ -287,7 +287,7 @@ def export_algorithms(
 ) -> None:
     from bloq.interop.topologiq import from_qasm
 
-    generate = runpy.run_path(str(repository / "bloq_py/examples/topologiq_algorithms.py"))["generate_candidate"]
+    generate = runpy.run_path(str(repository / "bloq_py/examples/_algorithm_candidates.py"))["generate_candidate"]
     destination = repository / "bloq_vm/tests/data/topologiq/algorithms"
     destination.mkdir(exist_ok=True)
     for name in names:
@@ -354,7 +354,7 @@ def main() -> None:
             "frontend": {
                 "pyzx": version("pyzx"),
                 "flow_module": "bloq.interop._topologiq_flow",
-                "parser_module": "bloq.interop._topologiq_qasm",
+                "parser_module": "bloq.interop._qasm",
             },
             "layout": imported.layout_options,
         }

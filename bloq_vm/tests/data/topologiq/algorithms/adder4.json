@@ -11,7 +11,7 @@
       3
     ],
     "candidate": "adder4",
-    "candidate_generator_sha256": "4ee479762decce5f649c96beea4c093512331e68d0b5e6180743c2305586a091",
+    "candidate_generator_sha256": "949090b306d09c88b7c346e27c3fbc61b4b866e6c126fc969b0aaf38b603a298",
     "expected_probabilities": [
       0.12499999999999994,
       0.0,
@@ -46,7 +46,7 @@
   "expected_compile_error": "LiveQubitReuse",
   "frontend": {
     "flow_module": "bloq.interop._topologiq_flow",
-    "parser_module": "bloq.interop._topologiq_qasm",
+    "parser_module": "bloq.interop._qasm",
     "pyzx": "0.10.7"
   },
   "input_ports": [

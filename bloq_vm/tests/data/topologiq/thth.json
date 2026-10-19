@@ -1,7 +1,7 @@
 {
   "frontend": {
     "flow_module": "bloq.interop._topologiq_flow",
-    "parser_module": "bloq.interop._topologiq_qasm",
+    "parser_module": "bloq.interop._qasm",
     "pyzx": "0.10.7"
   },
   "graph": "thth.blog",
