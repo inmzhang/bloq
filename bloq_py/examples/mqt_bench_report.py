@@ -1,9 +1,10 @@
 """Build a fresh Typst catalog from an MQT experiment directory.
 
 Run after mqt_bench_experiments.py. The directory remains self-contained:
-report.typ reads its real summary.json, viewers use relative links, and
+report.typ reads a derived report-summary.json, viewers use relative links, and
 artifacts.json fingerprints the report and retained evidence. No old reports
-are read. Re-run with --verify to check the recorded artifact hashes.
+are read. --include copies separately recorded experiments into the catalog
+without modifying their ledgers. Re-run with --verify to check artifact hashes.
 """
 
 import argparse
@@ -55,12 +56,13 @@ def verify(root):
     print(f"Verified {len(manifest['files'])} artifact hashes and {len(manifest['links'])} local links.")
 
 
-def build(root):
-    from mqt_bench_experiments import _bounded
-
+def experiment(root):
+    """Check captured evidence before copying or presenting an experiment."""
     summary = json.loads((root / "summary.json").read_text())
-    files = {"summary.json", "manifest.json"}
     manifest = summary["manifest"]
+    if json.loads((root / "manifest.json").read_text()) != manifest:
+        raise ValueError(f"manifest differs from experiment ledger: {root}")
+    files = {"summary.json", "manifest.json"}
     provenance = [(manifest["bloq_diff_file"], manifest["bloq_diff_sha256"]),
                   (manifest["source_files_file"], manifest["source_files_sha256"])]
     provenance += [(upstream["diff_file"], upstream["diff_sha256"])
@@ -68,20 +70,14 @@ def build(root):
     for name, digest in provenance:
         check_hash(inside(root, name), digest)
         files.add(name)
-    assets = dict(runs={}, cases={}, thumbnails={}, provenance=sorted(files))
     for row in summary["runs"]:
-        case = row["case"]
-        case_dir = inside(root, f"cases/{case}")
-        sources = {name: (case_dir / name).relative_to(root).as_posix()
-                   for name in ARTIFACTS if (case_dir / name).is_file()}
-        assets["cases"][case] = sources
-        files.update(sources.values())
+        case_dir = inside(root, f"cases/{row['case']}")
         for name, field in (("source.qasm", "source_sha256"), ("clifford_t.qasm", "clifford_t_sha256")):
             if field in row:
-                check_hash(root / sources[name], row[field])
+                check_hash(case_dir / name, row[field])
         if "benchmark_sha256" in row:
             name = "benchmark.qasm" if row.get("source_variant") == "explicit_input_preparation" else "source.qasm"
-            check_hash(root / sources[name], row["benchmark_sha256"])
+            check_hash(case_dir / name, row["benchmark_sha256"])
         if not row.get("run_dir"):
             continue
         run_dir = inside(root, row["run_dir"])
@@ -96,29 +92,92 @@ def build(root):
             if not (ir.get("validated") and ir.get("round_trip")
                     and ir.get("distance") == 25 and ir.get("t_preparation") == "ideal_t_proxy"
                     and ir.get("sha256") and row.get("layout", {}).get("blog_sha256")):
-                raise ValueError(f"{case}/{row['compiler']}: incomplete distance-25 audit evidence")
+                raise ValueError(f"{row['case']}/{row['compiler']}: incomplete distance-25 audit evidence")
             for name in ("source.qasm", "clifford_t.qasm", "layout.blog", "layout.html",
                          "program_d25.bloq", "result.json"):
                 if not (run_dir / name).is_file():
                     raise ValueError(f"missing successful-run artifact: {run_dir / name}")
+    return summary, files
+
+
+def collect(root, includes):
+    """Keep original ledgers and give each report row its own artifact namespace."""
+    summary, provenance = experiment(root)
+    sessions = [("default", "Default run", root, summary, provenance)]
+    for index, source in enumerate(includes, 1):
+        source = source.resolve()
+        if root.is_relative_to(source) or source.is_relative_to(root):
+            raise ValueError("included experiment must be outside the report directory")
+        original, _ = experiment(source)
+        if (source / "artifacts.json").exists():
+            verify(source)
+        name = f"{index:02d}-{source.name}"
+        destination = root / "additional" / name
+        if destination.exists():
+            if (destination / "summary.json").read_bytes() != (source / "summary.json").read_bytes():
+                raise ValueError(f"included ledger changed; use a fresh report directory: {source}")
+        else:
+            shutil.copytree(source, destination)
+        copied, files = experiment(destination)
+        if copied != original:
+            raise ValueError(f"included ledger changed during copying: {source}")
+        sessions.append((name, source.name, destination, copied, files))
+    report, files = dict(experiments=[], runs=[]), set()
+    for identifier, label, directory, original, provenance in sessions:
+        prefix = directory.relative_to(root)
+        links = [(prefix / name).as_posix() for name in sorted(provenance)]
+        report["experiments"].append(dict(id=identifier, label=label, manifest=original["manifest"],
+                                          summary_file=(prefix / "summary.json").as_posix(), provenance=links))
+        files.update(links)
+        files.update(path.relative_to(root).as_posix() for path in (directory / "cases").rglob("*")
+                     if path.is_file())
+        for original_row in original["runs"]:
+            row = dict(original_row, source_case=original_row["case"], experiment=identifier,
+                       experiment_label=label, case=f"{identifier}/{original_row['case']}",
+                       case_dir=(prefix / "cases" / original_row["case"]).as_posix())
+            if row.get("run_dir"):
+                row["run_dir"] = (prefix / row["run_dir"]).as_posix()
+            report["runs"].append(row)
+    return report, files
+
+
+def build(root, includes=()):
+    from mqt_bench_experiments import _bounded
+
+    summary, files = collect(root, includes)
+    save(root / "report-summary.json", summary)
+    assets = dict(runs={}, cases={}, thumbnails={}, provenance=sorted(
+        path for session in summary["experiments"] for path in session["provenance"]))
+    limits = {session["id"]: session["manifest"].get("memory_gib", 8) for session in summary["experiments"]}
+    for row in summary["runs"]:
+        case_dir = inside(root, row["case_dir"])
+        assets["cases"][row["case"]] = {name: (case_dir / name).relative_to(root).as_posix()
+                                         for name in ARTIFACTS if (case_dir / name).is_file()}
+        if not row.get("run_dir"):
+            continue
+        run_dir = inside(root, row["run_dir"])
+        image_dir = inside(root, f"report-images/{row['run_dir']}")
+        if row.get("ir_d25", {}).get("status") == "compiled":
+            image_dir.mkdir(parents=True, exist_ok=True)
             # Each native mesh and its SVG triangles are released before the
             # next layout; rendering failures never change compilation evidence.
             rendered = _bounded([sys.executable, str(Path(__file__).resolve()),
-                                 "--thumbnail", str(run_dir / "layout.blog")], run_dir,
-                                "thumbnail", 120, memory_gib=min(8, manifest.get("memory_gib", 8)))
+                                 "--thumbnail", str(run_dir / "layout.blog"), str(image_dir / "layout.svg")],
+                                image_dir, "thumbnail", 120, memory_gib=min(8, limits[row["experiment"]]))
             assets["thumbnails"][row["run_dir"]] = rendered
             if rendered["status"] != "completed":
-                (run_dir / "layout.svg").unlink(missing_ok=True)
+                (image_dir / "layout.svg").unlink(missing_ok=True)
         artifacts = {name: (run_dir / name).relative_to(root).as_posix()
-                     for name in ARTIFACTS if (run_dir / name).is_file()}
+                     for name in ARTIFACTS if name != "layout.svg" and (run_dir / name).is_file()}
+        if (image_dir / "layout.svg").is_file():
+            artifacts["layout.svg"] = (image_dir / "layout.svg").relative_to(root).as_posix()
         assets["runs"][row["run_dir"]] = artifacts
         files.update(artifacts.values())
     save(root / "report-assets.json", assets)
     shutil.copyfile(TEMPLATE, root / "report.typ")
     subprocess.run(["typst", "compile", "report.typ", "report.pdf"], cwd=root, check=True)
-    files.update(("report.typ", "report.pdf", "report-assets.json"))
-    # Logs and checker reports are retained even for rejected and timed-out runs.
-    files.update(path.relative_to(root).as_posix() for path in (root / "cases").rglob("*")
+    files.update(("report.typ", "report.pdf", "report-assets.json", "report-summary.json"))
+    files.update(path.relative_to(root).as_posix() for path in (root / "report-images").rglob("*")
                  if path.is_file())
     links = sorted(files | {"artifacts.json"})
     save(root / "artifacts.json", dict(
@@ -131,20 +190,21 @@ def build(root):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output_dir", type=Path, nargs="?", default=ROOT / "target/mqt-bench")
+    parser.add_argument("--include", type=Path, nargs="+", default=[], help="additional recorded experiment directories")
     parser.add_argument("--verify", action="store_true")
-    parser.add_argument("--thumbnail", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--thumbnail", type=Path, nargs=2, metavar=("BLOG", "SVG"), help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.thumbnail:
         sys.path.insert(0, str(ROOT / "tools"))
         import bloq
         from render_block_thumbnails import thumbnail
 
-        thumbnail(bloq.BlockGraph.load(args.thumbnail), args.thumbnail.with_suffix(".svg"),
-                  args.thumbnail.parent.name, opaque=True)
+        source, output = args.thumbnail
+        thumbnail(bloq.BlockGraph.load(source), output, source.parent.name, opaque=True)
     elif args.verify:
         verify(args.output_dir.resolve())
     else:
-        build(args.output_dir.resolve())
+        build(args.output_dir.resolve(), args.include)
 
 
 if __name__ == "__main__":

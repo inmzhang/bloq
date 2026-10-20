@@ -7,15 +7,16 @@
 #show raw: set text(size: 6.5pt)
 #show link: set text(fill: rgb("246385"))
 
-#let data = json("summary.json")
+#let data = json("report-summary.json")
 #let assets = json("report-assets.json")
 #let runs = data.runs
 #let compiled(row) = row.at("ir_d25", default: (:)).at("status", default: "") == "compiled"
 #let successes = runs.filter(compiled)
 #let failures = runs.filter(row => not compiled(row))
 #let wrapped(row) = row.at("source_variant", default: "") == "explicit_input_preparation"
-#let primary = runs.filter(row => not wrapped(row))
-#let supplements = runs.filter(wrapped)
+#let primary = runs.filter(row => row.experiment == "default" and not wrapped(row))
+#let supplements = runs.filter(row => row.experiment == "default" and wrapped(row))
+#let additional = runs.filter(row => row.experiment != "default")
 #let value(dict, key, default: "—") = dict.at(key, default: default)
 #let shown(x) = if x == none { "—" } else if type(x) == str { x } else { json.encode(x, pretty: false) }
 #let number(x) = if x == none { "—" } else { str(calc.round(x, digits: 5)) }
@@ -24,7 +25,12 @@
   if chars.len() > 600 { chars.slice(0, 600).join() + "… (full diagnostic in ledger and logs)" } else { message }
 }
 #let status(row, stage) = value(row.at(stage, default: (:)), "status", default: "skipped")
-#let case-name(row) = row.case.replace("_", " ")
+#let case-name(row) = row.source_case.replace("_", " ")
+#let profile(row) = {
+  let options = row.at("layout_options", default: (:))
+  [spacing=#value(options, "spacing"), routing margin=#value(options, "routing_margin"),
+    placement margin=#value(options, "placement_margin")]
+}
 #let introductions = (
   half_adder: "A reversible half adder computes a sum bit and carry using controlled operations.",
   full_adder: "A reversible full adder includes an incoming carry in the arithmetic mapping.",
@@ -78,7 +84,8 @@
   #text(size: 12pt)[Reproducible algorithm compilation experiments]
 ]
 
-This catalog is generated from this directory’s #link("summary.json")[experiment ledger].
+This catalog is generated from the #link("report-summary.json")[derived report ledger].
+The original #link("summary.json")[default experiment ledger] remains unchanged.
 MQT Bench supplies the algorithm circuits; the same lowered Clifford+T QASM is
 used across upstream compilers. The catalog contains #primary.filter(compiled).len()
 validated distance-25 compilations of unmodified MQT inputs and
@@ -86,6 +93,10 @@ validated distance-25 compilations of unmodified MQT inputs and
 #if supplements.len() > 0 [A separate section contains
   #supplements.filter(compiled).len() successful supplementary compilations with
   explicit input preparation.]
+#if additional.len() > 0 [Additional independently recorded experiments contain
+  #additional.filter(compiled).len() validated compilations and
+  #additional.filter(row => not compiled(row)).len() other outcomes; they retain
+  their own configurations and provenance.]
 Full provenance: #link("manifest.json")[environment and revisions],
 #link("artifacts.json")[artifact hashes], and #link("report.typ")[report source].
 
@@ -151,6 +162,20 @@ zero routed T resources in SpiderLS and is not a magic-state demonstration.
   #overview(supplements)
 ]
 
+#if additional.len() > 0 [
+  == Additional routing experiments
+
+  These separately recorded configurations are not replacements for the default
+  results above. Each experiment retains its original ledger and provenance.
+  #for session in data.experiments.filter(session => session.id != "default") [
+    *#session.label:* #link(session.summary_file)[original ledger]
+
+    #let rows = additional.filter(row => row.experiment == session.id)
+    #for row in rows [#case-name(row) via #row.compiler: #profile(row). #parbreak()]
+    #overview(rows)
+  ]
+]
+
 == Paper-demo candidates
 
 #let candidates = successes.filter(row => value(row, "routed_t", default: 0) > 0
@@ -178,6 +203,12 @@ zero routed T resources in SpiderLS and is not a magic-state demonstration.
 #let run-page(row) = {
   pagebreak(weak: true)
   heading(level: 2)[#case-name(row) via #row.compiler]
+  [*Experiment:* #row.experiment_label.]
+  parbreak()
+  if row.experiment != "default" {
+    [*Additional routing configuration:* #profile(row).]
+    parbreak()
+  }
   [#introduction(row) #value(row, "note").]
   parbreak()
   if wrapped(row) {
@@ -238,12 +269,18 @@ zero routed T resources in SpiderLS and is not a magic-state demonstration.
 
 = Successful unmodified-input compilations
 
-#for row in successes.filter(row => not wrapped(row)) { run-page(row) }
+#for row in primary.filter(compiled) { run-page(row) }
 
 #if supplements.len() > 0 [
   = Supplementary explicit-input compilations
 
-  #for row in successes.filter(wrapped) { run-page(row) }
+  #for row in supplements.filter(compiled) { run-page(row) }
+]
+
+#if additional.len() > 0 [
+  = Successful additional routing experiments
+
+  #for row in additional.filter(compiled) { run-page(row) }
 ]
 
 = Other attempted outcomes
@@ -256,7 +293,9 @@ that an algorithm has no valid surface-code layout.
   let stage = value(row, "failed_stage", default: value(row, "stage", default: "lowering"))
   let failure = row.at(stage, default: row)
   heading(level: 2)[#case-name(row) / #value(row, "compiler", default: "source")]
-  [*Outcome:* #value(row, "status");
+  [*Experiment:* #row.experiment_label.]
+  parbreak()
+  [*Outcome:* #value(failure, "status", default: value(row, "status"));
     *stage:* #stage;
     *layer:* #value(row, "failure_layer");
     *code:* #value(failure, "error_code", default: value(row, "error_code"))]
@@ -292,7 +331,7 @@ Source files are shared across compilers; their hashes are recorded in the ledge
 #for case in cases {
   let row = successes.find(row => row.case == case)
   let sources = assets.cases.at(case)
-  heading(level: 2)[#case.replace("_", " ")]
+  heading(level: 2)[#case-name(row) / #row.experiment_label]
   [#introduction(row) #value(row, "note").]
   parbreak()
   [MQT benchmark: #value(row, "benchmark"); requested size #value(row, "circuit_size");
@@ -337,4 +376,9 @@ No historical report is used as evidence for this catalog.
 
 == Recorded manifest
 
-#raw(json.encode(data.manifest, pretty: true), block: true)
+#for session in data.experiments {
+  heading(level: 2)[#session.label]
+  link(session.summary_file, [Original experiment ledger])
+  parbreak()
+  raw(json.encode(session.manifest, pretty: true), block: true)
+}
