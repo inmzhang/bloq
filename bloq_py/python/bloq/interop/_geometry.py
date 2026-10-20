@@ -9,7 +9,7 @@ from typing import Any
 import bloq
 
 Position = tuple[int, int, int]
-GRID_SPACING = 3
+GRID_SPACING = (1, 1, 3)
 _CUBES = {"XZZ", "ZXZ", "ZZX", "ZXX", "XZX", "XXZ"}
 
 
@@ -41,16 +41,15 @@ def _direction(start: Position, end: Position) -> str:
 
 
 def _space_diagram(nodes, edges):
-    """Leave a local resource collar while preserving topology and H parity.
+    """Preserve spatial routing and leave temporal room for resource endpoints.
 
-    Every original unit pipe becomes three unit pipes. Its inserted cubes
-    have degree two and phase zero (identity tensors); any H stays on the
-    middle segment. Endpoint gadgets then fit between original grid cells.
+    Temporal pipes become three unit pipes with phase-zero degree-two cubes.
+    Spatial pipes and their H parity retain the upstream unit grid.
     """
     positions = {node: _position(data["position"]) for node, data in nodes.items()}
     if len(set(positions.values())) != len(positions):
         raise GeometryError("coordinates", "Exported nodes overlap")
-    spaced = {node: dict(data, position=_position(tuple(GRID_SPACING * x for x in positions[node])))
+    spaced = {node: dict(data, position=_position(tuple(s * x for s, x in zip(GRID_SPACING, positions[node]))))
               for node, data in nodes.items()}
     pipes = {}
     for index, ((a, b), endpoints) in enumerate(edges.items()):
@@ -58,14 +57,15 @@ def _space_diagram(nodes, edges):
             raise GeometryError("pipe_geometry", f"Unknown exported edge endpoint: {a!r} -> {b!r}")
         if tuple(_position(p) for p in endpoints) != (positions[a], positions[b]):
             raise GeometryError("pipe_geometry", f"Stored endpoints disagree with node positions: {a!r} -> {b!r}")
-        _direction(positions[a], positions[b])
+        direction = _direction(positions[a], positions[b])
+        length = GRID_SPACING['XYZ'.index(direction[1])]
         p, q = spaced[a]["position"], spaced[b]["position"]
-        step = tuple((y - x) // GRID_SPACING for x, y in zip(p, q))
+        step = tuple((y - x) // length for x, y in zip(p, q))
         ka, kb = nodes[a]["tqec"], nodes[b]["tqec"]
         if ka not in _CUBES and kb not in _CUBES:
             raise GeometryError("pipe_basis", "A resource wire has no ordinary frame")
         previous = a
-        for distance in range(1, GRID_SPACING):
+        for distance in range(1, length):
             node = f"bloq_spacing_{index}_{distance}"
             if node in spaced:
                 raise GeometryError("source_provenance", "Reserved subdivision node ID already exists")
@@ -81,7 +81,7 @@ def _space_diagram(nodes, edges):
 
 
 def add_t_resource(nodes, edges, node, *, phase, name):
-    """Expand one terminal into the channel-checked ZZ / adaptive XY gadget."""
+    """Place the ZZ / adaptive XY gadget on its shortest free outward arm."""
     phase = Fraction(phase) % 2
     if phase not in {Fraction(n, 4) for n in (1, 3, 5, 7)}:
         raise GeometryError('unsupported_phase', f'Unsupported magic phase {phase}')
@@ -96,32 +96,64 @@ def add_t_resource(nodes, edges, node, *, phase, name):
     axis = 'XYZ'.index(direction[1])
     if axis == 2 or nodes[neighbor]['tqec'] not in _CUBES:
         raise GeometryError('resource_frame', f'T resource {node!r} has no proved spatial ZZ seam')
-    occupied = {tuple(d['position']) for d in nodes.values()}
-
-    def add(suffix, position, kind):
-        key = f'{name}_{suffix}'
-        if key in nodes or position in occupied:
-            raise GeometryError('resource_collision', f'T gadget {node!r} collides at {position}')
-        _position(position)
-        occupied.add(position)
-        nodes[key] = dict(position=position, tqec=kind, other=None)
-        return key
-
-    if nodes[neighbor]['tqec'][2] == 'Z':
-        # A phase-zero elbow reaches the canonical seam without changing the
-        # routed path. Its three legs use each pipe axis once.
-        nodes[node]['tqec'] = 'ZXZ' if axis == 0 else 'XZZ'
-        turn = (p[0], p[1], p[2] + 1)
-        center = (p[0] + (axis == 1), p[1] + (axis == 0), p[2] + 1)
-        canonical = 'ZXX' if axis == 0 else 'XZX'
-        a, b = add('turn', turn, canonical), add('center', center, canonical)
-        edges.extend([(node, a), (a, b)])
-        node, p, q = b, center, turn
-        direction = '+Y' if axis == 0 else '+X'
+    occupied = {_position(d['position']) for n, d in nodes.items() if n != node}
+    frame = nodes[neighbor]['tqec']
+    step = tuple(b - a for a, b in zip(q, p))
+    limit = max((r[axis] - p[axis]) * step[axis] for r in occupied) + 2
+    selected = None
+    for distance in range(max(0, limit) + 1):
+        end = _position(tuple(a + distance * dx for a, dx in zip(p, step)))
+        if distance and end in occupied:
+            break  # An outward arm cannot tunnel through another route.
+        choices = []
+        for sign in ((1, -1) if frame[2] == 'Z' else (1,)):
+            additions = {f'arm_{i}': (_position(tuple(a + i * dx for a, dx in zip(p, step))), frame)
+                         for i in range(distance)}
+            if frame[2] == 'Z':
+                terminal = 'ZXZ' if axis == 0 else 'XZZ'
+                turn = (end[0], end[1], end[2] + 1)
+                center = (end[0] + sign * (axis == 1), end[1] + sign * (axis == 0), end[2] + 1)
+                canonical = 'ZXX' if axis == 0 else 'XZX'
+                additions.update(turn=(turn, canonical), center=(center, canonical))
+            else:
+                terminal = 'XZX' if axis == 0 else 'ZXX'
+                center = end
+            additions.update(source=((center[0], center[1], center[2] - 1), 'T'),
+                             cap=((center[0], center[1], center[2] + 1), 'XY'))
+            footprint = [end, *(r for r, _ in additions.values())]
+            if len(set(footprint)) != len(footprint) or any(r in occupied for r in footprint):
+                continue
+            for r in footprint:
+                _position(r)
+            space = {r[:2] for r in occupied | set(footprint)}
+            area = ((max(r[0] for r in space) - min(r[0] for r in space) + 1)
+                    * (max(r[1] for r in space) - min(r[1] for r in space) + 1))
+            choices.append((area, len(space), end, terminal, additions))
+        if choices:
+            selected = min(choices, key=lambda c: c[:2])
+            break
+    if selected is None:
+        raise GeometryError('resource_collision', f'T resource {node!r} has no free outward arm')
+    _, _, end, terminal, additions = selected
+    if any(f'{name}_{suffix}' in nodes for suffix in additions):
+        raise GeometryError('source_provenance', f'Reserved T gadget node already exists: {name}')
+    # Commit only after the entire arm, elbow and endpoint footprint fits.
+    nodes[node] = dict(nodes[node], position=end, tqec=terminal)
+    for suffix, (position, kind) in additions.items():
+        nodes[f'{name}_{suffix}'] = dict(position=position, tqec=kind, other=None)
+    arms = [f'{name}_arm_{i}' for i in range(distance)]
+    if arms:
+        edges.remove((neighbor, node) if (neighbor, node) in edges else (node, neighbor))
+        path = [neighbor, *arms, node]
+        edges.extend(zip(path, path[1:]))
+    if frame[2] == 'Z':
+        turn_id, center_id = f'{name}_turn', f'{name}_center'
+        edges.extend([(node, turn_id), (turn_id, center_id)])
+        node, q, p = center_id, nodes[turn_id]['position'], nodes[center_id]['position']
     else:
-        nodes[node]['tqec'] = 'XZX' if axis == 0 else 'ZXX'
-    before = add('source', (p[0], p[1], p[2] - 1), 'T')
-    after = add('cap', (p[0], p[1], p[2] + 1), 'XY')
+        q, p = nodes[arms[-1] if arms else neighbor]['position'], end
+    direction = _direction(q, p)
+    before, after = f'{name}_source', f'{name}_cap'
     edges.extend([(before, node), (node, after)])
     actions = [
         bloq.Action.measure(bloq.MeasureTarget.edge(q, direction), name),

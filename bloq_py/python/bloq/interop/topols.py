@@ -172,7 +172,8 @@ def _convert(embedding: dict[str, Any], qubits: int) -> tuple[bloq.BlockGraph, t
     actions = []
     occupied = {_position(data["position"]) for data in nodes.values()}
     resources = {"S": 0, "T": 0}
-    for node, data in list(nodes.items()):
+    # Reserve signed Y caps before placing the movable T endpoints.
+    for node, data in sorted(list(nodes.items()), key=lambda item: item[1]['other'] == 'T'):
         other = data["other"]
         if isinstance(other, dict):
             continue
@@ -240,7 +241,7 @@ def from_qasm(qasm: str, *, seed: int = 0, engine: str = "python",
     """Route a static Clifford+T QASM circuit with the pinned TopoLS API.
 
     Only S/T endpoint frames covered by native channel tests are accepted.
-    Resource-column collisions and unsupported layouts fail without rerouting.
+    Blocked resource arms and unsupported layouts fail without upstream rerouting.
     ``engine='rust'`` requires the matching optional ``topols_core`` extension.
     """
     if engine not in ("python", "rust"):

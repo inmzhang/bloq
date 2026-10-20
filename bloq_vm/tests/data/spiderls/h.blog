@@ -4,8 +4,8 @@ module main {
   in in_0: data = 0
   out out_0: data = 1
 
-  0: Port [9, 0, 0] role=input
-  1: Port [9, 0, 1] role=output
+  0: Port [3, 0, 0] role=input
+  1: Port [3, 0, 1] role=output
   0 -H> +Z
 
 }

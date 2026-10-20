@@ -6,10 +6,10 @@ module main {
   out out_0: data = 3
   out out_1: data = 1
 
-  0: Port [9, 0, 0] role=input
-  1: Port [9, 0, 1] role=output
-  2: Port [18, 0, 0] role=input
-  3: Port [18, 0, 1] role=output
+  0: Port [3, 0, 0] role=input
+  1: Port [3, 0, 1] role=output
+  2: Port [6, 0, 0] role=input
+  3: Port [6, 0, 1] role=output
   0 -H> +Z
   2 -> +Z
 

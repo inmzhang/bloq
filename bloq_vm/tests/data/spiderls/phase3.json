@@ -40,7 +40,11 @@
     },
     "magic_supply": "outside_canvas_perimeter",
     "include_boundary_h": true,
-    "grid_spacing": 3,
+    "grid_spacing": [
+      1,
+      1,
+      3
+    ],
     "ordered_zero_time_events": true
   }
 }

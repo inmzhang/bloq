@@ -9,20 +9,20 @@
       0
     ],
     [
-      6,
+      2,
       0,
       0
     ],
     [
-      6,
-      6,
+      2,
+      2,
       0
     ]
   ],
   "output_ports": [
     [
-      6,
-      6,
+      2,
+      2,
       34
     ],
     [
@@ -31,7 +31,7 @@
       34
     ],
     [
-      6,
+      2,
       0,
       34
     ]
@@ -51,7 +51,11 @@
     "engine": "python",
     "block_size_max": 20,
     "zx_opt": 1,
-    "grid_spacing": 3
+    "grid_spacing": [
+      1,
+      1,
+      3
+    ]
   },
   "algorithm": {
     "candidate": "qae3",

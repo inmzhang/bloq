@@ -31,6 +31,10 @@
     "engine": "python",
     "block_size_max": 20,
     "zx_opt": 1,
-    "grid_spacing": 3
+    "grid_spacing": [
+      1,
+      1,
+      3
+    ]
   }
 }

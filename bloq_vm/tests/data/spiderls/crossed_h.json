@@ -4,24 +4,24 @@
   "upstream_patch_sha256": "b919925295ea2092749973193f964b6568b75b26d896904bf8de197ee4630828",
   "input_ports": [
     [
-      9,
+      3,
       0,
       0
     ],
     [
-      18,
+      6,
       0,
       0
     ]
   ],
   "output_ports": [
     [
-      18,
+      6,
       0,
       1
     ],
     [
-      9,
+      3,
       0,
       1
     ]
@@ -29,7 +29,11 @@
   "t_gadgets": 0,
   "layout_options": {
     "include_boundary_h": true,
-    "grid_spacing": 3,
+    "grid_spacing": [
+      1,
+      1,
+      3
+    ],
     "ordered_zero_time_events": true
   }
 }

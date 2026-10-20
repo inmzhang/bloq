@@ -36,8 +36,8 @@ Use `--spacing 2 --routing-margin 1 --placement-margin 1` to try a tighter
 upstream routing canvas. The same options are available on `from_qasm` as
 `spacing`, `routing_margin`, and `placement_margin`. Smaller margins can
 increase routing depth or cause failure; compare validated layouts rather than
-assuming a smaller canvas reduces occupied spacetime volume. These options do
-not change Bloq's separate resource-gadget spacing.
+assuming a smaller canvas reduces occupied spacetime volume. Bloq places its
+resource endpoints after upstream routing.
 Simon uses three input and three output qubits with the nonlinear oracle
 `f(x) = (x0 xor x2, x1, (x0 xor x2) and x1)`. Its input marginal is uniform on
 `000`, `010`, `101` and `111`. The report recovers the unique nonzero period
@@ -86,11 +86,14 @@ report = bloq.run_noiseless(program, shots=3, input_state="zero", include_signat
   and every event/measurement boundary remain separate. A release
   is an X effect. Separate lifetimes are never joined. Reduced identity/H wires
   are preserved even when SpiderLS omits them from target code.
-- Spacing by three leaves room for the shared, channel-checked resource gadgets.
-  Added phase-zero cubes preserve the tensor map. After lowering, complete idle
-  time slices are contracted while protecting resources, controls, ports, and
-  tags; temporal Hadamard seams compose by parity. The remaining spatial collar
-  means the imported volume differs from SpiderLS's optimized volume.
+- Upstream spatial coordinates are preserved; only time is initially spaced by
+  three. T endpoints use the shortest free outward arm, trying either side of
+  a required elbow. Extended arms contain phase-zero identity cubes and never
+  cross occupied routes. The signed readout and adaptive measurement recipe is
+  unchanged. Complete idle time slices are contracted while protecting resource,
+  control, port, and tagged blocks; temporal H seams compose by parity.
+  `grid_spacing` records `(1, 1, 3)` before contraction. Endpoint gadgets and
+  explicit event timing still contribute to the imported volume.
   `SpiderLSImport` retains the reduced
   graph, plan, target, schedule, routing, options, revision, and ordered ports.
   Bloq derives readouts and adaptive dependencies from the imported graph.
