@@ -20,10 +20,7 @@ pub(crate) use basis::solve_coeff_combination;
 pub(crate) use basis::{
     CoeffVec, axis_pivot_constraints, gaussian_elimination_with_tracking, reduce_to_basis,
 };
-pub(crate) use selective::{
-    collect_selective_constraints, normalize_selective_support,
-    normalize_selective_support_in_place,
-};
+pub(crate) use selective::{collect_selective_constraints, normalize_selective_support_in_place};
 
 /// An error from filling a graph's open ports with concrete boundary spiders.
 #[derive(Debug, Clone, Error)]

@@ -118,9 +118,6 @@ fn compile_native(
     use bloq_utils::boolean::DECISION_TRUE;
     let started = web_time::Instant::now();
     context.report_progress(super::CompileStage::Validation)?;
-    if context.clifford_proxy.is_some() {
-        return Err(CompileError::StructuralBranchCliffordProxyUnsupported);
-    }
     let limits = context.config.certification_limits();
     let distance = context.config.code_distance();
     source.validate_resource_limits(limits)?;

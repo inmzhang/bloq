@@ -284,7 +284,7 @@ pub fn infer_feedback_with(
         .into_iter()
         .collect::<Vec<_>>();
     let count = checked_count(names.len(), options.max_branches, "named branches")?;
-    validate_records(graph, options.max_branches)?;
+    check_branch_limit(graph, options.max_branches)?;
     let verifier = make_verifier(graph, options)?;
     let preparation = options
         .preparation
@@ -411,7 +411,7 @@ impl FeedbackProblem<'_> {
         let mut combined = candidate.actions();
         combined.extend(output.iter().cloned());
         candidate.set_actions(combined)?;
-        validate_records(&candidate, self.options.max_branches)?;
+        check_branch_limit(&candidate, self.options.max_branches)?;
         let remaining = self.frames(&make_verifier(&candidate, self.options)?)?;
         if remaining.iter().flatten().any(|pauli| *pauli != Pauli::I) {
             return Err(FeedbackInferenceError::EmissionMismatch);
@@ -523,7 +523,7 @@ impl FeedbackProblem<'_> {
                 let result = candidate
                     .set_actions(actions)
                     .map_err(FeedbackInferenceError::from)
-                    .and_then(|()| validate_records(&candidate, self.options.max_branches))
+                    .and_then(|()| check_branch_limit(&candidate, self.options.max_branches))
                     .and_then(|()| make_verifier(&candidate, self.options))
                     .and_then(|verifier| self.complete(&candidate, &verifier, additions));
                 match result {
@@ -563,9 +563,9 @@ fn make_verifier(
     })
 }
 
-fn validate_records(graph: &BlockGraph, limit: usize) -> Result<(), FeedbackInferenceError> {
-    // Validation plans every record's causal readout across all branches.
-    graph.validate()?;
+/// Bounds structural branches before the verifier, which validates the
+/// source, builds one projection per reachable arm.
+fn check_branch_limit(graph: &BlockGraph, limit: usize) -> Result<(), FeedbackInferenceError> {
     if graph.branch_regions()?.is_empty() {
         return Ok(());
     }

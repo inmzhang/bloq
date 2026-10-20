@@ -9,7 +9,7 @@ use super::graph::insert_selective_fill;
 use super::output_correction::{OutputCorrectionRow, pivot_output_correction_rows};
 use super::stabilizer::{
     CoeffVec, collect_selective_constraints, gaussian_elimination_with_tracking,
-    normalize_selective_support, normalize_selective_support_in_place, reduce_to_basis,
+    normalize_selective_support_in_place, reduce_to_basis,
 };
 use super::{NodeKind, Stabilizer, StabilizerError, StabilizerGenerators, ZXError, ZXGraph};
 use crate::{Pauli, PauliBasis, PauliString, SelectiveKind};
@@ -43,14 +43,6 @@ pub enum RuntimeBasisError {
     /// An output is absent from the live graph.
     #[error("output port {0} is not present in the live ZX graph")]
     UnknownOutput(IVec3),
-    /// No closed frame surface exists for an output Pauli.
-    #[error("no closed {pauli} frame surface for output {output}")]
-    OutputSurfaceUnavailable {
-        /// Output position.
-        output: IVec3,
-        /// Requested Pauli basis.
-        pauli: PauliBasis,
-    },
     /// ZX graph update failed.
     #[error("{0}")]
     ZX(#[from] ZXError),
@@ -105,13 +97,13 @@ impl RuntimeStabilizerBasis {
     /// Returns a [`RuntimeBasisError`] if a selective site admits no permitted
     /// support.
     pub fn from_zx_graph(zx_graph: ZXGraph) -> Result<Self, RuntimeBasisError> {
-        let constraints = collect_selective_constraints(&zx_graph);
-        let raw_basis =
-            reduce_to_basis(&zx_graph.to_external_generator_table(), zx_graph.total_ids);
-        let rows = reduce_to_basis(
-            &normalize_selective_support(&raw_basis, &constraints)?,
-            zx_graph.total_ids,
-        );
+        let mut rows = reduce_to_basis(&zx_graph.to_external_generator_table(), zx_graph.total_ids);
+        // Normalization adds rows to rows, so they remain an independent basis.
+        normalize_selective_support_in_place(
+            &mut rows,
+            None,
+            &collect_selective_constraints(&zx_graph),
+        )?;
         let public_len = rows.len();
         Ok(Self::new(zx_graph, rows, public_len))
     }

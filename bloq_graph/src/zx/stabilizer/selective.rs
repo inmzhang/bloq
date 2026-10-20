@@ -43,15 +43,6 @@ pub(crate) fn collect_selective_constraints(zx: &ZXGraph) -> Vec<SelectiveConstr
         .collect()
 }
 
-pub(crate) fn normalize_selective_support(
-    generators: &[PauliString],
-    constraints: &[SelectiveConstraint],
-) -> Result<Vec<PauliString>, StabilizerError> {
-    let mut rows = generators.to_vec();
-    normalize_selective_support_in_place(&mut rows, None, constraints)?;
-    Ok(rows)
-}
-
 /// Cancel forbidden selective support in place. When `coeffs` is `Some`, every
 /// row XOR is mirrored on the parallel coefficient slice so generator provenance
 /// stays in lockstep with the rows.
