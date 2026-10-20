@@ -805,16 +805,13 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
         }
     }
 
-    // One topological order certifies most candidates without a graph walk: an
-    // edge that follows the order cannot close a cycle. Add all such edges
-    // first, then probe only candidates that oppose the order against the
-    // evolving graph. Initial-T control flow can genuinely point from a later-z
-    // footprint to an earlier-z one, so source time alone is not a certificate.
+    // One topological order can certify the union without a graph walk.
+    // Initial-T control flow may point from a later-z footprint to an earlier-z
+    // one, so source time alone is not a certificate.
     let mut candidate_pairs: Vec<_> = candidate_slots
         .into_iter()
         .map(|(lower, upper)| (footprints[lower as usize].id, footprints[upper as usize].id))
         .collect();
-    candidate_pairs.sort_unstable_by_key(|(from, to)| (from.0, to.0));
     let initial_order = bloq
         .deterministic_emit_order()
         .expect("lowered IR is acyclic before occupancy ordering");
@@ -825,43 +822,75 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
     }
     // An acyclic union certifies every candidate and every insertion prefix.
     // Check it once instead of walking the graph for each backward candidate.
-    // If the union cycles, keep the existing per-edge decisions and order.
+    // A cyclic union needs individual ordering decisions below.
     let batch_acyclic = candidate_pairs
         .iter()
         .all(|(from, to)| rank[from.0 as usize] < rank[to.0 as usize])
         || bloq.is_acyclic_with_edges(&candidate_pairs);
-    let mut scratch = bloq.path_scratch();
-    for forward in [true, false] {
+    // A reset-only overlap is an ordering preference, not a reason to
+    // interrupt a carried state. Settle data-bearing boundaries first.
+    let mut live_pairs = crate::FxSet::default();
+    if !batch_acyclic {
         for &(from, to) in &candidate_pairs {
-            if (rank[from.0 as usize] < rank[to.0 as usize]) == forward && !has_edge(bloq, from, to)
-            {
-                if batch_acyclic || forward || !bloq.has_path_with_scratch(to, from, &mut scratch) {
-                    bloq.add_edge(from, to, BloqEdge::Order);
-                } else {
-                    for (from, to) in plan_live_era_reordering(
-                        bloq,
-                        from,
-                        to,
-                        &neighbors.predecessors,
-                        LiveDirection::BeforeInputs,
-                        &mut live_supports,
-                        &mut scratch,
-                    )? {
-                        bloq.add_edge(from, to, BloqEdge::Order);
-                    }
-                    for (before, after) in plan_live_era_reordering(
-                        bloq,
-                        to,
-                        from,
-                        &neighbors.successors,
-                        LiveDirection::AfterOutputs,
-                        &mut live_supports,
-                        &mut scratch,
-                    )? {
-                        bloq.add_edge(before, after, BloqEdge::Order);
-                    }
-                }
+            if bloq[from].try_region().is_some() || bloq[to].try_region().is_some() {
+                live_pairs.insert((from, to));
+                continue;
             }
+            cache_live_uses(bloq, &mut live_supports, from)?;
+            cache_live_uses(bloq, &mut live_supports, to)?;
+            let a = &live_supports[&from];
+            let b = &live_supports[&to];
+            if a.inputs
+                .keys()
+                .chain(a.outputs.keys())
+                .any(|q| b.uses.contains_key(q))
+                || b.inputs
+                    .keys()
+                    .chain(b.outputs.keys())
+                    .any(|q| a.uses.contains_key(q))
+            {
+                live_pairs.insert((from, to));
+            }
+        }
+    }
+    candidate_pairs.sort_unstable_by_key(|&(from, to)| {
+        (
+            !live_pairs.contains(&(from, to)),
+            rank[from.0 as usize] >= rank[to.0 as usize],
+            from.0,
+            to.0,
+        )
+    });
+    let mut scratch = bloq.path_scratch();
+    for (from, to) in candidate_pairs {
+        if has_edge(bloq, from, to) {
+            continue;
+        }
+        if batch_acyclic || !bloq.has_path_with_scratch(to, from, &mut scratch) {
+            bloq.add_edge(from, to, BloqEdge::Order);
+            continue;
+        }
+        for (from, to) in plan_live_era_reordering(
+            bloq,
+            from,
+            to,
+            &neighbors.predecessors,
+            LiveDirection::BeforeInputs,
+            &mut live_supports,
+            &mut scratch,
+        )? {
+            bloq.add_edge(from, to, BloqEdge::Order);
+        }
+        for (before, after) in plan_live_era_reordering(
+            bloq,
+            to,
+            from,
+            &neighbors.successors,
+            LiveDirection::AfterOutputs,
+            &mut live_supports,
+            &mut scratch,
+        )? {
+            bloq.add_edge(before, after, BloqEdge::Order);
         }
     }
     Ok(())
@@ -1031,6 +1060,35 @@ mod tests {
             induce_occupancy_order_edges(&mut bloq),
             Err(crate::CompileError::ConditionalRegionLivenessUnsupported { node }) if node == reuser
         ));
+    }
+
+    #[test]
+    fn optional_ancilla_order_cannot_force_a_reset_inside_a_live_era() {
+        let mut bloq = Bloq::new();
+        let later_source = add_live_node(&mut bloq, 4, false, true);
+        let ancilla = add_block_node(&mut bloq, ivec3(1, 0, 1), ivec2(1, 0));
+        let earlier_source = add_live_node(&mut bloq, 2, false, true);
+        let earlier_cap = add_live_node(&mut bloq, 3, true, false);
+        let later_cap = add_live_node(&mut bloq, 5, true, false);
+        let touch = add_block_node(&mut bloq, ivec3(1, 0, 2), ivec2(1, 0));
+        let instance = bloq[touch].expect_quantum().instances[0];
+        bloq.remove_node(touch).unwrap();
+        bloq.node_mut(earlier_source)
+            .unwrap()
+            .expect_quantum_mut()
+            .instances
+            .push(instance);
+        bloq.add_edge(earlier_source, earlier_cap, BloqEdge::quantum(vec![]));
+        bloq.add_edge(later_source, later_cap, BloqEdge::quantum(vec![]));
+        bloq.add_edge(later_source, ancilla, BloqEdge::Order);
+        bloq.add_edge(earlier_cap, later_cap, BloqEdge::Order);
+        // Both complete live eras fit: earlier_source, earlier_cap,
+        // later_source, ancilla, later_cap. Only the resettable ancilla's
+        // optional source-z ordering needs to change.
+        induce_occupancy_order_edges(&mut bloq).unwrap();
+        assert!(bloq.has_path(earlier_cap, later_source));
+        assert!(bloq.has_path(earlier_source, ancilla));
+        bloq.deterministic_emit_order().unwrap();
     }
 
     #[test]

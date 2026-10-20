@@ -103,7 +103,7 @@ impl BlockGraph {
         }
         let mut flips = HashSet::new();
         for component in self.cube_layer_components().into_values().flatten() {
-            crate::cancellation::check_current().map_err(crate::StabilizerError::from)?;
+            crate::CancellationToken::checkpoint()?;
             let index = component
                 .iter()
                 .enumerate()
@@ -650,10 +650,11 @@ mod tests {
 
     #[cfg(feature = "verify")]
     fn assert_hadamard_channel(source: &BlockGraph, rewritten: &BlockGraph) {
-        let expected =
-            crate::verify::parse_qasm("OPENQASM 2.0; include \"qelib1.inc\"; qreg q[1]; h q[0];")
-                .unwrap()
-                .to_graph();
+        let expected = quizx::circuit::Circuit::from_qasm(
+            "OPENQASM 2.0; include \"qelib1.inc\"; qreg q[1]; h q[0];",
+        )
+        .unwrap()
+        .to_graph();
         for graph in [source, rewritten] {
             crate::verify::LogicalVerifier::new(graph)
                 .unwrap()

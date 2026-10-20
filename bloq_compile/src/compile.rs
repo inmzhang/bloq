@@ -703,20 +703,35 @@ fn compile_proxy(
     // Certify the source before rewriting; pins still name its original arms.
     let source_summary = ctx.summarize(graph, config.certification_limits())?;
     let rewritten = source.fix_shadowed_faces().with_temporal_hadamards()?;
-    let conditions = |graph: &BlockGraph| graph.actions().into_iter().filter_map(|action| match action {
-        bloq_graph::Action::Resolve { target, condition } => Some((target, condition)),
-        _ => None,
-    }).collect::<crate::FxMap<_, _>>();
+    let conditions = |graph: &BlockGraph| {
+        graph
+            .actions()
+            .into_iter()
+            .filter_map(|action| match action {
+                bloq_graph::Action::Resolve { target, condition } => Some((target, condition)),
+                _ => None,
+            })
+            .collect::<crate::FxMap<_, _>>()
+    };
     let before = conditions(source);
     let after = conditions(&rewritten);
-    let pins = ordered_blocks(source).into_iter().filter(|block| block.kind().is_selective())
-        .zip(pins).map(|(block, pin)| pin ^ (before.get(&block.pos()) != after.get(&block.pos())))
+    let pins = ordered_blocks(source)
+        .into_iter()
+        .filter(|block| block.kind().is_selective())
+        .zip(pins)
+        .map(|(block, pin)| pin ^ (before.get(&block.pos()) != after.get(&block.pos())))
         .collect();
-    let geometry_changed = source.blocks().any(|block| rewritten.get_block(block.pos()) != Some(block))
-        || source.pipes().any(|pipe| rewritten.get_pipe(pipe.src(), pipe.dst()) != Some(pipe));
+    let geometry_changed = source
+        .blocks()
+        .any(|block| rewritten.get_block(block.pos()) != Some(block))
+        || source
+            .pipes()
+            .any(|pipe| rewritten.get_pipe(pipe.src(), pipe.dst()) != Some(pipe));
     let summary = if geometry_changed {
         ctx.summarize(&rewritten, config.certification_limits())?
-    } else { source_summary };
+    } else {
+        source_summary
+    };
     ctx.clifford_proxy = Some(CliffordProxyPins {
         pins,
         purpose,
@@ -2066,22 +2081,26 @@ mod tests {
             assert_ne!(before[0], after[0], "first arm selector is exchanged");
             assert_eq!(before[1], after[1], "second arm selector is unchanged");
 
-            for pins in [[false, true], [true, false]] {
+            for pins in [[false, false], [true, true]] {
                 for purpose in [
                     CliffordProxyPurpose::Distance,
                     CliffordProxyPurpose::Detslice,
                 ] {
-                    let actual = compile_proxy(CompileConfig::new(3), &source, &pins, purpose)
-                        .unwrap_or_else(|error| {
-                            panic!("{kind} mixed={mixed_spatial} {pins:?}: {error}")
-                        })
-                        .bloq;
-                    let expected = compile_pinned_clifford_proxy(
+                    let actual = compile_proxy(
+                        CompileConfig::new(3),
+                        &source,
+                        |_| Ok(pins.to_vec()),
+                        purpose,
+                    )
+                    .unwrap_or_else(|error| {
+                        panic!("{kind} mixed={mixed_spatial} {pins:?}: {error}")
+                    })
+                    .bloq;
+                    let expected = compile_proxy(
                         CompileConfig::new(3),
                         &rewritten,
-                        &[!pins[0], pins[1]],
+                        |_| Ok(vec![!pins[0], pins[1]]),
                         purpose,
-                        None,
                     )
                     .unwrap()
                     .bloq;
@@ -2103,12 +2122,11 @@ mod tests {
             let random = compile_random_clifford_proxy(CompileConfig::new(3), &source, 17)
                 .unwrap()
                 .bloq;
-            let expected = compile_pinned_clifford_proxy(
+            let expected = compile_proxy(
                 CompileConfig::new(3),
                 &rewritten,
-                &[!pins[0], pins[1]],
+                |_| Ok(vec![!pins[0], pins[1]]),
                 CliffordProxyPurpose::Distance,
-                None,
             )
             .unwrap()
             .bloq;
@@ -4396,7 +4414,7 @@ module main {{
   a: Cap @ [0,0,0]
   b: Cap @ [3,0,0] rotate Z 90
   1 -> a.q
-  3 -H> b.q
+  3 -> b.q
   mx = measure 4
   my = measure 5
   x => a.basis
@@ -4545,17 +4563,19 @@ module main {{
             .bloq;
             assert_eq!(prepared.to_binary(), reference.to_binary(), "{label}");
             assert!(!prepared.output_frames().is_empty());
-            assert!(
-                cached_module_definitions(&context, &program)
-                    .values()
-                    .any(|definition| {
-                        definition
+            // Rewritten geometry compiles local templates instead of reusing
+            // physical variants tied to the original definition's frame.
+            if !registry::hierarchy_needs_local_variants(&program) {
+                assert!(
+                    cached_module_definitions(&context, &program)
+                        .values()
+                        .any(|definition| definition
                             .variants
                             .values()
-                            .any(|info| info.template.is_selective())
-                    }),
-                "{label} needs selective inventory coverage"
-            );
+                            .any(|info| info.template.is_selective())),
+                    "{label} needs selective inventory coverage"
+                );
+            }
         }
     }
 
@@ -4769,7 +4789,7 @@ module main {
                 parallel.bloq.to_binary(),
                 "{label}"
             );
-            if program.has_continuing_branches() {
+            if registry::hierarchy_needs_local_variants(&program) {
                 let orientations = program.definition_orientations();
                 for (name, implementation) in program.module_definition_cache_keys() {
                     assert!(
@@ -4780,7 +4800,7 @@ module main {
                                 orientations: orientations[&name].clone(),
                             })
                             .is_none(),
-                        "continuing hierarchies retain guarded physical contexts"
+                        "rewritten hierarchies retain local physical contexts"
                     );
                 }
             } else {

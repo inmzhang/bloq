@@ -35,7 +35,7 @@ fn assembly(reason: impl Into<String>) -> CompileError {
     }
 }
 
-fn hierarchy_needs_local_variants(program: &BlockGraph) -> bool {
+pub(super) fn hierarchy_needs_local_variants(program: &BlockGraph) -> bool {
     let mut pending = vec![program.root()];
     let mut seen = BTreeSet::new();
     while let Some(module) = pending.pop() {
@@ -43,11 +43,18 @@ fn hierarchy_needs_local_variants(program: &BlockGraph) -> bool {
             continue;
         }
         if module.local_body().has_continuing_branches()
-            || module.local_body().pipes().any(bloq_graph::Pipe::is_hadamard)
-            || module.quantum_connections.iter().any(|connection| matches!(connection,
-                QuantumConnection::Input { hadamard: true, .. }
-                | QuantumConnection::Output { hadamard: true, .. }
-                | QuantumConnection::Pipe { hadamard: true, .. }))
+            || module
+                .local_body()
+                .pipes()
+                .any(bloq_graph::Pipe::is_hadamard)
+            || module.quantum_connections.iter().any(|connection| {
+                matches!(
+                    connection,
+                    QuantumConnection::Input { hadamard: true, .. }
+                        | QuantumConnection::Output { hadamard: true, .. }
+                        | QuantumConnection::Pipe { hadamard: true, .. }
+                )
+            })
         {
             return true;
         }
@@ -133,8 +140,12 @@ fn compile_native(
     let fixed = source.with_zero_min_z()?.fix_shadowed_faces();
     let graph = fixed.with_temporal_hadamards()?;
     // Composed witnesses refer to the original internal ZX geometry.
-    let geometry_changed = fixed.blocks().any(|block| graph.get_block(block.pos()) != Some(block))
-        || fixed.pipes().any(|pipe| graph.get_pipe(pipe.src(), pipe.dst()) != Some(pipe));
+    let geometry_changed = fixed
+        .blocks()
+        .any(|block| graph.get_block(block.pos()) != Some(block))
+        || fixed
+            .pipes()
+            .any(|pipe| graph.get_pipe(pipe.src(), pipe.dst()) != Some(pipe));
     let summary = summary.filter(|_| !geometry_changed);
     let (bloq, interface, warnings) = {
         let sites = source_sites

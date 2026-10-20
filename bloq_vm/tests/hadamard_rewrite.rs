@@ -7,7 +7,7 @@ use std::f64::consts::FRAC_1_SQRT_2;
 use bloq_compile::{CompileConfig, CompileContext};
 use bloq_graph::{
     Action, BlockGraph, BlockKind, PauliBasis,
-    verify::{LogicalVerifier, QuizxGraph, parse_qasm},
+    verify::{LogicalVerifier, QuizxGraph},
 };
 use bloq_ir::NodeProvenance;
 use bloq_vm::{ShotContext, run_bloq_with_io, verify::logical_bloch};
@@ -16,6 +16,7 @@ use quizx::graph::{BasisElem, GraphLike};
 
 mod common;
 use common::choi::stabilizer::physical_qubit;
+use common::parse_qasm;
 
 fn source(cap: &str, feedback: bool) -> BlockGraph {
     let resolve = if matches!(cap, "XY" | "XZ" | "YZ") {

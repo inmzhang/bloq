@@ -810,7 +810,8 @@ fn hadamard_capped_t_preserves_the_source_branch_sign() {
     {
         use std::collections::BTreeMap;
 
-        use bloq_graph::verify::{LogicalVerifier, QuizxGraph, parse_qasm};
+        use bloq_graph::verify::{LogicalVerifier, QuizxGraph};
+        use common::parse_qasm;
         use quizx::graph::{BasisElem, GraphLike};
 
         for source in [&graph, &graph.with_temporal_hadamards().unwrap()] {

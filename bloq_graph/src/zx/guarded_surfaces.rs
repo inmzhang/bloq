@@ -1370,6 +1370,13 @@ impl GuardedSurfaceSpace {
                 }
                 .into());
             }
+            // Early controls can unlock shorter witnesses for later candidates.
+            let earliest = candidates
+                .iter()
+                .map(|(_, _, time)| *time)
+                .min()
+                .expect("nonempty candidates checked above");
+            candidates.retain(|(_, _, time)| *time == earliest);
             available_values.learn(
                 candidates.iter().map(|(name, _, _)| name.as_str()),
                 &mut self.topology.diagram,
@@ -3816,6 +3823,77 @@ mod tests {
             assert_eq!(available.len(), 1);
             assert_eq!(available.rows().next().unwrap().terms(), commuting.terms());
         }
+    }
+
+    #[test]
+    fn early_readout_unlocks_a_shorter_witness_before_late_candidates_are_committed() {
+        let ast = crate::parse_blog_program_to_ast(
+            r#"BLOG 1.0
+module main {
+in p0: data = 4
+in p1: data = 5
+in p2: data = 6
+in p3: data = 7
+0: X [0,0,0]
+1: X [2,0,1]
+2: X [4,0,10]
+3: XY [6,0,2]
+4: Port [0,0,-1] role=input
+5: Port [2,0,0] role=input
+6: Port [4,0,9] role=input
+7: Port [6,0,1] role=input
+4 -> +Z
+5 -> +Z
+6 -> +Z
+7 -> +Z
+a = measure 0
+b = measure 1
+resolve 3 if a
+}
+"#,
+        )
+        .unwrap();
+        let graph = crate::lower_blog_graph_ast_deferred(&ast).unwrap();
+        let limits = ModuleCertificationLimits::DEFAULT;
+        let mut space = GuardedSurfaceSpace::new(
+            GuardedTopology::new(&graph, limits).unwrap(),
+            &HashMap::new(),
+            limits,
+        )
+        .unwrap();
+        let a = space
+            .topology
+            .diagram
+            .negate(space.topology.resolves[0].1)
+            .unwrap();
+        let column = |position| space.node_components(position)[0][0].0;
+        let early = column([0, 0, 0]);
+        let measured = column([2, 0, 1]);
+        let late = column([4, 0, 10]);
+        let selective = column([6, 0, 2]);
+        // Initially b has a late witness. Knowing a opens an equivalent
+        // witness through the earlier selective cap, Y or X according to a.
+        space.rows = vec![
+            BooleanRow::from_terms(ONE, [(early, ONE)]),
+            BooleanRow::from_terms(ONE, [(measured, ONE), (late, ONE)]),
+            BooleanRow::from_terms(ONE, [(late, ONE), (selective, ONE), (selective + 1, a)]),
+        ];
+        space.plan_causal_readouts::<true, true>().unwrap();
+        let b = space
+            .surfaces
+            .iter()
+            .find(|surface| {
+                matches!(
+                    &surface.kind, GuardedSurfaceKind::Readout { name, .. } if name == "b"
+                )
+            })
+            .unwrap();
+        assert_eq!(
+            b.row.get(late),
+            ZERO,
+            "b must use the newly unlocked early witness"
+        );
+        assert_eq!(b.row.get(selective), ONE);
     }
 
     #[test]
