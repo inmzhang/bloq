@@ -84,9 +84,11 @@ check synthesis; execution checks every joint output Pauli expectation.
   Bloq's positive T source and adaptive X/Y measurement. For corrected ZZ bit
   `b`, T reads X when `b=0` and Y when `b=1`; T† exchanges them. Bloq computes
   the corrected readouts, dependencies, and output frames from the imported graph.
-- Imported coordinates are uniformly spaced by three; identity cubes subdivide
-  pipes and preserve their Hadamard parity. This leaves room for endpoint gadgets
-  and enlarges the layout. The original compact embedding remains available for
+- Imported coordinates are first spaced by three; identity cubes subdivide
+  pipes and preserve their Hadamard parity, leaving room for endpoint gadgets.
+  After lowering, complete idle time slices are contracted while protecting
+  resources, controls, ports, tags, and Hadamard seams. The spatial collar still
+  enlarges the layout. The original compact embedding remains available for
   provenance; adapted volume is not TopoLS's optimized volume.
 - Routing success does not guarantee compatibility. Unsupported frames,
   inconsistent interfaces, protected frames that still require mixed spatial wall axes, or destructive patch

@@ -1,5 +1,7 @@
 """Unit-grid geometry shared by the layout adapters."""
 
+from bisect import bisect_left
+from collections import defaultdict
 from fractions import Fraction
 from numbers import Integral
 from typing import Any
@@ -132,6 +134,94 @@ def add_t_resource(nodes, edges, node, *, phase, name):
     return actions
 
 
+def _compact_temporal_layers(graph):
+    """Contract complete identity slices in a flat, unit-height import.
+
+    This is an import optimization, not a rewrite of authored memory duration.
+    Named actions, H seams, tagged geometry and nonordinary blocks are anchors.
+    The native compiler must still validate physical patch lifetimes afterward.
+    """
+    if graph.has_module_structure:
+        raise GeometryError('time_compaction', 'Flatten the imported graph before time compaction')
+    graph.validate()
+    blocks = {b.pos: b for b in graph.blocks()}
+    positions = {p: p for p in blocks}
+    actions = graph.actions()
+    if (any(b.height != 'd' for b in blocks.values())
+            or any(a.kind not in ('let', 'measure', 'feedback', 'resolve', 'discard_if') for a in actions)):
+        return graph, positions
+    rows = defaultdict(list)
+    neighbors: dict[Position, dict[Position, bloq.Pipe | None]] = {p: {} for p in blocks}
+    for b in blocks.values():
+        rows[b.pos[2]].append(b)
+    for pipe in graph.pipes():
+        neighbors[pipe.src][pipe.dst] = pipe
+        neighbors[pipe.dst][pipe.src] = pipe
+    protected = set()
+
+    def protect(pos, direction=None):
+        protected.add(pos[2])
+        if direction is not None and str(direction)[1] == 'Z':
+            protected.add(pos[2] + (1 if str(direction)[0] == '+' else -1))
+
+    for action in actions:
+        if action.target is not None:
+            protect(action.target.pos, action.target.direction)
+        if action.resolve_target is not None:
+            protect(action.resolve_target)
+        for target in action.feedback_targets or []:
+            protect(target.pos, target.direction)
+
+    def identity(block):
+        kind, p = str(block.kind), block.pos
+        return (kind in _CUBES and kind[0] != kind[1] and block.tag is None
+                and len(neighbors[p]) == 2
+                and all(q[:2] == p[:2] and abs(q[2] - p[2]) == 1
+                        and pipe is not None and not pipe.hadamard and pipe.tag is None
+                        for q, pipe in neighbors[p].items()))
+
+    removed = sorted(z for z, row in rows.items() if z not in protected and all(map(identity, row)))
+    if not removed:
+        return graph, positions
+    for z in removed:
+        for block in rows[z]:
+            p = block.pos
+            lower, upper = sorted(neighbors.pop(p), key=lambda q: q[2])
+            del neighbors[lower][p]
+            del neighbors[upper][p]
+            neighbors[lower][upper] = neighbors[upper][lower] = None
+            del positions[p]
+    positions = {p: (p[0], p[1], p[2] - bisect_left(removed, p[2])) for p in positions}
+    compact = bloq.BlockGraph()
+    for p, q in positions.items():
+        b = blocks[p]
+        compact.add_block(bloq.Block(q, b.kind, height=b.height, tag=b.tag, role=b.role or 'auto'))
+    for p, adjacent in neighbors.items():
+        for q, pipe in adjacent.items():
+            if p < q:
+                compact.add_pipe(bloq.Pipe(positions[p], _direction(positions[p], positions[q]),
+                                          hadamard=pipe.hadamard if pipe is not None else False,
+                                          tag=pipe.tag if pipe is not None else None))
+    remapped = []
+    for action in actions:
+        if action.target is not None:
+            target = action.target
+            target = (bloq.MeasureTarget.edge(positions[target.pos], target.direction) if target.is_edge
+                      else bloq.MeasureTarget.node(positions[target.pos]))
+            action = bloq.Action.measure(target, action.name)
+        elif action.resolve_target is not None:
+            action = bloq.Action.resolve(positions[action.resolve_target], action.condition)
+        elif action.feedback_targets is not None:
+            action = bloq.Action.feedback([
+                bloq.FeedbackTarget(t.pauli, positions[t.pos], direction=t.direction)
+                for t in action.feedback_targets
+            ], action.condition)
+        remapped.append(action)
+    compact.set_actions(remapped)
+    compact.validate()
+    return compact, positions
+
+
 def build_graph(nodes, edges, qubits, actions):
     """Validate frames and bind the complete, source-ordered interface."""
     positions = {n: _position(d['position']) for n, d in nodes.items()}
@@ -168,6 +258,8 @@ def build_graph(nodes, edges, qubits, actions):
     graph = graph.with_zero_min_z()
     inputs, outputs = (tuple((x, y, z - min_z) for _, (x, y, z) in sorted(ports[role].items()))
                        for role in ('input', 'output'))
+    graph, positions = _compact_temporal_layers(graph)
+    inputs, outputs = (tuple(positions[p] for p in interface) for interface in (inputs, outputs))
     graph = bloq.BlockGraph.definition('main', graph,
         inputs={f'in_{i}': p for i, p in enumerate(inputs)}, outputs={f'out_{i}': p for i, p in enumerate(outputs)})
     graph.validate()

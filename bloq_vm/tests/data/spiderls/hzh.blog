@@ -2,40 +2,22 @@ BLOG 1.0
 
 module main {
   in in_0: data = 0
-  out out_0: data = 5
+  out out_0: data = 2
 
   0: Port [0, 0, 0] role=input
   1: XZX [0, 0, 3]
-  2: XZX [0, 0, 6]
-  3: ZXX [0, 0, 9]
-  4: ZXX [0, 0, 12]
-  5: Port [0, 0, 15] role=output
-  6: ZXX [0, 0, 1]
-  7: XZX [0, 0, 2]
-  8: XZX [0, 0, 4]
-  9: XZX [0, 0, 5]
-  10: XZX [0, 0, 7]
-  11: ZXX [0, 0, 8]
-  12: ZXX [0, 0, 10]
-  13: ZXX [0, 0, 11]
-  14: ZXX [0, 0, 13]
-  15: ZXX [0, 0, 14]
+  2: Port [0, 0, 6] role=output
+  3: ZXX [0, 0, 1]
+  4: XZX [0, 0, 2]
+  5: XZX [0, 0, 4]
+  6: ZXX [0, 0, 5]
   0 -> +Z
   1 -> +Z
-  2 -> +Z
-  3 -> +Z
+  3 -H> +Z
   4 -> +Z
-  6 -H> +Z
-  7 -> +Z
-  8 -> +Z
-  9 -> +Z
-  10 -H> +Z
-  11 -> +Z
-  12 -> +Z
-  13 -> +Z
-  14 -> +Z
-  15 -> +Z
+  5 -H> +Z
+  6 -> +Z
 
-  feedback Z 2 -> +Z
+  feedback Z 1 -> +Z
 
 }

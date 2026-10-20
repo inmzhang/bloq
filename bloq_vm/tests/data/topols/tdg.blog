@@ -5,42 +5,38 @@ module main {
   out out_0: data = 2
 
   0: Port [0, 0, 0] role=input
-  1: ZXX [0, 0, 3]
-  2: Port [0, 0, 6] role=output
-  3: XZX [6, -3, 3]
-  4: ZZX [0, -3, 3]
-  5: ZZX [3, -3, 3]
-  6: ZXX [0, 0, 2]
-  7: ZXX [0, 0, 1]
-  8: ZXX [0, -1, 3]
-  9: ZZX [0, -2, 3]
-  10: ZZX [1, -3, 3]
-  11: ZZX [2, -3, 3]
-  12: ZZX [4, -3, 3]
-  13: ZZX [5, -3, 3]
-  14: ZXX [0, 0, 4]
-  15: ZXX [0, 0, 5]
-  16: T [6, -3, 2]
-  17: XY [6, -3, 4]
-  1 -> -Z
-  1 -> -Y
+  1: ZXX [0, 0, 2]
+  2: Port [0, 0, 4] role=output
+  3: XZX [6, -3, 2]
+  4: ZZX [0, -3, 2]
+  5: ZZX [3, -3, 2]
+  6: ZXX [0, 0, 1]
+  7: ZXX [0, -1, 2]
+  8: ZZX [0, -2, 2]
+  9: ZZX [1, -3, 2]
+  10: ZZX [2, -3, 2]
+  11: ZZX [4, -3, 2]
+  12: ZZX [5, -3, 2]
+  13: ZXX [0, 0, 3]
+  14: T [6, -3, 1]
+  15: XY [6, -3, 3]
+  0 -> +Z
   1 -> +Z
   3 -> +Z
+  4 -> +Y
   4 -> +X
   5 -> +X
-  6 -> -Z
-  7 -> -Z
-  8 -> -Y
-  9 -> -Y
+  6 -> +Z
+  7 -> +Y
+  8 -> +Y
+  9 -> +X
   10 -> +X
   11 -> +X
   12 -> +X
-  13 -> +X
+  13 -> +Z
   14 -> +Z
-  15 -> +Z
-  16 -> +Z
 
-  topols_t_1_old_t = measure 13 -> +X
-  resolve 17 if topols_t_1_old_t
+  topols_t_1_old_t = measure 12 -> +X
+  resolve 15 if topols_t_1_old_t
 
 }

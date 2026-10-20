@@ -13,7 +13,7 @@
     [
       0,
       0,
-      6
+      4
     ]
   ],
   "normalized_qasm": "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[1];\ntdg q[0];\n",

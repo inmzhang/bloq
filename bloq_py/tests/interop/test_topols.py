@@ -134,7 +134,7 @@ def test_import_retains_original_and_exact_canonical_inputs(t_import):
     assert t_import.source_qasm == source("t q[0];")
     assert t_import.normalized_qasm == source("t q[0];")
     assert t_import.input_ports == ((0, 0, 0),)
-    assert t_import.output_ports == ((0, 0, 6),)
+    assert t_import.output_ports == ((0, 0, 4),)
     fixture = Path(__file__).resolve().parents[3] / "bloq_vm/tests/data/topols/t.blog"
     assert t_import.graph.to_text().rstrip() + "\n" == fixture.read_text()
 

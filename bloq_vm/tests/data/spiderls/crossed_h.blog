@@ -2,35 +2,23 @@ BLOG 1.0
 
 module main {
   in in_0: data = 0
-  in in_1: data = 3
-  out out_0: data = 4
+  in in_1: data = 2
+  out out_0: data = 3
   out out_1: data = 1
 
   0: Port [9, 0, 0] role=input
-  1: Port [9, 0, 6] role=output
-  2: ZXX [9, 0, 3]
-  3: Port [18, 0, 0] role=input
-  4: Port [18, 0, 6] role=output
-  5: ZXX [18, 0, 3]
-  6: ZXX [9, 0, 1]
-  7: ZXX [9, 0, 2]
-  8: ZXX [9, 0, 4]
-  9: XZX [9, 0, 5]
-  10: ZXX [18, 0, 1]
-  11: ZXX [18, 0, 2]
-  12: ZXX [18, 0, 4]
-  13: ZXX [18, 0, 5]
+  1: Port [9, 0, 3] role=output
+  2: Port [18, 0, 0] role=input
+  3: Port [18, 0, 3] role=output
+  4: ZXX [9, 0, 1]
+  5: XZX [9, 0, 2]
+  6: ZXX [18, 0, 1]
+  7: ZXX [18, 0, 2]
   0 -> +Z
   2 -> +Z
-  3 -> +Z
+  4 -H> +Z
   5 -> +Z
   6 -> +Z
   7 -> +Z
-  8 -H> +Z
-  9 -> +Z
-  10 -> +Z
-  11 -> +Z
-  12 -> +Z
-  13 -> +Z
 
 }

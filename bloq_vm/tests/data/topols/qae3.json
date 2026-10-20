@@ -23,17 +23,17 @@
     [
       6,
       6,
-      60
+      40
     ],
     [
       0,
       0,
-      60
+      40
     ],
     [
       6,
       0,
-      60
+      40
     ]
   ],
   "normalized_qasm": "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[3];\nh q[0];\nh q[1];\nsdg q[2];\nh q[2];\nt q[2];\nh q[2];\ns q[2];\nsdg q[2];\nh q[2];\nt q[2];\nh q[2];\ns q[2];\ncx q[0],q[2];\nsdg q[2];\nh q[2];\ntdg q[2];\nh q[2];\ns q[2];\ncx q[0],q[2];\nsdg q[1];\nsdg q[2];\ncx q[1],q[2];\ns q[2];\ncx q[0],q[1];\ncx q[1],q[0];\ncx q[0],q[1];\nh q[0];\ntdg q[1];\ncx q[1],q[0];\nt q[0];\ncx q[1],q[0];\ntdg q[0];\nh q[1];\n",
@@ -57,7 +57,7 @@
     "candidate": "qae3",
     "algorithm": "Three-qubit amplitude estimation",
     "qubits": 3,
-    "candidate_generator_sha256": "949090b306d09c88b7c346e27c3fbc61b4b866e6c126fc969b0aaf38b603a298",
+    "candidate_generator_sha256": "5a95b7cd4eab05fbe609da9538c8a73a5f56a1015c051d9815d88b9810cc906b",
     "projective_spectral_error": 9.951718551378292e-16,
     "gate_counts": {
       "h": 10,
