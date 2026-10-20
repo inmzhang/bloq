@@ -46,7 +46,7 @@ module main {
   33: ZXZ [-2, 1, 6]
   34: ZXZ [4, 1, 6]
   35: XZZ [0, 4, 9]
-  36: ZXX [0, 4, 16]
+  36: ZXX [0, 5, 16]
   37: ZXZ [4, 1, 13]
   38: ZXZ [-2, -1, 13]
   39: XXZ [0, 1, 3]
@@ -222,19 +222,20 @@ module main {
   209: T [4, 2, 6]
   210: XY [4, 2, 8]
   211: XZX [0, 4, 10]
-  212: XZX [-1, 4, 10]
-  213: T [-1, 4, 9]
-  214: XY [-1, 4, 11]
-  215: T [0, 4, 15]
-  216: XY [0, 4, 17]
-  217: ZXX [4, 1, 14]
-  218: ZXX [4, 2, 14]
-  219: T [4, 2, 13]
-  220: XY [4, 2, 15]
-  221: ZXX [-2, -1, 14]
-  222: ZXX [-2, 0, 14]
-  223: T [-2, 0, 13]
-  224: XY [-2, 0, 15]
+  212: XZX [1, 4, 10]
+  213: T [1, 4, 9]
+  214: XY [1, 4, 11]
+  215: ZZX [0, 4, 16]
+  216: T [0, 5, 15]
+  217: XY [0, 5, 17]
+  218: ZXX [4, 1, 14]
+  219: ZXX [4, 0, 14]
+  220: T [4, 0, 13]
+  221: XY [4, 0, 15]
+  222: ZXX [-2, -1, 14]
+  223: ZXX [-2, 0, 14]
+  224: T [-2, 0, 13]
+  225: XY [-2, 0, 15]
   0 -> +Z
   1 -> +Z
   2 -> +Z
@@ -348,8 +349,8 @@ module main {
   100 -> +X
   101 -> +X
   103 -> +Z
-  105 -> +Y
   105 -> +X
+  105 -> +Y
   107 -> +Y
   108 -> +X
   108 -> +Z
@@ -454,16 +455,17 @@ module main {
   207 -> +Y
   208 -> +Z
   209 -> +Z
-  212 -> +X
+  211 -> +X
   212 -> +Z
   213 -> +Z
-  215 -> +Z
-  217 -> +Y
-  218 -> +Z
+  215 -> +Y
+  216 -> +Z
+  219 -> +Y
   219 -> +Z
-  221 -> +Y
-  222 -> +Z
+  220 -> +Z
+  222 -> +Y
   223 -> +Z
+  224 -> +Z
 
   topols_t_10_0_t = measure 59 -> +Y
   resolve 202 if topols_t_10_0_t
@@ -471,13 +473,13 @@ module main {
   resolve 206 if !topols_t_13_0_t
   topols_t_16_0_old_t = measure 207 -> +Y
   resolve 210 if !topols_t_16_0_old_t
-  topols_t_17_0_old_t = measure 211 -> -X
+  topols_t_17_0_old_t = measure 211 -> +X
   resolve 214 if topols_t_17_0_old_t
-  topols_t_28_t = measure 105 -> +Y
-  resolve 216 if !topols_t_28_t
-  topols_t_23_t = measure 217 -> +Y
-  resolve 220 if topols_t_23_t
-  topols_t_22_t = measure 221 -> +Y
-  resolve 224 if !topols_t_22_t
+  topols_t_28_t = measure 215 -> +Y
+  resolve 217 if !topols_t_28_t
+  topols_t_23_t = measure 218 -> -Y
+  resolve 221 if topols_t_23_t
+  topols_t_22_t = measure 222 -> +Y
+  resolve 225 if !topols_t_22_t
 
 }

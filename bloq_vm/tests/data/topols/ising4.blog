@@ -74,19 +74,19 @@ module main {
   61: Y [-1, 0, 5]
   62: Y [1, 2, 5]
   63: Y [2, -1, 10]
-  64: XZX [-2, -1, 13]
+  64: XZX [-3, -1, 13]
   65: ZXZ [0, 1, 15]
   66: ZXZ [4, -1, 18]
   67: ZXZ [2, 3, 22]
   68: XZZ [1, 2, 25]
-  69: XZX [4, 1, 28]
+  69: XZX [5, 1, 28]
   70: ZXZ [-2, 1, 25]
   71: ZXZ [0, 2, 34]
-  72: XZX [-2, -1, 32]
-  73: XZX [4, 1, 39]
+  72: XZX [-3, -2, 32]
+  73: XZX [5, 2, 39]
   74: ZXZ [2, 3, 43]
-  75: XZX [-2, 2, 43]
-  76: XZX [-2, 2, 46]
+  75: XZX [-3, 2, 43]
+  76: XZX [-3, 3, 46]
   77: XZX [1, 0, 1]
   78: XZX [3, 2, 1]
   79: XZX [-1, 0, 3]
@@ -437,26 +437,35 @@ module main {
   424: Y [1, 2, 26]
   425: Y [0, 2, 35]
   426: Y [2, 3, 44]
-  427: T [-2, -1, 12]
-  428: XY [-2, -1, 14]
-  429: ZXX [4, -1, 19]
-  430: ZXX [4, 0, 19]
-  431: T [4, 0, 18]
-  432: XY [4, 0, 20]
-  433: T [4, 1, 27]
-  434: XY [4, 1, 29]
-  435: ZXX [-2, 1, 26]
-  436: ZXX [-2, 2, 26]
-  437: T [-2, 2, 25]
-  438: XY [-2, 2, 27]
-  439: T [-2, -1, 31]
-  440: XY [-2, -1, 33]
-  441: T [4, 1, 38]
-  442: XY [4, 1, 40]
-  443: T [-2, 2, 42]
-  444: XY [-2, 2, 44]
-  445: T [-2, 2, 45]
-  446: XY [-2, 2, 47]
+  427: ZZX [-2, -1, 13]
+  428: T [-3, -1, 12]
+  429: XY [-3, -1, 14]
+  430: ZXX [4, -1, 19]
+  431: ZXX [4, 0, 19]
+  432: T [4, 0, 18]
+  433: XY [4, 0, 20]
+  434: ZZX [4, 1, 28]
+  435: T [5, 1, 27]
+  436: XY [5, 1, 29]
+  437: ZXX [-2, 1, 26]
+  438: ZXX [-2, 0, 26]
+  439: T [-2, 0, 25]
+  440: XY [-2, 0, 27]
+  441: ZZX [-2, -1, 32]
+  442: ZZX [-2, -2, 32]
+  443: T [-3, -2, 31]
+  444: XY [-3, -2, 33]
+  445: ZZX [4, 1, 39]
+  446: ZZX [4, 2, 39]
+  447: T [5, 2, 38]
+  448: XY [5, 2, 40]
+  449: ZZX [-2, 2, 43]
+  450: T [-3, 2, 42]
+  451: XY [-3, 2, 44]
+  452: ZZX [-2, 2, 46]
+  453: ZZX [-2, 3, 46]
+  454: T [-3, 3, 45]
+  455: XY [-3, 3, 47]
   0 -H> +Z
   1 -> +Z
   2 -H> +Z
@@ -629,8 +638,8 @@ module main {
   146 -> +X
   147 -> +X
   147 -> +Y
-  149 -> +X
   149 -> +Y
+  149 -> +X
   150 -> +X
   151 -> +Y
   152 -> +Z
@@ -690,8 +699,8 @@ module main {
   207 -> +Y
   208 -> +Y
   208 -> +X
-  210 -> +X
   210 -> +Z
+  210 -> +X
   211 -> +Y
   211 -> +X
   213 -> +Z
@@ -900,18 +909,27 @@ module main {
   419 -> +Z
   420 -> +Z
   421 -H> +Z
-  427 -> +Z
-  429 -> +Y
-  430 -> +Z
+  427 -> +X
+  428 -> +Z
+  430 -> +Y
   431 -> +Z
-  433 -> +Z
-  435 -> +Y
-  436 -> +Z
-  437 -> +Z
+  432 -> +Z
+  434 -> +X
+  435 -> +Z
+  438 -> +Y
+  438 -> +Z
   439 -> +Z
-  441 -> +Z
+  441 -> +X
+  442 -> +Y
   443 -> +Z
-  445 -> +Z
+  445 -> +Y
+  446 -> +X
+  447 -> +Z
+  449 -> +X
+  450 -> +Z
+  452 -> +X
+  452 -> +Y
+  454 -> +Z
 
   feedback Z 4 -> +Z
   feedback Z 5 -> +Z
@@ -923,21 +941,21 @@ module main {
   feedback Z 32 -> -Y
   feedback Z 39 -> +X
   feedback Z 52 -> -X
-  topols_t_28_old_t = measure 109 -> -X
-  resolve 428 if !topols_t_28_old_t
-  topols_t_31_t = measure 429 -> +Y
-  resolve 432 if !topols_t_31_t
-  topols_t_34_4_t = measure 149 -> +X
-  resolve 434 if !topols_t_34_4_t
-  topols_t_37_4_t = measure 435 -> +Y
-  resolve 438 if !topols_t_37_4_t
-  topols_t_55_4_old_t = measure 173 -> -X
-  resolve 440 if !topols_t_55_4_old_t
-  topols_t_58_t = measure 210 -> +X
-  resolve 442 if !topols_t_58_t
-  topols_t_61_t = measure 217 -> -X
-  resolve 444 if !topols_t_61_t
-  topols_t_64_old_t = measure 223 -> -X
-  resolve 446 if !topols_t_64_old_t
+  topols_t_28_old_t = measure 427 -> -X
+  resolve 429 if !topols_t_28_old_t
+  topols_t_31_t = measure 430 -> +Y
+  resolve 433 if !topols_t_31_t
+  topols_t_34_4_t = measure 434 -> +X
+  resolve 436 if !topols_t_34_4_t
+  topols_t_37_4_t = measure 437 -> -Y
+  resolve 440 if !topols_t_37_4_t
+  topols_t_55_4_old_t = measure 442 -> -X
+  resolve 444 if !topols_t_55_4_old_t
+  topols_t_58_t = measure 446 -> +X
+  resolve 448 if !topols_t_58_t
+  topols_t_61_t = measure 449 -> -X
+  resolve 451 if !topols_t_61_t
+  topols_t_64_old_t = measure 453 -> -X
+  resolve 455 if !topols_t_64_old_t
 
 }

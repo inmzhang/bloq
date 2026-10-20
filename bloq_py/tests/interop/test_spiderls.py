@@ -30,6 +30,7 @@ def test_compact_routing_preserves_the_executable_interface():
                          spacing=2, routing_margin=1, placement_margin=1)
     assert imported.layout_options['spacing'] == 2
     assert imported.layout_options['routing_margin'] == 1
+    assert max(p[2] for p in imported.graph.positions()) <= len(imported.routing.layers) + 1
     program = bloq.compile(imported.graph, distance=3, prepare_t_with_mpps=True, validate=True)
     assert {output.port for output in program.logical_outputs()} == set(imported.output_ports)
 
@@ -71,12 +72,11 @@ def test_zero_time_hzh_uses_dependencies_instead_of_event_array_order():
     assert {output.port for output in program.logical_outputs()} == set(outputs)
 
 
-def test_independent_local_event_chains_share_time_without_merging_each_chain():
+def test_local_cliffords_do_not_allocate_event_slices():
     imported = from_qasm(source('h q[0]; z q[0]; h q[0]; h q[1]; z q[1]; h q[1];', 2))
     graph = imported.graph.flatten()
-    # Two independent four-event chains need four slices, not eight. The
-    # separate final output slice and resource spacing then give z=0..15.
-    assert max(p[2] for p in graph.positions()) <= 15
+    # HZH is X feedback on the input wire; neither qubit needs event slices.
+    assert max(p[2] for p in graph.positions()) <= 2
 
 
 @pytest.mark.parametrize('phase', ['pi/4', '-pi/4', '3*pi/4', '5*pi/4'])
@@ -160,3 +160,5 @@ def test_reused_physical_patch_preserves_original_source_interface():
     assert len(plus) > len(set(plus)), 'fixture must exercise a reused physical patch ID'
     assert len(imported.input_ports) == len(imported.output_ports) == 2
     assert set(imported.input_ports).isdisjoint(imported.output_ports)
+    # This reset needs two extra ticks, rather than spacing every layer by three.
+    assert max(p[2] for p in imported.graph.positions()) <= len(imported.routing.layers) + 3

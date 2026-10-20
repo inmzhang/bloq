@@ -78,6 +78,8 @@ check synthesis; execution checks every joint output Pauli expectation.
 - The upstream patch recognizes signed S/S† and T/T† and preserves their exact
   phases through spider fusion. It also retains only live output boundaries and
   keeps S-resource stubs above finished layers and clear of routed inputs.
+  Layer lifts preserve the color of branching spiders, including continuations
+  with a temporal normal; recoloring a junction would change its logical map.
   Bloq binds each routed resource to its prepared or fallback source vertex.
   T† uses one T resource, with no extra S gadgets.
 - S endpoints become signed Y preparations/measurements. T endpoints receive
@@ -87,15 +89,17 @@ check synthesis; execution checks every joint output Pauli expectation.
 - Upstream spatial coordinates are preserved. Only time is initially spaced by
   three to fit endpoint gadgets; complete idle slices are then contracted while
   protecting resources, controls, ports, and tags. Temporal H seams compose by
-  parity. T endpoints use the shortest free outward arm, trying either side of
-  a required elbow and preserving the signed control recipe. Arms never cross
-  occupied routes. Signed Y caps are reserved first. `grid_spacing` records
+  parity. Signed Y caps are reserved before T attachments. `grid_spacing` records
   `(1, 1, 3)` before temporal contraction; the original embedding is retained.
-  Adapted volume still includes explicit endpoint and event geometry.
+  Endpoint gadgets still contribute to the imported volume.
+- T attachments try the shortest outward arms, then bounded joint placement
+  with spatial doglegs of identity cubes. Pending T patches reserve distinct
+  spatial columns clear of data and other gadgets, even at different source
+  times. The injection axis and signed control recipe are preserved.
 - Routing success does not guarantee compatibility. Unsupported frames,
-  inconsistent interfaces, protected frames that still require mixed spatial wall axes, or destructive patch
-  reuse fail explicitly. The example also checks the compiled output interface
-  before execution. The adapter performs no lifetime-aware rerouting.
+  inconsistent interfaces, mixed spatial Hadamard-wall axes that cannot be
+  rewritten, exhausted placement budgets, and destructive patch reuse reject.
+  The adapter performs no lifetime-aware upstream rerouting.
 - VM checks use ideal T-source proxies, noiseless physical circuits, ideal input
   preparation, and ideal boundary capture. They do not claim cultivation
   acceptance, hardware timing, or fault-tolerant distance.

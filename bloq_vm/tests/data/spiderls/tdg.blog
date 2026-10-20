@@ -5,16 +5,14 @@ module main {
   out out_0: data = 6
 
   0: Port [0, 0, 0] role=input
-  1: ZXX [0, 0, 2]
-  2: ZXX [0, 1, 2]
-  3: ZXX [0, 2, 2]
-  4: ZXX [0, 3, 2]
-  5: ZXX [0, 4, 2]
-  6: Port [0, 0, 4] role=output
-  7: ZXX [0, 0, 1]
-  8: ZXX [0, 0, 3]
-  9: T [0, 4, 1]
-  10: XY [0, 4, 3]
+  1: ZXX [0, 0, 1]
+  2: ZXX [0, 1, 1]
+  3: ZXX [0, 2, 1]
+  4: ZXX [0, 3, 1]
+  5: ZXX [0, 4, 1]
+  6: Port [0, 0, 2] role=output
+  7: T [0, 4, 0]
+  8: XY [0, 4, 2]
   0 -> +Z
   1 -> +Y
   1 -> +Z
@@ -23,10 +21,8 @@ module main {
   4 -> +Y
   5 -> +Z
   7 -> +Z
-  8 -> +Z
-  9 -> +Z
 
   spiderls_t_1 = measure 4 -> +Y
-  resolve 10 if spiderls_t_1
+  resolve 8 if spiderls_t_1
 
 }

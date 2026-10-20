@@ -50,7 +50,7 @@ module main {
   37: ZXZ [4, 3, 5]
   38: ZXZ [4, 0, 5]
   39: XZZ [-1, 4, 10]
-  40: XZX [-2, 1, 16]
+  40: XZX [-3, 1, 16]
   41: XZZ [1, 4, 10]
   42: XZZ [2, 2, 1]
   43: XXZ [0, 3, 1]
@@ -197,9 +197,9 @@ module main {
   184: T [-2, 2, 1]
   185: XY [-2, 2, 3]
   186: ZXX [-2, 1, 6]
-  187: ZXX [-2, 2, 6]
-  188: T [-2, 2, 5]
-  189: XY [-2, 2, 7]
+  187: ZXX [-2, 0, 6]
+  188: T [-2, 0, 5]
+  189: XY [-2, 0, 7]
   190: ZXX [4, 3, 6]
   191: ZXX [4, 4, 6]
   192: T [4, 4, 5]
@@ -212,12 +212,13 @@ module main {
   199: XZX [0, 4, 11]
   200: T [0, 4, 10]
   201: XY [0, 4, 12]
-  202: T [-2, 1, 15]
-  203: XY [-2, 1, 17]
-  204: XZX [1, 4, 11]
-  205: XZX [2, 4, 11]
-  206: T [2, 4, 10]
-  207: XY [2, 4, 12]
+  202: ZZX [-2, 1, 16]
+  203: T [-3, 1, 15]
+  204: XY [-3, 1, 17]
+  205: XZX [1, 4, 11]
+  206: XZX [2, 4, 11]
+  207: T [2, 4, 10]
+  208: XY [2, 4, 12]
   0 -H> +Z
   1 -H> +Z
   2 -H> +Z
@@ -414,7 +415,7 @@ module main {
   182 -> +Y
   183 -> +Z
   184 -> +Z
-  186 -> +Y
+  187 -> +Y
   187 -> +Z
   188 -> +Z
   190 -> +Y
@@ -426,14 +427,15 @@ module main {
   198 -> +X
   199 -> +Z
   200 -> +Z
-  202 -> +Z
-  204 -> +X
-  205 -> +Z
+  202 -> +X
+  203 -> +Z
+  205 -> +X
   206 -> +Z
+  207 -> +Z
 
   topols_t_10_0_t = measure 182 -> +Y
   resolve 185 if topols_t_10_0_t
-  topols_t_13_0_t = measure 186 -> +Y
+  topols_t_13_0_t = measure 186 -> -Y
   resolve 189 if !topols_t_13_0_t
   topols_t_16_0_old_t = measure 190 -> +Y
   resolve 193 if !topols_t_16_0_old_t
@@ -441,9 +443,9 @@ module main {
   resolve 197 if topols_t_17_0_old_t
   topols_t_28_1_t = measure 198 -> +X
   resolve 201 if !topols_t_28_1_t
-  topols_t_22_1_t = measure 83 -> -X
-  resolve 203 if !topols_t_22_1_t
-  topols_t_23_1_t = measure 204 -> +X
-  resolve 207 if topols_t_23_1_t
+  topols_t_22_1_t = measure 202 -> -X
+  resolve 204 if !topols_t_22_1_t
+  topols_t_23_1_t = measure 205 -> +X
+  resolve 208 if topols_t_23_1_t
 
 }

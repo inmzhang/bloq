@@ -1,8 +1,9 @@
 """Import SpiderLS's routed measurements with exact phases and source ports.
 
 The optional upstream checkout must include ``examples/spiderls.patch``.
-Zero-time events become ordered slices; this is a Bloq embedding rather than
-SpiderLS's reported optimized volume. No upstream pickle or bgraph is loaded.
+Clifford events fold into pipes and feedback; endpoint collisions insert local
+gaps. This is a Bloq embedding rather than SpiderLS's reported optimized volume.
+No upstream pickle or bgraph is loaded.
 """
 
 from collections import defaultdict
@@ -16,8 +17,8 @@ from typing import Any
 import bloq
 
 from bloq.interop._geometry import (
-    GRID_SPACING, GeometryError, Position, _direction, _space_diagram,
-    add_t_resource, build_graph,
+    GeometryError, Position, _direction,
+    add_t_resources, build_graph,
 )
 from bloq.interop._qasm import QASMImportError, parse_qasm
 
@@ -139,11 +140,8 @@ def _convert(source, target, schedule, routing):
 
     measurements, gadgets = _phase_history(source, target, schedule)
     nodes, edges, zs = diagram(source, target, schedule, routing)
-    nodes, edges = _space_diagram(nodes,
-        {pair: (nodes[pair[0]]['position'], nodes[pair[1]]['position']) for pair in edges})
-    edges = list(edges)
     routes = {c.measurement_id: (c, layer) for layer in routing.layers for c in layer.connections}
-    actions = [bloq.Action.feedback([bloq.FeedbackTarget('Z', nodes[n]['position'], direction='+Z')]) for n in zs]
+    actions = [bloq.Action.feedback([bloq.FeedbackTarget(pauli, nodes[n]['position'], direction='+Z')]) for n, pauli in zs]
     resources = []
     s_gadgets = set()
     for n, d in nodes.items():
@@ -184,8 +182,8 @@ def _convert(source, target, schedule, routing):
     expected = {ms[0].measurement_id for kind, _, ms in gadgets.values() if kind == 'T'}
     if {mid for _, _, mid in resources} != expected or len(resources) != len(expected):
         raise SpiderLSImportError('source_provenance', 'Missing or duplicate T endpoint')
-    for node, phase, mid in resources:
-        actions.extend(add_t_resource(nodes, edges, node, phase=phase, name=f'spiderls_t_{mid}'))
+    actions.extend(add_t_resources(nodes, edges, [(node, phase, f'spiderls_t_{mid}')
+                                                   for node, phase, mid in resources]))
     return build_graph(nodes, edges, len(source.inputs()), actions)
 
 
@@ -195,7 +193,7 @@ def from_qasm(qasm: str, *, spacing: int = 3, routing_margin: int = 3,
 
     Routing spacing must be at least two; margins must be positive. Smaller
     values trade routing room for footprint and can make a layout infeasible.
-    Bloq's separate resource-gadget spacing remains fixed.
+    Bloq preserves the routed unit grid, adding local gaps for endpoint cubes.
     """
     import pyzx as zx
     import pyzx_execution_order as execution
@@ -235,6 +233,6 @@ def from_qasm(qasm: str, *, spacing: int = 3, routing_margin: int = 3,
         raise SpiderLSImportError(error.code, error.message) from error
     root = Path(execution.__file__).resolve().parents[1]
     revision = subprocess.run(['git', '-C', str(root), 'rev-parse', 'HEAD'], capture_output=True, text=True)
-    options = dict(routing.parameters, include_boundary_h=True, grid_spacing=GRID_SPACING, ordered_zero_time_events=True)
+    options = dict(routing.parameters, include_boundary_h=True, grid_spacing=(1, 1, 1), ordered_zero_time_events=True)
     return SpiderLSImport(graph, inputs, outputs, qasm, revision.stdout.strip() if revision.returncode == 0 else None,
                           options, source, plan, target, schedule, routing)

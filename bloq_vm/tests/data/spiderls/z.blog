@@ -6,12 +6,10 @@ module main {
 
   0: Port [0, 0, 0] role=input
   1: ZXX [0, 0, 1]
-  2: Port [0, 0, 3] role=output
-  3: ZXX [0, 0, 2]
+  2: Port [0, 0, 2] role=output
   0 -> +Z
   1 -> +Z
-  3 -> +Z
 
-  feedback Z 1 -> +Z
+  feedback Z 0 -> +Z
 
 }

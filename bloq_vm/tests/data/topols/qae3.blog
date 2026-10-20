@@ -51,7 +51,7 @@ module main {
   40: Port [2, 0, 34] role=output
   41: Port [0, 0, 34] role=output
   42: ZXZ [0, 1, 2]
-  43: XZX [-2, 1, 2]
+  43: XZX [-3, 1, 2]
   44: Y [0, 1, 6]
   45: Y [0, 3, 9]
   46: ZXZ [-2, 1, 6]
@@ -64,7 +64,7 @@ module main {
   53: Y [3, 0, 21]
   54: ZXZ [-2, -1, 28]
   55: XZX [4, 0, 28]
-  56: ZXX [0, 4, 31]
+  56: ZXX [0, 5, 31]
   57: ZXZ [2, 2, 2]
   58: XXZ [1, 1, 2]
   59: ZZX [-1, 2, 2]
@@ -278,24 +278,26 @@ module main {
   267: Y [0, 1, 3]
   268: Y [2, 3, 10]
   269: Y [0, 2, 22]
-  270: T [-2, 1, 1]
-  271: XY [-2, 1, 3]
-  272: ZXX [-2, 1, 7]
-  273: ZXX [-2, 2, 7]
-  274: T [-2, 2, 6]
-  275: XY [-2, 2, 8]
-  276: XZX [0, 4, 14]
-  277: XZX [1, 4, 14]
-  278: T [1, 4, 13]
-  279: XY [1, 4, 15]
-  280: ZXX [-2, -1, 29]
-  281: ZXX [-2, 0, 29]
-  282: T [-2, 0, 28]
-  283: XY [-2, 0, 30]
-  284: T [4, 0, 27]
-  285: XY [4, 0, 29]
-  286: T [0, 4, 30]
-  287: XY [0, 4, 32]
+  270: ZZX [-2, 1, 2]
+  271: T [-3, 1, 1]
+  272: XY [-3, 1, 3]
+  273: ZXX [-2, 1, 7]
+  274: ZXX [-2, 2, 7]
+  275: T [-2, 2, 6]
+  276: XY [-2, 2, 8]
+  277: XZX [0, 4, 14]
+  278: XZX [1, 4, 14]
+  279: T [1, 4, 13]
+  280: XY [1, 4, 15]
+  281: ZXX [-2, -1, 29]
+  282: ZXX [-2, 0, 29]
+  283: T [-2, 0, 28]
+  284: XY [-2, 0, 30]
+  285: T [4, 0, 27]
+  286: XY [4, 0, 29]
+  287: ZXX [0, 4, 31]
+  288: T [0, 5, 30]
+  289: XY [0, 5, 32]
   0 -H> +Z
   1 -H> +Z
   2 -> +Z
@@ -479,8 +481,8 @@ module main {
   166 -> +X
   167 -> +Z
   168 -> +X
-  169 -> +Y
   169 -> +Z
+  169 -> +Y
   171 -> +Z
   171 -> +Y
   173 -> +Z
@@ -577,33 +579,35 @@ module main {
   264 -> +Z
   265 -> +Z
   266 -> +Z
-  270 -> +Z
-  272 -> +Y
-  273 -> +Z
+  270 -> +X
+  271 -> +Z
+  273 -> +Y
   274 -> +Z
-  276 -> +X
-  277 -> +Z
+  275 -> +Z
+  277 -> +X
   278 -> +Z
-  280 -> +Y
-  281 -> +Z
+  279 -> +Z
+  281 -> +Y
   282 -> +Z
-  284 -> +Z
-  286 -> +Z
+  283 -> +Z
+  285 -> +Z
+  287 -> +Y
+  288 -> +Z
 
   feedback Z 5 -> +Z
   feedback Z 8 -> -X
   feedback Z 14 -> +Z
-  topols_t_7_t = measure 60 -> -X
-  resolve 271 if !topols_t_7_t
-  topols_t_12_t = measure 272 -> +Y
-  resolve 275 if !topols_t_12_t
-  topols_t_19_t = measure 276 -> +X
-  resolve 279 if topols_t_19_t
-  topols_t_36_t = measure 280 -> +Y
-  resolve 283 if topols_t_36_t
+  topols_t_7_t = measure 270 -> -X
+  resolve 272 if !topols_t_7_t
+  topols_t_12_t = measure 273 -> +Y
+  resolve 276 if !topols_t_12_t
+  topols_t_19_t = measure 277 -> +X
+  resolve 280 if topols_t_19_t
+  topols_t_36_t = measure 281 -> +Y
+  resolve 284 if topols_t_36_t
   topols_t_39_t = measure 157 -> +X
-  resolve 285 if !topols_t_39_t
-  topols_t_42_old_t = measure 169 -> +Y
-  resolve 287 if topols_t_42_old_t
+  resolve 286 if !topols_t_39_t
+  topols_t_42_old_t = measure 287 -> +Y
+  resolve 289 if topols_t_42_old_t
 
 }

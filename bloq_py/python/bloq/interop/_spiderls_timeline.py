@@ -1,4 +1,4 @@
-"""Embed SpiderLS's event DAG without joining distinct patch lifetimes."""
+"""Embed SpiderLS's event DAG on a compact clock with distinct patch lifetimes."""
 
 from collections import defaultdict
 from graphlib import CycleError, TopologicalSorter
@@ -9,6 +9,66 @@ from bloq.interop._geometry import GeometryError
 def _require(condition, message):
     if not condition:
         raise GeometryError('event_order', message)
+
+
+def _place(nodes, edges, route_times, endpoints, depth):
+    """Keep routed layers adjacent unless endpoint cubes need a larger gap."""
+    adjacent = defaultdict(list)
+    for a, b in edges:
+        adjacent[a].append(b)
+        adjacent[b].append(a)
+    anchors = {n: (time, 0) for n, time in route_times.items()}
+    for n, sign in endpoints.items():
+        _require(len(adjacent[n]) == 1, f'Boundary {n!r} is not terminal')
+        neighbor, = adjacent[n]
+        role = nodes[n]['other']
+        if isinstance(role, dict) and role['type'] == 'output':
+            anchors[n] = (depth + 1, 0)
+        elif neighbor in route_times:
+            anchors[n] = (route_times[neighbor], sign)
+        else:
+            anchors[n] = (0 if sign < 0 else depth + 1, 0)
+    _require(anchors.keys() == nodes.keys(), 'Some embedded nodes have no clock anchor')
+    columns = defaultdict(list)
+    for n, data in nodes.items():
+        columns[data['position'][:2]].append(n)
+    constraints = defaultdict(list)
+    for column in columns.values():
+        column.sort(key=lambda n: nodes[n]['position'][2])
+        for a, b in zip(column, column[1:]):
+            ta, oa = anchors[a]
+            tb, ob = anchors[b]
+            # Endpoints are one tick from their junction: release then prepare
+            # between adjacent routed layers requires a gap of three ticks.
+            gap = 1 + oa - ob
+            _require(ta <= tb and (ta != tb or gap <= 0), f'Conflicting endpoint order: {a!r} -> {b!r}')
+            if ta != tb:
+                constraints[tb].append((ta, gap))
+    clock = [0]
+    for time in range(1, depth + 2):
+        clock.append(max([clock[-1] + (2 if depth == 0 else 1),
+                          *(clock[a] + gap for a, gap in constraints[time])]))
+    placed = {n: dict(d, position=(*d['position'][:2], clock[anchors[n][0]] + anchors[n][1]))
+              for n, d in nodes.items()}
+    occupied = {d['position'] for d in placed.values()}
+    _require(len(occupied) == len(placed), 'Embedded endpoints overlap')
+    pipes = []
+    for a, b in edges:
+        p, q = placed[a]['position'], placed[b]['position']
+        if p[:2] != q[:2]:
+            pipes.append((a, b))
+            continue
+        _require(p[2] < q[2], f'Patch reverses time: {a!r} -> {b!r}')
+        previous = a
+        for z in range(p[2] + 1, q[2]):
+            n, position = f'world_{a}_{z}', (*p[:2], z)
+            _require(n not in placed and position not in occupied, f'Overlapping patch lifetimes at {position}')
+            placed[n] = dict(position=position, tqec=nodes[a]['tqec'], other=None)
+            occupied.add(position)
+            pipes.append((previous, n))
+            previous = n
+        pipes.append((previous, b))
+    return placed, pipes
 
 
 def diagram(source, target, schedule, routed):
@@ -36,7 +96,9 @@ def diagram(source, target, schedule, routed):
         _require(after.get(i, 0) >= event.after_time, f'Event {i} precedes its source boundary')
         grouped[after.get(i, 0)].add(i)
     try:
-        order = tuple(TopologicalSorter({i: set(e.dependency_node_ids) & events.keys() for i, e in events.items()}).static_order())
+        order = {i: rank for rank, i in enumerate(TopologicalSorter(
+            {i: set(e.dependency_node_ids) & events.keys() for i, e in events.items()}
+        ).static_order())}
     except CycleError as error:
         raise GeometryError('event_order', 'Zero-time events contain a dependency cycle') from error
     raw = (routing_to_pipe_inputs(routed, include_worldlines=False, include_io_ports=False)
@@ -47,6 +109,7 @@ def diagram(source, target, schedule, routed):
     ancillas: dict[int, str] = {}
     completed: set[int] = set()
     z_actions = []
+    route_times, endpoints, orientations = {}, {}, {}
     index = -1
 
     def body(orientation):
@@ -62,12 +125,7 @@ def diagram(source, target, schedule, routed):
     def connect(a, b):
         p, q = nodes[a]['position'], nodes[b]['position']
         _require(p[:2] == q[:2] and p[2] < q[2], f'Patch moves or overlaps: {a!r} -> {b!r}')
-        last = a
-        for z in range(p[2] + 1, q[2]):
-            n = add(f'world_{a}_{z}', (*p[:2], z), nodes[a]['tqec'])
-            edges.append((last, n))
-            last = n
-        edges.append((last, b))
+        edges.append((a, b))
 
     def data(patch, name, frame, other=None):
         _require(patch in routed.data_positions, f'Patch {patch} has no routed position')
@@ -75,12 +133,14 @@ def diagram(source, target, schedule, routed):
         if patch in previous:
             connect(previous[patch], n)
         previous[patch] = n
+        orientations[n] = active[patch]
         return n
 
-    def zero(event, z):
+    def zero(event):
         nonlocal index
         _require(set(event.dependency_node_ids) <= completed, f'Event {event.dag_node_id} precedes a dependency')
-        index = z
+        # This index records order only; _place assigns physical times later.
+        index += 1
         patch, kind = event.patch, event.kind
         if kind in ('PREPARE_INPUT', 'PREPARE_PLUS'):
             _require(patch not in active, f'Preparation overwrites active patch {patch}')
@@ -91,36 +151,27 @@ def diagram(source, target, schedule, routed):
                 boundaries = [b for b in source.inputs() if event.vertices[0] in source.neighbors(b)]
                 _require(len(boundaries) == 1, f'Input patch {patch} has no unique source boundary')
                 other = dict(type='input', qubit=list(source.inputs()).index(boundaries[0]))
-            data(patch, f'event_{event.dag_node_id}', body(0), other)
+            n = data(patch, f'event_{event.dag_node_id}', body(0), other)
+            endpoints[n] = -1
         else:
             _require(patch in active, f'{kind} targets inactive patch {patch}')
             _require(kind in ('H', 'H_INPUT', 'H_OUTPUT', 'Z', 'RELEASE'), f'Unsupported event {kind!r}')
             if kind.startswith('H'):
                 active[patch] = 90 - active[patch]
-            n = data(patch, f'event_{event.dag_node_id}', body(active[patch]))
-            if kind == 'Z':
-                z_actions.append(n)
+            elif kind == 'Z':
+                n = previous[patch]
+                # Move Z back through pending H gates onto the preceding wire.
+                z_actions.append((n, 'Z' if active[patch] == orientations[n] else 'X'))
             elif kind == 'RELEASE':
+                n = data(patch, f'event_{event.dag_node_id}', body(active[patch]))
+                endpoints[n] = 1
                 del active[patch]
                 del previous[patch]
         completed.add(event.dag_node_id)
 
     def zero_group(ids):
-        nonlocal index
-        base = index
-        times: dict[int, int] = {}
-        last_patch: dict[int, int] = {}
-        for i in order:
-            if i not in ids:
-                continue
-            event = events[i]
-            # Independent patches can share a slice. Keep all DAG edges and
-            # same-patch lifetimes strictly separated, including after release.
-            z = max([base + 1, last_patch.get(event.patch, base) + 1,
-                     *(times[d] + 1 for d in event.dependency_node_ids if d in times)])
-            zero(event, z)
-            times[i] = last_patch[event.patch] = z
-        index = max(times.values(), default=base)
+        for i in sorted(ids, key=order.__getitem__):
+            zero(events[i])
 
     zero_group(grouped[0])
     for layer in routed.layers:
@@ -131,6 +182,7 @@ def diagram(source, target, schedule, routed):
         for n, d in prefix.items():
             if n not in inactive:
                 add(n, (*d['position'][:2], index), d.get('tqec'), d.get('other'))
+                route_times[n] = layer.time
         for a, b in raw['edges']:
             if a in prefix and b in prefix:
                 _require(a not in inactive and b not in inactive, 'A route touches a released data patch')
@@ -146,6 +198,7 @@ def diagram(source, target, schedule, routed):
                     nodes[n]['tqec'] = body(patch.orientation)
                 connect(previous[p], n)
                 previous[p] = n
+                orientations[n] = active[p]
             else:
                 if patch.gadget_id in ancillas:
                     connect(ancillas[patch.gadget_id], n)
@@ -167,7 +220,8 @@ def diagram(source, target, schedule, routed):
         if vertex in mapping:
             patch = mapping[vertex]
             _require(patch in active, f'Output patch {patch} was released')
-            data(patch, f'output_{wire}', body(active[patch]), dict(type='output', qubit=wire))
+            n = data(patch, f'output_{wire}', body(active[patch]), dict(type='output', qubit=wire))
+            endpoints[n] = 1
     # Full reduction can leave disconnected I/H wires outside target code.
     # Their source boundary order is independent of physical patch IDs.
     for ib, ob, h in target.ignored_direct_io:
@@ -176,5 +230,7 @@ def diagram(source, target, schedule, routed):
         a = add(f'direct_in_{wire}', (x, 0, 0), 'ZXX', dict(type='input', qubit=wire))
         b = add(f'direct_out_{out}', (x, 0, index), 'XZX' if int(h) == 2 else 'ZXX', dict(type='output', qubit=out))
         connect(a, b)
+        endpoints[a], endpoints[b] = -1, 1
+    nodes, edges = _place(nodes, edges, route_times, endpoints, len(routed.layers))
     result = _load_local_pipe_module().create_manual_pipe_diagram(nodes=nodes, edges=edges, require_tqec=False, plot=False)
     return result['bgraph_metadata'], edges, z_actions

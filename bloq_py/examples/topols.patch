@@ -16,7 +16,7 @@ index 11b2aed..175f93b 100644
      CompileOutput {
          pos: std::mem::take(&mut hist.pos), ori: std::mem::take(&mut hist.ori), typ: std::mem::take(&mut hist.typ), paths: std::mem::take(&mut hist.paths),
 diff --git a/rust/topols_core/src/embedding/state.rs b/rust/topols_core/src/embedding/state.rs
-index 0f2aad5..cdacacd 100644
+index 0f2aad5..5b56ec4 100644
 --- a/rust/topols_core/src/embedding/state.rs
 +++ b/rust/topols_core/src/embedding/state.rs
 @@ -632,7 +632,9 @@ impl EmbeddingState {
@@ -30,7 +30,38 @@ index 0f2aad5..cdacacd 100644
                          found = Some((p0, p1));
                          break;
                      }
-@@ -808,3 +810,31 @@ impl EmbeddingState {
+@@ -755,22 +757,15 @@ impl EmbeddingState {
+             }
+             let path = route_to_ceiling(p, &occ_ceiling, &extra, target, self.z_floor, ceiling_z as f64, ceiling_floors)?;
+             let entry = if is_cube(nt) {
+-                if nt == 4 || nt == 5 {
+-                    let (ct, ld) = edge_tracer(&path, self.ori[&node], 0);
+-                    if ori_map(ld, ct, 0) == Axis::K {
+-                        CeilingEntry { path: path.clone(), ori: Some(ori_map(ld, ct, 1)), typ: 1 }
+-                    } else {
+-                        CeilingEntry { path: path.clone(), ori: Some(ori_map(ld, ct, 0)), typ: nt }
+-                    }
++                let color = trace_type(nt);
++                let (ct, ld) = edge_tracer(&path, self.ori[&node], color);
++                // Recolouring is an identity only for a non-branching continuation.
++                let lifted_type = if ori_map(ld, ct, color) == Axis::K && self.layer.output_connect[&node] <= 1 {
++                    (1 - color) as NodeType
+                 } else {
+-                    let (ct, ld) = edge_tracer(&path, self.ori[&node], nt as u8);
+-                    if ori_map(ld, ct, nt as u8) == Axis::K {
+-                        let t2: u8 = if nt != 1 { 1 } else { 0 };
+-                        CeilingEntry { path: path.clone(), ori: Some(ori_map(ld, ct, t2)), typ: t2 as NodeType }
+-                    } else {
+-                        CeilingEntry { path: path.clone(), ori: Some(ori_map(ld, ct, nt as u8)), typ: nt }
+-                    }
+-                }
++                    nt
++                };
++                CeilingEntry { path: path.clone(), ori: Some(ori_map(ld, ct, trace_type(lifted_type))), typ: lifted_type }
+             } else {
+                 CeilingEntry { path: path.clone(), ori: None, typ: nt }
+             };
+@@ -808,3 +803,57 @@ impl EmbeddingState {
  pub fn occ_from(cells: impl IntoIterator<Item = Cell>) -> Occ {
      cells.into_iter().collect()
  }
@@ -38,6 +69,32 @@ index 0f2aad5..cdacacd 100644
 +#[cfg(test)]
 +mod tests {
 +    use super::*;
++
++    #[test]
++    fn ceiling_lift_preserves_branching_spider_color() {
++        let node = NodeId::int(0);
++        for kind in [0, 1, 4, 5] {
++            for outgoing in [1, 2] {
++                let state = EmbeddingState::new(
++                    NodeMap::from([(node, Cell::new(0, -1, 0))]),
++                    NodeMap::from([(node, Axis::J)]), NodeMap::from([(node, kind)]),
++                    Paths::new(), i32::MIN, occ_from([Cell::new(0, -1, 0)]),
++                    -1.0, Floors::all(-10.0, 10.0, -10.0, 10.0),
++                    NodeMap::new(), NodeMap::new(), NodeMap::new(),
++                    Arc::new(Layer {
++                        node_type: NodeMap::from([(node, kind)]),
++                        output_connect: NodeMap::from([(node, outgoing)]),
++                        inter_connect: vec![],
++                    }),
++                    Arc::new(NodeMap::new()), Arc::new(vec![]),
++                    1.0, Arc::new(HTable::default()), 0,
++                );
++                let lifted = &state.reward(1).unwrap().ceiling_track[&node];
++                assert_eq!(lifted.typ, if outgoing > 1 { kind } else { i8::from(kind != 1) });
++                assert_eq!(lifted.ori, Some(if outgoing > 1 { Axis::K } else { Axis::I }));
++            }
++        }
++    }
 +
 +    #[test]
 +    fn s_stub_stays_above_the_finished_layer() {
@@ -80,10 +137,42 @@ index e7c6340..49c121c 100644
  
  
 diff --git a/src/topols/embedding/state.py b/src/topols/embedding/state.py
-index aff7bc1..2558caf 100644
+index aff7bc1..1f7d387 100644
 --- a/src/topols/embedding/state.py
 +++ b/src/topols/embedding/state.py
-@@ -1208,8 +1208,8 @@ class EmbeddingState:
+@@ -706,23 +706,14 @@ class EmbeddingState:
+ 
+                 path, target = result
+ 
+-                # Trace final orientation on the ceiling
+-                if self.node_type[node] in (4, 5):
+-                    curr_type, last_dir = edge_tracer(tuple(path), (self.embed_node_ori[node], 0))
+-                    if ori_map[(last_dir, curr_type, 0)] == 'k':
+-                        ceiling_track[node]["ori"] = ori_map[(last_dir, curr_type, 1)]
+-                        ceiling_track[node]["type"]= 1
+-                    else:
+-                        ceiling_track[node]["ori"] = ori_map[(last_dir, curr_type, 0)]
+-                        ceiling_track[node]["type"] = self.node_type[node]
+-                else:
+-                    curr_type, last_dir = edge_tracer(tuple(path), (self.embed_node_ori[node], self.node_type[node]))
+-                    if ori_map[(last_dir, curr_type, self.node_type[node])] == 'k':
+-                        ceiling_track[node]["ori"] = ori_map[(last_dir, curr_type, 1 if self.node_type[node]!=1 else 0)]
+-                        ceiling_track[node]["type"]= 1 if self.node_type[node]!=1 else 0
+-                    else:
+-                        ceiling_track[node]["ori"] = ori_map[(last_dir, curr_type, self.node_type[node])]
+-                        ceiling_track[node]["type"]=self.node_type[node]
++                lifted_type = self.node_type[node]
++                color = 0 if lifted_type in (4, 5) else lifted_type
++                curr_type, last_dir = edge_tracer(tuple(path), (ori, color))
++                # Recolouring is an identity only for a non-branching continuation.
++                if ori_map[(last_dir, curr_type, color)] == 'k' and self.output_connect[node] <= 1:
++                    color = lifted_type = 1 - color
++                ceiling_track[node]["ori"] = ori_map[(last_dir, curr_type, color)]
++                ceiling_track[node]["type"] = lifted_type
+                 ceiling_track[node]["path"]=tuple(path)
+ 
+                 # Commit ceiling occupancy
+@@ -1208,8 +1199,8 @@ class EmbeddingState:
                  return None
              path, occ_tmp, input = result
  
@@ -94,7 +183,7 @@ index aff7bc1..2558caf 100644
              axis_map = {'i': np.array([1, 0, 0]), 'j': np.array([0, 1, 0]), 'k': np.array([0, 0, 1])}
              ori_vec = axis_map[ori[node]]
              last_vec = vector(path[1], path[0])
-@@ -1223,6 +1223,7 @@ class EmbeddingState:
+@@ -1223,6 +1214,7 @@ class EmbeddingState:
                  if all(pt not in occ_tmp for pt in offset_pts):
                      # Add the path in the correct order
                      if all(

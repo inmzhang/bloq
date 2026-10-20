@@ -1,7 +1,7 @@
 {
   "upstream_revision": "e564d350a596cfea3227e09698733210e2e14dcf",
   "upstream_patch": "bloq_py/examples/topols.patch",
-  "upstream_patch_sha256": "ae8936118361a45c7de37f4d70c46654c26ef459b2cd0f571f6af4e58e037e71",
+  "upstream_patch_sha256": "94a367abd61ba21132276fc9dc5e6455a5c5877796b68f70c611c8b435bec3f6",
   "input_ports": [
     [
       0,

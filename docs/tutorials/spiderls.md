@@ -80,27 +80,29 @@ report = bloq.run_noiseless(program, shots=3, input_state="zero", include_signat
   and output Hadamards, retains exact S/S† and T/T† signs, and lowers 3π/4 and
   5π/4 with one signed T and a residual Pauli. No extra S gadgets replace T†.
   Missing phase stages and incomplete or duplicate routing histories reject.
-- Original ZX boundaries determine port order. Patch IDs can be reused;
-  preparation, H, Z, and release events receive dependency-ordered time slices.
-  Independent events on distinct patches share a slice; same-patch lifetimes
-  and every event/measurement boundary remain separate. A release
-  is an X effect. Separate lifetimes are never joined. Reduced identity/H wires
-  are preserved even when SpiderLS omits them from target code.
-- Upstream spatial coordinates are preserved; only time is initially spaced by
-  three. T endpoints use the shortest free outward arm, trying either side of
-  a required elbow. Extended arms contain phase-zero identity cubes and never
-  cross occupied routes. The signed readout and adaptive measurement recipe is
-  unchanged. Complete idle time slices are contracted while protecting resource,
-  control, port, and tagged blocks; temporal H seams compose by parity.
-  `grid_spacing` records `(1, 1, 3)` before contraction. Endpoint gadgets and
-  explicit event timing still contribute to the imported volume.
-  `SpiderLSImport` retains the reduced
-  graph, plan, target, schedule, routing, options, revision, and ordered ports.
+- Original ZX boundaries determine port order. The event DAG validates every
+  dependency and patch lifetime. H events become pipe Hadamards; Z events become
+  Pauli feedback, conjugated through any intervening H gates. Preparation and
+  release remain endpoint cubes; a release is an X effect. Separate lifetimes
+  are never joined. Reduced identity/H wires are preserved even when SpiderLS
+  omits them from target code.
+- Routed layers start on the upstream unit grid. Only endpoint collisions add
+  temporal gaps, preserving the order at each spatial cell. `grid_spacing`
+  records `(1, 1, 1)`; endpoints, local gaps, and T gadgets contribute to imported
+  volume. Idle slices are contracted while protecting resources, controls,
+  ports, and tags; temporal H seams compose by parity.
+- T attachments try the shortest outward arms, then bounded joint placement
+  with spatial doglegs of identity cubes. Pending T patches reserve distinct
+  spatial columns clear of data and other gadgets, even at different source
+  times. The injection axis and signed control recipe are preserved.
+- `SpiderLSImport` retains the reduced graph, plan, target, schedule, routing,
+  options, revision, and ordered ports.
   Bloq derives readouts and adaptive dependencies from the imported graph.
   Saved BLOG and viewer files show that source layout; compilation may change
   cube frames and Hadamard placement while retaining its positions and topology.
 - Unsupported angles, dynamic source control, missing provenance, collisions,
-  unsupported frames, and destructive patch reuse fail explicitly. Normal Bloq
+  unsupported frames, exhausted placement budgets, and destructive patch reuse
+  reject. Try different upstream routing options when placement fails. Bloq
   compilation moves spatial Hadamards through ordinary cubes while preserving
   protected resource and control frames. When complete removal is impossible,
   each spatial component retains walls on at most one axis. Conflicting protected

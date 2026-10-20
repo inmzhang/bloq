@@ -28,6 +28,9 @@ SOURCES = {
     "entangled_t": (2, "h q[0]; cx q[0],q[1]; t q[1];"),
     "entangled_st": (2, "h q[0]; s q[0]; t q[0]; cx q[0],q[1];"),
     "entangled_tdg": (2, "h q[0]; cx q[0],q[1]; tdg q[1]; cx q[1],q[0];"),
+    # The cancelling pairs keep a branching source spider across a layer lift.
+    "branching_lift": (3, "cx q[2],q[1]; cx q[2],q[1]; cx q[2],q[0]; cx q[1],q[0]; "
+                         "cx q[0],q[2]; cx q[2],q[1]; cx q[2],q[1]; cx q[0],q[1]; cx q[1],q[2];"),
 }
 
 

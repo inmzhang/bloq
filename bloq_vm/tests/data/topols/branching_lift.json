@@ -1,0 +1,60 @@
+{
+  "upstream_revision": "e564d350a596cfea3227e09698733210e2e14dcf",
+  "upstream_patch": "bloq_py/examples/topols.patch",
+  "upstream_patch_sha256": "94a367abd61ba21132276fc9dc5e6455a5c5877796b68f70c611c8b435bec3f6",
+  "input_ports": [
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      2,
+      0,
+      0
+    ],
+    [
+      2,
+      2,
+      0
+    ]
+  ],
+  "output_ports": [
+    [
+      0,
+      0,
+      5
+    ],
+    [
+      2,
+      0,
+      5
+    ],
+    [
+      2,
+      2,
+      5
+    ]
+  ],
+  "normalized_qasm": "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[3];\ncx q[2],q[1];\ncx q[2],q[1];\ncx q[2],q[0];\ncx q[1],q[0];\ncx q[0],q[2];\ncx q[2],q[1];\ncx q[2],q[1];\ncx q[0],q[1];\ncx q[1],q[2];\n",
+  "t_gadgets": 0,
+  "layout_options": {
+    "seed_init": 0,
+    "seed_step": 1,
+    "time_bound": 0.05,
+    "iter_num": 10,
+    "move_num": 6,
+    "length": 2,
+    "dir_opt": true,
+    "backtrack": 0,
+    "z_floor": 1,
+    "engine": "python",
+    "block_size_max": 20,
+    "zx_opt": 1,
+    "grid_spacing": [
+      1,
+      1,
+      3
+    ]
+  }
+}

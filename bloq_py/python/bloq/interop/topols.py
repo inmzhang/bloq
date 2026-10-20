@@ -18,7 +18,7 @@ import bloq
 
 from bloq.interop._geometry import (
     GRID_SPACING, GeometryError as TopoLSImportError, Position, _CUBES,
-    _position, _direction, _space_diagram, add_t_resource, build_graph,
+    _position, _direction, _space_diagram, add_t_resources, build_graph,
 )
 
 AUDITED_REVISION = "e564d350a596cfea3227e09698733210e2e14dcf"
@@ -172,8 +172,9 @@ def _convert(embedding: dict[str, Any], qubits: int) -> tuple[bloq.BlockGraph, t
     actions = []
     occupied = {_position(data["position"]) for data in nodes.values()}
     resources = {"S": 0, "T": 0}
+    t_resources = []
     # Reserve signed Y caps before placing the movable T endpoints.
-    for node, data in sorted(list(nodes.items()), key=lambda item: item[1]['other'] == 'T'):
+    for node, data in list(nodes.items()):
         other = data["other"]
         if isinstance(other, dict):
             continue
@@ -193,8 +194,7 @@ def _convert(embedding: dict[str, Any], qubits: int) -> tuple[bloq.BlockGraph, t
             raise TopoLSImportError("source_provenance", f"Resource endpoint {node!r} has no signed source phase")
         dagger = embedding["phase_hist"][root] == allowed[1]
         if other == "T":
-            actions.extend(add_t_resource(nodes, edges, node, phase=embedding["phase_hist"][root], name=f"topols_t_{node}"))
-            occupied = {tuple(d["position"]) for d in nodes.values()}
+            t_resources.append((node, embedding["phase_hist"][root], f"topols_t_{node}"))
             continue
         p = _position(data["position"])
         neighbor = neighbors[node][0]
@@ -233,6 +233,7 @@ def _convert(embedding: dict[str, Any], qubits: int) -> tuple[bloq.BlockGraph, t
     for resource, typ in (("S", 4), ("T", 5)):
         if resources[resource] != sum(t == typ for t in embedding["type_hist"].values()):
             raise TopoLSImportError("source_provenance", f"Missing or duplicate {resource} attachment")
+    actions.extend(add_t_resources(nodes, edges, t_resources))
     return build_graph(nodes, edges, qubits, actions)
 
 

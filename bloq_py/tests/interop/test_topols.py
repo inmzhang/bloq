@@ -78,6 +78,25 @@ def test_s_measurement_stub_cannot_reenter_a_finished_time_layer():
     assert all(p[2] >= state.z_floor for path in legal.embed_path for p in path)
 
 
+@pytest.mark.parametrize("kind", [0, 1, 4, 5])
+@pytest.mark.parametrize("outgoing", [1, 2])
+def test_ceiling_lift_preserves_branching_spider_color(kind, outgoing):
+    from topols.embedding.hadamard import HTable
+    from topols.embedding.state import EmbeddingState
+
+    state = EmbeddingState(
+        embed_node_pos={0: (0, -1, 0)}, embed_node_ori={0: "j"},
+        embed_node_type={0: kind}, embed_path=(), occupied={(0, -1, 0)},
+        z_floor=-1, x_min_floor=-10, x_max_floor=10, y_min_floor=-10, y_max_floor=10,
+        idle_h_track={}, idle_place={}, t_track={}, node_type={0: kind},
+        input_connect={}, inter_connect=(), output_connect={0: outgoing},
+        order=[], z_length=1, hadamard_edges=HTable(),
+    )
+    lifted = state.reward(length=1)[3][0]
+    assert lifted["type"] == (kind if outgoing > 1 else int(kind != 1))
+    assert lifted["ori"] == ("k" if outgoing > 1 else "i")
+
+
 @pytest.mark.parametrize("gates", [
     "tdg q[0];", "sdg q[0];", "z q[0];", "x q[0];", "y q[0];",
     "rx(-pi/4) q[0];", "rz(3*pi/4) q[0];", "ry(pi/2) q[0];",
@@ -146,6 +165,31 @@ def test_both_layout_engines_preserve_histories_and_interface(t_import):
     assert rust.input_ports == t_import.input_ports
     assert rust.output_ports == t_import.output_ports
     assert rust.embedding == t_import.embedding
+
+
+def test_time_z_dogleg_matches_the_native_channel_fixture(monkeypatch):
+    from bloq.interop import _geometry
+
+    original, bent = _geometry._t_placements, []
+
+    def doglegs(nodes, edges, node, **options):
+        neighbor = next(b if a == node else a for a, b in edges if node in (a, b))
+        p, q = nodes[node]['position'], nodes[neighbor]['position']
+        side = next(i for i in (0, 1) if p[i] == q[i])
+        for placement in original(nodes, edges, node, **options):
+            if nodes[neighbor]['tqec'][2] == 'Z':
+                # Exercise the rare time-Z dogleg instead of its shorter straight arm.
+                if not any(r[side] != p[side] for name, (r, _) in placement[3].items() if name.startswith('arm_')):
+                    continue
+                bent.append(placement)
+            yield placement
+
+    monkeypatch.setattr(_geometry, '_t_placements', doglegs)
+    directory = Path(__file__).resolve().parents[3] / 'bloq_vm/tests/data'
+    qasm = (directory / 'topols/entangled_tdg.qasm').read_text()
+    imported = from_qasm(qasm, iterations=10, time_bound=0.05)
+    assert bent
+    assert imported.graph.to_text().rstrip() + '\n' == (directory / 'interop_t_outlets_time_z.blog').read_text()
 
 
 @pytest.mark.parametrize("mutate,code", [

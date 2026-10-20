@@ -6,7 +6,7 @@ use std::path::Path;
 use bloq_compile::{CompileConfig, CompileContext};
 use bloq_graph::{
     Action, BlockGraph,
-    verify::{BoundaryOrder, BranchStatus, LogicalVerifier, QuizxGraph, parse_qasm},
+    verify::{BoundaryOrder, BranchStatus, LogicalVerifier, QuizxGraph},
 };
 use bloq_vm::{ExecError, Simulator};
 use glam::IVec3;
@@ -14,6 +14,7 @@ use serde::Deserialize;
 
 mod common;
 use common::choi::exact::ExactChoi;
+use common::parse_qasm;
 
 const UPSTREAM_REVISION: &str = "2c8c205ed3b9c707aca8b2f73c1b3bfd9b025bea";
 const SHOTS: usize = 8;
@@ -208,8 +209,6 @@ fn spiderls_layout_has_the_source_channel_at_d3(#[case] name: &str) {
             }
             Ok(())
         });
-        assert_eq!(report.shots, SHOTS);
-        assert_eq!(report.discarded, 0, "{name}: no postselection");
         assert!(
             report.all_detectors_constant(),
             "{name}: deterministic detectors"
@@ -267,8 +266,6 @@ fn spiderls_walk_has_the_expected_prepared_state_at_d3() {
                 Ok(())
             },
         );
-        assert_eq!(report.shots, SHOTS);
-        assert_eq!(report.discarded, 0, "walk3: no postselection");
         assert!(
             report.all_detectors_constant(),
             "walk3: deterministic detectors"

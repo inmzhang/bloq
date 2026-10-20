@@ -1,8 +1,10 @@
 """Unit-grid geometry shared by the layout adapters."""
 
 from bisect import bisect_left
-from collections import defaultdict
+from collections import Counter, defaultdict, deque
 from fractions import Fraction
+from itertools import count, islice
+from math import isqrt
 from numbers import Integral
 from typing import Any
 
@@ -24,7 +26,7 @@ class GeometryError(ValueError):
 
 def _position(value: Any) -> Position:
     if (not isinstance(value, (tuple, list)) or len(value) != 3
-            or any(isinstance(x, bool) or not isinstance(x, Integral) for x in value)):
+            or any(isinstance(x, bool) or not isinstance(x, (int, Integral)) for x in value)):
         raise GeometryError("coordinates", f"Expected an integer grid position, got {value!r}")
     result = (int(value[0]), int(value[1]), int(value[2]))
     if any(not -(2**31) <= x < 2**31 for x in result):
@@ -80,12 +82,8 @@ def _space_diagram(nodes, edges):
     return spaced, pipes
 
 
-def add_t_resource(nodes, edges, node, *, phase, name):
-    """Place the ZZ / adaptive XY gadget on its shortest free outward arm."""
-    phase = Fraction(phase) % 2
-    if phase not in {Fraction(n, 4) for n in (1, 3, 5, 7)}:
-        raise GeometryError('unsupported_phase', f'Unsupported magic phase {phase}')
-    dagger = phase in (Fraction(3, 4), Fraction(7, 4))
+def _t_placements(nodes, edges, node, *, bends=False, margin=2, positions=None):
+    """Enumerate verified arm/elbow footprints without changing the routed graph."""
     p = _position(nodes[node]['position'])
     adjacent = [b if a == node else a for a, b in edges if node in (a, b)]
     if len(adjacent) != 1:
@@ -96,45 +94,107 @@ def add_t_resource(nodes, edges, node, *, phase, name):
     axis = 'XYZ'.index(direction[1])
     if axis == 2 or nodes[neighbor]['tqec'] not in _CUBES:
         raise GeometryError('resource_frame', f'T resource {node!r} has no proved spatial ZZ seam')
-    occupied = {_position(d['position']) for n, d in nodes.items() if n != node}
+    if positions is None:
+        positions = {n: _position(d['position']) for n, d in nodes.items()}
+    occupied = {p for n, p in positions.items() if n != node}
+    space = {r[:2] for r in occupied}
+    factories = {positions[n][:2] for n, d in nodes.items()
+                 if n != node and d['tqec'] == 'T'}
+    bounds = [(min(r[i] for r in space), max(r[i] for r in space)) for i in (0, 1)]
     frame = nodes[neighbor]['tqec']
     step = tuple(b - a for a, b in zip(q, p))
-    limit = max((r[axis] - p[axis]) * step[axis] for r in occupied) + 2
-    selected = None
-    for distance in range(max(0, limit) + 1):
-        end = _position(tuple(a + distance * dx for a, dx in zip(p, step)))
-        if distance and end in occupied:
-            break  # An outward arm cannot tunnel through another route.
+    limit = (bounds[axis][1 if step[axis] > 0 else 0] - p[axis]) * step[axis] + margin
+    def paths():
+        path = [p]
+        for distance in range(max(0, limit) + 1):
+            end = _position(tuple(a + distance * dx for a, dx in zip(p, step)))
+            if distance and end in occupied:
+                break
+            if distance:
+                path.append(end)
+            yield path, frame
+        if not bends:
+            return
+        # Degree-two, phase-zero spiders are identities in either color. Spatial
+        # corner frames avoid degenerate faces; finish on the original axis so
+        # the certified injection frame and recipe are unchanged.
+        side = 1 - axis
+        # Breadth first exposes short arms from different corridors before
+        # filling a domain with longer variants of the same outlet.
+        queue = deque([([p], 0, 0, 0, 0)])
+        while queue:
+            path, forward, sign, offset, distance = queue.popleft()
+            moves = []
+            if not sign:
+                if forward < max(0, limit):
+                    moves.append((step, forward + 1, 0, 0, 0))
+                for s in (1, -1):
+                    reach = (bounds[side][1 if s > 0 else 0] - p[side]) * s + margin
+                    if reach > 0:
+                        moves.append((tuple(s if i == side else 0 for i in range(3)), forward, s, 1, 0))
+            elif not distance:
+                reach = (bounds[side][1 if sign > 0 else 0] - p[side]) * sign + margin
+                if offset < reach:
+                    moves.append((tuple(sign if i == side else 0 for i in range(3)), forward, sign, offset + 1, 0))
+                moves.append((step, forward, sign, offset, 1))
+            else:
+                yield path, 'ZZX' if frame[2] == 'X' else 'XXZ'
+                if distance < max(1, limit - forward):
+                    moves.append((step, forward, sign, offset, distance + 1))
+            for delta, f, s, o, d in moves:
+                end = _position(tuple(a + dx for a, dx in zip(path[-1], delta)))
+                if end not in occupied and end[:2] not in factories:
+                    queue.append((path + [end], f, s, o, d))
+
+    for path, arm_frame in paths():
+        end, distance = path[-1], len(path) - 1
         choices = []
         for sign in ((1, -1) if frame[2] == 'Z' else (1,)):
-            additions = {f'arm_{i}': (_position(tuple(a + i * dx for a, dx in zip(p, step))), frame)
-                         for i in range(distance)}
             if frame[2] == 'Z':
                 terminal = 'ZXZ' if axis == 0 else 'XZZ'
                 turn = (end[0], end[1], end[2] + 1)
                 center = (end[0] + sign * (axis == 1), end[1] + sign * (axis == 0), end[2] + 1)
                 canonical = 'ZXX' if axis == 0 else 'XZX'
-                additions.update(turn=(turn, canonical), center=(center, canonical))
             else:
                 terminal = 'XZX' if axis == 0 else 'ZXX'
                 center = end
+            # The adaptive cap may wait beyond its source layer. A different
+            # Z coordinate does not certify that its stored state was consumed.
+            if center[:2] in space:
+                continue
+            additions = {f'arm_{i}': (position, arm_frame) for i, position in enumerate(path[:-1])}
+            if frame[2] == 'Z':
+                additions.update(turn=(turn, canonical), center=(center, canonical))
             additions.update(source=((center[0], center[1], center[2] - 1), 'T'),
                              cap=((center[0], center[1], center[2] + 1), 'XY'))
             footprint = [end, *(r for r, _ in additions.values())]
-            if len(set(footprint)) != len(footprint) or any(r in occupied for r in footprint):
+            if (len(set(footprint)) != len(footprint) or any(r in occupied for r in footprint)
+                    or any(r[:2] in factories for r in footprint)):
                 continue
-            for r in footprint:
+            # Arm positions were validated while enumerating paths.
+            for r in footprint[len(path):]:
                 _position(r)
-            space = {r[:2] for r in occupied | set(footprint)}
-            area = ((max(r[0] for r in space) - min(r[0] for r in space) + 1)
-                    * (max(r[1] for r in space) - min(r[1] for r in space) + 1))
-            choices.append((area, len(space), end, terminal, additions))
-        if choices:
-            selected = min(choices, key=lambda c: c[:2])
-            break
-    if selected is None:
-        raise GeometryError('resource_collision', f'T resource {node!r} has no free outward arm')
-    _, _, end, terminal, additions = selected
+            extra = {r[:2] for r in footprint} - space
+            width, height = (max(hi, max((r[i] for r in extra), default=hi))
+                             - min(lo, min((r[i] for r in extra), default=lo)) + 1
+                             for i, (lo, hi) in enumerate(bounds))
+            choices.append((width * height, len(space) + len(extra), end, terminal, additions, frozenset(footprint)))
+        for _, _, end, terminal, additions, cells in sorted(choices, key=lambda c: c[:2]):
+            yield distance, end, terminal, additions, cells
+
+
+def _t_phase(phase):
+    phase = Fraction(phase) % 2
+    if phase not in {Fraction(n, 4) for n in (1, 3, 5, 7)}:
+        raise GeometryError('unsupported_phase', f'Unsupported magic phase {phase}')
+    return phase
+
+
+def _attach_t_resource(nodes, edges, node, phase, name, placement):
+    dagger = phase in (Fraction(3, 4), Fraction(7, 4))
+    neighbor = next(b if a == node else a for a, b in edges if node in (a, b))
+    frame = nodes[neighbor]['tqec']
+    distance, end, terminal, additions, _ = placement
     if any(f'{name}_{suffix}' in nodes for suffix in additions):
         raise GeometryError('source_provenance', f'Reserved T gadget node already exists: {name}')
     # Commit only after the entire arm, elbow and endpoint footprint fits.
@@ -163,6 +223,173 @@ def add_t_resource(nodes, edges, node, *, phase, name):
         # 3pi/4 = pi - pi/4 and 5pi/4 = pi + pi/4; the residual
         # Pauli acts on the same canonical resource seam.
         actions.append(bloq.Action.feedback([bloq.FeedbackTarget('Z', q, direction=direction)]))
+    return actions
+
+
+def add_t_resource(nodes, edges, node, *, phase, name, positions=None):
+    """Place one T gadget on its shortest free verified outward arm."""
+    phase = _t_phase(phase)
+    placement = (next(_t_placements(nodes, edges, node, positions=positions), None)
+                 or next(_t_placements(nodes, edges, node, bends=True, positions=positions), None))
+    if placement is None:
+        raise GeometryError('resource_collision', f'T resource {node!r} has no free outward arm')
+    actions = _attach_t_resource(nodes, edges, node, phase, name, placement)
+    if positions is not None:
+        positions[node] = placement[1]
+        positions.update((f'{name}_{suffix}', p) for suffix, (p, _) in placement[3].items())
+    return actions
+
+
+def _match_t_outlets(domains):
+    matched: dict[tuple[int, int], int] = {}
+    assigned: dict[int, tuple[int, int]] = {}
+    for i in domains:
+        queue, via = deque([i]), {}
+        free = None
+        while queue and free is None:
+            current = queue.popleft()
+            for column in {p[2] for p in domains[current]}:
+                if column in via:
+                    continue
+                via[column] = current
+                if column not in matched:
+                    free = column
+                    break
+                # Every owner has exactly one matched column; `via` visits it once.
+                queue.append(matched[column])
+        if free is None:
+            return None
+        while free is not None:
+            owner = via[free]
+            matched[free], assigned[owner], free = owner, free, assigned.get(owner)
+    return assigned
+
+
+def _joint_t_placements(domains, *, max_attempts=100_000):
+    ids = count()
+    domains = [[(p, frozenset(r[:2] for r in p[-1]), p[3]['source'][0][:2], next(ids)) for p in choices]
+               for choices in domains]
+    # Distinct factory columns are necessary. Prove this before searching
+    # paths, so an impossible straight-arm set falls back to doglegs promptly.
+    if _match_t_outlets(dict(enumerate(domains))) is None:
+        raise GeometryError('resource_collision', 'T resources have no distinct factory columns')
+    # Index conflicts once instead of intersecting every path on each step.
+    cells, columns, factories = defaultdict(set), defaultdict(set), defaultdict(set)
+    for choices in domains:
+        for p, space, outlet, index in choices:
+            for r in p[-1]:
+                cells[r].add(index)
+            for r in space:
+                columns[r].add(index)
+            factories[outlet].add(index)
+    # Leave scarce outlets and their access paths available to other gadgets.
+    outlets = Counter(p for choices in domains for p in {choice[2] for choice in choices})
+    passages = Counter(p for choices in domains for p in set().union(*(choice[1] for choice in choices)))
+    for choices in domains:
+        choices.sort(key=lambda p: (sum(outlets[q] for q in p[1]) + passages[p[2]], p[0][0]))
+    # Disjoint footprint components must not multiply an unrelated failed search.
+    parents = list(range(len(domains)))
+
+    def root(i):
+        while parents[i] != i:
+            parents[i] = parents[parents[i]]
+            i = parents[i]
+        return i
+
+    owners: dict[tuple[int, int], int] = {}
+    for i, choices in enumerate(domains):
+        for pos in set().union(*(choice[1] for choice in choices)):
+            parents[root(i)] = root(owners.setdefault(pos, i))
+    components = defaultdict(list)
+    for i in range(len(domains)):
+        components[root(i)].append(i)
+    selected: dict[int, Any] = {}
+    attempts = 0
+    for component in components.values():
+        options = {i: domains[i] for i in sorted(component)}
+        stack = []
+        while options:
+            # Each domain already excludes conflicts with earlier choices.
+            assigned = _match_t_outlets(options)
+            if assigned is not None:
+                i = min(options, key=lambda i: len(options[i]))
+                choices = sorted(options[i], key=lambda p: p[2] != assigned[i])
+                stack.append((i, iter(choices), options))
+            while stack:
+                i, choices, previous = stack[-1]
+                placement = next(choices, None)
+                if placement is not None:
+                    attempts += 1
+                    if attempts > max_attempts:
+                        raise GeometryError('resource_placement_limit', f'Joint T placement exceeded {max_attempts} choices')
+                    selected[i] = placement[0]
+                    blocked = set().union(*(cells[r] for r in placement[0][-1]),
+                                          *(factories[r] for r in placement[1]), columns[placement[2]])
+                    options = {j: [p for p in choices if p[3] not in blocked]
+                               for j, choices in previous.items() if j != i}
+                    break
+                stack.pop()
+                selected.pop(i, None)
+            else:
+                raise GeometryError('resource_collision', 'T resources have no disjoint verified outward arms')
+    return selected
+
+
+def add_t_resources(nodes, edges, resources):
+    """Preserve working placements; jointly replan collisions before committing."""
+    resources = [(node, _t_phase(phase), name) for node, phase, name in resources]
+    positions = {n: _position(d['position']) for n, d in nodes.items()} if resources else {}
+    staged_positions = positions.copy()
+    staged, pipes = nodes.copy(), list(edges)
+    actions = []
+    try:
+        for node, phase, name in resources:
+            actions.extend(add_t_resource(staged, pipes, node, phase=phase, name=name, positions=staged_positions))
+    except GeometryError as error:
+        if error.code != 'resource_collision':
+            raise
+        domains, remaining = [], 100_000
+        for node, _, _ in resources:
+            domain = list(islice(_t_placements(nodes, edges, node, positions=positions), remaining + 1))
+            remaining -= len(domain)
+            if remaining < 0:
+                raise GeometryError('resource_placement_limit', 'T placement exceeded 100000 candidates')
+            domains.append(domain)
+        try:
+            placements = _joint_t_placements(domains)
+        except GeometryError as error:
+            if error.code != 'resource_collision':
+                raise
+            streams = [_t_placements(nodes, edges, node, bends=True,
+                                     margin=max(2, isqrt(len(resources)) + 1), positions=positions)
+                       for node, _, _ in resources]
+            domains = [[] for _ in resources]
+            # Try small candidate prefixes; grow only after a bounded solve.
+            batch = 4
+            while True:
+                added = 0
+                for domain, stream in zip(domains, streams):
+                    choices = list(islice(stream, batch))
+                    domain.extend(choices)
+                    added += len(choices)
+                if not added:
+                    placements = _joint_t_placements(domains)
+                    break
+                if sum(map(len, domains)) > 100_000:
+                    raise GeometryError('resource_placement_limit', 'T placement exceeded 100000 candidates')
+                try:
+                    placements = _joint_t_placements(domains, max_attempts=max(64, 2 * len(resources)))
+                    break
+                except GeometryError as error:
+                    if error.code not in ('resource_collision', 'resource_placement_limit'):
+                        raise
+                batch *= 2
+        staged, pipes, actions = nodes.copy(), list(edges), []
+        for i, (node, phase, name) in enumerate(resources):
+            actions.extend(_attach_t_resource(staged, pipes, node, phase, name, placements[i]))
+    nodes.clear()
+    nodes.update(staged)
+    edges[:] = pipes
     return actions
 
 
