@@ -59,6 +59,25 @@ def test_fixture_exporter_rejects_an_unrelated_upstream_checkout(tmp_path):
         check(Path(__file__).resolve().parents[3], tmp_path)
 
 
+@pytest.mark.parametrize("frontier_gate", ["h", "s"])
+def test_fallback_retains_first_and_last_gates_after_the_frontier(frontier_gate):
+    from types import SimpleNamespace
+
+    import pyzx as zx
+    from topols.embedding.hadamard import HTable
+    from topols.engine import block_payload
+
+    circuit = zx.Circuit.from_qasm(source(f"{frontier_gate} q[0]; cx q[0],q[1]; t q[1];", 2))
+    prep = SimpleNamespace(circuit=circuit, block_info={1: [2, 3]},
+                           idx_to_row=dict(enumerate(range(5))), h_table=HTable())
+    layers = block_payload(prep, 1)["layers"]
+    # Row 1 is the inherited frontier, even if its Hadamard dissolved.
+    # The new block must still execute its CNOT and final T in that order.
+    assert len(layers) == 3
+    assert sorted(kind for _, kind in layers[1]["node_type"]) == [0, 1]
+    assert 5 in dict(layers[2]["node_type"]).values()
+
+
 def test_s_measurement_stub_cannot_reenter_a_finished_time_layer():
     from topols.embedding.hadamard import HTable
     from topols.embedding.state import EmbeddingState

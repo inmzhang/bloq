@@ -119,8 +119,21 @@ index 0f2aad5..5b56ec4 100644
 +        assert!(legal.paths.iter().flatten().all(|p| p.z >= 5));
 +    }
 +}
+diff --git a/rust/topols_core/src/routing/boundary.rs b/rust/topols_core/src/routing/boundary.rs
+index e3620a4..4a92e84 100644
+--- a/rust/topols_core/src/routing/boundary.rs
++++ b/rust/topols_core/src/routing/boundary.rs
+@@ -134,7 +134,7 @@ pub fn route_single_t_to_boundary(
+     occ_tmp.remove(&exit);
+ 
+     for target in region {
+-        if occ_tmp.contains(&target) || (target.z as f64) < z_floor {
++        if (ori.is_some() && target == exit) || occ_tmp.contains(&target) || (target.z as f64) < z_floor {
+             continue;
+         }
+         if let Some(path) = shortest_path(exit, target, &occ_tmp, z_floor, floors, idle_cells, Some(ceiling_z), None) {
 diff --git a/src/topols/driver.py b/src/topols/driver.py
-index e7c6340..49c121c 100644
+index e7c6340..e8ee2ec 100644
 --- a/src/topols/driver.py
 +++ b/src/topols/driver.py
 @@ -302,6 +302,12 @@ def _seal(hist, brute_last, pre_brute_state, pre_state, pre_ceiling_track, pre_n
@@ -136,6 +149,15 @@ index e7c6340..49c121c 100644
      return best_state, hist.pos, hist.ori, hist.paths, hist.typ
  
  
+@@ -573,7 +579,7 @@ def operation(circuit, graph, layer_labels, layer_to_block, block_info, idx_to_r
+                     with open(_h_dbg, "a") as fh:
+                         fh.write(f"declared_block{block}\t{hadamard_edges.stats()}\n")
+                 io_info_ = {f"{k}_{block}": v for k, v in io_raw.items()}
+-                rows_ = set(layer_labels_.values())
++                rows_ = range(max(layer_labels_.values()) + 1)
+                 _tail(f"FALLBACK block={block} at outer i={i}: rows_={sorted(rows_)}")
+ 
+                 if len(rows_) <= 1:
 diff --git a/src/topols/embedding/state.py b/src/topols/embedding/state.py
 index aff7bc1..1f7d387 100644
 --- a/src/topols/embedding/state.py
@@ -191,8 +213,34 @@ index aff7bc1..1f7d387 100644
                          (self.x_min_floor is None or pt[0] >= self.x_min_floor) and
                          (self.x_max_floor is None or pt[0] <= self.x_max_floor) and
                          (self.y_min_floor is None or pt[1] >= self.y_min_floor) and
+diff --git a/src/topols/engine.py b/src/topols/engine.py
+index 0a5d1fe..7141a81 100644
+--- a/src/topols/engine.py
++++ b/src/topols/engine.py
+@@ -33,7 +33,7 @@ def block_payload(prep, block, spread_num=0):
+     ht = HTable()
+     ht.rows_by_qubit = prep.h_table.rows_by_qubit
+     ht.register_graph_labelled(graph_, labels_, f"_{block}")
+-    rows_ = sorted(set(labels_.values()))
++    rows_ = range(max(labels_.values()) + 1)
+     return {
+         "layers": [_layer(graph_, labels_, j) for j in range(len(rows_))],
+         "qubit_of": [[v, graph_.qubit(v)] for v in graph_.vertices()],
+diff --git a/src/topols/routing/boundary.py b/src/topols/routing/boundary.py
+index 9a0dc88..af1a4f9 100644
+--- a/src/topols/routing/boundary.py
++++ b/src/topols/routing/boundary.py
+@@ -172,7 +172,7 @@ def route_single_T_to_boundary(
+ 
+     # Try routing to each candidate boundary target
+     for target in region:
+-        if target in occ_tmp or target[2] < z_floor:
++        if (ori != 0 and target == exit_point) or target in occ_tmp or target[2] < z_floor:
+             continue
+ 
+         path = shortest_path(exit_point, target, occ_tmp, z_floor, x_min_floor, x_max_floor, y_min_floor, y_max_floor, idle_place, ceiling_z=ceiling_z)
 diff --git a/src/topols/zx_transform/layering.py b/src/topols/zx_transform/layering.py
-index eb5dec2..c2cc16f 100644
+index eb5dec2..212bcb4 100644
 --- a/src/topols/zx_transform/layering.py
 +++ b/src/topols/zx_transform/layering.py
 @@ -14,6 +14,7 @@ Node types (`node_type_convert`): 0 = Z spider, 1 = X spider, 2 = idle
@@ -203,7 +251,17 @@ index eb5dec2..c2cc16f 100644
  
  
  def _move_hadamard_flag(hadamard_edges, old_edge, new_edge):
-@@ -426,18 +427,24 @@ def idling_nodes_insertion_block_vanilla(graph, layer_labels, block_range, hadam
+@@ -138,7 +139,8 @@ def layer_labeling_block_vanilla(graph, block_range):
+                      if min_row <= graph.row(v) <= max_row]
+ 
+     # Get unique rows within block range and sort them
+-    block_rows = sorted(set(graph.row(v) for v in block_vertices))
++    # Keep the inherited frontier at layer 0 after its H boxes dissolve.
++    block_rows = sorted({min_row} | {graph.row(v) for v in block_vertices})
+ 
+     # Row -> layer, 0-indexed like layer_labeling(): the block's inherited
+     # frontier row is layer 0 and the first row to embed is layer 1.
+@@ -426,18 +428,24 @@ def idling_nodes_insertion_block_vanilla(graph, layer_labels, block_range, hadam
  
  def node_type_convert(graph, node):
      """Embedding type of a vertex: 0 Z spider, 1 X spider, 2 idle, 3 Hadamard
