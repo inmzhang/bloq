@@ -109,7 +109,7 @@ index 3c2fee0..f76847d 100644
                      len(self.instructions),
                      kind="H_OUTPUT",
 diff --git a/src/pyzx_routing.py b/src/pyzx_routing.py
-index ceee664..9bc16db 100644
+index ceee664..1f635df 100644
 --- a/src/pyzx_routing.py
 +++ b/src/pyzx_routing.py
 @@ -550,10 +550,10 @@ def _normalize_schedule(schedule: Any) -> _NormalizedSchedule:
@@ -125,7 +125,93 @@ index ceee664..9bc16db 100644
                      )
              elif kind == "RELEASE":
                  if patch not in event_active:
-@@ -2935,7 +2935,7 @@ def _route_parallel_schedule_once(
+@@ -2505,11 +2505,11 @@ def _validated_routing_options(
+     data_spacing: int | None,
+     routing_margin: int,
+     placement_margin: int | None,
+-    max_physical_layers: int,
++    max_physical_layers: int | None,
+     max_layers: int | None,
+     max_port_combinations: int,
+     max_ancilla_candidates_per_layer: int,
+-) -> tuple[int, int, int, int, int, int]:
++) -> tuple[int, int, int, int | None, int, int]:
+     """Validate aliases and return canonical integer routing options."""
+ 
+     if data_spacing is not None:
+@@ -2530,21 +2530,24 @@ def _validated_routing_options(
+     )
+     if placement_margin < 1:
+         raise ValueError("placement_margin must be positive")
++    if max_physical_layers is not None:
++        max_physical_layers = _integer(
++            max_physical_layers, "max_physical_layers"
++        )
++        if max_physical_layers < 1:
++            raise ValueError("max_physical_layers must be positive")
+     if max_layers is not None:
+         max_layers = _integer(max_layers, "max_layers")
++        if max_layers < 1:
++            raise ValueError("max_layers must be positive")
+         if (
+-            max_physical_layers != 1000
++            max_physical_layers is not None
+             and max_physical_layers != max_layers
+         ):
+             raise ValueError(
+                 "max_layers and max_physical_layers disagree"
+             )
+         max_physical_layers = max_layers
+-    max_physical_layers = _integer(
+-        max_physical_layers, "max_physical_layers"
+-    )
+-    if max_physical_layers < 1:
+-        raise ValueError("max_physical_layers must be positive")
+     max_port_combinations = _integer(
+         max_port_combinations, "max_port_combinations"
+     )
+@@ -2579,7 +2582,7 @@ def route_parallel_schedule(
+     data_patches: int | Iterable[int] | None = None,
+     data_positions: Mapping[Any, Any] | None = None,
+     data_orientations: Mapping[Any, Any] | None = None,
+-    max_physical_layers: int = 1000,
++    max_physical_layers: int | None = None,
+     max_layers: int | None = None,
+     max_port_combinations: int = 32,
+     max_ancilla_candidates_per_layer: int = 16,
+@@ -2593,6 +2596,12 @@ def route_parallel_schedule(
+     Failed nets are deferred, while independent measurements from later
+     logical layers may be routed in the same physical layer.
+ 
++    When ``max_physical_layers`` is omitted, the finite layer budget is
++    ``max(1000, 2 * source_depth + 1)``, including zero-time event boundaries.
++    This gives longer schedules routing headroom; it is a resource policy,
++    not a guarantee that every layout fits. An explicit limit (or its
++    ``max_layers`` alias) remains a hard cap and must cover the source depth.
++
+     ``routing_margin`` defines the finite routing canvas around the initial
+     data footprint.  Successful routes and ancilla patches expand the reported
+     footprint only as far as the cells they actually use.  Magic-state nets
+@@ -2644,6 +2653,18 @@ def route_parallel_schedule(
+         ),
+     )
+     normalized = _normalize_schedule(parallel_schedule)
++    minimum_depth = max(
++        max((layer.time for layer in normalized.layers), default=0),
++        max((event.after_time for event in normalized.events), default=0),
++        1,
++    )
++    if max_physical_layers is None:
++        max_physical_layers = max(1000, 2 * minimum_depth + 1)
++    elif max_physical_layers < minimum_depth:
++        raise RoutingError(
++            f"max_physical_layers={max_physical_layers} is below required "
++            f"source depth {minimum_depth}"
++        )
+     if data_patches is not None and not isinstance(data_patches, int):
+         data_patches = tuple(data_patches)
+     normalized_operations = tuple(
+@@ -2935,7 +2956,7 @@ def _route_parallel_schedule_once(
                      orientation_state[event.patch] = (
                          90 - orientation_state[event.patch]
                      )
@@ -134,3 +220,81 @@ index ceee664..9bc16db 100644
                      raise ScheduleAdapterError(
                          f"Unsupported zero-time event {event.kind!r}"
                      )
+diff --git a/tests/test_routing_budget.py b/tests/test_routing_budget.py
+new file mode 100644
+index 0000000..4befdae
+--- /dev/null
++++ b/tests/test_routing_budget.py
+@@ -0,0 +1,72 @@
++"""Finite routing budgets scale with source depth and honor explicit limits."""
++
++import pytest
++
++from pyzx_routing import (
++    RoutingError,
++    ScheduleAdapterError,
++    route_parallel_schedule,
++    validate_routing_result,
++)
++
++
++def idle_schedule(depth):
++    # A persistent patch with empty logical slots isolates depth budgeting
++    # from path search, gate synthesis, and geometry heuristics.
++    return {
++        "slots": tuple({"time": t, "measurements": ()} for t in range(1, depth + 1)),
++        "zero_time_events": (
++            {"after_time": 0, "kind": "PREPARE_INPUT", "patch": 0,
++             "target_instruction": 0, "dag_node_id": 0, "dependency_node_ids": ()},
++            {"after_time": depth, "kind": "H_OUTPUT", "patch": 0,
++             "target_instruction": 1, "dag_node_id": 1, "dependency_node_ids": (0,)},
++        ),
++        "source_peak_data_patches": 1,
++    }
++
++
++def test_automatic_budget_routes_a_schedule_longer_than_the_old_cap():
++    schedule = idle_schedule(1001)
++    routed = route_parallel_schedule(schedule)
++    validate_routing_result(routed, schedule)
++    assert routed.depth == 1001
++    assert routed.parameters["max_physical_layers"] == 2003
++
++
++@pytest.mark.parametrize("options", [
++    {"max_physical_layers": 2},
++    {"max_layers": 2},
++    {"max_physical_layers": 2, "max_layers": 2},
++])
++def test_explicit_budget_and_alias_remain_exact_hard_caps(options):
++    schedule = idle_schedule(2)
++    routed = route_parallel_schedule(schedule, **options)
++    validate_routing_result(routed, schedule)
++    assert routed.parameters["max_physical_layers"] == 2
++
++
++@pytest.mark.parametrize("options", [
++    {"max_physical_layers": 1}, {"max_layers": 1},
++])
++def test_explicit_budget_below_source_depth_explains_the_preflight_failure(options):
++    with pytest.raises(RoutingError, match="below required source depth 2"):
++        route_parallel_schedule(idle_schedule(2), **options)
++
++
++def test_explicit_old_default_no_longer_masks_a_conflicting_alias():
++    with pytest.raises(ValueError, match="disagree"):
++        route_parallel_schedule(idle_schedule(1), max_physical_layers=1000, max_layers=999)
++
++
++@pytest.mark.parametrize("options", [
++    {"max_physical_layers": True},
++    {"max_layers": True},
++    {"max_physical_layers": True, "max_layers": 1},
++    {"max_physical_layers": 1, "max_layers": True},
++    {"max_physical_layers": 0},
++    {"max_layers": 0},
++    {"max_physical_layers": 1.5},
++])
++def test_invalid_explicit_budgets_reject(options):
++    with pytest.raises((ValueError, ScheduleAdapterError)):
++        route_parallel_schedule(idle_schedule(1), **options)

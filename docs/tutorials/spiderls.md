@@ -41,6 +41,10 @@ upstream routing canvas. The same options are available on `from_qasm` as
 increase routing depth or cause failure; compare validated layouts rather than
 assuming a smaller canvas reduces occupied spacetime volume. Bloq places its
 resource endpoints after upstream routing.
+
+The patched router scales its finite layer budget with logical schedule depth.
+Pass `max_physical_layers` to `from_qasm` for an explicit hard cap; the effective
+budget is recorded in `layout_options`.
 Simon uses three input and three output qubits with the nonlinear oracle
 `f(x) = (x0 xor x2, x1, (x0 xor x2) and x1)`. Its input marginal is uniform on
 `000`, `010`, `101` and `111`. The report recovers the unique nonzero period

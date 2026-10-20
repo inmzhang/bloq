@@ -174,12 +174,15 @@ def _convert(source, target, schedule, routing):
 
 
 def from_qasm(qasm: str, *, spacing: int = 3, routing_margin: int = 3,
-              placement_margin: int | None = None) -> SpiderLSImport:
+              placement_margin: int | None = None,
+              max_physical_layers: int | None = None) -> SpiderLSImport:
     """Reduce, schedule, route, and import an exact static Clifford+T source.
 
     Routing spacing must be at least two; margins must be positive. Smaller
     values trade routing room for footprint and can make a layout infeasible.
     Bloq preserves the routed unit grid, adding local gaps for endpoint cubes.
+    The upstream layer budget scales with source depth unless an explicit
+    positive ``max_physical_layers`` hard cap is supplied.
     """
     import pyzx as zx
     import pyzx_execution_order as execution
@@ -188,8 +191,9 @@ def from_qasm(qasm: str, *, spacing: int = 3, routing_margin: int = 3,
     from pyzx_routing import route_parallel_schedule, validate_routing_result
 
     for name, value, minimum in [('spacing', spacing, 2), ('routing_margin', routing_margin, 1),
-                                  ('placement_margin', placement_margin, 1)]:
-        if name == 'placement_margin' and value is None:
+                                  ('placement_margin', placement_margin, 1),
+                                  ('max_physical_layers', max_physical_layers, 1)]:
+        if name in ('placement_margin', 'max_physical_layers') and value is None:
             continue
         if type(value) is not int or value < minimum:
             raise ValueError(f'{name} must be an integer >= {minimum}')
@@ -203,7 +207,8 @@ def from_qasm(qasm: str, *, spacing: int = 3, routing_margin: int = 3,
     schedule = parallelize_target_program(target, include_boundary_h=True)
     if target.initial_patch_map or schedule.slots:
         routing = route_parallel_schedule(schedule, spacing=spacing, routing_margin=routing_margin,
-                                          placement_margin=placement_margin)
+                                          placement_margin=placement_margin,
+                                          max_physical_layers=max_physical_layers)
         validate_routing_result(routing, schedule)
     else:
         from pyzx_routing import BoundingBox, RoutingResult

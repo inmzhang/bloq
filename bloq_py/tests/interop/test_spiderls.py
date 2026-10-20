@@ -17,7 +17,9 @@ def source(gates, width=1):
 
 
 @pytest.mark.parametrize('options', [dict(spacing=1), dict(spacing=True),
-                                    dict(routing_margin=0), dict(placement_margin=1.5)])
+                                    dict(routing_margin=0), dict(placement_margin=1.5),
+                                    dict(max_physical_layers=0), dict(max_physical_layers=True),
+                                    dict(max_physical_layers=2.0)])
 def test_invalid_routing_options_reject_even_for_an_identity(options):
     with pytest.raises(ValueError, match='must be an integer'):
         from_qasm(source(''), **options)
@@ -33,6 +35,19 @@ def test_compact_routing_preserves_the_executable_interface():
     assert max(p[2] for p in imported.graph.positions()) <= len(imported.routing.layers) + 1
     program = bloq.compile(imported.graph, distance=3, prepare_t_with_mpps=True, validate=True)
     assert {output.port for output in program.logical_outputs()} == set(imported.output_ports)
+
+
+def test_routing_layer_budget_is_upstream_owned_and_preserves_an_explicit_cap():
+    from pyzx_routing import RoutingError
+
+    qasm = source('t q[0]; h q[0]; t q[0];')
+    automatic = from_qasm(qasm)
+    assert automatic.layout_options['max_physical_layers'] == 1000
+    bounded = from_qasm(qasm, max_physical_layers=2)
+    assert bounded.layout_options['max_physical_layers'] == 2
+    assert len(bounded.routing.layers) == 2
+    with pytest.raises(RoutingError, match='below required source depth 2'):
+        from_qasm(qasm, max_physical_layers=1)
 
 
 @pytest.mark.parametrize('gates,code', [
