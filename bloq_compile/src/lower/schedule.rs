@@ -106,11 +106,14 @@ fn neighbor_in_users(
     }
 }
 
+/// Alternative guards under which a node uses each physical qubit.
+type QubitGuards = crate::FxMap<glam::IVec2, Vec<Option<bloq_ir::ValueRef>>>;
+
 #[derive(Default)]
 struct LiveQubitUses {
-    inputs: crate::FxMap<glam::IVec2, Vec<Option<bloq_ir::ValueRef>>>,
-    outputs: crate::FxMap<glam::IVec2, Vec<Option<bloq_ir::ValueRef>>>,
-    uses: crate::FxMap<glam::IVec2, Vec<Option<bloq_ir::ValueRef>>>,
+    inputs: QubitGuards,
+    outputs: QubitGuards,
+    uses: QubitGuards,
 }
 
 struct EraNeighbors {
@@ -141,34 +144,25 @@ enum LiveDirection {
 }
 
 impl LiveDirection {
-    fn entry(
-        self,
-        uses: &LiveQubitUses,
-    ) -> &crate::FxMap<glam::IVec2, Vec<Option<bloq_ir::ValueRef>>> {
+    fn entry(self, uses: &LiveQubitUses) -> &QubitGuards {
         match self {
             Self::BeforeInputs => &uses.inputs,
             Self::AfterOutputs => &uses.outputs,
         }
     }
 
-    fn exit(
-        self,
-        uses: &LiveQubitUses,
-    ) -> &crate::FxMap<glam::IVec2, Vec<Option<bloq_ir::ValueRef>>> {
+    fn exit(self, uses: &LiveQubitUses) -> &QubitGuards {
         match self {
             Self::BeforeInputs => &uses.outputs,
             Self::AfterOutputs => &uses.inputs,
         }
     }
 
-    fn ordering(
-        self,
-        endpoint: bloq_ir::BloqNodeId,
-        reuser: bloq_ir::BloqNodeId,
-    ) -> (bloq_ir::BloqNodeId, bloq_ir::BloqNodeId) {
+    /// Orders `(near, far)` along the live state's flow.
+    fn orient<T>(self, near: T, far: T) -> (T, T) {
         match self {
-            Self::BeforeInputs => (reuser, endpoint),
-            Self::AfterOutputs => (endpoint, reuser),
+            Self::BeforeInputs => (far, near),
+            Self::AfterOutputs => (near, far),
         }
     }
 }
@@ -413,12 +407,9 @@ fn plan_live_era_reordering(
                     if next == reuser {
                         continue;
                     }
-                    let (from, to) = direction.ordering(next, reuser);
+                    let (from, to) = direction.orient(next, reuser);
                     if bloq.has_path_with_scratch(to, from, scratch) {
-                        let (producer, consumer) = match direction {
-                            LiveDirection::BeforeInputs => (next, endpoint),
-                            LiveDirection::AfterOutputs => (endpoint, next),
-                        };
+                        let (producer, consumer) = direction.orient(endpoint, next);
                         return Err(crate::CompileError::LiveQubitReuse {
                             producer,
                             consumer,

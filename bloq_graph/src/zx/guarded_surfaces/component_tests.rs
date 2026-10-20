@@ -24,7 +24,7 @@ fn named_row_from_ids(
     )
     .unwrap();
     let reduced = space
-        .reduce_named_rows::<true>(rows, [column].into_iter())
+        .reduce_named_rows::<true>(rows, [column].into_iter(), &[])
         .unwrap();
     space.named_row(&reduced, column).unwrap()
 }
