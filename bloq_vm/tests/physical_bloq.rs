@@ -1255,3 +1255,122 @@ fn feedback_only_frame_content_reports_the_byproduct() {
     let report = oracle.run(&bloq, shots, seed, |_, _| Ok(()));
     assert_eq!(report.frame_pairs.len(), 1, "one output frame pair");
 }
+
+/// Values of the named readout `name` across a run from `|+>` inputs, through
+/// the observable whose provenance is its source action.
+fn named_readout_values(graph: &BlockGraph, bloq: &bloq_compile::Bloq, name: &str) -> Vec<bool> {
+    let ordinal = graph
+        .actions()
+        .iter()
+        .position(|action| matches!(action, bloq_graph::Action::Measure { name: measured, .. } if measured == name))
+        .expect("named measurement exists");
+    // Inputs start in |+>, so a merge parity of two of them is random.
+    let report = bloq_vm::run_bloq_with_io(bloq, 64, 0x5EED, |_, _| Ok(()), |_, _| Ok(()))
+        .expect("program runs");
+    let observable = bloq
+        .top()
+        .nodes()
+        .filter(|(_, node)| {
+            matches!(
+                node.try_classical(),
+                Some(ClassicalNode::Observable { index: Some(_), .. })
+            )
+        })
+        .position(|(_, node)| {
+            node.provenance
+                == NodeProvenance::Action {
+                    ordinal: ordinal as u32,
+                }
+        })
+        .expect("named readout has an observable");
+    report.observables[observable].per_shot.clone()
+}
+
+/// A later unnamed merge between the same patches must not join a named
+/// merge's readout: their records agree, so the joint parity is constant.
+#[rstest::rstest]
+fn named_merge_is_not_read_through_a_later_unnamed_merge(#[values(false, true)] feedback: bool) {
+    let mut source = String::from("BLOG 1.0\n");
+    for (wire, (x, top)) in [(0, "X"), (1, "X"), (3, "Port")].into_iter().enumerate() {
+        let id = 4 * wire;
+        source += &format!(
+            "{id}: Port [{x},0,0]\n{}: XZX [{x},0,1]\n{}: XZX [{x},0,2]\n{}: {top} [{x},0,3]\n\
+             [{x},0,0] -> +Z\n[{x},0,1] -> +Z\n[{x},0,2] -> +Z\n",
+            id + 1,
+            id + 2,
+            id + 3,
+        );
+    }
+    source += "[0,0,1] -> +X\n[0,0,2] -> +X\nm = measure [0,0,1] -> +X\n";
+    if feedback {
+        source += "feedback X [0,0,1]\n";
+    }
+    let graph = BlockGraph::from_blog_text(&source).expect("repeated merge parses");
+    let bloq = CompileContext::new(CompileConfig::new(3))
+        .compile(&graph)
+        .expect("repeated merge compiles")
+        .bloq;
+    let values = named_readout_values(&graph, &bloq, "m");
+    assert!(
+        values.contains(&false) && values.contains(&true),
+        "{values:?}"
+    );
+}
+
+/// Repeated T merges read the named merge record, not a constant parity.
+#[test]
+fn named_t_merge_is_not_read_through_repeated_merges() {
+    let layers = 2;
+    let position = |x, z| IVec3::new(x, 0, z);
+    let mut graph = BlockGraph::new();
+    graph.add_block(Block::new(position(0, -1), BlockKind::T));
+    graph.add_block(Block::new(position(1, -1), BlockKind::Port));
+    graph.add_block(Block::new(
+        position(0, layers),
+        BlockKind::Selective(bloq_graph::SelectiveKind::XY),
+    ));
+    graph.add_block(Block::new(position(1, layers), BlockKind::Port));
+    for layer in 0..layers {
+        for x in 0..=1 {
+            graph.add_block(Block::new(
+                position(x, layer),
+                BlockKind::Cube(CubeKind::ZXZ),
+            ));
+        }
+        graph.add_pipe(Pipe::new(position(0, layer), Direction::XPLUS));
+    }
+    for x in 0..=1 {
+        for layer in -1..layers {
+            let pipe = Pipe::new(position(x, layer), Direction::ZPLUS);
+            graph.add_pipe(if layer == -1 || layer == layers - 1 {
+                pipe.with_hadamard()
+            } else {
+                pipe
+            });
+        }
+    }
+    graph
+        .set_actions(vec![
+            bloq_graph::Action::Measure {
+                target: bloq_graph::MeasureTarget::Edge {
+                    src: IVec3::ZERO,
+                    dir: Direction::XPLUS,
+                },
+                name: "m".into(),
+            },
+            bloq_graph::Action::Resolve {
+                target: position(0, layers),
+                condition: bloq_graph::Expr::Not(Box::new(bloq_graph::Expr::Var("m".into()))),
+            },
+        ])
+        .expect("repeated T merges are valid");
+    let bloq = CompileContext::new(CompileConfig::new(3))
+        .compile(&graph)
+        .expect("repeated T merges compile")
+        .bloq;
+    let values = named_readout_values(&graph, &bloq, "m");
+    assert!(
+        values.contains(&false) && values.contains(&true),
+        "{values:?}"
+    );
+}

@@ -1182,9 +1182,9 @@ mod tests {
     /// Pin the four measured wall profiles literally.
     #[test]
     fn wall_cases_pin_their_measured_graphlike_distances() {
-        let perpendicular = find_test_case("cz[fill:0]").expect("CZ variant 0");
-        let x_positive = find_test_case("cz[fill:1]").expect("CZ variant 1");
-        let x_negative = find_test_case("cz[fill:1][rotate:Y:2]").expect("rotated CZ variant 1");
+        let perpendicular = find_test_case("cz[fill:1]").expect("CZ variant 1");
+        let x_positive = find_test_case("cz[fill:0]").expect("CZ variant 0");
+        let x_negative = find_test_case("cz[fill:0][rotate:Y:2]").expect("rotated CZ variant 0");
         let wall = find_test_case("spatial_hadamard[base]").expect("wall fixture");
         let y_positive =
             find_test_case("spatial_hadamard[base][rotate:Z:1]").expect("Y wall aligned");

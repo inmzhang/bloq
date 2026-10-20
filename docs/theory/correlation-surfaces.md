@@ -372,6 +372,19 @@ while some named measurement is unknown:
     known ← known ∪ accepted names
 ```
 
+These conditions do not by themselves make $\operatorname{parity}(w)$ the
+authored record: unnamed merges and terminal measurements carry no named
+coordinate, so a surface can also pick up their records. When a named merge is
+repeated by a later unnamed merge between the same patches, both records agree
+and a surface through both has constant parity. Among the surfaces that meet
+the four conditions, Bloq therefore reduces each readout against the remaining
+relation latest layer first. The accepted surface keeps support on a later
+layer only when no earlier witness exists, so it does not reach a later record
+it does not need. An earlier unnamed record can still be required, as for a
+parity read jointly with a terminal measurement. This selection rule removes
+the repeated-merge failure; it is not a general proof that a surface never
+depends on an unnamed record in the same layer.
+
 Availability constraints only relax as values become known. Bloq keeps their
 pivots between waves and releases each constraint when its condition becomes
 available, so later waves do not restart elimination. An accepted readout is

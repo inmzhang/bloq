@@ -628,12 +628,15 @@ impl GuardedSurfaceSpace {
             );
             local.insert(position, local_variants);
         }
-        // Keep source tensor and seam row priority, but sweep physical columns
-        // along the longest extent during later readout reduction.
+        // Keep source tensor and seam row priority. Readout reduction sweeps
+        // physical columns latest layer first, so a named readout keeps later
+        // support only when no earlier witness exists: it is not read through a
+        // later unnamed record, such as a repeated merge between the same
+        // patches. Within a layer it sweeps along the longer spatial extent.
         topology.diagram.charge(upper_bound)?;
-        let mut axes = [0, 1, 2];
-        if let Some((x, y, z)) = topology.source.spans() {
-            let spans = [x, y, z];
+        let mut axes = [0, 1];
+        if let Some((x, y, _)) = topology.source.spans() {
+            let spans = [x, y];
             axes.sort_by_key(|&axis| {
                 (
                     std::cmp::Reverse(
@@ -653,7 +656,11 @@ impl GuardedSurfaceSpace {
             let position = match key {
                 SurfaceColumn::Node(position) | SurfaceColumn::Edge(position, _) => position,
             };
-            (axes.map(|axis| position[axis]), **old)
+            (
+                std::cmp::Reverse(position[2]),
+                axes.map(|axis| position[axis]),
+                **old,
+            )
         });
         let mut remap = vec![0; ordered.len()];
         for (new, (_, old)) in ordered.into_iter().enumerate() {
