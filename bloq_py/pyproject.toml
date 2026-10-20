@@ -44,6 +44,7 @@ docs = ["sphinx>=9,<10", "sphinx-immaterial", "myst-parser"]
 interop = [
     "imageio==2.37.0",
     "matplotlib==3.10.3",
+    "mqt-bench==2.3.0",
     "networkx==3.5",
     "numpy==2.3.5",
     "pygridsynth==2.0.0",
