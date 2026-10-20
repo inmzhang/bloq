@@ -3,7 +3,12 @@
 import pytest
 import bloq
 
-from bloq.interop._geometry import GeometryError, _compact_temporal_layers, _space_diagram, add_t_resource, add_t_resources, build_graph
+import copy
+
+from bloq.interop._geometry import (
+    GeometryError, _compact_temporal_layers, _space_diagram, add_t_resource, add_t_resources, build_graph,
+    push_spatial_hadamards,
+)
 
 
 @pytest.fixture
@@ -281,3 +286,47 @@ def test_subdivision_does_not_hide_stale_or_nonunit_edges(wire, edge, endpoints)
     nodes, _ = wire
     with pytest.raises(GeometryError, match="pipe_geometry"):
         _space_diagram(nodes, {edge: endpoints})
+
+
+def turn():
+    """A wire whose only spatial pipe carries a removable Hadamard wall."""
+    nodes = {
+        "in": dict(position=(0, 0, -1), tqec="ZXZ", other=dict(type="input", qubit=0)),
+        "a": dict(position=(0, 0, 0), tqec="ZXZ", other=None),
+        "b": dict(position=(0, 0, 1), tqec="ZXZ", other=None),
+        "c": dict(position=(1, 0, 1), tqec="XZX", other=None),
+        "d": dict(position=(1, 0, 2), tqec="XZX", other=None),
+        "out": dict(position=(1, 0, 3), tqec="XZX", other=dict(type="output", qubit=0)),
+    }
+    return nodes, [("in", "a"), ("a", "b"), ("b", "c"), ("c", "d"), ("d", "out")]
+
+
+def hadamard_axes(graph):
+    return [str(p.direction)[1] for p in graph.flatten().pipes() if p.hadamard]
+
+
+def test_spatial_walls_move_to_temporal_pipes_without_changing_the_channel():
+    nodes, edges = turn()
+    source = copy.deepcopy(nodes)
+    push_spatial_hadamards(nodes, edges)
+    assert {n: d["tqec"] for n, d in nodes.items() if d["tqec"] != source[n]["tqec"]} == {"c": "ZXZ"}
+    pushed, _, _ = build_graph(nodes, edges, 1, [])
+    original, _, _ = build_graph(source, edges, 1, [])
+    assert hadamard_axes(original) == ["X"]
+    assert hadamard_axes(pushed) == ["Z"]
+    for state in ("zero", "plus"):
+        expected, actual = (
+            bloq.run_noiseless(bloq.compile(graph, distance=3), input_state=state)["samples"][0]["logical_bloch"][0]
+            for graph in (original, pushed)
+        )
+        assert actual == pytest.approx(expected, abs=1e-8)
+    again = copy.deepcopy(nodes)
+    push_spatial_hadamards(again, edges)
+    assert again == nodes
+
+
+def test_conflicting_fixed_frames_keep_the_wall():
+    nodes, edges = turn()
+    source = copy.deepcopy(nodes)
+    push_spatial_hadamards(nodes, edges, fixed={"b", "c"})
+    assert nodes == source

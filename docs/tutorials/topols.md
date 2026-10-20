@@ -96,9 +96,13 @@ check synthesis; execution checks every joint output Pauli expectation.
   with spatial doglegs of identity cubes. Pending T patches reserve distinct
   spatial columns clear of data and other gadgets, even at different source
   times. The injection axis and signed control recipe are preserved.
+- Before T attachment, the importer recolors each cube component whose spatial
+  Hadamard walls can all move onto temporal pipes without changing a port,
+  resource, or feedback frame. Other components keep their walls, which compile
+  physically with Bloq's distance warning.
 - Routing success does not guarantee compatibility. Unsupported frames,
-  inconsistent interfaces, mixed spatial Hadamard-wall axes that cannot be
-  rewritten, exhausted placement budgets, and destructive patch reuse reject.
+  inconsistent interfaces, mixed spatial Hadamard-wall axes, exhausted
+  placement budgets, and destructive patch reuse reject.
   The adapter performs no lifetime-aware upstream rerouting.
 - VM checks use ideal T-source proxies, noiseless physical circuits, ideal input
   preparation, and ideal boundary capture. They do not claim cultivation

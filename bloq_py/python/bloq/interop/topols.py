@@ -16,7 +16,7 @@ import bloq
 
 from bloq.interop._geometry import (
     GRID_SPACING, GeometryError as TopoLSImportError, Position, _CUBES, _installed_revision,
-    _later_leg, _parse_static_qasm, _position, _direction, _space_diagram, add_t_resources, build_graph,
+    _latest_leg, _parse_static_qasm, _position, _direction, _space_diagram, add_t_resources, build_graph, push_spatial_hadamards,
 )
 
 AUDITED_REVISION = "e564d350a596cfea3227e09698733210e2e14dcf"
@@ -162,6 +162,7 @@ def _convert(embedding: dict[str, Any], qubits: int) -> tuple[bloq.BlockGraph, t
     occupied = {_position(data["position"]) for data in nodes.values()}
     resources = {"S": 0, "T": 0}
     t_resources = []
+    fixed = set()
     # Reserve signed Y caps before placing the movable T endpoints.
     for node, data in list(nodes.items()):
         other = data["other"]
@@ -215,11 +216,13 @@ def _convert(embedding: dict[str, Any], qubits: int) -> tuple[bloq.BlockGraph, t
         # supplies pi, giving the required +pi/2 phase.
         if (direction == "+Z") != dagger:
             p = _position(nodes[root]["position"])
-            leg = _later_leg(p, (nodes[n]["position"] for n in neighbors[root]))
+            leg = _latest_leg(p, (nodes[n]["position"] for n in neighbors[root]))
             actions.append(bloq.Action.feedback([bloq.FeedbackTarget("Z", p, direction=leg)]))
+            fixed.update([root, *neighbors[root]])
     for resource, typ in (("S", 4), ("T", 5)):
         if resources[resource] != sum(t == typ for t in embedding["type_hist"].values()):
             raise TopoLSImportError("source_provenance", f"Missing or duplicate {resource} attachment")
+    push_spatial_hadamards(nodes, edges, fixed)
     actions.extend(add_t_resources(nodes, edges, t_resources))
     return build_graph(nodes, edges, qubits, actions)
 

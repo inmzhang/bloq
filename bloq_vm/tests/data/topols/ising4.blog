@@ -239,7 +239,7 @@ module main {
   226: XZZ [2, 2, 46]
   227: XZZ [2, 2, 43]
   228: ZXX [0, 3, 49]
-  229: ZXX [0, 3, 48]
+  229: XZZ [0, 3, 48]
   230: XZX [0, 0, 48]
   231: XZX [-1, 0, 48]
   232: XZZ [-1, 0, 46]
@@ -272,7 +272,7 @@ module main {
   259: ZZX [1, 0, 8]
   260: ZZX [1, 1, 8]
   261: XZX [0, 1, 8]
-  262: XZZ [0, 1, 7]
+  262: ZXX [0, 1, 7]
   263: ZXZ [0, 2, 18]
   264: ZXZ [0, 2, 17]
   265: ZXZ [0, 2, 15]
@@ -300,8 +300,8 @@ module main {
   287: XXZ [2, 3, 24]
   288: ZXZ [3, 3, 24]
   289: ZXZ [3, 3, 22]
-  290: ZXZ [3, 3, 21]
-  291: XXZ [2, 3, 21]
+  290: XZX [3, 3, 21]
+  291: ZZX [2, 3, 21]
   292: XZZ [0, 0, 28]
   293: XZZ [2, 2, 30]
   294: XZZ [2, 3, 30]
@@ -479,7 +479,7 @@ module main {
   8 -H> +Z
   9 -H> +Z
   10 -> +Z
-  10 -H> +Y
+  10 -> +Y
   11 -> +Z
   11 -> +X
   12 -> +Z
@@ -499,7 +499,7 @@ module main {
   24 -H> +Z
   25 -> +Z
   26 -> +Z
-  26 -H> +Y
+  26 -> +Y
   27 -> +X
   28 -> +X
   28 -> +Y
@@ -538,7 +538,7 @@ module main {
   52 -> +Y
   53 -> +X
   53 -> +Z
-  54 -H> +Y
+  54 -> +Y
   55 -> +Y
   64 -> +X
   64 -> +Z
@@ -716,7 +716,7 @@ module main {
   225 -> +Z
   226 -> +Z
   227 -> +Z
-  229 -> +Z
+  229 -H> +Z
   230 -> +Z
   231 -> +X
   232 -> +Y
@@ -749,7 +749,7 @@ module main {
   258 -> +Y
   259 -> +Y
   261 -> +X
-  262 -> +Z
+  262 -H> +Z
   263 -> +Z
   264 -> +Z
   265 -> +Z
@@ -777,7 +777,7 @@ module main {
   286 -> +Y
   287 -> +X
   289 -> +Z
-  290 -> +Z
+  290 -H> +Z
   291 -> +X
   292 -> +Z
   293 -> +Y
@@ -937,10 +937,10 @@ module main {
   feedback Z 7 -> +Z
   feedback Z 13 -> +Z
   feedback Z 21 -> +X
-  feedback Z 28 -> -X
-  feedback Z 32 -> -Y
+  feedback Z 28 -> +X
+  feedback Z 32 -> +X
   feedback Z 39 -> +X
-  feedback Z 52 -> -X
+  feedback Z 52 -> +Y
   topols_t_28_old_t = measure 427 -> -X
   resolve 429 if !topols_t_28_old_t
   topols_t_31_t = measure 430 -> +Y

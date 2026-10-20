@@ -91,21 +91,14 @@ report = bloq.run_noiseless(program, shots=3, input_state="zero", include_signat
   records `(1, 1, 1)`; endpoints, local gaps, and T gadgets contribute to imported
   volume. Idle slices are contracted while protecting resources, controls,
   ports, and tags; temporal H seams compose by parity.
-- T attachments use the shared placement described for
-  [TopoLS](topols.md#semantic-bridge-and-limits).
+- T attachments and spatial Hadamard walls use the shared handling described
+  for [TopoLS](topols.md#semantic-bridge-and-limits).
 - `SpiderLSImport` retains the reduced graph, plan, target, schedule, routing,
   options, revision, and ordered ports.
   Bloq derives readouts and adaptive dependencies from the imported graph.
-  Saved BLOG and viewer files show that source layout; compilation may change
-  cube frames and Hadamard placement while retaining its positions and topology.
 - Unsupported angles, dynamic source control, missing provenance, collisions,
   unsupported frames, exhausted placement budgets, and destructive patch reuse
-  reject. Try different upstream routing options when placement fails. Bloq
-  compilation moves spatial Hadamards through ordinary cubes while preserving
-  protected resource and control frames. When complete removal is impossible,
-  each spatial component retains walls on at most one axis. Conflicting protected
-  frames still reject with an anchored-path diagnostic; see
-  [compilation](../theory/compilation.md).
+  reject. Try different upstream routing options when placement fails.
 - VM checks use ideal T-source proxies, noiseless physical circuits, ideal input
   preparation, and boundary capture. Spatial Hadamard pipes retain Bloq's
   distance warning; these demonstrations make no fault-tolerant distance claim.

@@ -73,11 +73,60 @@ def _direction(start: Position, end: Position) -> str:
     return ("+" if delta[axis] > 0 else "-") + "XYZ"[axis]
 
 
-def _later_leg(start: Position, legs) -> str:
-    later = [leg for leg in map(_position, legs) if leg[2] > start[2]]
-    if len(later) != 1:
-        raise GeometryError("resource_frame", f"Spider at {start} has no unique later leg")
-    return _direction(start, later[0])
+_COLOR_CHANGE = str.maketrans("XZ", "ZX")
+
+
+def _transverse_flips(nodes, a, b):
+    axis = "XYZ".index(_direction(_position(nodes[a]["position"]), _position(nodes[b]["position"]))[1])
+    ka, kb = nodes[a]["tqec"], nodes[b]["tqec"]
+    return [ka[i] != kb[i] for i in range(3) if i != axis] if ka in _CUBES and kb in _CUBES else [False, False]
+
+
+def push_spatial_hadamards(nodes, edges, fixed=()):
+    """Recolor cube components whose spatial Hadamard walls can all be removed.
+
+    A ZX color change swaps a cube's X and Z faces, toggling every incident
+    Hadamard. Cubes touching other blocks, or listed in ``fixed``, keep their
+    frames. A component that cannot lose every wall keeps its frames.
+    """
+    def cube(n):
+        return nodes[n]["other"] is None and nodes[n]["tqec"] in _CUBES
+
+    fixed = set(fixed)
+    spatial = defaultdict(list)
+    for a, b in edges:
+        if not (cube(a) and cube(b)):
+            fixed.update((a, b))
+        elif not _direction(_position(nodes[a]["position"]), _position(nodes[b]["position"])).endswith("Z"):
+            wall = all(_transverse_flips(nodes, a, b))
+            spatial[a].append((b, wall))
+            spatial[b].append((a, wall))
+    seen: set[Any] = set()
+    for start in list(spatial):
+        if start in seen:
+            continue
+        flips, queue, exact, walls = {start: False}, [start], True, False
+        for n in queue:
+            for m, wall in spatial[n]:
+                walls |= wall
+                if m not in flips:
+                    flips[m] = flips[n] ^ wall
+                    queue.append(m)
+                exact &= flips[m] == flips[n] ^ wall
+        seen.update(flips)
+        anchors = {flips[n] for n in flips if n in fixed}
+        if not walls or not exact or len(anchors) > 1:
+            continue
+        # Unanchored components take the complementary solution with fewer changes.
+        keep = anchors.pop() if anchors else 2 * sum(flips.values()) > len(flips)
+        for n, flip in flips.items():
+            if flip != keep:
+                nodes[n]["tqec"] = nodes[n]["tqec"].translate(_COLOR_CHANGE)
+
+
+def _latest_leg(start: Position, legs) -> str:
+    # Z on any leg of a Z spider adds the same phase; only determinism matters.
+    return _direction(start, max(map(_position, legs), key=lambda leg: (leg[2], leg)))
 
 
 def _space_diagram(nodes, edges):
@@ -537,14 +586,10 @@ def build_graph(nodes, edges, qubits, actions):
         graph.add_block(bloq.Block(positions[n], 'Port' if isinstance(role, dict) else data['tqec'],
                                    role=role['type'] if isinstance(role, dict) else 'auto'))
     for a, b in edges:
-        p, q = positions[a], positions[b]
-        direction = _direction(p, q)
-        axis = 'XYZ'.index(direction[1])
-        ka, kb = nodes[a]['tqec'], nodes[b]['tqec']
-        flips = [ka[i] != kb[i] for i in range(3) if i != axis] if ka in _CUBES and kb in _CUBES else [False, False]
+        flips = _transverse_flips(nodes, a, b)
         if flips[0] != flips[1]:
             raise GeometryError('pipe_basis', f'Mixed transverse frames on {a!r} -> {b!r}')
-        graph.add_pipe(bloq.Pipe(p, direction, hadamard=all(flips)))
+        graph.add_pipe(bloq.Pipe(positions[a], _direction(positions[a], positions[b]), hadamard=all(flips)))
     if any(set(mapping) != set(range(qubits)) for mapping in ports.values()):
         raise GeometryError('boundaries', 'Layout does not cover the source interface')
     graph.set_actions(actions)

@@ -181,7 +181,7 @@ module main {
   170: XXZ [2, 3, 33]
   171: XZZ [2, 2, 33]
   172: ZXZ [1, 0, 34]
-  173: ZXZ [1, 0, 33]
+  173: XZX [1, 0, 33]
   174: ZXZ [2, 0, 33]
   175: ZXZ [2, 0, 31]
   176: ZXZ [2, 0, 28]
@@ -343,7 +343,7 @@ module main {
   34 -> +Z
   35 -> +Y
   35 -> +Z
-  36 -H> +X
+  36 -> +X
   37 -> +Y
   38 -> +X
   41 -> +X
@@ -485,7 +485,7 @@ module main {
   169 -> +Y
   171 -> +Z
   171 -> +Y
-  173 -> +Z
+  173 -H> +Z
   174 -> +Z
   175 -> +Z
   176 -> +Z
@@ -595,7 +595,7 @@ module main {
   288 -> +Z
 
   feedback Z 5 -> +Z
-  feedback Z 8 -> -X
+  feedback Z 8 -> +X
   feedback Z 14 -> +Z
   topols_t_7_t = measure 270 -> -X
   resolve 272 if !topols_t_7_t
