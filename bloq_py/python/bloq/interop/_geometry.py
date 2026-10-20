@@ -138,7 +138,8 @@ def _compact_temporal_layers(graph):
     """Contract complete identity slices in a flat, unit-height import.
 
     This is an import optimization, not a rewrite of authored memory duration.
-    Named actions, H seams, tagged geometry and nonordinary blocks are anchors.
+    Named actions, tagged geometry and nonordinary blocks are anchors.
+    Temporal H seams compose by parity when their identity cubes are removed.
     The native compiler must still validate physical patch lifetimes afterward.
     """
     if graph.has_module_structure:
@@ -151,12 +152,11 @@ def _compact_temporal_layers(graph):
             or any(a.kind not in ('let', 'measure', 'feedback', 'resolve', 'discard_if') for a in actions)):
         return graph, positions
     rows = defaultdict(list)
-    neighbors: dict[Position, dict[Position, bloq.Pipe | None]] = {p: {} for p in blocks}
+    neighbors: dict[Position, dict[Position, tuple[bool, str | None]]] = {p: {} for p in blocks}
     for b in blocks.values():
         rows[b.pos[2]].append(b)
     for pipe in graph.pipes():
-        neighbors[pipe.src][pipe.dst] = pipe
-        neighbors[pipe.dst][pipe.src] = pipe
+        neighbors[pipe.src][pipe.dst] = neighbors[pipe.dst][pipe.src] = (pipe.hadamard, pipe.tag)
     protected = set()
 
     def protect(pos, direction=None):
@@ -177,8 +177,7 @@ def _compact_temporal_layers(graph):
         return (kind in _CUBES and kind[0] != kind[1] and block.tag is None
                 and len(neighbors[p]) == 2
                 and all(q[:2] == p[:2] and abs(q[2] - p[2]) == 1
-                        and pipe is not None and not pipe.hadamard and pipe.tag is None
-                        for q, pipe in neighbors[p].items()))
+                        and tag is None for q, (_, tag) in neighbors[p].items()))
 
     removed = sorted(z for z, row in rows.items() if z not in protected and all(map(identity, row)))
     if not removed:
@@ -186,10 +185,11 @@ def _compact_temporal_layers(graph):
     for z in removed:
         for block in rows[z]:
             p = block.pos
-            lower, upper = sorted(neighbors.pop(p), key=lambda q: q[2])
+            adjacent = neighbors.pop(p)
+            lower, upper = sorted(adjacent, key=lambda q: q[2])
             del neighbors[lower][p]
             del neighbors[upper][p]
-            neighbors[lower][upper] = neighbors[upper][lower] = None
+            neighbors[lower][upper] = neighbors[upper][lower] = (adjacent[lower][0] ^ adjacent[upper][0], None)
             del positions[p]
     positions = {p: (p[0], p[1], p[2] - bisect_left(removed, p[2])) for p in positions}
     compact = bloq.BlockGraph()
@@ -197,11 +197,10 @@ def _compact_temporal_layers(graph):
         b = blocks[p]
         compact.add_block(bloq.Block(q, b.kind, height=b.height, tag=b.tag, role=b.role or 'auto'))
     for p, adjacent in neighbors.items():
-        for q, pipe in adjacent.items():
+        for q, (hadamard, tag) in adjacent.items():
             if p < q:
                 compact.add_pipe(bloq.Pipe(positions[p], _direction(positions[p], positions[q]),
-                                          hadamard=pipe.hadamard if pipe is not None else False,
-                                          tag=pipe.tag if pipe is not None else None))
+                                          hadamard=hadamard, tag=tag))
     remapped = []
     for action in actions:
         if action.target is not None:

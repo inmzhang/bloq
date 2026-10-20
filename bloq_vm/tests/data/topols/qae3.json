@@ -23,17 +23,17 @@
     [
       6,
       6,
-      40
+      34
     ],
     [
       0,
       0,
-      40
+      34
     ],
     [
       6,
       0,
-      40
+      34
     ]
   ],
   "normalized_qasm": "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[3];\nh q[0];\nh q[1];\nsdg q[2];\nh q[2];\nt q[2];\nh q[2];\ns q[2];\nsdg q[2];\nh q[2];\nt q[2];\nh q[2];\ns q[2];\ncx q[0],q[2];\nsdg q[2];\nh q[2];\ntdg q[2];\nh q[2];\ns q[2];\ncx q[0],q[2];\nsdg q[1];\nsdg q[2];\ncx q[1],q[2];\ns q[2];\ncx q[0],q[1];\ncx q[1],q[0];\ncx q[0],q[1];\nh q[0];\ntdg q[1];\ncx q[1],q[0];\nt q[0];\ncx q[1],q[0];\ntdg q[0];\nh q[1];\n",

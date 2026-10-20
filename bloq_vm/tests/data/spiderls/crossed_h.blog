@@ -7,18 +7,10 @@ module main {
   out out_1: data = 1
 
   0: Port [9, 0, 0] role=input
-  1: Port [9, 0, 3] role=output
+  1: Port [9, 0, 1] role=output
   2: Port [18, 0, 0] role=input
-  3: Port [18, 0, 3] role=output
-  4: ZXX [9, 0, 1]
-  5: XZX [9, 0, 2]
-  6: ZXX [18, 0, 1]
-  7: ZXX [18, 0, 2]
-  0 -> +Z
+  3: Port [18, 0, 1] role=output
+  0 -H> +Z
   2 -> +Z
-  4 -H> +Z
-  5 -> +Z
-  6 -> +Z
-  7 -> +Z
 
 }

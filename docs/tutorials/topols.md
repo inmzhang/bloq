@@ -87,8 +87,8 @@ check synthesis; execution checks every joint output Pauli expectation.
 - Imported coordinates are first spaced by three; identity cubes subdivide
   pipes and preserve their Hadamard parity, leaving room for endpoint gadgets.
   After lowering, complete idle time slices are contracted while protecting
-  resources, controls, ports, tags, and Hadamard seams. The spatial collar still
-  enlarges the layout. The original compact embedding remains available for
+  resources, controls, ports, and tags; temporal Hadamard seams compose by parity.
+  The spatial collar still enlarges the layout. The original compact embedding remains available for
   provenance; adapted volume is not TopoLS's optimized volume.
 - Routing success does not guarantee compatibility. Unsupported frames,
   inconsistent interfaces, protected frames that still require mixed spatial wall axes, or destructive patch

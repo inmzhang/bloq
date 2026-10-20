@@ -18,12 +18,12 @@
     [
       0,
       0,
-      6
+      5
     ],
     [
       6,
       0,
-      6
+      5
     ]
   ],
   "normalized_qasm": "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[2];\nh q[0];\ncx q[0],q[1];\nt q[1];\n",

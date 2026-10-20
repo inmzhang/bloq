@@ -88,9 +88,10 @@ report = bloq.run_noiseless(program, shots=3, input_state="zero", include_signat
   are preserved even when SpiderLS omits them from target code.
 - Spacing by three leaves room for the shared, channel-checked resource gadgets.
   Added phase-zero cubes preserve the tensor map. After lowering, complete idle
-  time slices are contracted while protecting resources, controls, ports, tags,
-  and Hadamard seams. The remaining spatial collar means the imported volume
-  differs from SpiderLS's optimized volume. `SpiderLSImport` retains the reduced
+  time slices are contracted while protecting resources, controls, ports, and
+  tags; temporal Hadamard seams compose by parity. The remaining spatial collar
+  means the imported volume differs from SpiderLS's optimized volume.
+  `SpiderLSImport` retains the reduced
   graph, plan, target, schedule, routing, options, revision, and ordered ports.
   Bloq derives readouts and adaptive dependencies from the imported graph.
   Saved BLOG and viewer files show that source layout; compilation may change

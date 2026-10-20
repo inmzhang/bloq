@@ -5,11 +5,7 @@ module main {
   out out_0: data = 1
 
   0: Port [9, 0, 0] role=input
-  1: Port [9, 0, 3] role=output
-  2: ZXX [9, 0, 1]
-  3: XZX [9, 0, 2]
-  0 -> +Z
-  2 -H> +Z
-  3 -> +Z
+  1: Port [9, 0, 1] role=output
+  0 -H> +Z
 
 }

@@ -52,14 +52,19 @@ def test_compaction_remaps_each_feedback_target_and_protects_edge_endpoints():
     assert compact.to_text() == _compact_temporal_layers(compact)[0].to_text()
 
 
-def test_hadamard_and_authored_memory_duration_are_not_erased():
-    graph = temporal_wire(4)
-    graph.set_block_kind((0, 0, 3), 'XZX')
-    graph.set_pipe_hadamard((0, 0, 2), (0, 0, 3), True)
-    graph.set_pipe_hadamard((0, 0, 3), (0, 0, 4), False)
-    compact, positions = _compact_temporal_layers(graph)
-    assert {(0, 0, 2), (0, 0, 3)} <= positions.keys()
-    assert sum(p.hadamard for p in compact.pipes()) == 1
+@pytest.mark.parametrize('seams', [(1,), (1, 5)])
+def test_temporal_hadamards_compose_during_identity_contraction(seams):
+    graph = temporal_wire()
+    for z in range(1, 8):
+        graph.set_block_kind((0, 0, z), 'XZX' if sum(s < z for s in seams) % 2 else 'ZXX')
+    for z in seams:
+        graph.set_pipe_hadamard((0, 0, z), (0, 0, z + 1), True)
+    compact, _ = _compact_temporal_layers(graph)
+    assert compact.block_count == 2
+    assert [p.hadamard for p in compact.pipes()] == [bool(len(seams) % 2)]
+
+
+def test_authored_memory_duration_is_not_erased():
     memory = bloq.BlockGraph()
     memory.add_block(bloq.Block((0, 0, 0), 'ZXX', height='2d'))
     assert _compact_temporal_layers(memory)[0].to_text() == memory.to_text()
