@@ -132,6 +132,70 @@ index e3620a4..4a92e84 100644
              continue;
          }
          if let Some(path) = shortest_path(exit, target, &occ_tmp, z_floor, floors, idle_cells, Some(ceiling_z), None) {
+diff --git a/rust/topols_core/tests/outlets.rs b/rust/topols_core/tests/outlets.rs
+new file mode 100644
+index 0000000..ac5829b
+--- /dev/null
++++ b/rust/topols_core/tests/outlets.rs
+@@ -0,0 +1,58 @@
++//! A new magic resource needs an arm; an already routed exit may stay put.
++
++use topols_core::geometry::{Cell, Floors};
++use topols_core::routing::astar::Occ;
++use topols_core::routing::boundary::route_single_t_to_boundary;
++use topols_core::routing::color::Axis;
++
++#[test]
++fn initial_t_outlet_has_a_nonzero_arm() {
++    let source = Cell::new(-2, 0, 1);
++    for orientation in [Axis::I, Axis::J, Axis::K] {
++        let mut occupied: Occ = [source, Cell::new(-2, -1, 1), Cell::new(-2, -1, 2)]
++            .into_iter()
++            .collect();
++        let result = route_single_t_to_boundary(
++            source,
++            &mut occupied,
++            &Occ::default(),
++            1.0,
++            3.0,
++            Floors::all(-1.0, 1.0, -1.0, 1.0),
++            Some(orientation),
++            3,
++            &[],
++        );
++        let target = result.target.expect("a neighboring boundary cell is free");
++        let path = result.path.unwrap();
++        assert_ne!(target, source, "orientation {orientation:?}");
++        assert!(path.len() >= 2);
++        assert_eq!(path.first(), Some(&source));
++        assert_eq!(path.last(), Some(&target));
++        assert_eq!(result.ori, None);
++    }
++}
++
++#[test]
++fn an_existing_t_arm_may_stay_at_its_boundary() {
++    let source = Cell::new(-2, 0, 1);
++    let mut occupied: Occ = [source, Cell::new(-2, -1, 1), Cell::new(-2, -1, 2)]
++        .into_iter()
++        .collect();
++    let before = occupied.clone();
++    let result = route_single_t_to_boundary(
++        source,
++        &mut occupied,
++        &Occ::default(),
++        1.0,
++        3.0,
++        Floors::all(-1.0, 1.0, -1.0, 1.0),
++        None,
++        3,
++        &[],
++    );
++    assert_eq!(result.target, Some(source));
++    assert_eq!(result.path, Some(vec![source]));
++    assert_eq!(result.ori, None);
++    assert_eq!(occupied, before);
++}
 diff --git a/src/topols/driver.py b/src/topols/driver.py
 index e7c6340..e8ee2ec 100644
 --- a/src/topols/driver.py
@@ -341,3 +405,110 @@ index e44e380..ef6f2e7 100644
                      try:
                          merge_spiders(graph, v, n)
                          break  # Merge only one pair per pass
+diff --git a/tests/test_regressions.py b/tests/test_regressions.py
+new file mode 100644
+index 0000000..d967faf
+--- /dev/null
++++ b/tests/test_regressions.py
+@@ -0,0 +1,101 @@
++"""Source-preserving fallback layers and magic-state outlet routing."""
++
++import unittest
++from pathlib import Path
++from tempfile import TemporaryDirectory
++from types import SimpleNamespace
++
++import pyzx as zx
++from topols.embedding.hadamard import HTable
++from topols.engine import block_payload, run_rust
++from topols.pipeline import fallback_block, prepare_graph
++from topols.routing.boundary import route_single_T_to_boundary
++from topols.zx_transform.layering import layer_info
++
++
++class FallbackFrontierTests(unittest.TestCase):
++    def test_empty_and_populated_frontiers_preserve_cnot_and_final_t(self):
++        for gate in ("h", "s"):
++            with self.subTest(frontier=gate):
++                circuit = zx.Circuit.from_qasm(
++                    'OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[2];\n'
++                    f'{gate} q[0]; cx q[0],q[1]; t q[1];\n'
++                )
++                prep = SimpleNamespace(circuit=circuit, block_info={1: [2, 3]},
++                                       idx_to_row=dict(enumerate(range(5))), h_table=HTable())
++                graph, labels, _ = fallback_block(circuit, 1, prep.block_info, prep.idx_to_row)
++                # The inherited row 1 may disappear with its Hadamard. Both
++                # engines must still execute the CNOT in 1 and final T in 2.
++                self.assertEqual(sorted(layer_info(graph, labels, 1)[3].values()), [0, 1])
++                self.assertIn(5, layer_info(graph, labels, 2)[3].values())
++                layers = block_payload(prep, 1)["layers"]
++                self.assertEqual(len(layers), max(labels.values()) + 1)
++                self.assertEqual(sorted(dict(layers[1]["node_type"]).values()), [0, 1])
++                self.assertIn(5, dict(layers[2]["node_type"]).values())
++
++    def test_both_drivers_execute_first_cnot_and_final_t(self):
++        from topols.driver import operation
++
++        qasm = 'OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[2];\nh q[0]; cx q[0],q[1]; t q[1];\n'
++        with TemporaryDirectory() as temporary:
++            path = Path(temporary) / "source.qasm"
++            path.write_text(qasm)
++            for engine in ("python", "rust"):
++                with self.subTest(engine=engine):
++                    prep = prepare_graph(path, block_size_max=1, zx_opt=0, dir_opt=0)
++                    # No MCTS iterations forces the gate-by-gate fallback.
++                    if engine == "rust":
++                        try:
++                            import topols_core  # noqa: F401
++                        except ImportError:
++                            self.skipTest("optional topols_core extension is not installed")
++                        history = run_rust(prep, {
++                            "seed_init": 1330, "seed_step": 1, "time_bound": .01, "iter_num": 0,
++                            "move_num": 6, "length": 2, "dir_opt": False, "backtrack": 0, "z_floor": 1,
++                        })[2]
++                    else:
++                        history = operation(
++                            prep.circuit, prep.graph, prep.layer_labels, prep.layer_to_block,
++                            prep.block_info, prep.idx_to_row, prep.rows, prep.q_num,
++                            z_floor=1, seed_init_tuple=(1330, 1), time_bound=.01, iter_num=0,
++                            move_num=6, length=2, dir_opt=0, hadamard_edges=prep.h_table,
++                            io_info=prep.io_info,
++                        )[4]
++                    source = prep.circuit.to_graph()
++                    expected = {v: 1 if source.type(v) == zx.VertexType.X else 0
++                                for v in source.vertices() if source.vertex_degree(v) == 3}
++                    expected.update({v: 5 for v in source.vertices() if source.phase(v) == 1 / 4})
++                    for vertex, kind in expected.items():
++                        self.assertTrue(any(str(n).split("_")[0] == str(vertex) and t == kind
++                                            for n, t in history.items()), (engine, vertex, kind))
++
++
++class TOutletTests(unittest.TestCase):
++    def route(self, orientation):
++        source = (-2, 0, 1)
++        occupied = {source, (-2, -1, 1), (-2, -1, 2)}
++        before = occupied.copy()
++        result = route_single_T_to_boundary(
++            source, occupied, set(), 1, 3, -1, 1, -1, 1, orientation,
++        )
++        return source, before, result
++
++    def test_initial_outlet_has_a_nonzero_arm(self):
++        for orientation in ("i", "j", "k"):
++            with self.subTest(orientation=orientation):
++                source, _, (target, path, _, orientation) = self.route(orientation)
++                self.assertIsNotNone(target)
++                self.assertNotEqual(target, source)
++                self.assertGreaterEqual(len(path), 2)
++                self.assertEqual(path[0], source)
++                self.assertEqual(path[-1], target)
++                self.assertEqual(orientation, 0)
++
++    def test_an_existing_arm_may_stay_at_its_boundary(self):
++        source, occupied, (target, path, after, orientation) = self.route(0)
++        self.assertEqual((target, path, orientation), (source, (source,), 0))
++        self.assertEqual(after, occupied)
++
++
++if __name__ == "__main__":
++    unittest.main()
