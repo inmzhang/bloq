@@ -119,10 +119,12 @@ def _worker_command(stage, case_dir, *, compiler=None, epsilon=1e-2, shots=3):
 
 
 def _failure(error):
-    limited = isinstance(error, MemoryError) or re.search(
+    limited = (isinstance(error, MemoryError) or getattr(error, "code", None) == "resource_placement_limit"
+               or re.search(
         r"stabilizer rank \d+ exceeds cap \d+|runtime step cap \d+ exceeded|"
         r"(?:Boolean work steps|Boolean nodes|row witness operations) requires \d+, limit is \d+|"
-        r"physical readout binding expansion exceeds \d+ work units", str(error))
+        r"physical readout binding expansion exceeds \d+ work units|"
+        r"Routing exceeded max_physical_layers", str(error)))
     result = dict(status="inconclusive" if limited else "failed",
                   error=str(error), error_type=type(error).__name__)
     if limited:
@@ -384,9 +386,10 @@ def main():
         result["process"] = outcome
         save_json(case_dir / "lowering.json", result)
         if result.get("status") != "lowered":
-            if result.get("status") not in ("failed", "rejected"):
+            if result.get("status") not in ("failed", "rejected", "inconclusive"):
                 result.update(case=benchmark.slug, benchmark=benchmark.name, tier=benchmark.tier,
-                              status=outcome["status"], error=outcome.get("reason", "lowering process failed"))
+                              status="inconclusive" if outcome["status"] == "inconclusive" else "failed",
+                              error=outcome.get("reason", "lowering process returned no valid circuit"))
             save_json(case_dir / "lowering.json", result)
             rows.append(result)
             checkpoint()

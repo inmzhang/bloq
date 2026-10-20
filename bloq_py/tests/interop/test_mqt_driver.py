@@ -116,6 +116,7 @@ def test_failed_vm_does_not_become_failed_compilation(driver):
     "row witness operations requires 1001, limit is 1000",
     "runtime step cap 100 exceeded",
     "physical readout binding expansion exceeds 100 work units",
+    "Routing exceeded max_physical_layers with unresolved measurements: m12",
 ])
 def test_resource_exhaustion_is_inconclusive_with_original_error(driver, message):
     result = driver._failure(RuntimeError(message))
@@ -133,6 +134,31 @@ def test_resource_exhaustion_is_inconclusive_with_original_error(driver, message
 ])
 def test_arbitrary_errors_remain_failures(driver, message):
     assert driver._failure(RuntimeError(message))["status"] == "failed"
+
+
+def test_bounded_placement_exhaustion_is_not_a_geometry_disproof(driver):
+    class PlacementLimit(ValueError):
+        code = "resource_placement_limit"
+
+    assert driver._failure(PlacementLimit("candidate budget exhausted"))["status"] == "inconclusive"
+
+
+@pytest.mark.parametrize("worker_status,expected", [("inconclusive", "inconclusive"), ("running", "failed")])
+def test_successful_process_cannot_erase_missing_lowering_evidence(driver, monkeypatch, tmp_path,
+                                                                 worker_status, expected):
+    benchmark = types.SimpleNamespace(slug="limited_3", name="limited", tier="compile")
+    monkeypatch.setitem(sys.modules, "_mqt_bench", types.SimpleNamespace(SUITE=[benchmark]))
+    monkeypatch.setattr(driver, "_provenance", lambda *args: {})
+    monkeypatch.setattr(sys, "argv", ["mqt_bench_experiments", "--output-dir", str(tmp_path)])
+
+    def completed_without_circuit(command, directory, *args):
+        driver.save_json(directory / "lowering.json", dict(status=worker_status))
+        return dict(status="completed", returncode=0)
+
+    monkeypatch.setattr(driver, "_bounded", completed_without_circuit)
+    driver.main()
+    row, = json.loads((tmp_path / "summary.json").read_text())["runs"]
+    assert row["status"] == expected
 
 
 @pytest.mark.parametrize("raw_benchmark", [None, "unmodified MQT source\n"])
