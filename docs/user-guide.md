@@ -90,6 +90,7 @@ backends/synchronization
 | [Logical CNOT](tutorials/cnot.md) | API authoring, correlations, filling, Stim emission, and decoding |
 | [T State Cultivation](tutorials/t-cultivation.md) | Preparing a T resource state and its acceptance–quality tradeoff |
 | [Logical T Gate](tutorials/t-gate.md) | Gate teleportation, adaptive measurement, and retries |
+| [MQT Bench Compiler Comparisons](tutorials/mqt-bench.md) | Faithful benchmark lowering, validated IR, and sampled execution |
 | [Compile Phase Estimation through Topologiq](tutorials/topologiq.md) | Logical QASM, upstream layout, and native non-Clifford controls |
 | [Compile Algorithms through TopoLS](tutorials/topols.md) | Signed magic resources, addition, and spin dynamics |
 | [Compile Algorithms through SpiderLS](tutorials/spiderls.md) | Routed ZX schedules, quantum walks, and QAOA |
@@ -103,6 +104,7 @@ backends/synchronization
 tutorials/cnot
 tutorials/t-cultivation
 tutorials/t-gate
+tutorials/mqt-bench
 tutorials/topologiq
 tutorials/topols
 tutorials/spiderls

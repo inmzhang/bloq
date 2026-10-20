@@ -1,5 +1,8 @@
 # Compile quantum algorithms through TopoLS
 
+Use the [MQT Bench suite](mqt-bench.md) for the primary algorithm comparisons.
+The custom circuits below remain regression examples.
+
 The optional [TopoLS](https://github.com/tqec/TopoLS) adapter provides:
 
 ```text
@@ -82,6 +85,9 @@ check synthesis; execution checks every joint output Pauli expectation.
   with a temporal normal; recoloring a junction would change its logical map.
   Bloq binds each routed resource to its prepared or fallback source vertex.
   T† uses one T resource, with no extra S gadgets.
+- Gate-by-gate fallback reserves its inherited frontier even after Hadamard
+  dissolution, so real gates are not skipped. Initial T outlets need a nonzero
+  arm; some routed temporal endpoints still lack a supported injection frame.
 - S endpoints become signed Y preparations/measurements. T endpoints receive
   Bloq's positive T source and adaptive X/Y measurement. For corrected ZZ bit
   `b`, T reads X when `b=0` and Y when `b=1`; T† exchanges them. Bloq computes
@@ -96,10 +102,11 @@ check synthesis; execution checks every joint output Pauli expectation.
   with spatial doglegs of identity cubes. Pending T patches reserve distinct
   spatial columns clear of data and other gadgets, even at different source
   times. The injection axis and signed control recipe are preserved.
-- Before T attachment, the importer recolors each cube component whose spatial
-  Hadamard walls can all move onto temporal pipes without changing a port,
-  resource, or feedback frame. Other components keep their walls, which compile
-  physically with Bloq's distance warning.
+- Before T attachment, the importer moves spatial Hadamard walls onto temporal
+  pipes while preserving fixed port, resource, and feedback frames. If complete
+  elimination is impossible, it tries retaining walls on one spatial axis.
+  Irreducible mixed-axis components still reject; supported remaining walls
+  retain Bloq's distance warning.
 - Routing success does not guarantee compatibility. Unsupported frames,
   inconsistent interfaces, mixed spatial Hadamard-wall axes, exhausted
   placement budgets, and destructive patch reuse reject.

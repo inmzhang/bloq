@@ -4,6 +4,9 @@ The optional [SpiderLS](https://github.com/fluorite42/SpiderLS) integration runs
 static Clifford+T OpenQASM 2 through ZX reduction, execution planning,
 parallel scheduling, routing, Bloq block graphs, validated IR, and the VM.
 
+Use the [MQT Bench suite](mqt-bench.md) for the primary algorithm comparisons.
+The custom circuits below remain regression examples.
+
 ## Install and run
 
 From a Bloq checkout, use Python 3.11–3.14 and the audited upstream revision:

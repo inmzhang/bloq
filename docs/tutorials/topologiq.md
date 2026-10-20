@@ -1,5 +1,8 @@
 # Compile a quantum algorithm through Topologiq
 
+Use the [MQT Bench suite](mqt-bench.md) for the primary algorithm comparisons.
+The custom circuits below remain regression examples.
+
 The optional Python adapter imports [Topologiq](https://github.com/tqec/topologiq)
 layouts into Bloq without changing their routed geometry:
 
