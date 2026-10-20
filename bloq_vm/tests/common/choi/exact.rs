@@ -234,13 +234,8 @@ impl ExactChoi {
             },
         )
         .expect("physical Choi execution");
-        assert_eq!(
-            scored,
-            shots - report.discarded,
-            "every surviving Choi shot must be scored"
-        );
-        assert!(scored > 0, "Choi check needs a surviving branch");
         assert_eq!(report.discarded, 0);
+        assert_eq!(scored, shots, "every noiseless Choi shot must be scored");
         report
     }
 }
