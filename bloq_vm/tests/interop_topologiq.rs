@@ -2,24 +2,23 @@
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::Path;
 
 use bloq_compile::{CompileConfig, CompileContext, CompileError};
 use bloq_graph::{
-    Action, BlockGraph, Expr,
-    verify::{BoundaryOrder, LogicalVerifier, QuizxGraph},
+    Action, Expr,
+    verify::{BoundaryOrder, LogicalVerifier},
 };
 use bloq_vm::verify::{logical_signature, signatures_match};
 use bloq_vm::{
     EnginePauli, EnginePauliString, ExecError, Simulator, run_bloq_with_io_and_captured_outputs,
 };
-use glam::IVec3;
 use serde::Deserialize;
 
 mod common;
 use common::choi::exact::{BellOutcomes, ExactChoi};
 use common::choi::stabilizer::physical_qubit;
-use common::parse_qasm;
+use common::choi::widen;
+use common::interop::{Fixture, apply_source_qasm, assert_selectors_toggle, record_selectors};
 
 const UPSTREAM_REVISION: &str = "d010bd3e63686c93c12c922a84a944a3386ac785";
 const SHOTS: usize = 8;
@@ -27,19 +26,8 @@ const SEEDS: [u64; 3] = [0x11, 0x22, 0x33];
 
 #[derive(Deserialize)]
 struct Metadata {
-    input_ports: Vec<[i32; 3]>,
-    output_ports: Vec<[i32; 3]>,
-    t_gadgets: usize,
     upstream: Upstream,
-    local_frame: Option<LocalFrame>,
     expected_state: Option<Vec<[f64; 2]>>,
-}
-
-#[derive(Deserialize)]
-struct LocalFrame {
-    input_h: bool,
-    output_h: bool,
-    dagger: bool,
 }
 
 #[derive(Deserialize)]
@@ -50,135 +38,14 @@ struct Upstream {
     patch_sha256: String,
 }
 
-struct Fixture {
-    graph: BlockGraph,
-    qasm: String,
-    metadata: Metadata,
-    inputs: Vec<IVec3>,
-    outputs: Vec<IVec3>,
-}
-
-fn fixture(name: &str) -> Fixture {
-    let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/topologiq");
-    let qasm = std::fs::read_to_string(directory.join(format!("{name}.qasm")))
-        .expect("exported source QASM is readable");
-    let graph = BlockGraph::from_blog_text(
-        &std::fs::read_to_string(directory.join(format!("{name}.blog")))
-            .expect("exported BLOG is readable"),
-    )
-    .expect("exported BLOG parses");
-    let metadata: Metadata = serde_json::from_str(
-        &std::fs::read_to_string(directory.join(format!("{name}.json")))
-            .expect("exported metadata is readable"),
-    )
-    .expect("exported metadata parses");
-    assert_eq!(metadata.upstream.revision, UPSTREAM_REVISION);
-    assert_eq!(
-        metadata.upstream.repository,
-        "https://github.com/tqec/topologiq"
-    );
-    assert_eq!(metadata.upstream.patch, "bloq_py/examples/topologiq.patch");
-    assert_eq!(metadata.upstream.patch_sha256.len(), 64);
-    let inputs = metadata
-        .input_ports
-        .iter()
-        .copied()
-        .map(IVec3::from)
-        .collect();
-    let outputs = metadata
-        .output_ports
-        .iter()
-        .copied()
-        .map(IVec3::from)
-        .collect();
-    Fixture {
-        graph,
-        qasm,
-        metadata,
-        inputs,
-        outputs,
-    }
-}
-
-fn expected(qasm: &str) -> QuizxGraph {
-    // This parser is independent of the upstream PyZX frontend and importer.
-    parse_qasm(qasm)
-        .expect("source QASM has an independent QuiZX map")
-        .to_graph()
-}
-
-fn verifier(fixture: &Fixture) -> LogicalVerifier {
-    LogicalVerifier::with_boundaries_and_internal_measurements(
-        &fixture.graph,
-        BoundaryOrder::new(fixture.inputs.clone(), fixture.outputs.clone()),
-    )
-    .expect("exported interface admits a logical verifier")
-}
-
-fn ideal(
-    name: &str,
-    local_frame: Option<&LocalFrame>,
-    simulator: &mut Simulator,
-) -> Result<(), ExecError> {
-    if let Some(frame) = local_frame {
-        if frame.input_h {
-            simulator.h(0);
-        }
-        if frame.dagger {
-            simulator.t_dag(0)?;
-        } else {
-            simulator.t(0)?;
-        }
-        if frame.output_h {
-            simulator.h(0);
-        }
-        return Ok(());
-    }
-    match name {
-        "t" => simulator.t(0)?,
-        "tdg" => simulator.t_dag(0)?,
-        "thth" => {
-            simulator.t(0)?;
-            simulator.h(0);
-            simulator.t(0)?;
-            simulator.h(0);
-        }
-        "entangled_t" => {
-            simulator.h(0);
-            simulator.cx(0, 1)?;
-            simulator.t(1)?;
-        }
-        "qft2" => {
-            // The original source prepares |0+> before its positive-phase QFT.
-            // Bell inputs retain that H as part of the tested arbitrary-input map.
-            simulator.h(0);
-            simulator.h(1);
-            simulator.t(0)?;
-            simulator.t(1)?;
-            simulator.cx(0, 1)?;
-            simulator.t_dag(1)?;
-            simulator.cx(0, 1)?;
-            simulator.h(0);
-            simulator.cx(0, 1)?;
-            simulator.cx(1, 0)?;
-            simulator.cx(0, 1)?;
-        }
-        "qft2_x" => {
-            simulator.x(0);
-            simulator.h(1);
-            simulator.t(1)?;
-            simulator.cx(1, 0)?;
-            simulator.t_dag(0)?;
-            simulator.cx(1, 0)?;
-            simulator.t(0)?;
-            simulator.h(0);
-            simulator.cx(0, 1)?;
-            simulator.cx(1, 0)?;
-            simulator.cx(0, 1)?;
-        }
-        _ => panic!("no independent physical ideal for {name}"),
-    }
-    Ok(())
+fn fixture(name: &str) -> Fixture<Metadata> {
+    let fixture: Fixture<Metadata> = common::interop::fixture(&format!("topologiq/{name}"));
+    let upstream = &fixture.metadata.upstream;
+    assert_eq!(upstream.revision, UPSTREAM_REVISION);
+    assert_eq!(upstream.repository, "https://github.com/tqec/topologiq");
+    assert_eq!(upstream.patch, "bloq_py/examples/topologiq.patch");
+    assert_eq!(upstream.patch_sha256.len(), 64);
+    fixture
 }
 
 #[rstest::rstest]
@@ -208,38 +75,10 @@ fn ideal(
 #[case("frames/direct_upstream_h_tdg")]
 fn real_topologiq_layout_has_the_source_channel_at_d3(#[case] name: &str) {
     let fixture = fixture(name);
-    if fixture.metadata.local_frame.is_some() {
-        let pure = LogicalVerifier::with_boundaries(
-            &fixture.graph,
-            BoundaryOrder::new(fixture.inputs.clone(), fixture.outputs.clone()),
-        )
-        .unwrap();
-        let measurement = fixture
-            .graph
-            .actions()
-            .into_iter()
-            .find_map(|action| match action {
-                Action::Measure { name, .. } => Some(name),
-                _ => None,
-            })
-            .expect("one signed gadget readout");
-        for value in [false, true] {
-            let branch = pure
-                .verify_branch(
-                    &expected(&fixture.qasm),
-                    &BTreeMap::from([(measurement.clone(), value)]),
-                )
-                .expect("each fixed named outcome has the signed channel");
-            assert_eq!(branch.status(), bloq_graph::verify::BranchStatus::Verified);
-        }
+    let expected = fixture.verify_source();
+    if name.starts_with("frames/") {
+        fixture.verify_named_outcomes(&expected);
     }
-    let report = verifier(&fixture)
-        .verify(&expected(&fixture.qasm), 32, 7)
-        .expect("every imported branch has the source logical map");
-    assert_eq!(
-        report.verified, 32,
-        "{name}: every sampled branch has the source map"
-    );
 
     let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
         .compile(&fixture.graph)
@@ -247,18 +86,14 @@ fn real_topologiq_layout_has_the_source_channel_at_d3(#[case] name: &str) {
         .bloq;
     bloq.validate().expect("compiled IR validates");
     let oracle = ExactChoi::new(&fixture.inputs, &fixture.outputs, |sim| {
-        ideal(name, fixture.metadata.local_frame.as_ref(), sim)
+        apply_source_qasm(sim, &fixture.qasm);
+        Ok(())
     });
     let mut selectors = BTreeMap::<String, BTreeSet<bool>>::new();
     let mut frames = BTreeSet::new();
     for seed in SEEDS {
         let report = oracle.run(&bloq, SHOTS, seed, |_, context| {
-            for &(selector, value) in context.named_branch_selectors {
-                selectors
-                    .entry(selector.to_owned())
-                    .or_default()
-                    .insert(value);
-            }
+            record_selectors(&mut selectors, context.named_branch_selectors);
             frames.insert(
                 fixture
                     .outputs
@@ -287,14 +122,7 @@ fn real_topologiq_layout_has_the_source_channel_at_d3(#[case] name: &str) {
             "{name}: non-Clifford physical execution"
         );
     }
-    assert_eq!(selectors.len(), fixture.metadata.t_gadgets);
-    for (selector, values) in selectors {
-        assert_eq!(
-            values,
-            BTreeSet::from([false, true]),
-            "{name}: selector {selector}"
-        );
-    }
+    assert_selectors_toggle(&selectors, fixture.t_gadgets, name);
     assert!(
         frames.len() > 1,
         "{name}: terminal frames must vary across shots"
@@ -354,49 +182,16 @@ fn assert_bell_pairs(sim: &Simulator, outputs: &[usize], references: &[usize]) {
     }
 }
 
-fn apply_source_qasm(sim: &mut Simulator, qasm: &str) {
-    for gate in parse_qasm(qasm).expect("fixture source QASM parses").gates {
-        use quizx::gate::GType;
-        match gate.t {
-            GType::HAD => sim.h(gate.qs[0]),
-            GType::NOT => sim.x(gate.qs[0]),
-            GType::Z => sim.z(gate.qs[0]),
-            GType::S => sim.s(gate.qs[0]),
-            GType::Sdg => sim.s_dag(gate.qs[0]),
-            GType::T => sim.t(gate.qs[0]).expect("source T uses an allocated qubit"),
-            GType::Tdg => sim
-                .t_dag(gate.qs[0])
-                .expect("source T dagger uses an allocated qubit"),
-            GType::ZPhase => sim
-                .pauli_rotation(
-                    &EnginePauliString::single(sim.num_qubits(), gate.qs[0], EnginePauli::Z),
-                    gate.phase.to_f64() * std::f64::consts::FRAC_PI_2,
-                )
-                .expect("source phase rotation uses an allocated qubit"),
-            GType::CNOT => sim
-                .cx(gate.qs[0], gate.qs[1])
-                .expect("source CNOT uses allocated qubits"),
-            GType::CZ => sim
-                .cz(gate.qs[0], gate.qs[1])
-                .expect("source CZ uses allocated qubits"),
-            other => panic!("unexpected synthesized source gate {other:?}"),
-        }
-    }
-}
-
 fn decode_output(
     sim: &mut Simulator,
     output: &bloq_vm::OutputLogical,
     frame: &bloq_vm::ShotFrame,
 ) -> Result<usize, ExecError> {
     let qubit = sim.num_qubits();
-    let widen = |axis: &EnginePauliString| {
-        let mut widened =
-            EnginePauliString::from_terms(qubit + 1, (0..axis.nqubits).map(|q| (q, axis.get(q))));
-        widened.set_phase(axis.phase_exponent());
-        widened
-    };
-    let (x, z) = (widen(&output.logical_x), widen(&output.logical_z));
+    let (x, z) = (
+        widen(&output.logical_x, qubit + 1),
+        widen(&output.logical_z, qubit + 1),
+    );
     let ancilla = physical_qubit(qubit, qubit + 1);
     sim.reset(qubit)?;
     // A coherent logical SWAP retains all output/reference correlations.
@@ -417,9 +212,10 @@ fn temporal_qpe_preserves_reference_entanglement_in_every_bell_sector() {
     let fixture = fixture("qpe4_temporal");
     assert_eq!(fixture.inputs.len(), 4);
     assert_eq!(fixture.outputs.len(), 4);
-    assert_eq!(fixture.metadata.t_gadgets, 7);
-    let logical = verifier(&fixture)
-        .verify(&expected(&fixture.qasm), 32, 7)
+    assert_eq!(fixture.t_gadgets, 7);
+    let logical = fixture
+        .verifier()
+        .verify(&fixture.expected(), 32, 7)
         .expect("temporal-only QPE preserves the complete source operator");
     assert_eq!(logical.verified, 32);
 
@@ -502,12 +298,7 @@ fn temporal_qpe_preserves_reference_entanglement_in_every_bell_sector() {
         bell_sectors,
         BTreeSet::from([(false, false), (false, true), (true, false), (true, true)])
     );
-    assert_eq!(selectors.len(), 7);
-    assert!(
-        selectors
-            .values()
-            .all(|values| *values == BTreeSet::from([false, true]))
-    );
+    assert_selectors_toggle(&selectors, 7, "topologiq");
 }
 
 fn expected_qpe_state_signature() -> Vec<f64> {
@@ -567,8 +358,9 @@ fn four_qubit_phase_estimation_executes_proxy_t_with_captured_boundaries(
             .graph
             .set_actions(actions)
             .expect("permuted declarations preserve the action DAG");
-        let report = verifier(&fixture)
-            .verify(&expected(&fixture.qasm), 32, 7)
+        let report = fixture
+            .verifier()
+            .verify(&fixture.expected(), 32, 7)
             .unwrap();
         assert_eq!(report.verified, 32);
     }
@@ -579,7 +371,11 @@ fn four_qubit_phase_estimation_executes_proxy_t_with_captured_boundaries(
     assert_prepared_output_state(&fixture, &bloq, &expected_qpe_state_signature());
 }
 
-fn assert_prepared_output_state(fixture: &Fixture, bloq: &bloq_ir::Bloq, expected: &[f64]) {
+fn assert_prepared_output_state(
+    fixture: &Fixture<Metadata>,
+    bloq: &bloq_ir::Bloq,
+    expected: &[f64],
+) {
     let mut scored = 0;
     let report = run_bloq_with_io_and_captured_outputs(
         bloq,
@@ -681,7 +477,7 @@ fn adder_layout_with_destructive_live_qubit_reuse_is_rejected() {
     let fixture = fixture("algorithms/adder4");
     assert_eq!(fixture.graph.block_count(), 165);
     assert_eq!(fixture.graph.actions().len(), 19);
-    assert_eq!(fixture.metadata.t_gadgets, 7);
+    assert_eq!(fixture.t_gadgets, 7);
     assert_eq!(fixture.inputs.len(), 4);
     assert_eq!(fixture.outputs.len(), 4);
     let error = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
@@ -698,13 +494,13 @@ fn grover_preserves_signed_source_branches_and_all_63_output_paulis() {
     let fixture = fixture("algorithms/grover3");
     assert_eq!(fixture.graph.block_count(), 405);
     assert_eq!(fixture.graph.actions().len(), 45);
-    assert_eq!(fixture.metadata.t_gadgets, 14);
+    assert_eq!(fixture.t_gadgets, 14);
     let logical = LogicalVerifier::with_boundaries(
         &fixture.graph,
         BoundaryOrder::new(fixture.inputs.clone(), fixture.outputs.clone()),
     )
     .expect("Grover admits fixed signed named-outcome verification")
-    .verify(&expected(&fixture.qasm), 32, 7)
+    .verify(&fixture.expected(), 32, 7)
     .expect("every checked signed Grover branch preserves the source operator");
     assert_eq!(logical.verified, 32);
     let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
@@ -753,9 +549,7 @@ fn grover_preserves_signed_source_branches_and_all_63_output_paulis() {
                 .collect::<Vec<_>>();
             let actual = logical_signature(sim, &ordered)?;
             assert!(signatures_match(&actual, &expected));
-            for &(name, value) in context.named_branch_selectors {
-                selectors.entry(name.into()).or_default().insert(value);
-            }
+            record_selectors(&mut selectors, context.named_branch_selectors);
             scored += 1;
             Ok(())
         },
@@ -765,12 +559,7 @@ fn grover_preserves_signed_source_branches_and_all_63_output_paulis() {
     assert_eq!(report.discarded, 0);
     assert!(report.all_detectors_constant());
     assert!(report.max_rank > 1);
-    assert_eq!(selectors.len(), 14);
-    assert!(
-        selectors
-            .values()
-            .all(|values| *values == BTreeSet::from([false, true]))
-    );
+    assert_selectors_toggle(&selectors, 14, "topologiq");
 }
 
 fn undo_grover(sim: &mut Simulator, outputs: [usize; 3]) -> Result<(), ExecError> {
@@ -847,9 +636,7 @@ fn grover_preserves_all_three_input_references() {
             undo_grover(sim, decoded.as_slice().try_into().unwrap())?;
             // Six commuting +1 stabilizers uniquely fix the complete six-qubit Choi state.
             assert_bell_pairs(sim, &decoded, &references.borrow());
-            for &(name, value) in context.named_branch_selectors {
-                selectors.entry(name.into()).or_default().insert(value);
-            }
+            record_selectors(&mut selectors, context.named_branch_selectors);
             scored += 1;
             Ok(())
         },
@@ -859,12 +646,7 @@ fn grover_preserves_all_three_input_references() {
     assert_eq!(report.discarded, 0);
     assert!(report.all_detectors_constant());
     assert!(report.max_rank > 1);
-    assert_eq!(selectors.len(), 14);
-    assert!(
-        selectors
-            .values()
-            .all(|values| *values == BTreeSet::from([false, true]))
-    );
+    assert_selectors_toggle(&selectors, 14, "topologiq");
 }
 
 #[rstest::rstest]
@@ -877,7 +659,7 @@ fn grover_preserves_all_three_input_references() {
 #[case("frames/direct_upstream_h_t")]
 fn wrong_selector_and_dagger_sign_fail_the_independent_logical_oracle(#[case] name: &str) {
     let mut positive = fixture(name);
-    let ideal_t = expected(&positive.qasm);
+    let ideal_t = positive.expected();
     let mut actions = positive.graph.actions();
     let condition = actions
         .iter_mut()
@@ -891,16 +673,18 @@ fn wrong_selector_and_dagger_sign_fail_the_independent_logical_oracle(#[case] na
         .graph
         .set_actions(actions)
         .expect("inverted selector is structurally valid");
-    verifier(&positive)
+    positive
+        .verifier()
         .verify(&ideal_t, 32, 7)
         .expect_err("the logical oracle rejects the inverted selector");
 
     let dagger = fixture(&format!("{name}dg"));
-    verifier(&dagger)
+    dagger
+        .verifier()
         .verify(&ideal_t, 32, 7)
         .expect_err("the logical oracle distinguishes T dagger from T");
 
-    if positive.metadata.local_frame.is_some() {
+    if name.starts_with("frames/") {
         let mut missing_correction = fixture(name);
         let actions = missing_correction
             .graph
@@ -909,7 +693,8 @@ fn wrong_selector_and_dagger_sign_fail_the_independent_logical_oracle(#[case] na
             .filter(|action| !matches!(action, Action::Feedback { .. }))
             .collect();
         missing_correction.graph.set_actions(actions).unwrap();
-        verifier(&missing_correction)
+        missing_correction
+            .verifier()
             .verify(&ideal_t, 32, 7)
             .expect_err("the input-transport recipe requires the conditional X correction");
     }

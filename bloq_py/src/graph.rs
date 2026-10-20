@@ -2132,7 +2132,7 @@ impl PyBlockGraph {
     fn with_temporal_hadamards(&self) -> PyResult<Self> {
         self.0
             .with_temporal_hadamards()
-            .map(Into::into)
+            .map(|graph| graph.into_owned().into())
             .map_err(graph_err)
     }
 

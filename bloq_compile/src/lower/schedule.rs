@@ -812,6 +812,7 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
         .into_iter()
         .map(|(lower, upper)| (footprints[lower as usize].id, footprints[upper as usize].id))
         .collect();
+    candidate_pairs.retain(|&(from, to)| !has_edge(bloq, from, to));
     let initial_order = bloq
         .deterministic_emit_order()
         .expect("lowered IR is acyclic before occupancy ordering");
@@ -829,47 +830,42 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
         || bloq.is_acyclic_with_edges(&candidate_pairs);
     // A reset-only overlap is an ordering preference, not a reason to
     // interrupt a carried state. Settle data-bearing boundaries first.
-    let mut live_pairs = crate::FxSet::default();
-    if !batch_acyclic {
-        for &(from, to) in &candidate_pairs {
-            if bloq[from].try_region().is_some() || bloq[to].try_region().is_some() {
-                live_pairs.insert((from, to));
-                continue;
-            }
-            cache_live_uses(bloq, &mut live_supports, from)?;
-            cache_live_uses(bloq, &mut live_supports, to)?;
-            let a = &live_supports[&from];
-            let b = &live_supports[&to];
-            if a.inputs
-                .keys()
-                .chain(a.outputs.keys())
-                .any(|q| b.uses.contains_key(q))
-                || b.inputs
-                    .keys()
-                    .chain(b.outputs.keys())
-                    .any(|q| a.uses.contains_key(q))
-            {
-                live_pairs.insert((from, to));
-            }
-        }
-    }
-    candidate_pairs.sort_unstable_by_key(|&(from, to)| {
-        (
-            !live_pairs.contains(&(from, to)),
-            rank[from.0 as usize] >= rank[to.0 as usize],
-            from.0,
-            to.0,
-        )
-    });
-    let mut scratch = bloq.path_scratch();
+    let mut pairs = Vec::with_capacity(candidate_pairs.len());
     for (from, to) in candidate_pairs {
+        let live = !batch_acyclic
+            && (bloq[from].try_region().is_some() || bloq[to].try_region().is_some() || {
+                cache_live_uses(bloq, &mut live_supports, from)?;
+                cache_live_uses(bloq, &mut live_supports, to)?;
+                let (a, b) = (&live_supports[&from], &live_supports[&to]);
+                let carries = |a: &LiveQubitUses, b: &LiveQubitUses| {
+                    a.inputs
+                        .keys()
+                        .chain(a.outputs.keys())
+                        .any(|q| b.uses.contains_key(q))
+                };
+                carries(a, b) || carries(b, a)
+            });
+        let forward = rank[from.0 as usize] < rank[to.0 as usize];
+        pairs.push((!live, !forward, from, to));
+    }
+    pairs
+        .sort_unstable_by_key(|&(optional, backward, from, to)| (optional, backward, from.0, to.0));
+    // Forward edges cannot close a cycle until a backward edge is inserted.
+    let mut ranked = true;
+    let mut scratch = bloq.path_scratch();
+    for (_, backward, from, to) in pairs {
         if has_edge(bloq, from, to) {
             continue;
         }
-        if batch_acyclic || !bloq.has_path_with_scratch(to, from, &mut scratch) {
+        if batch_acyclic
+            || (ranked && !backward)
+            || !bloq.has_path_with_scratch(to, from, &mut scratch)
+        {
             bloq.add_edge(from, to, BloqEdge::Order);
+            ranked &= !backward;
             continue;
         }
+        ranked = false;
         for (from, to) in plan_live_era_reordering(
             bloq,
             from,

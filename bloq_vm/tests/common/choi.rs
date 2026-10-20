@@ -35,7 +35,7 @@ fn evaluate(expr: &Expr, values: &HashMap<String, bool>, aliases: &HashMap<&str,
     }
 }
 
-pub(super) fn widen(pauli: &EnginePauliString, width: usize) -> EnginePauliString {
+pub(crate) fn widen(pauli: &EnginePauliString, width: usize) -> EnginePauliString {
     let mut result = EnginePauliString::from_terms(
         width,
         (0..pauli.nqubits).map(|qubit| (qubit, pauli.get(qubit))),

@@ -22,11 +22,6 @@
     "temporal_hadamards_only": false,
     "z_stretch": 2
   },
-  "local_frame": {
-    "dagger": true,
-    "input_h": false,
-    "output_h": false
-  },
   "origin": {
     "root": 47,
     "source": "grover3.qasm",

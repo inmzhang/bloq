@@ -69,7 +69,7 @@ fn read(context: &ShotContext<'_>, name: &str) -> bool {
 fn terminal_measurement_absorption_preserves_the_signed_t_instrument(#[case] cap: &str) {
     for feedback in [false, true] {
         let original = source(cap, feedback);
-        let rewritten = original.with_temporal_hadamards().unwrap();
+        let rewritten = original.with_temporal_hadamards().unwrap().into_owned();
         assert!(
             !rewritten
                 .get_pipe(IVec3::new(-1, 0, 1), IVec3::new(-1, 0, 2))

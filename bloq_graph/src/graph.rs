@@ -618,10 +618,11 @@ impl BlockGraph {
 
     /// Returns the actions in source order.
     pub fn actions(&self) -> Vec<Action> {
-        self.action_graph
-            .ordered_nodes()
-            .map(|node| node.action.clone())
-            .collect()
+        self.action_iter().cloned().collect()
+    }
+
+    pub(crate) fn action_iter(&self) -> impl Iterator<Item = &Action> {
+        self.action_graph.ordered_nodes().map(|node| &node.action)
     }
 
     /// Returns `true` if the graph has any actions.
@@ -1394,20 +1395,7 @@ impl BlockGraph {
             .map(|branch| branch.flip_xz_basis(self))
             .collect();
         let mut actions = self.actions();
-        for action in &mut actions {
-            if let Action::Resolve { condition, .. } = action {
-                *condition = condition.clone().negated();
-            }
-            if let Action::Feedback { targets, .. } = action {
-                for target in targets {
-                    target.pauli = match target.pauli {
-                        PauliBasis::X => PauliBasis::Z,
-                        PauliBasis::Y => PauliBasis::Y,
-                        PauliBasis::Z => PauliBasis::X,
-                    };
-                }
-            }
-        }
+        conjugate_xz_actions(&mut actions, |_| true);
         let mut y_signs = flipped
             .blocks()
             .filter_map(|block| {
@@ -3018,6 +3006,27 @@ impl FromStr for BlockGraph {
 }
 
 /// A fixed native resource needs one Hadamard for each flipped endpoint frame.
+/// Conjugates selectors and feedback Paulis at `flipped` targets by Hadamard.
+pub(crate) fn conjugate_xz_actions(actions: &mut [Action], flipped: impl Fn(IVec3) -> bool) {
+    for action in actions {
+        match action {
+            Action::Resolve { target, condition } if flipped(*target) => {
+                *condition = condition.clone().negated();
+            }
+            Action::Feedback { targets, .. } => {
+                for target in targets.iter_mut().filter(|target| flipped(target.target)) {
+                    target.pauli = match target.pauli {
+                        PauliBasis::X => PauliBasis::Z,
+                        PauliBasis::Y => PauliBasis::Y,
+                        PauliBasis::Z => PauliBasis::X,
+                    };
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 pub(crate) fn flip_pipe_xz_basis(pipe: &mut Pipe, is_fixed_resource: impl Fn(IVec3) -> bool) {
     pipe.hadamard ^= is_fixed_resource(pipe.src()) ^ is_fixed_resource(pipe.dst());
 }

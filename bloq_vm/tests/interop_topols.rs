@@ -1,22 +1,16 @@
 //! Pinned TopoLS layouts checked against source maps and independent physical channels.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::Path;
 
 use bloq_compile::{CompileConfig, CompileContext};
-use bloq_graph::{
-    Action, BlockGraph,
-    verify::{BoundaryOrder, BranchStatus, LogicalVerifier, QuizxGraph},
-};
 use bloq_vm::verify::{logical_signature, signatures_match};
-use bloq_vm::{EnginePauli, EnginePauliString, ExecError, Simulator};
-use glam::IVec3;
+use bloq_vm::{EnginePauli, EnginePauliString, Simulator};
 use serde::Deserialize;
 
 mod common;
 use common::choi::exact::ExactChoi;
 use common::choi::stabilizer::physical_qubit;
-use common::parse_qasm;
+use common::interop::{Fixture, apply_source_qasm, assert_selectors_toggle, record_selectors};
 
 const UPSTREAM_REVISION: &str = "e564d350a596cfea3227e09698733210e2e14dcf";
 const SHOTS: usize = 8;
@@ -89,156 +83,13 @@ fn signed_t_native_instrument_has_complete_kraus_branches(#[case] dagger: bool) 
 
 #[derive(Deserialize)]
 struct Metadata {
-    input_ports: Vec<[i32; 3]>,
-    output_ports: Vec<[i32; 3]>,
-    t_gadgets: usize,
     upstream_revision: String,
 }
 
-struct Fixture {
-    graph: BlockGraph,
-    qasm: String,
-    inputs: Vec<IVec3>,
-    outputs: Vec<IVec3>,
-    t_gadgets: usize,
-}
-
-fn fixture(name: &str) -> Fixture {
-    let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/topols");
-    let qasm = std::fs::read_to_string(directory.join(format!("{name}.qasm")))
-        .expect("exported source QASM is readable");
-    let graph = BlockGraph::from_blog_text(
-        &std::fs::read_to_string(directory.join(format!("{name}.blog")))
-            .expect("exported BLOG is readable"),
-    )
-    .expect("exported BLOG parses");
-    let metadata: Metadata = serde_json::from_str(
-        &std::fs::read_to_string(directory.join(format!("{name}.json")))
-            .expect("exported metadata is readable"),
-    )
-    .expect("exported metadata parses");
-    assert_eq!(metadata.upstream_revision, UPSTREAM_REVISION);
-    Fixture {
-        graph,
-        qasm,
-        inputs: metadata.input_ports.into_iter().map(IVec3::from).collect(),
-        outputs: metadata.output_ports.into_iter().map(IVec3::from).collect(),
-        t_gadgets: metadata.t_gadgets,
-    }
-}
-
-fn verify_source(fixture: &Fixture) -> QuizxGraph {
-    // QuiZX parses the original source independently of TopoLS normalization.
-    let expected = parse_qasm(&fixture.qasm)
-        .expect("source QASM has an independent QuiZX map")
-        .to_graph();
-    let verifier = LogicalVerifier::with_boundaries_and_internal_measurements(
-        &fixture.graph,
-        BoundaryOrder::new(fixture.inputs.clone(), fixture.outputs.clone()),
-    )
-    .expect("exported interface admits a logical verifier");
-    let report = verifier
-        .verify(&expected, 32, 7)
-        .expect("every imported branch has the source logical map");
-    assert_eq!(report.verified, 32, "sampled logical branches");
-    expected
-}
-
-fn ideal(name: &str, simulator: &mut Simulator) -> Result<(), ExecError> {
-    match name {
-        "s" => simulator.s(0),
-        "sdg" => simulator.s_dag(0),
-        "t" => simulator.t(0)?,
-        "tdg" => simulator.t_dag(0)?,
-        "thth" => {
-            simulator.t(0)?;
-            simulator.h(0);
-            simulator.t(0)?;
-            simulator.h(0);
-        }
-        "paulis" => {
-            simulator.h(0);
-            simulator.x(0);
-            simulator.z(0);
-        }
-        "entangled_t" => {
-            simulator.h(0);
-            simulator.cx(0, 1)?;
-            simulator.t(1)?;
-        }
-        "entangled_tdg" => {
-            simulator.h(0);
-            simulator.cx(0, 1)?;
-            simulator.t_dag(1)?;
-            simulator.cx(1, 0)?;
-        }
-        "entangled_st" => {
-            simulator.h(0);
-            simulator.s(0);
-            simulator.t(0)?;
-            simulator.cx(0, 1)?;
-        }
-        "branching_lift" => {
-            for (control, target) in [(2, 0), (1, 0), (0, 2), (0, 1), (1, 2)] {
-                simulator.cx(control, target)?;
-            }
-        }
-        "adder4" | "adder4_early_t" => {
-            for qubit in 0..3 {
-                simulator.h(qubit);
-            }
-            simulator.h(3);
-            simulator.ccz(0, 2, 3)?;
-            simulator.h(3);
-            simulator.cx(0, 2)?;
-            simulator.cx(1, 3)?;
-        }
-        "ising4" => {
-            simulator.x(0);
-            simulator.x(2);
-            for _ in 0..2 {
-                for qubit in 0..3 {
-                    simulator.cx(qubit, qubit + 1)?;
-                    simulator.s(qubit + 1);
-                    simulator.cx(qubit, qubit + 1)?;
-                }
-                for qubit in 0..4 {
-                    simulator.h(qubit);
-                    simulator.t(qubit)?;
-                    simulator.h(qubit);
-                }
-            }
-        }
-        "qae3" => {
-            let rotate = |sim: &mut Simulator, angle: f64| {
-                sim.pauli_rotation(
-                    &EnginePauliString::single(sim.num_qubits(), 2, EnginePauli::Y),
-                    angle / 2.0,
-                )
-            };
-            let pi = std::f64::consts::PI;
-            simulator.h(0);
-            simulator.h(1);
-            rotate(simulator, pi / 4.0)?;
-            // Controlled powers of Ry(pi/2), followed by the inverse QFT.
-            for (control, angle) in [(0, pi / 2.0), (1, pi)] {
-                rotate(simulator, angle / 2.0)?;
-                simulator.cx(control, 2)?;
-                rotate(simulator, -angle / 2.0)?;
-                simulator.cx(control, 2)?;
-            }
-            simulator.swap(0, 1);
-            simulator.h(0);
-            simulator.t_dag(1)?;
-            simulator.t_dag(0)?;
-            simulator.cx(1, 0)?;
-            simulator.t(0)?;
-            simulator.cx(1, 0)?;
-            simulator.h(1);
-        }
-        _ => panic!("no independent physical ideal for {name}"),
-    }
-    Ok(())
+fn fixture(name: &str) -> Fixture<Metadata> {
+    let fixture: Fixture<Metadata> = common::interop::fixture(&format!("topols/{name}"));
+    assert_eq!(fixture.metadata.upstream_revision, UPSTREAM_REVISION);
+    fixture
 }
 
 #[rstest::rstest]
@@ -254,51 +105,33 @@ fn ideal(name: &str, simulator: &mut Simulator) -> Result<(), ExecError> {
 #[case("branching_lift")]
 fn real_topols_layout_has_the_source_channel_at_d3(#[case] name: &str) {
     let fixture = fixture(name);
-    let expected = verify_source(&fixture);
+    let expected = fixture.verify_source();
+    if matches!(name, "t" | "tdg") {
+        fixture.verify_named_outcomes(&expected);
+    }
     let Fixture {
         graph,
+        qasm,
         inputs,
         outputs,
         t_gadgets,
         ..
     } = fixture;
-    let boundaries = BoundaryOrder::new(inputs.clone(), outputs.clone());
-
-    if matches!(name, "t" | "tdg") {
-        let pure = LogicalVerifier::with_boundaries(&graph, boundaries)
-            .expect("single T fixture admits explicit branch verification");
-        let measurement = graph
-            .actions()
-            .into_iter()
-            .find_map(|action| match action {
-                Action::Measure { name, .. } => Some(name),
-                _ => None,
-            })
-            .expect("single T fixture declares its readout");
-        for value in [false, true] {
-            let branch = pure
-                .verify_branch(&expected, &BTreeMap::from([(measurement.clone(), value)]))
-                .expect("each named T outcome preserves the signed channel");
-            assert_eq!(branch.status(), BranchStatus::Verified);
-        }
-    }
 
     let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
         .compile(&graph)
         .expect("imported graph compiles at distance three")
         .bloq;
     bloq.validate().expect("compiled IR validates");
-    let oracle = ExactChoi::new(&inputs, &outputs, |sim| ideal(name, sim));
+    let oracle = ExactChoi::new(&inputs, &outputs, |sim| {
+        apply_source_qasm(sim, &qasm);
+        Ok(())
+    });
     let mut selectors = BTreeMap::<String, BTreeSet<bool>>::new();
     let mut frames = BTreeSet::new();
     for seed in SEEDS {
         let report = oracle.run(&bloq, SHOTS, seed, |_, context| {
-            for &(selector, value) in context.named_branch_selectors {
-                selectors
-                    .entry(selector.to_owned())
-                    .or_default()
-                    .insert(value);
-            }
+            record_selectors(&mut selectors, context.named_branch_selectors);
             frames.insert(
                 outputs
                     .iter()
@@ -328,14 +161,7 @@ fn real_topols_layout_has_the_source_channel_at_d3(#[case] name: &str) {
             );
         }
     }
-    assert_eq!(selectors.len(), t_gadgets, "{name}: T selectors");
-    for (selector, values) in selectors {
-        assert_eq!(
-            values,
-            BTreeSet::from([false, true]),
-            "{name}: selector {selector}"
-        );
-    }
+    assert_selectors_toggle(&selectors, t_gadgets, name);
     assert!(
         frames.len() > 1,
         "{name}: terminal frames vary across shots"
@@ -353,7 +179,7 @@ fn topols_algorithm_has_the_expected_prepared_state_at_d3(
     #[case] qubits: usize,
 ) {
     let fixture = fixture(name);
-    verify_source(&fixture);
+    fixture.verify_source();
     assert_eq!(fixture.inputs.len(), qubits);
     assert_eq!(fixture.outputs.len(), qubits);
     assert_eq!(fixture.t_gadgets, t_gadgets);
@@ -364,7 +190,10 @@ fn topols_algorithm_has_the_expected_prepared_state_at_d3(
     bloq.validate().expect("compiled algorithm IR validates");
     // A known zero input needs no reference halves. The oracle checks every
     // nonidentity joint output Pauli expectation (255 for four qubits).
-    let oracle = ExactChoi::new(&[], &fixture.outputs, |sim| ideal(name, sim));
+    let oracle = ExactChoi::new(&[], &fixture.outputs, |sim| {
+        apply_source_qasm(sim, &fixture.qasm);
+        Ok(())
+    });
     let mut selectors = BTreeMap::<String, BTreeSet<bool>>::new();
     for seed in SEEDS {
         let report = oracle.run_prepared(
@@ -379,12 +208,7 @@ fn topols_algorithm_has_the_expected_prepared_state_at_d3(
                 Ok(())
             },
             |_, context| {
-                for &(selector, value) in context.named_branch_selectors {
-                    selectors
-                        .entry(selector.to_owned())
-                        .or_default()
-                        .insert(value);
-                }
+                record_selectors(&mut selectors, context.named_branch_selectors);
                 Ok(())
             },
         );
@@ -397,12 +221,5 @@ fn topols_algorithm_has_the_expected_prepared_state_at_d3(
             "{name}: non-Clifford physical execution"
         );
     }
-    assert_eq!(selectors.len(), t_gadgets, "{name}: T selectors");
-    for (selector, values) in selectors {
-        assert_eq!(
-            values,
-            BTreeSet::from([false, true]),
-            "{name}: selector {selector}"
-        );
-    }
+    assert_selectors_toggle(&selectors, t_gadgets, name);
 }

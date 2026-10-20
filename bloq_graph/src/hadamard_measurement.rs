@@ -1,113 +1,104 @@
 //! Absorb temporal Hadamards into terminal Pauli measurements.
 
+use std::collections::{BTreeSet, HashSet};
+
 use glam::IVec3;
 
 use crate::{
-    Action, BlockGraph, BlockGraphError, BlockKind, FeedbackTarget, PauliBasis, SelectiveKind,
+    Action, BlockGraph, BlockGraphError, BlockKind, FeedbackTarget, MeasureTarget, PauliBasis,
+    SelectiveKind,
 };
 
-/// Only degree-one measurements after an ordinary cube can absorb a frame.
-pub(crate) fn is_absorbable_measurement(graph: &BlockGraph, position: IVec3) -> bool {
-    let Some(block) = graph.get_block(position) else {
-        return false;
-    };
-    if !matches!(
-        block.kind(),
-        BlockKind::Measurement(_) | BlockKind::Y | BlockKind::Selective(_)
-    ) {
-        return false;
+/// Degree-one measurements after an ordinary cube that can absorb a frame.
+/// Selective caps need a resolve; edge readouts pin their seam's frame.
+pub(crate) fn absorbable_measurements(graph: &BlockGraph) -> BTreeSet<[i32; 3]> {
+    let (mut resolved, mut seams) = (HashSet::new(), HashSet::new());
+    for action in graph.action_iter() {
+        match action {
+            Action::Resolve { target, .. } => {
+                resolved.insert(*target);
+            }
+            Action::Measure {
+                target: MeasureTarget::Edge { src, dir },
+                ..
+            } => {
+                seams.extend([*src, src.wrapping_add(dir.to_ivec3())]);
+            }
+            _ => {}
+        }
     }
-    let mut pipes = graph.pipes_at(position);
-    let Some(pipe) = pipes.next() else {
-        return false;
-    };
-    if pipes.next().is_some() || pipe.dir().is_spatial() {
-        return false;
-    }
-    let neighbor = if pipe.src() == position {
-        pipe.dst()
-    } else {
-        pipe.src()
-    };
-    if neighbor.z >= position.z
-        || !graph
-            .get_block(neighbor)
-            .is_some_and(|block| block.kind().is_cube())
-    {
-        return false;
-    }
-    let actions = graph.actions();
-    if block.kind().is_selective()
-        && !actions
-            .iter()
-            .any(|action| matches!(action, Action::Resolve { target, .. } if *target == position))
-    {
-        return false;
-    }
-    true
+    graph
+        .blocks()
+        .filter(|block| {
+            let position = block.pos();
+            let mut pipes = graph.pipes_at(position);
+            let (Some(pipe), None) = (pipes.next(), pipes.next()) else {
+                return false;
+            };
+            let neighbor = if pipe.src() == position {
+                pipe.dst()
+            } else {
+                pipe.src()
+            };
+            matches!(
+                block.kind(),
+                BlockKind::Measurement(_) | BlockKind::Y | BlockKind::Selective(_)
+            ) && !pipe.dir().is_spatial()
+                && neighbor.z < position.z
+                && graph
+                    .get_block(neighbor)
+                    .is_some_and(|block| block.kind().is_cube())
+                && !seams.contains(&position)
+                && (!block.kind().is_selective() || resolved.contains(&position))
+        })
+        .map(|block| block.pos().to_array())
+        .collect()
 }
 
+/// Absorbs the Hadamards on `absorbable` caps' pipes; returns whether any was.
 /// The caller owns the transactional clone and validates the complete rewrite.
-pub(crate) fn absorb_terminal_hadamards(graph: &mut BlockGraph) -> Result<(), BlockGraphError> {
-    let mut endpoints = graph
-        .positions()
-        .filter(|&position| is_absorbable_measurement(graph, position))
-        .filter_map(|position| {
-            let pipe = graph.pipes_at(position).next()?;
-            pipe.is_hadamard()
-                .then_some((position, pipe.src(), pipe.dst()))
-        })
-        .collect::<Vec<_>>();
-    endpoints.sort_unstable_by_key(|(position, _, _)| position.to_array());
-    if endpoints.is_empty() {
-        return Ok(());
-    }
-    let mut actions = graph.actions();
+pub(crate) fn absorb_terminal_hadamards(
+    graph: &mut BlockGraph,
+    absorbable: &BTreeSet<[i32; 3]>,
+) -> Result<bool, BlockGraphError> {
+    let mut absorbed = HashSet::new();
     let mut signs = Vec::new();
-    for (position, source, target) in endpoints {
+    for position in absorbable.iter().copied().map(IVec3::from_array) {
+        let pipe = graph
+            .pipes_at(position)
+            .next()
+            .ok_or(BlockGraphError::BlockNotFound(position))?;
+        if !pipe.is_hadamard() {
+            continue;
+        }
+        let (source, target) = (pipe.src(), pipe.dst());
+        graph
+            .get_pipe_mut(source, target)
+            .ok_or(BlockGraphError::PipeNotFound(source, target))?
+            .hadamard = false;
         let block = graph
             .get_block_mut(position)
             .ok_or(BlockGraphError::BlockNotFound(position))?;
         let kind = block.kind().flip_xz_basis();
         block.set_kind(kind);
-        graph
-            .get_pipe_mut(source, target)
-            .ok_or(BlockGraphError::PipeNotFound(source, target))?
-            .hadamard = false;
-        for action in &mut actions {
-            match action {
-                Action::Resolve { target, condition } if *target == position => {
-                    *condition = condition.clone().negated();
-                }
-                Action::Feedback { targets, .. } => {
-                    for target in targets
-                        .iter_mut()
-                        .filter(|target| target.target == position)
-                    {
-                        target.pauli = match target.pauli {
-                            PauliBasis::X => PauliBasis::Z,
-                            PauliBasis::Z => PauliBasis::X,
-                            PauliBasis::Y => PauliBasis::Y,
-                        };
-                    }
-                }
-                _ => {}
-            }
-        }
+        absorbed.insert(position);
         // HYH=-Y: the other arm's Pauli flips Y while leaving that arm fixed.
-        let sign = match kind {
-            BlockKind::Y | BlockKind::Selective(SelectiveKind::XY) => Some(PauliBasis::X),
-            BlockKind::Selective(SelectiveKind::YZ) => Some(PauliBasis::Z),
-            _ => None,
+        let pauli = match kind {
+            BlockKind::Y | BlockKind::Selective(SelectiveKind::XY) => PauliBasis::X,
+            BlockKind::Selective(SelectiveKind::YZ) => PauliBasis::Z,
+            _ => continue,
         };
-        if let Some(pauli) = sign {
-            signs.push(FeedbackTarget {
-                pauli,
-                target: position,
-                direction: None,
-            });
-        }
+        signs.push(FeedbackTarget {
+            pauli,
+            target: position,
+            direction: None,
+        });
     }
+    if absorbed.is_empty() {
+        return Ok(false);
+    }
+    let mut actions = graph.actions();
+    crate::graph::conjugate_xz_actions(&mut actions, |position| absorbed.contains(&position));
     if !signs.is_empty() {
         actions.push(Action::Feedback {
             targets: signs,
@@ -115,7 +106,7 @@ pub(crate) fn absorb_terminal_hadamards(graph: &mut BlockGraph) -> Result<(), Bl
         });
     }
     graph.rebuild_action_graph_lenient(actions);
-    Ok(())
+    Ok(true)
 }
 
 #[cfg(test)]
@@ -125,7 +116,7 @@ mod tests {
 
     use crate::{Block, CubeKind, Direction, Pipe};
     #[cfg(feature = "verify")]
-    use crate::{Expr, MeasureTarget, verify::LogicalVerifier};
+    use crate::{Expr, verify::LogicalVerifier};
 
     use super::*;
 
@@ -187,7 +178,8 @@ mod tests {
                 ] {
                     let source = cap(kind, reversed, feedback);
                     let mut rewritten = source.clone();
-                    absorb_terminal_hadamards(&mut rewritten).unwrap();
+                    let absorbable = absorbable_measurements(&rewritten);
+                    absorb_terminal_hadamards(&mut rewritten, &absorbable).unwrap();
                     rewritten
                         .set_actions_with_inputs(rewritten.actions(), ["c".into()])
                         .unwrap();
@@ -216,6 +208,27 @@ mod tests {
     }
 
     #[test]
+    fn edge_readouts_keep_their_hadamard_seam() {
+        for (src, dir) in [
+            (IVec3::Z, Direction::ZPLUS),
+            (2 * IVec3::Z, Direction::ZMINUS),
+        ] {
+            let mut graph = BlockGraph::new();
+            graph.add_block(Block::new(IVec3::Z, BlockKind::Cube(CubeKind::ZXZ)));
+            graph.add_block(Block::new(
+                2 * IVec3::Z,
+                BlockKind::Measurement(crate::Basis::X),
+            ));
+            graph.add_pipe(Pipe::new(IVec3::Z, Direction::ZPLUS).with_hadamard());
+            graph.rebuild_action_graph_lenient(vec![Action::Measure {
+                target: MeasureTarget::Edge { src, dir },
+                name: "m".into(),
+            }]);
+            assert!(absorbable_measurements(&graph).is_empty());
+        }
+    }
+
+    #[test]
     fn preparation_endpoints_are_protected() {
         for kind in [
             BlockKind::Y,
@@ -226,9 +239,10 @@ mod tests {
             graph.add_block(Block::new(IVec3::ZERO, kind));
             graph.add_block(Block::new(IVec3::Z, BlockKind::Cube(CubeKind::ZXZ)));
             graph.add_pipe(Pipe::new(IVec3::ZERO, Direction::ZPLUS).with_hadamard());
-            assert!(!is_absorbable_measurement(&graph, IVec3::ZERO));
+            let absorbable = absorbable_measurements(&graph);
+            assert!(absorbable.is_empty());
             let original = graph.to_blog_text();
-            absorb_terminal_hadamards(&mut graph).unwrap();
+            absorb_terminal_hadamards(&mut graph, &absorbable).unwrap();
             assert_eq!(graph.to_blog_text(), original);
         }
     }

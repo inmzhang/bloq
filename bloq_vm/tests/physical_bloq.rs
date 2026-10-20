@@ -814,7 +814,7 @@ fn hadamard_capped_t_preserves_the_source_branch_sign() {
         use common::parse_qasm;
         use quizx::graph::{BasisElem, GraphLike};
 
-        for source in [&graph, &graph.with_temporal_hadamards().unwrap()] {
+        for source in [&graph, &*graph.with_temporal_hadamards().unwrap()] {
             let verifier = LogicalVerifier::new(source).unwrap();
             for negative in [false, true] {
                 let correction = if negative { "z q[0];" } else { "" };

@@ -700,44 +700,42 @@ fn compile_proxy(
         });
     }
     let mut ctx = proxy_context(config);
-    // Certify the source before rewriting; pins still name its original arms.
-    let source_summary = ctx.summarize(graph, config.certification_limits())?;
-    let rewritten = source.fix_shadowed_faces().with_temporal_hadamards()?;
-    let conditions = |graph: &BlockGraph| {
-        graph
-            .actions()
-            .into_iter()
-            .filter_map(|action| match action {
-                bloq_graph::Action::Resolve { target, condition } => Some((target, condition)),
-                _ => None,
-            })
-            .collect::<crate::FxMap<_, _>>()
+    let fixed = source.fix_shadowed_faces();
+    let rewritten = fixed.with_temporal_hadamards()?;
+    // Certify the compiled geometry. Absorbed selective caps exchange arms,
+    // while pins name the source arms.
+    let (certified, pins) = match &rewritten {
+        std::borrow::Cow::Borrowed(_) => (graph, pins),
+        std::borrow::Cow::Owned(rewritten) => {
+            let conditions = |graph: &BlockGraph| {
+                graph
+                    .actions()
+                    .into_iter()
+                    .filter_map(|action| match action {
+                        bloq_graph::Action::Resolve { target, condition } => {
+                            Some((target, condition))
+                        }
+                        _ => None,
+                    })
+                    .collect::<crate::FxMap<_, _>>()
+            };
+            let (before, after) = (conditions(source), conditions(rewritten));
+            let pins = ordered_blocks(source)
+                .into_iter()
+                .filter(|block| block.kind().is_selective())
+                .zip(pins)
+                .map(|(block, pin)| pin ^ (before.get(&block.pos()) != after.get(&block.pos())))
+                .collect();
+            (rewritten, pins)
+        }
     };
-    let before = conditions(source);
-    let after = conditions(&rewritten);
-    let pins = ordered_blocks(source)
-        .into_iter()
-        .filter(|block| block.kind().is_selective())
-        .zip(pins)
-        .map(|(block, pin)| pin ^ (before.get(&block.pos()) != after.get(&block.pos())))
-        .collect();
-    let geometry_changed = source
-        .blocks()
-        .any(|block| rewritten.get_block(block.pos()) != Some(block))
-        || source
-            .pipes()
-            .any(|pipe| rewritten.get_pipe(pipe.src(), pipe.dst()) != Some(pipe));
-    let summary = if geometry_changed {
-        ctx.summarize(&rewritten, config.certification_limits())?
-    } else {
-        source_summary
-    };
+    let summary = ctx.summarize(certified, config.certification_limits())?;
     ctx.clifford_proxy = Some(CliffordProxyPins {
         pins,
         purpose,
         summary,
     });
-    ctx.compile(&rewritten)
+    ctx.compile(certified)
 }
 
 static PROXY_CACHE: OnceLock<crate::SharedCompileCache> = OnceLock::new();
@@ -2071,7 +2069,11 @@ mod tests {
             ))
             .unwrap();
             let flat = source.flatten().unwrap();
-            let rewritten = flat.fix_shadowed_faces().with_temporal_hadamards().unwrap();
+            let rewritten = flat
+                .fix_shadowed_faces()
+                .with_temporal_hadamards()
+                .unwrap()
+                .into_owned();
             assert!(
                 !rewritten.pipes().any(Pipe::is_hadamard),
                 "{kind} mixed={mixed_spatial}: all walls absorb"
@@ -4563,19 +4565,17 @@ module main {{
             .bloq;
             assert_eq!(prepared.to_binary(), reference.to_binary(), "{label}");
             assert!(!prepared.output_frames().is_empty());
-            // Rewritten geometry compiles local templates instead of reusing
-            // physical variants tied to the original definition's frame.
-            if !registry::hierarchy_needs_local_variants(&program) {
-                assert!(
-                    cached_module_definitions(&context, &program)
-                        .values()
-                        .any(|definition| definition
+            assert!(
+                cached_module_definitions(&context, &program)
+                    .values()
+                    .any(|definition| {
+                        definition
                             .variants
                             .values()
-                            .any(|info| info.template.is_selective())),
-                    "{label} needs selective inventory coverage"
-                );
-            }
+                            .any(|info| info.template.is_selective())
+                    }),
+                "{label} needs selective inventory coverage"
+            );
         }
     }
 
@@ -4789,7 +4789,7 @@ module main {
                 parallel.bloq.to_binary(),
                 "{label}"
             );
-            if registry::hierarchy_needs_local_variants(&program) {
+            if program.has_continuing_branches() {
                 let orientations = program.definition_orientations();
                 for (name, implementation) in program.module_definition_cache_keys() {
                     assert!(
@@ -4800,7 +4800,7 @@ module main {
                                 orientations: orientations[&name].clone(),
                             })
                             .is_none(),
-                        "rewritten hierarchies retain local physical contexts"
+                        "continuing hierarchies retain guarded physical contexts"
                     );
                 }
             } else {

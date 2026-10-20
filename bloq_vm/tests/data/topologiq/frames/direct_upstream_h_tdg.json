@@ -22,11 +22,6 @@
     "temporal_hadamards_only": true,
     "z_stretch": 2
   },
-  "local_frame": {
-    "dagger": true,
-    "input_h": true,
-    "output_h": false
-  },
   "origin": {
     "input_source_node": 3,
     "retained_upstream_nodes": [

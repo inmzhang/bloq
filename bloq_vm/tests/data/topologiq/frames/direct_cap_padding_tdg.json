@@ -22,11 +22,6 @@
     "temporal_hadamards_only": false,
     "z_stretch": 2
   },
-  "local_frame": {
-    "dagger": true,
-    "input_h": false,
-    "output_h": true
-  },
   "origin": {
     "root": 35,
     "source": "qaoa4.qasm",

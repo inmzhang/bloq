@@ -1,6 +1,7 @@
 //! Shared VM integration-test fixtures.
 
 pub(crate) mod choi;
+pub(crate) mod interop;
 
 /// Parse static fixture QASM while keeping QuiZX's output wires in source order.
 #[allow(

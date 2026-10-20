@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use bloq_graph::{
     BlockGraph, GuardedSurfaceSpace, GuardedTopology, MaterializedModuleSite,
-    PreparedModuleRelations, QuantumConnection,
+    PreparedModuleRelations,
 };
 use bloq_ir::lowering::{InstanceMeasurement, TemplateInstanceId};
 use bloq_ir::{
@@ -35,27 +35,14 @@ fn assembly(reason: impl Into<String>) -> CompileError {
     }
 }
 
-pub(super) fn hierarchy_needs_local_variants(program: &BlockGraph) -> bool {
+fn hierarchy_needs_local_variants(program: &BlockGraph) -> bool {
     let mut pending = vec![program.root()];
     let mut seen = BTreeSet::new();
     while let Some(module) = pending.pop() {
         if !seen.insert(&module.name) {
             continue;
         }
-        if module.local_body().has_continuing_branches()
-            || module
-                .local_body()
-                .pipes()
-                .any(bloq_graph::Pipe::is_hadamard)
-            || module.quantum_connections.iter().any(|connection| {
-                matches!(
-                    connection,
-                    QuantumConnection::Input { hadamard: true, .. }
-                        | QuantumConnection::Output { hadamard: true, .. }
-                        | QuantumConnection::Pipe { hadamard: true, .. }
-                )
-            })
-        {
+        if module.local_body().has_continuing_branches() {
             return true;
         }
         pending.extend(module.instances.iter().map(|instance| {
@@ -78,7 +65,7 @@ pub(super) fn compile_hierarchy_without_inventory(
         context,
         &linked.graph,
         &linked.sites,
-        &[],
+        || Ok(Vec::new()),
         Some(&summary),
         bloq_graph::default_module_jobs(),
     )
@@ -92,7 +79,7 @@ pub(super) fn compile_graph(
         context,
         graph,
         &Default::default(),
-        &[],
+        || Ok(Vec::new()),
         None,
         bloq_graph::default_module_jobs(),
     )
@@ -104,17 +91,18 @@ pub(super) fn compile_hierarchy(
     jobs: NonZeroUsize,
 ) -> Result<CompileArtifacts, CompileError> {
     let summary = context.prepare_relations(program, jobs)?;
-    let definitions = if hierarchy_needs_local_variants(program) {
-        Vec::new()
-    } else {
-        context.prepare_module_definitions(program, &summary, jobs)?
-    };
     let linked = summary.linked();
     compile_native(
         context,
         &linked.graph,
         &linked.sites,
-        &definitions,
+        || {
+            if hierarchy_needs_local_variants(program) {
+                Ok(Vec::new())
+            } else {
+                context.prepare_module_definitions(program, &summary, jobs)
+            }
+        },
         Some(&summary),
         jobs,
     )
@@ -124,7 +112,7 @@ fn compile_native(
     context: &CompileContext,
     source: &BlockGraph,
     source_sites: &std::collections::HashMap<IVec3, MaterializedModuleSite>,
-    definitions: &[Arc<super::PreparedDefinitionObject>],
+    definitions: impl FnOnce() -> Result<Vec<Arc<super::PreparedDefinitionObject>>, CompileError>,
     summary: Option<&PreparedModuleRelations>,
     jobs: NonZeroUsize,
 ) -> Result<CompileArtifacts, CompileError> {
@@ -139,14 +127,15 @@ fn compile_native(
     let low = source.spans().map_or(0, |(_, _, z)| *z.start());
     let fixed = source.with_zero_min_z()?.fix_shadowed_faces();
     let graph = fixed.with_temporal_hadamards()?;
-    // Composed witnesses refer to the original internal ZX geometry.
-    let geometry_changed = fixed
-        .blocks()
-        .any(|block| graph.get_block(block.pos()) != Some(block))
-        || fixed
-            .pipes()
-            .any(|pipe| graph.get_pipe(pipe.src(), pipe.dst()) != Some(pipe));
-    let summary = summary.filter(|_| !geometry_changed);
+    // Composed witnesses and definition variants use the original ZX frames.
+    // Site metadata is positional, which the rewrite preserves.
+    let rewritten = matches!(graph, std::borrow::Cow::Owned(_));
+    let summary = summary.filter(|_| !rewritten);
+    let definitions = if rewritten {
+        Vec::new()
+    } else {
+        definitions()?
+    };
     let (bloq, interface, warnings) = {
         let sites = source_sites
             .iter()
@@ -179,7 +168,7 @@ fn compile_native(
                     context,
                     scheduled,
                     &family.t_sides,
-                    definitions,
+                    &definitions,
                     &sites,
                 )
             }) {

@@ -1,6 +1,7 @@
 //! Local ZX color changes that move spatial Hadamards onto temporal pipes.
 
-use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::borrow::Cow;
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 
 use glam::IVec3;
 use petgraph::algo::maximum_flow::dinics;
@@ -56,8 +57,8 @@ impl BlockGraph {
     /// Terminal measurement bases absorb temporal Hadamards where their signs
     /// can be preserved, conjugating their feedback and selector conditions.
     /// Resource-edge frames retain their existing physical handling.
-    /// Other graphs without spatial Hadamards, and sources
-    /// with structural branch regions, are returned unchanged. Extended and
+    /// Other graphs without spatial Hadamards, and sources with structural
+    /// branch regions, are returned as [`Cow::Borrowed`]. Extended and
     /// moving blocks keep their local frames.
     /// Spatial components without cube-to-cube Hadamards keep their cube colors.
     ///
@@ -70,26 +71,24 @@ impl BlockGraph {
     /// # Panics
     ///
     /// Panics if internal graph or cube-component indexes are inconsistent.
-    pub fn with_temporal_hadamards(&self) -> Result<Self, BlockGraphError> {
+    pub fn with_temporal_hadamards(&self) -> Result<Cow<'_, Self>, BlockGraphError> {
         if !self.branch_definitions().is_empty() {
-            return Ok(self.clone());
+            return Ok(Cow::Borrowed(self));
         }
         let spatial = self
             .pipes()
             .any(|pipe| pipe.dir().is_spatial() && pipe.is_hadamard());
-        let absorbable = self.pipes().any(|pipe| {
-            pipe.is_hadamard()
-                && !pipe.dir().is_spatial()
-                && [pipe.src(), pipe.dst()].into_iter().any(|position| {
-                    crate::hadamard_measurement::is_absorbable_measurement(self, position)
-                })
+        let absorbable = crate::hadamard_measurement::absorbable_measurements(self);
+        let terminal = absorbable.iter().any(|&position| {
+            self.pipes_at(IVec3::from_array(position))
+                .any(Pipe::is_hadamard)
         });
-        if !spatial && !absorbable {
-            return Ok(self.clone());
+        if !spatial && !terminal {
+            return Ok(Cow::Borrowed(self));
         }
         self.require_flat_hierarchy("Hadamard pushing")?;
         self.validate_structure()?;
-        let fixed = protected_cubes(self)?;
+        let fixed = protected_cubes(self, &absorbable)?;
         let mut pipes = self.pipes().cloned().collect::<Vec<_>>();
         pipes.sort_unstable_by_key(|pipe| {
             let (left, right) = (pipe.src().to_array(), pipe.dst().to_array());
@@ -212,11 +211,15 @@ impl BlockGraph {
         }
         let mut candidate = self.clone();
         apply_color_changes(&mut candidate, &flips, &pipes);
-        crate::hadamard_measurement::absorb_terminal_hadamards(&mut candidate)?;
+        if !crate::hadamard_measurement::absorb_terminal_hadamards(&mut candidate, &absorbable)?
+            && flips.is_empty()
+        {
+            return Ok(Cow::Borrowed(self));
+        }
         let actions = candidate.actions();
         candidate.set_actions(actions)?;
         candidate.validate()?;
-        Ok(candidate)
+        Ok(Cow::Owned(candidate))
     }
 }
 
@@ -227,21 +230,24 @@ fn apply_color_changes(graph: &mut BlockGraph, flips: &HashSet<IVec3>, pipes: &[
     }
     for pipe in pipes {
         let (left, right) = pipe.endpoints();
-        graph
-            .get_pipe_mut(left, right)
-            .expect("source pipe exists")
-            .hadamard = pipe.is_hadamard() ^ flips.contains(&left) ^ flips.contains(&right);
+        crate::graph::flip_pipe_xz_basis(
+            graph.get_pipe_mut(left, right).expect("source pipe exists"),
+            |position| flips.contains(&position),
+        );
     }
 }
 
-fn protected_cubes(graph: &BlockGraph) -> Result<HashSet<IVec3>, BlockGraphError> {
+fn protected_cubes(
+    graph: &BlockGraph,
+    absorbable: &BTreeSet<[i32; 3]>,
+) -> Result<HashSet<IVec3>, BlockGraphError> {
     let mut fixed = HashSet::new();
     for block in graph
         .blocks()
         .filter(|block| !block.kind().is_cube() || block.height_cells() != 1)
     {
         fixed.insert(block.pos());
-        if !crate::hadamard_measurement::is_absorbable_measurement(graph, block.pos()) {
+        if !absorbable.contains(&block.pos().to_array()) {
             fixed.extend(
                 graph
                     .neighbors(block.pos())
@@ -257,9 +263,9 @@ fn protected_cubes(graph: &BlockGraph) -> Result<HashSet<IVec3>, BlockGraphError
         }
         Ok(())
     };
-    for action in graph.actions() {
+    for action in graph.action_iter() {
         match action {
-            Action::Measure { target, .. } => match target {
+            Action::Measure { target, .. } => match *target {
                 MeasureTarget::Node(position) => protect(position, None)?,
                 MeasureTarget::Edge { src, dir } => protect(src, Some(dir.to_ivec3()))?,
             },
@@ -272,7 +278,7 @@ fn protected_cubes(graph: &BlockGraph) -> Result<HashSet<IVec3>, BlockGraphError
                 }
             }
             Action::Resolve { target, .. } | Action::Branch { target, .. } => {
-                protect(target, None)?
+                protect(*target, None)?
             }
             Action::Let { .. } | Action::DiscardIf(_) => {}
         }
@@ -639,7 +645,7 @@ mod tests {
         source
             .set_actions_with_inputs(actions.clone(), ["external".into()])
             .unwrap();
-        let mut rewritten = source.with_temporal_hadamards().unwrap();
+        let mut rewritten = source.with_temporal_hadamards().unwrap().into_owned();
         assert_eq!(wall_axes(&rewritten), (1, 0));
         assert_eq!(rewritten.get_block(position), Some(&extended));
         assert_eq!(rewritten.actions(), actions);

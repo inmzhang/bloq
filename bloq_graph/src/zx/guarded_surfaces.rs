@@ -1167,6 +1167,7 @@ impl GuardedSurfaceSpace {
                         .map(AvailabilityKey::Feedback),
                 )
                 .collect::<BTreeSet<_>>();
+            let controls_pending = !pending.is_empty();
             let mut constraints = Vec::new();
             if !RECLAIM || availability.is_none() {
                 let mut blocked_columns = Vec::new();
@@ -1371,12 +1372,14 @@ impl GuardedSurfaceSpace {
                 .into());
             }
             // Early controls can unlock shorter witnesses for later candidates.
-            let earliest = candidates
-                .iter()
-                .map(|(_, _, time)| *time)
-                .min()
-                .expect("nonempty candidates checked above");
-            candidates.retain(|(_, _, time)| *time == earliest);
+            if controls_pending {
+                let earliest = candidates
+                    .iter()
+                    .map(|(_, _, time)| *time)
+                    .min()
+                    .expect("nonempty candidates checked above");
+                candidates.retain(|(_, _, time)| *time == earliest);
+            }
             available_values.learn(
                 candidates.iter().map(|(name, _, _)| name.as_str()),
                 &mut self.topology.diagram,
