@@ -6,26 +6,16 @@ phases or classical operations; native Bloq validation remains authoritative.
 
 from dataclasses import dataclass
 from fractions import Fraction
-from importlib import metadata
-import json
 from numbers import Integral
-import re
 from typing import Any
 
 import bloq
+from bloq.interop._geometry import (
+    _CUBES, GeometryError as TopologiqImportError, Position, _direction, _installed_revision,
+    _parse_static_qasm, _static_qasm,
+)
 
 AUDITED_REVISION = "d010bd3e63686c93c12c922a84a944a3386ac785"
-Position = tuple[int, int, int]
-_CUBES = {"XZZ", "ZXZ", "ZZX", "ZXX", "XZX", "XXZ"}
-
-
-class TopologiqImportError(ValueError):
-    """A source feature or layout that cannot be imported faithfully."""
-
-    def __init__(self, code: str, message: str, *, nodes: tuple[int, ...] = ()):
-        self.code = code
-        self.nodes = nodes
-        super().__init__(f"{code}: {message}" + (f" (nodes {nodes})" if nodes else ""))
 
 
 @dataclass(frozen=True)
@@ -42,16 +32,6 @@ class TopologiqImport:
     layout_options: dict[str, Any]
 
 
-def _installed_revision() -> str | None:
-    try:
-        direct = metadata.distribution("topologiq").read_text("direct_url.json")
-    except metadata.PackageNotFoundError:
-        return None
-    if direct is None:
-        return None
-    return json.loads(direct).get("vcs_info", {}).get("commit_id")
-
-
 def _position(value: Any, node: int) -> Position:
     if (
         not isinstance(value, (list, tuple))
@@ -60,14 +40,6 @@ def _position(value: Any, node: int) -> Position:
     ):
         raise TopologiqImportError("coordinates", f"Expected an integer grid position, got {value!r}", nodes=(node,))
     return int(value[0]), int(value[1]), int(value[2])
-
-
-def _direction(start: Position, end: Position) -> str:
-    delta = tuple(b - a for a, b in zip(start, end))
-    if sum(abs(x) for x in delta) != 1:
-        raise TopologiqImportError("pipe_geometry", f"Pipe is not unit axial: {start} -> {end}")
-    axis = next(i for i, x in enumerate(delta) if x)
-    return ("+" if delta[axis] > 0 else "-") + "XYZ"[axis]
 
 
 def _routed_path(manager: Any, u: int, v: int) -> list[int]:
@@ -249,21 +221,14 @@ def _from_qasm(qasm: str, *, seed: int, temporal_hadamards_only: bool,
     for name, value in [('gravity', gravity), ('z_stretch', z_stretch)]:
         if type(value) is not int or value < 0:
             raise ValueError(f'{name} must be a nonnegative integer')
-    clean = re.sub(r"//[^\n]*|/\*.*?\*/", "", qasm, flags=re.S)
-    if not re.match(r"\s*OPENQASM\s+2(?:\.\d+)?\s*;", clean):
-        raise TopologiqImportError("qasm_version", "Expected an OpenQASM 2 source circuit")
-    if re.search(r"\b(measure|reset|if)\b", clean):
-        raise TopologiqImportError("classical_control", "Only static unitary source circuits are supported")
+    _static_qasm(qasm)
     try:
         from topologiq.core.graph_manager.graph_manager import BlockGraphManager
         from bloq.interop._topologiq_flow import prepare_graph
-        from bloq.interop._qasm import QASMImportError, parse_qasm
+        import bloq.interop._qasm  # noqa: F401
     except ImportError as error:
         raise ImportError("Install the pinned Topologiq integration dependencies; base Bloq needs none of them") from error
-    try:
-        circuit = parse_qasm(clean)
-    except QASMImportError as error:
-        raise TopologiqImportError(error.code, error.message) from error
+    circuit = _parse_static_qasm(qasm)
     source = circuit.to_graph()
     phases = {}
     normalized = source.copy()
@@ -320,4 +285,4 @@ def _from_qasm(qasm: str, *, seed: int, temporal_hadamards_only: bool,
         special.update(t_kinds)
         actions.extend(t_actions)
     graph, positions, inputs, outputs = _convert_geometry(manager, special_kinds=special, actions=actions)
-    return TopologiqImport(graph, inputs, outputs, positions, qasm, _installed_revision(), phases, options)
+    return TopologiqImport(graph, inputs, outputs, positions, qasm, _installed_revision("topologiq"), phases, options)

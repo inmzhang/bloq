@@ -6,8 +6,6 @@ phases must survive its patched classifier, fusion, and fallback paths.
 
 from dataclasses import dataclass
 from fractions import Fraction
-from importlib import metadata
-import json
 from math import ceil, sqrt
 from pathlib import Path
 import re
@@ -17,8 +15,8 @@ from typing import Any
 import bloq
 
 from bloq.interop._geometry import (
-    GRID_SPACING, GeometryError as TopoLSImportError, Position, _CUBES,
-    _position, _direction, _space_diagram, add_t_resources, build_graph,
+    GRID_SPACING, GeometryError as TopoLSImportError, Position, _CUBES, _installed_revision,
+    _later_leg, _parse_static_qasm, _position, _direction, _space_diagram, add_t_resources, build_graph,
 )
 
 AUDITED_REVISION = "e564d350a596cfea3227e09698733210e2e14dcf"
@@ -40,17 +38,8 @@ class TopoLSImport:
 
 def _normalize_qasm(qasm: str) -> tuple[str, int]:
     from pyzx.circuit.gates import CNOT, CZ, HAD, XPhase, ZPhase
-    from bloq.interop._qasm import QASMImportError, parse_qasm
 
-    clean = re.sub(r"//[^\n]*|/\*.*?\*/", "", qasm, flags=re.S)
-    if not re.match(r"\s*OPENQASM\s+2(?:\.\d+)?\s*;", clean):
-        raise TopoLSImportError("qasm_version", "Expected an OpenQASM 2 source circuit")
-    if re.search(r"\b(measure|reset|if)\b", clean):
-        raise TopoLSImportError("classical_control", "Only static unitary source circuits are supported")
-    try:
-        circuit = parse_qasm(clean)
-    except QASMImportError as error:
-        raise TopoLSImportError(error.code, error.message) from error
+    circuit = _parse_static_qasm(qasm)
     lines = ['OPENQASM 2.0;', 'include "qelib1.inc";', f'qreg q[{circuit.qubits}];']
     for gate in circuit.gates:
         if isinstance(gate, (ZPhase, XPhase)):
@@ -226,10 +215,8 @@ def _convert(embedding: dict[str, Any], qubits: int) -> tuple[bloq.BlockGraph, t
         # supplies pi, giving the required +pi/2 phase.
         if (direction == "+Z") != dagger:
             p = _position(nodes[root]["position"])
-            leg = max(neighbors[root], key=lambda n: nodes[n]["position"][2])
-            actions.append(bloq.Action.feedback([bloq.FeedbackTarget(
-                "Z", p, direction=_direction(p, _position(nodes[leg]["position"])),
-            )]))
+            leg = _later_leg(p, (nodes[n]["position"] for n in neighbors[root]))
+            actions.append(bloq.Action.feedback([bloq.FeedbackTarget("Z", p, direction=leg)]))
     for resource, typ in (("S", 4), ("T", 5)):
         if resources[resource] != sum(t == typ for t in embedding["type_hist"].values()):
             raise TopoLSImportError("source_provenance", f"Missing or duplicate {resource} attachment")
@@ -294,10 +281,6 @@ def from_qasm(qasm: str, *, seed: int = 0, engine: str = "python",
             raise TopoLSImportError("source_provenance", f"Layout lost or duplicated signed {gate.upper()} resources")
     embedding = dict(pos_hist=pos, ori_hist=ori, type_hist=typ, path_hist=paths, io_info=io, phase_hist=phases)
     graph, inputs, outputs = _convert(embedding, qubits)
-    try:
-        direct = metadata.distribution("topols").read_text("direct_url.json")
-        revision = json.loads(direct).get("vcs_info", {}).get("commit_id") if direct else None
-    except metadata.PackageNotFoundError:
-        revision = None
+    revision = _installed_revision("topols")
     options.update(engine=engine, block_size_max=20, zx_opt=1, grid_spacing=GRID_SPACING)
     return TopoLSImport(graph, inputs, outputs, qasm, normalized, revision, options, embedding)

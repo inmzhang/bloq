@@ -66,9 +66,6 @@ def _cut_t_frame(manager, source, root, frame, *, extend_input=False):
 
     nodes, originals = manager.bgraph.nodes, set(source.vertices())
 
-    def position(node):
-        return tuple(nodes[node]["coords"])
-
     def kind(node):
         return nodes[node]["zx_block"].kind
 
@@ -138,7 +135,6 @@ def _export_t_frame(manager, source, root, frame, source_name, qasm, destination
         metadata = common | {
             "source_qasm": f"{name}.qasm", "graph": f"{name}.blog",
             "input_ports": inputs, "output_ports": outputs, "t_gadgets": 1,
-            "local_frame": {"input_h": input_h, "output_h": output_h, "dagger": dagger},
             "origin": {"source": source_name, "source_sha256": sha256(qasm.encode()).hexdigest(), "root": root},
         }
         if extend_input:
@@ -150,23 +146,27 @@ def _export_t_frame(manager, source, root, frame, source_name, qasm, destination
         print(f"Exported {name}: unchanged {frame} cut from real QPE layout")
 
 
-def export_t_frames(repository: Path, common: dict) -> None:
-    """Cut proved one-wire frames from the completed real four-qubit layout."""
+def _route_keeping_manager(importer, qasm):
     from topologiq.core.graph_manager.graph_manager import BlockGraphManager
 
-    generate = runpy.run_path(str(repository / "bloq_py/examples/topologiq_qpe.py"))["generate_phase_estimation"]
-    qasm = generate().clifford_t_qasm
-    source = parse_qasm(qasm).to_graph()
-    retained = []
-    build = BlockGraphManager.build
+    retained, build = [], BlockGraphManager.build
 
     def retain(manager):
         build(manager)
         retained.append(manager)
 
     with patch.object(BlockGraphManager, "build", retain):
-        imported = from_qasm(qasm)
+        imported = importer(qasm)
     manager, = retained
+    return imported, manager
+
+
+def export_t_frames(repository: Path, common: dict) -> None:
+    """Cut proved one-wire frames from the completed real four-qubit layout."""
+    generate = runpy.run_path(str(repository / "bloq_py/examples/topologiq_qpe.py"))["generate_phase_estimation"]
+    qasm = generate().clifford_t_qasm
+    source = parse_qasm(qasm).to_graph()
+    imported, manager = _route_keeping_manager(from_qasm, qasm)
     full_destination = repository / "bloq_vm/tests/data/topologiq"
     (full_destination / "qpe4.qasm").write_text(qasm)
     (full_destination / "qpe4.blog").write_text(imported.graph.to_text().rstrip() + "\n")
@@ -205,14 +205,11 @@ def export_t_frames(repository: Path, common: dict) -> None:
 
     destination = repository / "bloq_vm/tests/data/topologiq/frames"
     destination.mkdir(exist_ok=True)
-    (destination / "qpe4.qasm").write_text(qasm)
     for frame, root in selected.items():
         _export_t_frame(manager, source, root, frame, "qpe4.qasm", qasm, destination, common)
 
 
 def export_direct_t_frames(repository: Path, common: dict) -> None:
-    from topologiq.core.graph_manager.graph_manager import BlockGraphManager
-
     generate = runpy.run_path(str(repository / "bloq_py/examples/_algorithm_candidates.py"))["generate_candidate"]
     destination = repository / "bloq_vm/tests/data/topologiq/frames"
     selections = {
@@ -222,17 +219,8 @@ def export_direct_t_frames(repository: Path, common: dict) -> None:
     }
     for name, selected in selections.items():
         qasm = generate(name).clifford_t_qasm
-        source, retained = parse_qasm(qasm).to_graph(), []
-        build = BlockGraphManager.build
-
-        def retain(manager):
-            build(manager)
-            retained.append(manager)
-
-        with patch.object(BlockGraphManager, "build", retain):
-            from_qasm(qasm)
-        manager, = retained
-        (destination / f"{name}.qasm").write_text(qasm)
+        source = parse_qasm(qasm).to_graph()
+        _, manager = _route_keeping_manager(from_qasm, qasm)
         for root, frame in selected.items():
             if len(_routed_path(manager, root, manager.t_gates[root][0][1])) != 2:
                 raise RuntimeError(f"{name}:{root} no longer has the certified direct resource frame")
@@ -241,21 +229,12 @@ def export_direct_t_frames(repository: Path, common: dict) -> None:
 
 def export_upstream_h_t_frames(repository: Path, common: dict) -> None:
     """Retain the real input H web for the public temporal-only QPE profile."""
-    from bloq.interop.topologiq import from_qasm
-    from topologiq.core.graph_manager.graph_manager import BlockGraphManager
+    from bloq.interop.topologiq import from_qasm as public_from_qasm
 
     generate = runpy.run_path(str(repository / "bloq_py/examples/topologiq_qpe.py"))["generate_phase_estimation"]
     qasm = generate().clifford_t_qasm
-    source, retained = parse_qasm(qasm).to_graph(), []
-    build = BlockGraphManager.build
-
-    def retain(manager):
-        build(manager)
-        retained.append(manager)
-
-    with patch.object(BlockGraphManager, "build", retain):
-        imported = from_qasm(qasm)
-    manager, = retained
+    source = parse_qasm(qasm).to_graph()
+    imported, manager = _route_keeping_manager(public_from_qasm, qasm)
     if imported.layout_options["temporal_hadamards_only"] is not True:
         raise RuntimeError("The input-H fixture must use the public temporal-only layout")
     full_destination = repository / "bloq_vm/tests/data/topologiq"
@@ -275,7 +254,6 @@ def export_upstream_h_t_frames(repository: Path, common: dict) -> None:
     destination = repository / "bloq_vm/tests/data/topologiq/frames"
     destination.mkdir(exist_ok=True)
     source_name = "qpe4_temporal.qasm"
-    (destination / source_name).write_text(qasm)
     _export_t_frame(
         manager, source, 10, "direct_upstream_h", source_name, qasm, destination,
         common | {"layout": imported.layout_options}, extend_input=True,

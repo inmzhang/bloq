@@ -17,10 +17,9 @@ from typing import Any
 import bloq
 
 from bloq.interop._geometry import (
-    GeometryError, Position, _direction,
+    GeometryError as SpiderLSImportError, Position, _later_leg, _parse_static_qasm,
     add_t_resources, build_graph,
 )
-from bloq.interop._qasm import QASMImportError, parse_qasm
 
 AUDITED_REVISION = '2c8c205ed3b9c707aca8b2f73c1b3bfd9b025bea'
 _PHASES = {
@@ -28,14 +27,6 @@ _PHASES = {
     'S': (Fraction(1, 2), Fraction(3, 2)),
     'T': tuple(Fraction(n, 4) for n in (1, 3, 5, 7)),
 }
-
-
-class SpiderLSImportError(ValueError):
-    """A source or upstream result that cannot be imported faithfully."""
-
-    def __init__(self, code: str, message: str):
-        self.code = code
-        super().__init__(f'{code}: {message}')
 
 
 @dataclass(frozen=True)
@@ -56,15 +47,7 @@ class SpiderLSImport:
 
 
 def _source(qasm):
-    clean = re.sub(r'//[^\n]*|/\*.*?\*/', '', qasm, flags=re.S)
-    if not re.match(r'\s*OPENQASM\s+2(?:\.\d+)?\s*;', clean):
-        raise SpiderLSImportError('qasm_version', 'Expected an OpenQASM 2 source circuit')
-    if re.search(r'\b(measure|reset|if)\b', clean):
-        raise SpiderLSImportError('classical_control', 'Only static unitary sources are supported')
-    try:
-        circuit = parse_qasm(clean)
-    except QASMImportError as error:
-        raise SpiderLSImportError(error.code, error.message) from error
+    circuit = _parse_static_qasm(qasm)
     if circuit.qubits < 1:
         raise SpiderLSImportError('boundaries', 'The source has no quantum interface')
     for gate in circuit.gates:
@@ -173,9 +156,8 @@ def _convert(source, target, schedule, routing):
                 terminal = next(t for t in connection.terminals if t.kind == 'data')
                 root = f'q{int(terminal.operand[1:])}_t{layer.time}'
                 p = nodes[root]['position']
-                leg = next(b if a == root else a for a, b in edges if root in (a, b)
-                           and nodes[b if a == root else a]['position'][2] > p[2])
-                actions.append(bloq.Action.feedback([bloq.FeedbackTarget('Z', p, direction=_direction(p, nodes[leg]['position']))]))
+                leg = _later_leg(p, (nodes[b if a == root else a]['position'] for a, b in edges if root in (a, b)))
+                actions.append(bloq.Action.feedback([bloq.FeedbackTarget('Z', p, direction=leg)]))
     expected_s = {gadget for gadget, (kind, _, _) in gadgets.items() if kind == 'S'}
     if s_gadgets != expected_s:
         raise SpiderLSImportError('source_provenance', 'Missing S endpoint')
@@ -213,10 +195,6 @@ def from_qasm(qasm: str, *, spacing: int = 3, routing_margin: int = 3,
     source = circuit.to_graph()
     zx.full_reduce(source)
     plan = execution.extract_execution_order(source)
-    for vertex in source.vertices():
-        phase = source.phase(vertex)
-        if (Fraction(phase) * 4).denominator != 1:
-            raise SpiderLSImportError('unsupported_phase', f'Non-Clifford+T spider {vertex}: {phase}')
     target = generate_target_code(plan)
     schedule = parallelize_target_program(target, include_boundary_h=True)
     if target.initial_patch_map or schedule.slots:
@@ -227,12 +205,12 @@ def from_qasm(qasm: str, *, spacing: int = 3, routing_margin: int = 3,
         from pyzx_routing import BoundingBox, RoutingResult
 
         routing = RoutingResult((), BoundingBox(0, 0, 0, 0), 0, {}, {}, {}, 0, 0, 0, 0)
-    try:
-        graph, inputs, outputs = _convert(source, target, schedule, routing)
-    except GeometryError as error:
-        raise SpiderLSImportError(error.code, error.message) from error
+    graph, inputs, outputs = _convert(source, target, schedule, routing)
     root = Path(execution.__file__).resolve().parents[1]
-    revision = subprocess.run(['git', '-C', str(root), 'rev-parse', 'HEAD'], capture_output=True, text=True)
+    try:
+        revision = subprocess.run(['git', '-C', str(root), 'rev-parse', 'HEAD'], capture_output=True, text=True)
+    except OSError:
+        revision = None
     options = dict(routing.parameters, include_boundary_h=True, grid_spacing=(1, 1, 1), ordered_zero_time_events=True)
-    return SpiderLSImport(graph, inputs, outputs, qasm, revision.stdout.strip() if revision.returncode == 0 else None,
+    return SpiderLSImport(graph, inputs, outputs, qasm, revision.stdout.strip() if revision and revision.returncode == 0 else None,
                           options, source, plan, target, schedule, routing)

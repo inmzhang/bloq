@@ -91,10 +91,8 @@ report = bloq.run_noiseless(program, shots=3, input_state="zero", include_signat
   records `(1, 1, 1)`; endpoints, local gaps, and T gadgets contribute to imported
   volume. Idle slices are contracted while protecting resources, controls,
   ports, and tags; temporal H seams compose by parity.
-- T attachments try the shortest outward arms, then bounded joint placement
-  with spatial doglegs of identity cubes. Pending T patches reserve distinct
-  spatial columns clear of data and other gadgets, even at different source
-  times. The injection axis and signed control recipe are preserved.
+- T attachments use the shared placement described for
+  [TopoLS](topols.md#semantic-bridge-and-limits).
 - `SpiderLSImport` retains the reduced graph, plan, target, schedule, routing,
   options, revision, and ordered ports.
   Bloq derives readouts and adaptive dependencies from the imported graph.

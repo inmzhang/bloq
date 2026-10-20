@@ -3,9 +3,12 @@
 from bisect import bisect_left
 from collections import Counter, defaultdict, deque
 from fractions import Fraction
+from importlib import metadata
 from itertools import count, islice
+import json
 from math import isqrt
 from numbers import Integral
+import re
 from typing import Any
 
 import bloq
@@ -18,10 +21,38 @@ _CUBES = {"XZZ", "ZXZ", "ZZX", "ZXX", "XZX", "XXZ"}
 class GeometryError(ValueError):
     """A source or layout that cannot be represented faithfully."""
 
-    def __init__(self, code: str, message: str):
+    def __init__(self, code: str, message: str, *, nodes: tuple[int, ...] = ()):
         self.code = code
         self.message = message
-        super().__init__(f"{code}: {message}")
+        self.nodes = nodes
+        super().__init__(f"{code}: {message}" + (f" (nodes {nodes})" if nodes else ""))
+
+
+def _static_qasm(qasm: str) -> str:
+    """Strip comments, rejecting other versions and classical control before parsing."""
+    clean = re.sub(r"//[^\n]*|/\*.*?\*/", "", qasm, flags=re.S)
+    if not re.match(r"\s*OPENQASM\s+2(?:\.\d+)?\s*;", clean):
+        raise GeometryError("qasm_version", "Expected an OpenQASM 2 source circuit")
+    if re.search(r"\b(measure|reset|if)\b", clean):
+        raise GeometryError("classical_control", "Only static unitary source circuits are supported")
+    return clean
+
+
+def _parse_static_qasm(qasm: str) -> Any:
+    from bloq.interop._qasm import QASMImportError, parse_qasm
+
+    try:
+        return parse_qasm(_static_qasm(qasm))
+    except QASMImportError as error:
+        raise GeometryError(error.code, error.message) from error
+
+
+def _installed_revision(distribution: str) -> str | None:
+    try:
+        direct = metadata.distribution(distribution).read_text("direct_url.json")
+    except metadata.PackageNotFoundError:
+        return None
+    return json.loads(direct).get("vcs_info", {}).get("commit_id") if direct else None
 
 
 def _position(value: Any) -> Position:
@@ -40,6 +71,13 @@ def _direction(start: Position, end: Position) -> str:
         raise GeometryError("pipe_geometry", f"Pipe is not unit axial: {start} -> {end}")
     axis = next(i for i, x in enumerate(delta) if x)
     return ("+" if delta[axis] > 0 else "-") + "XYZ"[axis]
+
+
+def _later_leg(start: Position, legs) -> str:
+    later = [leg for leg in map(_position, legs) if leg[2] > start[2]]
+    if len(later) != 1:
+        raise GeometryError("resource_frame", f"Spider at {start} has no unique later leg")
+    return _direction(start, later[0])
 
 
 def _space_diagram(nodes, edges):
