@@ -200,7 +200,7 @@ def _space_diagram(nodes, edges):
     return spaced, pipes
 
 
-def _t_placements(nodes, edges, node, *, bends=False, margin=2, positions=None):
+def _t_placements(nodes, edges, node, *, bends=False, margin=2, positions=None, occupied=None):
     """Enumerate verified arm/elbow footprints without changing the routed graph."""
     p = _position(nodes[node]['position'])
     adjacent = [b if a == node else a for a, b in edges if node in (a, b)]
@@ -214,8 +214,11 @@ def _t_placements(nodes, edges, node, *, bends=False, margin=2, positions=None):
         raise GeometryError('resource_frame', f'T resource {node!r} has no proved spatial ZZ seam')
     if positions is None:
         positions = {n: _position(d['position']) for n, d in nodes.items()}
-    occupied = {p for n, p in positions.items() if n != node}
-    space = {r[:2] for r in occupied}
+    # Joint searches share bulk occupancy; their own endpoint may move.
+    excluded = p if occupied is not None else None
+    if occupied is None:
+        occupied = {p for n, p in positions.items() if n != node}
+    space = {r[:2] for r in occupied if r != excluded}
     factories = {positions[n][:2] for n, d in nodes.items()
                  if n != node and d['tqec'] == 'T'}
     bounds = [(min(r[i] for r in space), max(r[i] for r in space)) for i in (0, 1)]
@@ -286,7 +289,7 @@ def _t_placements(nodes, edges, node, *, bends=False, margin=2, positions=None):
             additions.update(source=((center[0], center[1], center[2] - 1), 'T'),
                              cap=((center[0], center[1], center[2] + 1), 'XY'))
             footprint = [end, *(r for r, _ in additions.values())]
-            if (len(set(footprint)) != len(footprint) or any(r in occupied for r in footprint)
+            if (len(set(footprint)) != len(footprint) or any(r != excluded and r in occupied for r in footprint)
                     or any(r[:2] in factories for r in footprint)):
                 continue
             # Arm positions were validated while enumerating paths.
@@ -502,9 +505,10 @@ def add_t_resources(nodes, edges, resources):
     except GeometryError as error:
         if error.code != 'resource_collision':
             raise
+        occupied = frozenset(positions.values())
         domains, remaining = [], 100_000
         for node, _, _ in resources:
-            domain = list(islice(_t_placements(nodes, edges, node, positions=positions), remaining + 1))
+            domain = list(islice(_t_placements(nodes, edges, node, positions=positions, occupied=occupied), remaining + 1))
             remaining -= len(domain)
             if remaining < 0:
                 raise GeometryError('resource_placement_limit', 'T placement exceeded 100000 candidates')
@@ -515,7 +519,7 @@ def add_t_resources(nodes, edges, resources):
             if error.code != 'resource_collision':
                 raise
             streams = [_t_placements(nodes, edges, node, bends=True,
-                                     margin=max(2, isqrt(len(resources)) + 1), positions=positions)
+                                     margin=max(2, isqrt(len(resources)) + 1), positions=positions, occupied=occupied)
                        for node, _, _ in resources]
             domains = [[] for _ in resources]
             # Try small candidate prefixes; grow only after a bounded solve.

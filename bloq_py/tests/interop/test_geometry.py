@@ -99,7 +99,12 @@ def test_adjacent_t_outlets_use_disjoint_doglegs_with_the_native_channel_fixture
         def blocked_greedy(*args, **kwargs):
             raise GeometryError('resource_collision', 'Exercise joint placement')
 
+        snapshots = []
+
         def bounded_candidates(*args, bends=False, **kwargs):
+            snapshots.append(kwargs['occupied'])
+            assert isinstance(snapshots[0], frozenset)
+            assert all(snapshot is snapshots[0] for snapshot in snapshots)
             if not bends:
                 return
             for index, candidate in enumerate(original(*args, bends=True, **kwargs)):
@@ -413,3 +418,29 @@ def test_anchored_mixed_walls_retain_one_spatial_axis_and_the_identity_channel(t
     again = copy.deepcopy(nodes)
     push_spatial_hadamards(again, edges, fixed={"b", "d"})
     assert again == nodes
+
+
+@pytest.mark.parametrize('frame', ('XZX', 'ZXX', 'ZXZ', 'XZZ'))
+@pytest.mark.parametrize('sign', (1, -1))
+@pytest.mark.parametrize('blocked', (False, True))
+def test_shared_t_occupancy_preserves_candidate_contents_and_order(frame, sign, blocked):
+    from itertools import islice
+    from bloq.interop._geometry import _t_placements
+
+    axis = 0 if frame in ('XZX', 'ZXZ') else 1
+    nodes = resource_nodes(frame)
+    nodes['resource']['position'] = tuple(sign if i == axis else 0 for i in range(3))
+    # Occupancy at other times still reserves factory columns.
+    for x in range(-4, 5):
+        for y in range(-4, 5):
+            nodes[f'bulk_{x}_{y}'] = dict(position=(x, y, 10), tqec='ZXX', other=None)
+    if blocked:
+        nodes['ray'] = dict(position=tuple(2*sign if i == axis else 0 for i in range(3)), tqec=frame, other=None)
+        nodes['factory'] = dict(position=(2, 2, -10), tqec='T', other=None)
+    edges = [('root', 'resource')]
+    positions = {n: d['position'] for n, d in nodes.items()}
+    expected = list(islice(_t_placements(nodes, edges, 'resource', bends=True), 500))
+    assert expected
+    actual = list(islice(_t_placements(nodes, edges, 'resource', bends=True,
+                                    positions=positions, occupied=frozenset(positions.values())), 500))
+    assert actual == expected
