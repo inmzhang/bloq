@@ -453,9 +453,45 @@ def _joint_t_placements(domains, *, max_attempts=100_000):
     return selected
 
 
+def _spatial_t_endpoints(nodes, edges, resources):
+    """Turn proved temporal-X resource wires through phase-zero identity elbows."""
+    occupied = {_position(data['position']) for data in nodes.values()}
+    for node, _, name in resources:
+        adjacent = [b if a == node else a for a, b in edges if node in (a, b)]
+        if len(adjacent) != 1:
+            raise GeometryError('resource_frame', f'T resource {node!r} is not terminal')
+        neighbor = adjacent[0]
+        p, q = _position(nodes[node]['position']), _position(nodes[neighbor]['position'])
+        if _direction(q, p)[1] != 'Z':
+            continue
+        frame = nodes[neighbor]['tqec']
+        if frame not in ('ZXX', 'XZX'):
+            raise GeometryError('resource_frame', f'T resource {node!r} has no proved temporal elbow')
+        axis = 1 if frame == 'ZXX' else 0
+        available = [tuple(x + (sign if i == axis else 0) for i, x in enumerate(p)) for sign in (1, -1)]
+        target = next((r for r in available if r not in occupied), None)
+        if target is None:
+            raise GeometryError('resource_collision', f'T resource {node!r} has no free spatial elbow')
+        target = _position(target)
+        key = f'{name}_temporal_elbow'
+        if key in nodes:
+            raise GeometryError('source_provenance', f'Reserved T elbow node already exists: {key}')
+        nodes[key] = dict(position=p, tqec=frame, other=None)
+        nodes[node] = dict(nodes[node], position=target)
+        pair = (neighbor, node) if (neighbor, node) in edges else (node, neighbor)
+        edges.remove(pair)
+        edges.extend([(neighbor, key), (key, node)])
+        occupied.add(target)
+
+
 def add_t_resources(nodes, edges, resources):
     """Preserve working placements; jointly replan collisions before committing."""
     resources = [(node, _t_phase(phase), name) for node, phase, name in resources]
+    if not resources:
+        return []
+    target_nodes, target_edges = nodes, edges
+    nodes, edges = nodes.copy(), list(edges)
+    _spatial_t_endpoints(nodes, edges, resources)
     positions = {n: _position(d['position']) for n, d in nodes.items()} if resources else {}
     staged_positions = positions.copy()
     staged, pipes = nodes.copy(), list(edges)
@@ -505,9 +541,9 @@ def add_t_resources(nodes, edges, resources):
         staged, pipes, actions = nodes.copy(), list(edges), []
         for i, (node, phase, name) in enumerate(resources):
             actions.extend(_attach_t_resource(staged, pipes, node, phase, name, placements[i]))
-    nodes.clear()
-    nodes.update(staged)
-    edges[:] = pipes
+    target_nodes.clear()
+    target_nodes.update(staged)
+    target_edges[:] = pipes
     return actions
 
 

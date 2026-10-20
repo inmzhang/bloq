@@ -104,3 +104,32 @@ fn time_z_dogleg_preserves_the_entangled_signed_channel() {
     }
     assert_eq!(selectors, BTreeSet::from([false, true]));
 }
+
+#[test]
+fn temporal_t_outlet_identity_elbow_preserves_the_full_signed_channel() {
+    let inputs = [ivec3(0, -1, 0)];
+    let outputs = [ivec3(0, 1, 2)];
+    let program = compile_source_channel(
+        include_str!("data/interop_temporal_t_elbow.blog"),
+        "OPENQASM 2.0; include \"qelib1.inc\"; qreg q[1]; tdg q[0];",
+        &inputs,
+        &outputs,
+    );
+    let oracle = ExactChoi::new(&inputs, &outputs, |sim| {
+        sim.t_dag(0)?;
+        Ok(())
+    });
+    let mut selectors = BTreeSet::new();
+    for seed in [0x11, 0x22, 0x33] {
+        let report = oracle.run(&program, 8, seed, |_, context| {
+            let [(_, value)] = context.named_branch_selectors else {
+                panic!("one T resource declares one selector");
+            };
+            selectors.insert(*value);
+            Ok(())
+        });
+        assert!(report.all_detectors_constant());
+        assert!(report.max_rank > 1);
+    }
+    assert_eq!(selectors, BTreeSet::from([false, true]));
+}

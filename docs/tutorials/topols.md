@@ -87,7 +87,8 @@ check synthesis; execution checks every joint output Pauli expectation.
   T† uses one T resource, with no extra S gadgets.
 - Gate-by-gate fallback reserves its inherited frontier even after Hadamard
   dissolution, so real gates are not skipped. Initial T outlets need a nonzero
-  arm; some routed temporal endpoints still lack a supported injection frame.
+  arm. Supported temporal-X endpoints gain an identity elbow and a spatial
+  resource leg; other temporal frames still reject.
 - S endpoints become signed Y preparations/measurements. T endpoints receive
   Bloq's positive T source and adaptive X/Y measurement. For corrected ZZ bit
   `b`, T reads X when `b=0` and Y when `b=1`; T† exchanges them. Bloq computes

@@ -1,0 +1,30 @@
+BLOG 1.0
+
+module main {
+  in in_0: data = 2
+  out out_0: data = 3
+
+  0: ZXX [0, 0, 0]
+  1: ZXX [0, -2, 1]
+  2: Port [0, -1, 0] role=input
+  3: Port [0, 1, 2] role=output
+  4: ZXX [0, 1, 0]
+  5: ZXX [0, 1, 1]
+  6: ZXX [0, 0, 1]
+  7: ZXX [0, -1, 1]
+  8: T [0, -2, 0]
+  9: XY [0, -2, 2]
+  0 -> +Y
+  0 -> +Z
+  1 -> +Z
+  2 -> +Y
+  4 -> +Z
+  5 -> +Z
+  6 -> -Y
+  7 -> -Y
+  8 -> +Z
+
+  magic = measure 7 -> -Y
+  resolve 9 if magic
+
+}

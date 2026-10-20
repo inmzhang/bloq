@@ -141,6 +141,55 @@ def test_t_factories_do_not_alias_later_resources_or_data_columns():
         }
 
 
+@pytest.mark.parametrize('frame', ('ZXX', 'XZX'))
+@pytest.mark.parametrize('dz', (1, -1))
+@pytest.mark.parametrize('blocked', (False, True))
+def test_temporal_t_outlet_uses_an_identity_elbow_and_existing_signed_recipe(frame, dz, blocked):
+    from pathlib import Path
+
+    axis = 1 if frame == 'ZXX' else 0
+    nodes = {'root': dict(position=(0, 0, 2), tqec=frame, other=None),
+             'resource': dict(position=(0, 0, 2 + dz), tqec=None, other='T')}
+    for role, sign in (('input', -1), ('output', 1)):
+        p = tuple(sign if i == axis else (2 if i == 2 else 0) for i in range(3))
+        nodes[role] = dict(position=p, tqec=frame, other=dict(type=role, qubit=0))
+    edges = [('input', 'root'), ('root', 'output'), ('root', 'resource')]
+    if blocked:
+        p = nodes['output']['position']
+        nodes['output_elbow'] = dict(nodes['output'], other=None)
+        nodes['obstacle'] = dict(position=(*p[:2], 2 + dz), tqec=frame, other=None)
+        nodes['output'] = dict(nodes['output'], position=(*p[:2], 2 + 2*dz))
+        edges.remove(('root', 'output'))
+        edges.extend([('root', 'output_elbow'), ('output_elbow', 'obstacle'), ('obstacle', 'output')])
+    actions = add_t_resources(nodes, edges, [('resource', '7/4', 'magic')])
+    assert nodes['magic_temporal_elbow'] == dict(position=(0, 0, 2 + dz), tqec=frame, other=None)
+    assert ('root', 'magic_temporal_elbow') in edges
+    assert nodes['resource']['position'][axis] < 0 if blocked else nodes['resource']['position'][axis] > 0
+    graph, _, _ = build_graph(nodes, edges, 1, actions)
+    if frame == 'ZXX' and dz == 1 and blocked:
+        fixture = Path(__file__).resolve().parents[3] / 'bloq_vm/tests/data/interop_temporal_t_elbow.blog'
+        assert graph.to_text().rstrip() + '\n' == fixture.read_text()
+
+
+@pytest.mark.parametrize('frame,blocked,code', [('ZXZ', False, 'resource_frame'),
+                                               ('XXZ', False, 'resource_frame'),
+                                               ('ZXX', True, 'resource_collision')])
+def test_temporal_t_normalization_rejects_unproved_or_blocked_frames_atomically(frame, blocked, code):
+    nodes = {'root': dict(position=(0, 0, 0), tqec='XZX', other=None),
+             'resource': dict(position=(0, 0, 1), tqec=None, other='T'),
+             'other_root': dict(position=(10, 0, 0), tqec=frame, other=None),
+             'other_resource': dict(position=(10, 0, 1), tqec=None, other='T')}
+    if blocked:
+        for y in (-1, 1):
+            nodes[f'obstacle_{y}'] = dict(position=(10, y, 1), tqec='ZXX', other=None)
+    edges = [('root', 'resource'), ('other_root', 'other_resource')]
+    before, old_edges = copy.deepcopy(nodes), list(edges)
+    with pytest.raises(GeometryError) as error:
+        add_t_resources(nodes, edges, [('resource', '1/4', 'a'), ('other_resource', '7/4', 'b')])
+    assert error.value.code == code
+    assert nodes == before and edges == old_edges
+
+
 @pytest.mark.parametrize('z', [-(2**31), 2**31 - 1])
 def test_t_endpoints_reject_coordinate_overflow_without_mutation(z):
     nodes = resource_nodes()
