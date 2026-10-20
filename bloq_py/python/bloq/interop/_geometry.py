@@ -83,11 +83,12 @@ def _transverse_flips(nodes, a, b):
 
 
 def push_spatial_hadamards(nodes, edges, fixed=()):
-    """Recolor cube components whose spatial Hadamard walls can all be removed.
+    """Move spatial Hadamards into time, or retain walls on only one axis.
 
     A ZX color change swaps a cube's X and Z faces, toggling every incident
     Hadamard. Cubes touching other blocks, or listed in ``fixed``, keep their
-    frames. A component that cannot lose every wall keeps its frames.
+    frames. If those anchors prevent removing every wall, solve each choice
+    of remaining spatial axis. Unsatisfiable components keep their frames.
     """
     def cube(n):
         return nodes[n]["other"] is None and nodes[n]["tqec"] in _CUBES
@@ -97,30 +98,60 @@ def push_spatial_hadamards(nodes, edges, fixed=()):
     for a, b in edges:
         if not (cube(a) and cube(b)):
             fixed.update((a, b))
-        elif not _direction(_position(nodes[a]["position"]), _position(nodes[b]["position"])).endswith("Z"):
+        elif (axis := _direction(_position(nodes[a]["position"]), _position(nodes[b]["position"]))[1]) != "Z":
             wall = all(_transverse_flips(nodes, a, b))
-            spatial[a].append((b, wall))
-            spatial[b].append((a, wall))
+            spatial[a].append((b, wall, axis))
+            spatial[b].append((a, wall, axis))
+
+    def solve(component, allowed_axis=None):
+        result: dict[Any, bool] = {}
+        for start in component:
+            if start in result:
+                continue
+            flips, queue = {start: False}, [start]
+            for n in queue:
+                for m, wall, axis in spatial[n]:
+                    if axis == allowed_axis:
+                        continue
+                    flip = flips[n] ^ wall
+                    if m not in flips:
+                        flips[m] = flip
+                        queue.append(m)
+                    elif flips[m] != flip:
+                        return None
+            anchors = {flips[n] for n in flips if n in fixed}
+            if len(anchors) > 1:
+                return None
+            keep = anchors.pop() if anchors else 2 * sum(flips.values()) > len(flips)
+            result.update((n, flip ^ keep) for n, flip in flips.items())
+        return result
+
     seen: set[Any] = set()
     for start in list(spatial):
         if start in seen:
             continue
-        flips, queue, exact, walls = {start: False}, [start], True, False
+        component, queue, wall_axes = {start}, [start], set()
         for n in queue:
-            for m, wall in spatial[n]:
-                walls |= wall
-                if m not in flips:
-                    flips[m] = flips[n] ^ wall
+            for m, wall, axis in spatial[n]:
+                if wall:
+                    wall_axes.add(axis)
+                if m not in component:
+                    component.add(m)
                     queue.append(m)
-                exact &= flips[m] == flips[n] ^ wall
-        seen.update(flips)
-        anchors = {flips[n] for n in flips if n in fixed}
-        if not walls or not exact or len(anchors) > 1:
+        seen.update(component)
+        if not wall_axes:
             continue
-        # Unanchored components take the complementary solution with fewer changes.
-        keep = anchors.pop() if anchors else 2 * sum(flips.values()) > len(flips)
+        flips = solve(queue)
+        if flips is None and len(wall_axes) > 1:
+            candidates = [solution for axis in ("X", "Y") if (solution := solve(queue, axis)) is not None]
+            flips = min(candidates, key=lambda solution: (
+                sum(wall ^ solution[n] ^ solution[m] for n in queue for m, wall, _ in spatial[n]),
+                sum(solution.values()),
+            ), default=None)
+        if flips is None:
+            continue
         for n, flip in flips.items():
-            if flip != keep:
+            if flip:
                 nodes[n]["tqec"] = nodes[n]["tqec"].translate(_COLOR_CHANGE)
 
 

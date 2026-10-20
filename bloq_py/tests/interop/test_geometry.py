@@ -330,3 +330,37 @@ def test_conflicting_fixed_frames_keep_the_wall():
     source = copy.deepcopy(nodes)
     push_spatial_hadamards(nodes, edges, fixed={"b", "c"})
     assert nodes == source
+
+
+@pytest.mark.parametrize("transpose", [False, True])
+def test_anchored_mixed_walls_retain_one_spatial_axis_and_the_identity_channel(transpose):
+    # Two fixed resource frames prevent removing both walls, but the free
+    # corner can move one wall onto its temporal input without changing either.
+    frames = [
+        ("in", (0, 0, -1), "XZX", dict(type="input", qubit=0)),
+        ("idle", (0, 0, 0), "XZX", None),
+        ("a", (0, 0, 1), "XZX", None),
+        ("b", (-1, 0, 1), "XXZ", None),
+        ("c", (-1, 1, 1), "ZXX", None),
+        ("d", (-1, 2, 1), "ZXX", None),
+        ("out", (-1, 2, 2), "ZXX", dict(type="output", qubit=0)),
+    ]
+    nodes = {n: dict(position=(p[1], p[0], p[2]) if transpose else p,
+                     tqec=kind[1] + kind[0] + kind[2] if transpose else kind, other=other)
+             for n, p, kind, other in frames}
+    edges = list(zip(["in", "idle", "a", "b", "c", "d"], ["idle", "a", "b", "c", "d", "out"]))
+    source = copy.deepcopy(nodes)
+    # When every frame is fixed, neither choice of remaining axis is possible.
+    push_spatial_hadamards(nodes, edges, fixed={"a", "b", "c", "d"})
+    assert nodes == source
+    push_spatial_hadamards(nodes, edges, fixed={"b", "d"})
+    assert nodes["b"] == source["b"] and nodes["d"] == source["d"]
+    graph, _, _ = build_graph(nodes, edges, 1, [])
+    assert sorted(hadamard_axes(graph)) == ["X" if transpose else "Y", "Z"]
+    program = bloq.compile(graph, distance=3)
+    for state, expected in [("zero", [0, 0, 1]), ("plus", [1, 0, 0])]:
+        actual = bloq.run_noiseless(program, input_state=state)["samples"][0]["logical_bloch"][0]
+        assert actual == pytest.approx(expected, abs=1e-8)
+    again = copy.deepcopy(nodes)
+    push_spatial_hadamards(again, edges, fixed={"b", "d"})
+    assert again == nodes
