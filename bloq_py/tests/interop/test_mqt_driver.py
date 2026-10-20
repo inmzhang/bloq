@@ -36,7 +36,7 @@ def test_timeout_kills_descendants_and_preserves_compilation(driver, tmp_path):
     status = Path(f"/proc/{pid}/stat")
     try:
         assert status.read_text().split()[2] == "Z"
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):
         pass
     result = dict(status="compiled", ir_d25=dict(status="compiled", round_trip=True),
                   vm_d3=dict(status="running", stage="execution"))
