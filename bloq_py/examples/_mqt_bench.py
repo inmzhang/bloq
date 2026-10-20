@@ -18,10 +18,13 @@ from numbers import Real
 
 import mpmath as mp
 import numpy as np
+from openqasm3.parser import QASM3ParsingError
 from qiskit import QuantumCircuit, qasm2, qasm3, transpile
-from qiskit.circuit.library import get_standard_gate_name_mapping
+from qiskit.circuit.library import PermutationGate, get_standard_gate_name_mapping
 from qiskit.exceptions import QiskitError
 from qiskit.quantum_info import Clifford, Operator, Pauli, Statevector
+from qiskit.synthesis import synth_permutation_basic
+from qiskit_qasm3_import.exceptions import ConversionError
 
 MQT_BENCH_VERSION = "2.3.0"
 # MQT Bench assigns uniform random angles from numpy's default_rng(10).
@@ -88,6 +91,24 @@ SUITE = [
     Benchmark("cdkm_ripple_carry_adder", 16, "compile", "seven-bit full addition with carry", _LARGE),
     Benchmark("cdkm_ripple_carry_adder", 32, "compile", "15-bit full addition with carry", _LARGE),
     Benchmark("vqe_real_amp", 16, "compile", "16-qubit real-amplitude VQE ansatz; MQT seed-10 angles", _LARGE),
+    Benchmark("draper_qft_adder", 4, "execute", "two-bit Draper Fourier adder; exact T gates"),
+    Benchmark("draper_qft_adder", 6, "compile", "three-bit Draper adder; synthesized pi/8 phases", _LARGE),
+    Benchmark("modular_adder", 4, "execute", "two-bit addition modulo four; exact T gates"),
+    Benchmark("modular_adder", 6, "compile", "three-bit modular addition; exact T gates", _LARGE),
+    Benchmark("qpeinexact", 2, "execute", "one-bit estimate of an inexact binary phase; exact T gates"),
+    Benchmark("qpeinexact", 3, "compile", "two-bit estimate of an inexact binary phase", _LARGE),
+    Benchmark("ae", 2, "compile", "one evaluation qubit estimating Bernoulli probability 0.2", _LARGE),
+    Benchmark("ae", 3, "compile", "two evaluation qubits estimating Bernoulli probability 0.2", _LARGE),
+    Benchmark("hhl", 3, "compile", "MQT HHL circuit for a fixed two-dimensional linear system", _LARGE),
+    Benchmark("qnn", 2, "compile", "Z feature map and real-amplitude neural-network ansatz", _LARGE),
+    Benchmark("bmw_quark_cardinality", 2, "compile", "QUARK cardinality circuit with one layer", _LARGE,
+              options=dict(depth=1)),
+    Benchmark("bmw_quark_copula", 2, "compile", "QUARK copula circuit with one layer", _LARGE,
+              options=dict(depth=1)),
+    Benchmark("vqe_two_local", 2, "compile", "two-local variational ansatz; MQT seed-10 angles", _LARGE),
+    Benchmark("dj", 16, "compile", "16-qubit balanced Deutsch-Jozsa Clifford scaling control"),
+    Benchmark("bv", 16, "compile", "16-qubit Bernstein-Vazirani Clifford scaling control"),
+    Benchmark("graphstate", 16, "compile", "16-qubit regular graph state; pinned graph seed", options=dict(seed=17)),
     Benchmark("ghz_dynamic", 3, "reject", "mid-circuit measurement with feedforward", ()),
     Benchmark("iqpe", 3, "reject", "iterative phase estimation with classical control", ()),
     Benchmark("dynamic_qft", 3, "reject", "measurement-based QFT", ()),
@@ -148,7 +169,12 @@ def _static_body(circuit: QuantumCircuit) -> tuple[QuantumCircuit, list[dict]]:
 def _expand_definitions(body: QuantumCircuit) -> QuantumCircuit:
     """Use MQT's definitions, with a depth bound for opaque/recursive gates."""
     standard = get_standard_gate_name_mapping()
+    body = body.copy()
     for _ in range(64):
+        for index, instruction in enumerate(body.data):
+            if isinstance(instruction.operation, PermutationGate):
+                exact = synth_permutation_basic(instruction.operation.pattern).to_gate()
+                body.data[index] = instruction.replace(operation=exact)
         custom = {instruction.operation.name for instruction in body.data
                   if instruction.operation.name not in standard}
         for instruction in body.data:
@@ -164,6 +190,16 @@ def _expand_definitions(body: QuantumCircuit) -> QuantumCircuit:
     raise UnsupportedSource("definition_depth", "gate definitions exceed 64 expansion levels")
 
 
+def _definition_qasm(source: QuantumCircuit) -> str:
+    """Serialize exact gate definitions without changing the terminal readout."""
+    original, measured = _static_body(source)
+    exported = source.copy_empty_like()
+    exported.compose(_expand_definitions(original), inplace=True)
+    for measurement in measured:
+        exported.measure(measurement["qubit"], measurement["clbit"])
+    return qasm3.dumps(exported, disable_constants=True)
+
+
 def lower(benchmark: Benchmark, *, epsilon: float = 1e-2) -> Lowered:
     """Generate one pinned MQT Bench instance and lower it to Clifford+T.
 
@@ -177,6 +213,7 @@ def lower(benchmark: Benchmark, *, epsilon: float = 1e-2) -> Lowered:
     if not 0 < epsilon < 1:
         raise ValueError("epsilon must be between zero and one")
     source = get_benchmark(benchmark.name, BenchmarkLevel.ALG, benchmark.size, **benchmark.options)
+    benchmark_source = source
     # QASM's pretty printer otherwise rounds nearby angles to rational pi values.
     benchmark_qasm = qasm3.dumps(source, disable_constants=True)
     if benchmark.prepare_plus:
@@ -194,6 +231,7 @@ def lower(benchmark: Benchmark, *, epsilon: float = 1e-2) -> Lowered:
         mqt_options=benchmark.options, source_sha256=sha256(source_qasm.encode()).hexdigest(),
         benchmark_sha256=sha256(benchmark_qasm.encode()).hexdigest(),
         source_variant="explicit_input_preparation" if benchmark.prepare_plus else "unmodified_mqt_benchmark",
+        source_serialization="original_gate_definitions",
         input_preparation=dict(h_qubits=list(benchmark.prepare_plus)),
         source_qubits=source.num_qubits, source_gate_counts=dict(source.count_ops()),
         qiskit_version=version("qiskit"), pygridsynth_version=version("pygridsynth"),
@@ -201,7 +239,17 @@ def lower(benchmark: Benchmark, *, epsilon: float = 1e-2) -> Lowered:
     )
     try:
         original, measured = _static_body(source)
-        body, exported_measurements = _static_body(qasm3.loads(source_qasm))
+        try:
+            body, exported_measurements = _static_body(qasm3.loads(source_qasm))
+        except (QASM3ParsingError, ConversionError):
+            # Qiskit emits invalid QASM for matrix-valued gate parameters.
+            # Expand exact definitions rather than invoking ancillary HLS plugins.
+            source_qasm = _definition_qasm(source)
+            benchmark_qasm = _definition_qasm(benchmark_source) if benchmark.prepare_plus else source_qasm
+            summary.update(source_serialization="definition_expanded",
+                           source_sha256=sha256(source_qasm.encode()).hexdigest(),
+                           benchmark_sha256=sha256(benchmark_qasm.encode()).hexdigest())
+            body, exported_measurements = _static_body(qasm3.loads(source_qasm))
         if measured != exported_measurements or body.num_qubits != original.num_qubits:
             raise RuntimeError("source QASM export changed qubits or terminal readout mapping")
         summary["terminal_measurements"] = measured

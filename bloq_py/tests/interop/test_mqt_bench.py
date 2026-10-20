@@ -153,3 +153,42 @@ def test_unmodified_entangled_qft_has_a_nonstabilizer_output(bench):
     assert not result.summary["channel_clifford"]
     assert not result.summary["output_stabilizer"]
     assert abs(result.source_state)**2 == pytest.approx([1/2, 1/4, 0, 1/4], abs=1e-12)
+
+
+
+def test_mqt_amplitude_estimation_uses_exact_definition_export(bench):
+    from mqt.bench import BenchmarkLevel, get_benchmark
+
+    original = get_benchmark("ae", BenchmarkLevel.ALG, 2)
+    reference, readout = bench._static_body(original)
+    result = bench.lower(bench.Benchmark("ae", 2, "compile", ""))
+    exported, actual_readout = bench._static_body(qasm3.loads(result.source_qasm))
+    assert result.summary["source_serialization"] == "definition_expanded"
+    assert result.benchmark_qasm is None
+    assert result.summary["benchmark_sha256"] == sha256(result.source_qasm.encode()).hexdigest()
+    assert result.summary["source_sha256"] == sha256(result.source_qasm.encode()).hexdigest()
+    assert readout == actual_readout == result.summary["terminal_measurements"]
+    assert bench._projective_distance(Operator(exported).data, Operator(reference).data) < 1e-12
+    assert result.source_state == pytest.approx(Statevector(reference).data)
+    assert result.summary["lowering_error"] <= result.summary["approximation_bound"]
+    assert not result.summary["output_stabilizer"]
+
+
+def test_permutation_export_preserves_complete_channel_and_readout(bench, monkeypatch):
+    from qiskit.circuit.library import PermutationGate
+
+    source = QuantumCircuit(3, 2)
+    source.x(0)
+    source.append(PermutationGate([2, 0, 1]), range(3))
+    source.measure(2, 0)
+    source.measure(0, 1)
+    _source(monkeypatch, source)
+    result = bench.lower(bench.Benchmark("permutation", 3, "execute", ""))
+    reference = source.remove_final_measurements(inplace=False)
+    artifact = qasm2.loads(result.clifford_t_qasm)
+    assert bench._projective_distance(Operator(artifact).data, Operator(reference).data) < 1e-12
+    assert np.argmax(Statevector(artifact).probabilities()) == 2
+    assert result.summary["exact_lowering"]
+    assert result.summary["terminal_measurements"] == [
+        dict(qubit=2, clbit=0, basis="Z"), dict(qubit=0, clbit=1, basis="Z")]
+    assert isinstance(source.data[1].operation, PermutationGate)
