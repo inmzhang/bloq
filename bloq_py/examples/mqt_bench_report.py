@@ -18,7 +18,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE = Path(__file__).with_suffix(".typ")
 ARTIFACTS = ("benchmark.qasm", "source.qasm", "clifford_t.qasm", "lowering.json", "result.json",
-             "layout.blog", "layout.html", "layout.svg", "program_d25.bloq",
+             "layout.blog", "layout.html", "layout.svg", "layout.png", "program_d25.bloq",
              "program_d3.bloq", "execution.json")
 
 
@@ -166,11 +166,13 @@ def build(root, includes=()):
                                 image_dir, "thumbnail", 120, memory_gib=min(8, limits[row["experiment"]]))
             assets["thumbnails"][row["run_dir"]] = rendered
             if rendered["status"] != "completed":
-                (image_dir / "layout.svg").unlink(missing_ok=True)
+                for name in ("layout.svg", "layout.png"):
+                    (image_dir / name).unlink(missing_ok=True)
         artifacts = {name: (run_dir / name).relative_to(root).as_posix()
-                     for name in ARTIFACTS if name != "layout.svg" and (run_dir / name).is_file()}
-        if (image_dir / "layout.svg").is_file():
-            artifacts["layout.svg"] = (image_dir / "layout.svg").relative_to(root).as_posix()
+                     for name in ARTIFACTS if name not in ("layout.svg", "layout.png") and (run_dir / name).is_file()}
+        for name in ("layout.svg", "layout.png"):
+            if (image_dir / name).is_file():
+                artifacts[name] = (image_dir / name).relative_to(root).as_posix()
         assets["runs"][row["run_dir"]] = artifacts
         files.update(artifacts.values())
     save(root / "report-assets.json", assets)
@@ -200,7 +202,14 @@ def main():
         from render_block_thumbnails import thumbnail
 
         source, output = args.thumbnail
+        raster = output.with_suffix(".png")
+        raster.unlink(missing_ok=True)
         thumbnail(bloq.BlockGraph.load(source), output, source.parent.name, opaque=True)
+        # Large meshes exceed Typst's SVG node limit; retain a print-size preview.
+        if output.stat().st_size > 8 * 1024**2:
+            subprocess.run(["magick", "-background", "white", "-density", "1800", f"MSVG:{output}",
+                            "-resize", "2400x", str(raster)], check=True)
+            output.unlink()
     elif args.verify:
         verify(args.output_dir.resolve())
     else:

@@ -30,7 +30,8 @@ The pinned 32-qubit CDKM case requests SpiderLS spacing four to leave room for
 T-factory attachments. Requested and effective layout settings are retained
 separately; the logical circuit is unchanged.
 
-Generate a fresh report:
+Generate a fresh report with Typst installed (ImageMagick is also needed for
+large layout previews):
 
 ```sh
 rtk proxy uv run --project bloq_py --no-sync python \

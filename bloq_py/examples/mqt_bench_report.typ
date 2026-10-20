@@ -43,6 +43,10 @@
   qwalk: "A quantum walk evolves a coherent position state using quantum-controlled transitions.",
   qaoa: "This MaxCut QAOA circuit alternates problem and mixing unitaries at fixed MQT parameters; it does not run a classical optimization loop.",
   vqe_real_amp: "This real-amplitude variational ansatz evaluates fixed MQT parameters; it does not run an energy-minimization loop.",
+  vqe_two_local: "This variational ansatz alternates single-qubit rotations and entanglers at fixed MQT parameters; no optimization loop is executed.",
+  qnn: "A quantum neural-network kernel combines a feature map and a parameterized ansatz at fixed inputs and weights.",
+  bmw_quark_cardinality: "A QUARK generative-modeling circuit combines single-qubit rotations and XX interactions at fixed MQT parameters.",
+  bmw_quark_copula: "A QUARK generative-modeling circuit starts with correlations between two registers and applies parameterized ansatz layers.",
   cdkm_ripple_carry_adder: "The CDKM reversible adder propagates carry information through an arithmetic register.",
   vbe_ripple_carry_adder: "The VBE reversible adder implements addition using explicit carry operations.",
   multiplier: "Reversible multiplication builds arithmetic products from controlled operations.",
@@ -221,8 +225,9 @@ zero routed T resources in SpiderLS and is not a magic-state demonstration.
   let links = assets.runs.at(row.run_dir)
   artifact-links(links)
   parbreak()
-  if "layout.svg" in links {
-    image(links.at("layout.svg"), width: 100%, height: 85mm, fit: "contain")
+  if "layout.svg" in links or "layout.png" in links {
+    image(links.at("layout.png", default: links.at("layout.svg", default: "")),
+      width: 100%, height: 85mm, fit: "contain")
   } else {
     [Static image unavailable within its rendering budget:
       #shown(assets.thumbnails.at(row.run_dir))]
@@ -306,7 +311,7 @@ that an algorithm has no valid surface-code layout.
   if row.at("run_dir", default: none) != none {
     artifact-links(assets.runs.at(row.run_dir, default: (:)))
     parbreak()
-    let process = row.at("processes", default: (:)).at("ir_d25", default: (:))
+    let process = row.at("processes", default: (:)).at(stage, default: (:))
     for name in ("stdout", "stderr") {
       if name in process {
         link(row.run_dir + "/" + process.at(name), [Compilation #name log])
