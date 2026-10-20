@@ -655,17 +655,6 @@ def test_spatial_hadamard_compile_warns_about_distance_loss(validate):
     graph.add_block(bloq.Block((1, 0, 0), "XXZ"))
     graph.add_pipe(bloq.Pipe((0, 0, 0), "+X", hadamard=True))
 
-    with warnings.catch_warnings(record=True) as removed:
-        warnings.simplefilter("always")
-        bloq.compile(graph, distance=3, validate=validate)
-    assert not removed
-
-    # Pin both cube frames so the spatial wall cannot be rewritten away.
-    graph.add_block(bloq.Block((0, 0, -1), "Port"))
-    graph.add_block(bloq.Block((1, 0, 1), "Port"))
-    graph.add_pipe(bloq.Pipe((0, 0, -1), "+Z"))
-    graph.add_pipe(bloq.Pipe((1, 0, 0), "+Z"))
-
     with pytest.warns(bloq.CompileWarning, match="fixed-bulk spatial Hadamard"):
         bloq.compile(graph, distance=3, validate=validate)
 

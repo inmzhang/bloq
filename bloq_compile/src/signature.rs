@@ -601,10 +601,12 @@ mod tests {
 
     use crate::{CompileConfig, CompileContext};
 
-    /// Physical scheduling rejects mixed axes, but compilation can first
-    /// remove the hub's walls with a local ZX color change.
+    /// A hub whose spatial Hadamard walls run on *both* in-plane axes has no
+    /// single [`LayerSchedule`], so the compiler must reject it — blaming the
+    /// component's lowest coordinate — rather than silently picking one axis.
+    /// Compilation with and without the explicit audit must agree.
     #[test]
-    fn quarter_turn_spatial_hadamards_are_normalized_before_scheduling() {
+    fn quarter_turn_spatial_hadamard_is_rejected() {
         let graph = BlockGraph::from_blog_text(
             "BLOG 1.0\n\n\
              0: ZZX [0, 0, 0]\n\
@@ -621,11 +623,13 @@ mod tests {
         let ctx = CompileContext::new(CompileConfig::new(3));
 
         assert!(matches!(
-            join_component_layer_schedules(&graph),
+            ctx.compile_and_validate(&graph),
             Err(CompileError::MixedSpatialHadamardUnsupported { pos }) if pos == IVec3::ZERO
         ));
-        ctx.compile_and_validate(&graph).unwrap();
-        ctx.compile(&graph).unwrap();
+        assert!(matches!(
+            ctx.compile(&graph),
+            Err(CompileError::MixedSpatialHadamardUnsupported { pos }) if pos == IVec3::ZERO
+        ));
     }
 
     #[test]

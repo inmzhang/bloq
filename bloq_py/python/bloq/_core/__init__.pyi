@@ -1078,17 +1078,6 @@ class BlockGraph:
         Raises:
             BlockGraphError: If the basis flip cannot be applied.
         """
-    def with_temporal_hadamards(self) -> BlockGraph:
-        r"""
-        Returns an equivalent graph with spatial Hadamards pushed through
-        ordinary cubes and temporal Hadamards absorbed by terminal measurements.
-        Compilation applies this rewrite automatically. Protected resource and
-        control frames are retained; flatten child instances first.
-
-        Raises:
-            BlockGraphError: If protected frames require mixed spatial wall axes
-                or the transformed graph is invalid.
-        """
     def with_zero_min_z(self) -> BlockGraph:
         r"""
         Returns a new graph shifted so the minimum z-coordinate is zero.

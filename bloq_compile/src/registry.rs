@@ -65,7 +65,7 @@ pub(super) fn compile_hierarchy_without_inventory(
         context,
         &linked.graph,
         &linked.sites,
-        || Ok(Vec::new()),
+        &[],
         Some(&summary),
         bloq_graph::default_module_jobs(),
     )
@@ -79,7 +79,7 @@ pub(super) fn compile_graph(
         context,
         graph,
         &Default::default(),
-        || Ok(Vec::new()),
+        &[],
         None,
         bloq_graph::default_module_jobs(),
     )
@@ -91,18 +91,17 @@ pub(super) fn compile_hierarchy(
     jobs: NonZeroUsize,
 ) -> Result<CompileArtifacts, CompileError> {
     let summary = context.prepare_relations(program, jobs)?;
+    let definitions = if hierarchy_needs_local_variants(program) {
+        Vec::new()
+    } else {
+        context.prepare_module_definitions(program, &summary, jobs)?
+    };
     let linked = summary.linked();
     compile_native(
         context,
         &linked.graph,
         &linked.sites,
-        || {
-            if hierarchy_needs_local_variants(program) {
-                Ok(Vec::new())
-            } else {
-                context.prepare_module_definitions(program, &summary, jobs)
-            }
-        },
+        &definitions,
         Some(&summary),
         jobs,
     )
@@ -112,7 +111,7 @@ fn compile_native(
     context: &CompileContext,
     source: &BlockGraph,
     source_sites: &std::collections::HashMap<IVec3, MaterializedModuleSite>,
-    definitions: impl FnOnce() -> Result<Vec<Arc<super::PreparedDefinitionObject>>, CompileError>,
+    definitions: &[Arc<super::PreparedDefinitionObject>],
     summary: Option<&PreparedModuleRelations>,
     jobs: NonZeroUsize,
 ) -> Result<CompileArtifacts, CompileError> {
@@ -125,17 +124,7 @@ fn compile_native(
     // One origin for both arms. Subtracting the origin also handles i32::MIN,
     // whose negation cannot be represented as a translation vector.
     let low = source.spans().map_or(0, |(_, _, z)| *z.start());
-    let fixed = source.with_zero_min_z()?.fix_shadowed_faces();
-    let graph = fixed.with_temporal_hadamards()?;
-    // Composed witnesses and definition variants use the original ZX frames.
-    // Site metadata is positional, which the rewrite preserves.
-    let rewritten = matches!(graph, std::borrow::Cow::Owned(_));
-    let summary = summary.filter(|_| !rewritten);
-    let definitions = if rewritten {
-        Vec::new()
-    } else {
-        definitions()?
-    };
+    let graph = source.with_zero_min_z()?.fix_shadowed_faces();
     let (bloq, interface, warnings) = {
         let sites = source_sites
             .iter()
@@ -168,7 +157,7 @@ fn compile_native(
                     context,
                     scheduled,
                     &family.t_sides,
-                    &definitions,
+                    definitions,
                     &sites,
                 )
             }) {

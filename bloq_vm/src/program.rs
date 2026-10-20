@@ -458,8 +458,6 @@ pub struct ShotContext<'a> {
     pub record: &'a ShotRecord,
     /// This shot's stamped selector outcomes, in evaluation order — the
     /// feedforward action bits driving the terminal Pauli frame.
-    /// Selective values choose compiled cap arms; Hadamard normalization can
-    /// invert them relative to the authored resolve condition.
     pub branch_selectors: &'a [bool],
     /// Structural and selective choices, keyed by their source selector names.
     pub named_branch_selectors: &'a [(&'a str, bool)],

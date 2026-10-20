@@ -2121,21 +2121,6 @@ impl PyBlockGraph {
         self.0.flip_xz_basis().map(Into::into).map_err(graph_err)
     }
 
-    /// Returns an equivalent graph with spatial Hadamards pushed through
-    /// ordinary cubes and temporal Hadamards absorbed by terminal measurements.
-    /// Compilation applies this rewrite automatically. Protected resource and
-    /// control frames are retained; flatten child instances first.
-    ///
-    /// Raises:
-    ///     BlockGraphError: If protected frames require mixed spatial wall axes
-    ///         or the transformed graph is invalid.
-    fn with_temporal_hadamards(&self) -> PyResult<Self> {
-        self.0
-            .with_temporal_hadamards()
-            .map(|graph| graph.into_owned().into())
-            .map_err(graph_err)
-    }
-
     /// Returns a new graph shifted so the minimum z-coordinate is zero.
     /// Call `flatten()` first for authored module interfaces or child instances.
     ///
