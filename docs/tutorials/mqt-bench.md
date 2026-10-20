@@ -47,6 +47,10 @@ revisions and patches, and the Bloq revision and working-tree snapshot.
   This produces a nonstabilizer output without changing the adder's angles or
   operations. Unmodified benchmarks remain the primary comparison suite.
 - Source QASM 3 retains MQT's angles and ordered terminal measurement mapping.
+  When Qiskit's exporter cannot represent matrix-valued gates, exact gate
+  definitions and SWAP permutation synthesis produce valid source QASM; the
+  recorded `source_serialization` labels this expansion. Numerical checks use
+  the untouched MQT circuit as their reference.
   Static Clifford+T QASM 2 is the upstream input. Terminal measurements become
   the recorded readout specification; resets, internal measurements, and dynamic
   control are explicitly rejected.

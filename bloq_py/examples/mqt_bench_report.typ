@@ -19,6 +19,10 @@
 #let value(dict, key, default: "—") = dict.at(key, default: default)
 #let shown(x) = if x == none { "—" } else if type(x) == str { x } else { json.encode(x, pretty: false) }
 #let number(x) = if x == none { "—" } else { str(calc.round(x, digits: 5)) }
+#let brief(message) = {
+  let chars = message.clusters()
+  if chars.len() > 600 { chars.slice(0, 600).join() + "… (full diagnostic in ledger and logs)" } else { message }
+}
 #let status(row, stage) = value(row.at(stage, default: (:)), "status", default: "skipped")
 #let case-name(row) = row.case.replace("_", " ")
 #let introductions = (
@@ -26,6 +30,7 @@
   full_adder: "A reversible full adder includes an incoming carry in the arithmetic mapping.",
   grover: "Grover search amplifies marked computational-basis states through oracle and diffusion steps.",
   qpeexact: "Phase estimation extracts an eigenphase using controlled unitary powers and an inverse Fourier transform.",
+  qpeinexact: "Phase estimation samples a phase that is not exactly representable by the counting register.",
   qft: "The quantum Fourier transform maps computational-basis amplitudes into a discrete Fourier basis.",
   qftentangled: "The quantum Fourier transform is applied to MQT's entangled input preparation.",
   wstate: "W-state preparation creates a coherent superposition with exactly one excited qubit.",
@@ -36,6 +41,13 @@
   vbe_ripple_carry_adder: "The VBE reversible adder implements addition using explicit carry operations.",
   multiplier: "Reversible multiplication builds arithmetic products from controlled operations.",
   hrs_cumulative_multiplier: "The HRS cumulative multiplier accumulates a product in a reversible arithmetic register.",
+  draper_qft_adder: "Draper addition performs reversible arithmetic through a Fourier-basis register.",
+  modular_adder: "A reversible modular adder adds one register into another modulo two to the register width.",
+  ae: "Amplitude estimation uses controlled Grover rotations and phase estimation to estimate a success probability.",
+  hhl: "The HHL circuit implements the phase-estimation and controlled-rotation kernel for a small linear system.",
+  bv: "Bernstein–Vazirani recovers a hidden bit string from a coherent oracle query.",
+  dj: "Deutsch–Jozsa distinguishes a constant oracle from a balanced oracle.",
+  graphstate: "Graph-state preparation entangles qubits according to a seeded graph.",
 )
 #let introduction(row) = introductions.at(row.at("benchmark", default: ""), default: value(row, "note"))
 #let artifact-links(artifacts) = {
@@ -45,8 +57,8 @@
 #let evidence(row, stage) = {
   let check = row.at(stage, default: (:))
   [*#stage:* #status(row, stage)]
-  if check.at("reason", default: none) != none { [; #check.reason] }
-  if check.at("error", default: none) != none { [; #check.error] }
+  if check.at("reason", default: none) != none { [; #brief(check.reason)] }
+  if check.at("error", default: none) != none { [; #brief(check.error)] }
   if stage == "quizx" and check.at("samples", default: none) != none {
     [; #value(check, "verified") / #check.samples sampled branches verified]
   }
@@ -82,6 +94,9 @@ Full provenance: #link("manifest.json")[environment and revisions],
 Source circuits are exported as OpenQASM 3 and compiler inputs as OpenQASM 2.
 Terminal measurement mappings are retained separately; unsupported dynamic
 operations are rejected. Exact decompositions preserve gates up to global phase.
+When matrix-valued gates cannot be exported directly, source QASM uses exact
+definition expansion and SWAP permutation synthesis. The ledger records this
+serialization step; numerical checks retain the untouched MQT circuit as their reference.
 Other rotations use a stated circuit-wide synthesis budget. Dense numerical
 operator comparisons test every input numerically; sampled statevector checks
 cover only the listed inputs. Neither is a formal equivalence proof.
@@ -202,6 +217,7 @@ zero routed T resources in SpiderLS and is not a magic-state demonstration.
     exact lowering #shown(value(row, "exact_lowering")).]
   parbreak()
   [*Source-export error:* #shown(value(row, "source_export_error")),
+    *serialization:* #value(row, "source_serialization", default: "original_gate_definitions"),
     *Hadamard pipes by axis:* #shown(value(row, "hadamard_pipes_by_axis")),
     *routed T resources:* #shown(value(row, "routed_t"))]
   parbreak()
@@ -245,7 +261,8 @@ that an algorithm has no valid surface-code layout.
     *layer:* #value(row, "failure_layer");
     *code:* #value(failure, "error_code", default: value(row, "error_code"))]
   parbreak()
-  [#value(failure, "error", default: value(failure, "reason", default: value(row, "error", default: value(row, "note"))))]
+  let diagnostic = value(failure, "error", default: value(failure, "reason", default: value(row, "error", default: value(row, "note"))))
+  [#brief(diagnostic)]
   parbreak()
   if row.at("run_dir", default: none) != none {
     artifact-links(assets.runs.at(row.run_dir, default: (:)))
