@@ -576,7 +576,7 @@ impl BlockGraph {
     ///
     /// Named readouts are measurement rows; output frames and closed logical
     /// surfaces are logical rows. `assignments` selects structural branch arms
-    /// as in [`Self::project_branches_deferred`]; omitted branches show their
+    /// as in [`Self::project_branches`]; omitted branches show their
     /// true arm. The surfaces are positioned in [`Self::flatten`] coordinates.
     ///
     /// ```
