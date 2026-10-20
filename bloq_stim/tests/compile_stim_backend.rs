@@ -361,9 +361,9 @@ fn spatial_hadamard_undetectable_distance_d7() {
                 case.id(),
                 "cz[fill:0]"
                     | "cz[fill:1]"
-                    | "cz[fill:1][rotate:Y:2]"
-                    | "cz[fill:1][rotate:Z:1]"
-                    | "cz[fill:1][rotate:Z:3]"
+                    | "cz[fill:0][rotate:Y:2]"
+                    | "cz[fill:0][rotate:Z:1]"
+                    | "cz[fill:0][rotate:Z:3]"
                     | "spatial_hadamard[base]"
                     | "spatial_hadamard[base][rotate:Y:2]"
                     | "spatial_hadamard[base][rotate:Z:1]"
