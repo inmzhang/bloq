@@ -58,6 +58,7 @@ class Benchmark:
     compilers: tuple[str, ...] = ("topologiq", "topols", "spiderls")
     options: dict = field(default_factory=dict)
     prepare_plus: tuple[int, ...] = ()
+    layout_options: dict[str, dict] = field(default_factory=dict)
 
     @property
     def slug(self) -> str:
@@ -89,7 +90,8 @@ SUITE = [
     Benchmark("qaoa", 8, "compile", "QAOA MaxCut on eight vertices", _LARGE),
     Benchmark("hrs_cumulative_multiplier", 9, "compile", "HRS cumulative multiplier", _LARGE),
     Benchmark("cdkm_ripple_carry_adder", 16, "compile", "seven-bit full addition with carry", _LARGE),
-    Benchmark("cdkm_ripple_carry_adder", 32, "compile", "15-bit full addition with carry", _LARGE),
+    Benchmark("cdkm_ripple_carry_adder", 32, "compile", "15-bit full addition with carry", _LARGE,
+              layout_options={"spiderls": {"spacing": 4}}),
     Benchmark("vqe_real_amp", 16, "compile", "16-qubit real-amplitude VQE ansatz; MQT seed-10 angles", _LARGE),
     Benchmark("draper_qft_adder", 4, "execute", "two-bit Draper Fourier adder; exact T gates"),
     Benchmark("draper_qft_adder", 6, "compile", "three-bit Draper adder; synthesized pi/8 phases", _LARGE),

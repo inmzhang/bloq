@@ -26,6 +26,9 @@ Omit `--cases` for the complete suite. `--compilers topols spiderls` limits
 compiler comparisons. Each run requires an empty output directory and retains
 stage logs and failures. Layout/IR, graph checks, and VM execution have separate
 budgets; see `--help` for available limits.
+The pinned 32-qubit CDKM case requests SpiderLS spacing four to leave room for
+T-factory attachments. Requested and effective layout settings are retained
+separately; the logical circuit is unchanged.
 
 Generate a fresh report:
 

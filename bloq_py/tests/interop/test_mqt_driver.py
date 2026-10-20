@@ -47,11 +47,15 @@ def test_timeout_kills_descendants_and_preserves_compilation(driver, tmp_path):
     assert driver.classify(result) == "compilation only"
 
 
-def test_compile_worker_compiles_d25_first_with_proxy_and_binary_roundtrip(driver, monkeypatch, tmp_path):
+@pytest.mark.parametrize("requested", [None, {"spacing": 4}])
+def test_compile_worker_compiles_d25_first_with_proxy_and_binary_roundtrip(driver, monkeypatch, tmp_path, requested):
     run_dir = tmp_path / "spiderls"
     run_dir.mkdir()
     (tmp_path / "clifford_t.qasm").write_text("input")
-    driver.save_json(run_dir / "result.json", dict(status="running", stage="layout"))
+    initial = dict(status="running", stage="layout")
+    if requested is not None:
+        initial["requested_layout_options"] = requested
+    driver.save_json(run_dir / "result.json", initial)
     graph = types.SimpleNamespace(
         save=lambda path: path.write_text("BLOG"), export_html_viewer=lambda path: path.write_text("viewer"),
         to_text=lambda: "BLOG", flatten=lambda: graph, positions=lambda: [(0, 0, 0), (0, 0, 1)],
@@ -70,16 +74,21 @@ def test_compile_worker_compiles_d25_first_with_proxy_and_binary_roundtrip(drive
     fake_bloq = types.SimpleNamespace(compile=compile_graph, Bloq=types.SimpleNamespace(load=lambda path: program),
                                       BlockGraph=types.SimpleNamespace(load=lambda path: graph))
     monkeypatch.setitem(sys.modules, "bloq", fake_bloq)
-    adapter = types.SimpleNamespace(AUDITED_REVISION="test", from_qasm=lambda *args, **kwargs:
-                                    types.SimpleNamespace(graph=graph, input_ports=[(0, 0, 0)],
-                                                          output_ports=[(0, 0, 1)],
-                                                          layout_options={}, upstream_revision="test"))
+    actual_options = {"spacing": 4, "effective": "upstream settings"}
+
+    def from_qasm(qasm, **options):
+        assert options == (requested if requested is not None else driver.LAYOUT_OPTIONS["spiderls"])
+        return types.SimpleNamespace(graph=graph, input_ports=[(0, 0, 0)], output_ports=[(0, 0, 1)],
+                                     layout_options=actual_options, upstream_revision="test")
+
+    adapter = types.SimpleNamespace(AUDITED_REVISION="test", from_qasm=from_qasm)
     monkeypatch.setattr(driver, "import_module", lambda name: adapter)
     driver._compile_worker(tmp_path, "spiderls")
     result = json.loads((run_dir / "result.json").read_text())
     assert calls == [dict(distance=25, prepare_t_with_mpps=True, validate=True)]
     assert result["status"] == "compiled"
     assert result["ir_d25"]["round_trip"]
+    assert result["layout_options"] == actual_options
     assert not (run_dir / "program_d3.bloq").exists()
 
 
@@ -146,7 +155,7 @@ def test_bounded_placement_exhaustion_is_not_a_geometry_disproof(driver):
 @pytest.mark.parametrize("worker_status,expected", [("inconclusive", "inconclusive"), ("running", "failed")])
 def test_successful_process_cannot_erase_missing_lowering_evidence(driver, monkeypatch, tmp_path,
                                                                  worker_status, expected):
-    benchmark = types.SimpleNamespace(slug="limited_3", name="limited", tier="compile")
+    benchmark = types.SimpleNamespace(slug="limited_3", name="limited", tier="compile", layout_options={})
     monkeypatch.setitem(sys.modules, "_mqt_bench", types.SimpleNamespace(SUITE=[benchmark]))
     monkeypatch.setattr(driver, "_provenance", lambda *args: {})
     monkeypatch.setattr(sys, "argv", ["mqt_bench_experiments", "--output-dir", str(tmp_path)])

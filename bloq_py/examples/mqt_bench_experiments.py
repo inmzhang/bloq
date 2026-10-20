@@ -183,7 +183,8 @@ def _compile_worker(case_dir, compiler):
     started = time.perf_counter()
     try:
         adapter = import_module(f"bloq.interop.{compiler}")
-        imported = adapter.from_qasm((case_dir / "clifford_t.qasm").read_text(), **LAYOUT_OPTIONS[compiler])
+        options = result.get("requested_layout_options", LAYOUT_OPTIONS[compiler])
+        imported = adapter.from_qasm((case_dir / "clifford_t.qasm").read_text(), **options)
         graph = imported.graph
         graph.save(run_dir / "layout.blog")
         saved_graph = bloq.BlockGraph.load(run_dir / "layout.blog")
@@ -364,19 +365,19 @@ def main():
     if output.exists() and any(output.iterdir()):
         parser.error("--output-dir must be empty; retained runs are never overwritten")
     output.mkdir(parents=True, exist_ok=True)
+    selected = [benchmark for benchmark in SUITE if not args.cases or benchmark.slug in args.cases]
     manifest = dict(_provenance(output, args.compilers),
                     started=time.strftime("%Y-%m-%dT%H:%M:%S%z"), host=platform.platform(),
                     python=platform.python_version(), cpus=os.cpu_count(), epsilon=args.epsilon, shots=args.shots,
                     compile_timeout=args.compile_timeout, vm_timeout=args.vm_timeout, quizx_timeout=args.quizx_timeout,
-                    memory_gib=args.memory_gib, jobs=args.jobs, vm_distance=3, ir_distance=25, layout_options=LAYOUT_OPTIONS)
+                    memory_gib=args.memory_gib, jobs=args.jobs, vm_distance=3, ir_distance=25, layout_options=LAYOUT_OPTIONS,
+                    case_layout_options={case.slug: case.layout_options for case in selected if case.layout_options})
     save_json(output / "manifest.json", manifest)
     rows, jobs = [], []
     def checkpoint():
         save_json(output / "summary.json", dict(manifest=manifest, runs=rows))
 
-    for benchmark in SUITE:
-        if args.cases and benchmark.slug not in args.cases:
-            continue
+    for benchmark in selected:
         case_dir = output / "cases" / benchmark.slug
         case_dir.mkdir(parents=True)
         print(f"[lower] {benchmark.slug}", flush=True)
@@ -404,7 +405,8 @@ def main():
             if (case_dir / name).exists():
                 shutil.copyfile(case_dir / name, run_dir / name)
         result = dict(_read(case_dir / "lowering.json"), case=benchmark.slug, compiler=compiler,
-                      run_dir=str(run_dir.relative_to(output)), status="running", stage="layout")
+                      run_dir=str(run_dir.relative_to(output)), status="running", stage="layout",
+                      requested_layout_options=LAYOUT_OPTIONS[compiler] | benchmark.layout_options.get(compiler, {}))
         save_json(run_dir / "result.json", result)
         print(f"[start] {benchmark.slug} {compiler}", flush=True)
         outcome = _bounded(_worker_command("compile", case_dir, compiler=compiler), run_dir,
