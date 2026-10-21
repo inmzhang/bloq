@@ -549,12 +549,13 @@ def _search_t_placements(nodes, edges, resources, positions):
     return placements
 
 
-def _maze_t_placements(nodes, edges, resources, positions, *, conflicts=None):
+def _maze_t_placements(nodes, edges, resources, positions, *, conflicts=None, private=()):
     """Route identity arms on a bounded grid, preserving the signed injection seam.
 
     Without ``conflicts``, factories keep private columns. With it, native
     lifetime witnesses exclude conflicting factory/arm assignments; all other
     reuse is speculative until the caller compiles and validates the graph.
+    ``private`` reserves individual outlets without a quadratic conflict table.
     """
     neighbors: dict[Any, list[Any]] = {node: [] for node, _, _ in resources}
     for a, b in edges:
@@ -580,6 +581,7 @@ def _maze_t_placements(nodes, edges, resources, positions, *, conflicts=None):
     bulk = {p[:2] for p in initial} | {p[:2] for p in entries}
     priorities = dict.fromkeys(roots, 0)
     reuse = conflicts is not None
+    private = frozenset(private)
     # Narrow endpoints must escape before flexible elbows occupy their lanes.
     exits = {node: sum(tuple(v + (sign if i == axis else 0) for i, v in enumerate(p)) not in initial
                        for axis in (0, 1) for sign in (1, -1)) if reuse else 0
@@ -593,7 +595,8 @@ def _maze_t_placements(nodes, edges, resources, positions, *, conflicts=None):
         selected = {}
         for node in sorted(roots, key=lambda n: (-priorities[n], exits[n], positions[n][2])):
             p, q, axis, frame = roots[node]
-            blocked_owners = (conflicts or {}).get(node, ())
+            blocked_owners = (roots.keys() if node in private
+                              else private | (conflicts or {}).get(node, set()))
             step = p[axis] - q[axis]
 
             def blocked_column(column):

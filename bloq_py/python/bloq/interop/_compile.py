@@ -88,6 +88,8 @@ class _Compilation:
         endpoints = {node for node, _, _ in resources}
         indices = {n: i for i, edge in enumerate(edges) for n in edge if n in endpoints}
         conflicts: dict[Any, set[Any]] = defaultdict(set)
+        seen_waiters: set[Any] = set()
+        exclusive: set[Any] = set()
         planning_started = perf_counter()
         try:
             greedy = _greedy_t_resources(nodes, edges, resources, positions)
@@ -96,34 +98,60 @@ class _Compilation:
                 raise
             greedy = None
         last_native_error = None
+        owned_failure = private_tried = False
+        private_requested = False
         alternate = pending = None
+
+        def route(strategy):
+            nonlocal private_tried
+            private_tried |= strategy == 'private'
+            try:
+                placements = (_maze_t_placements(nodes, edges, resources, positions,
+                                                 conflicts=conflicts if strategy == 'reuse' else None,
+                                                 private=exclusive)
+                              if resources else {})
+            except GeometryError as error:
+                if last_native_error is not None:
+                    raise error from last_native_error
+                raise
+            staged, pipes, staged_actions = nodes.copy(), list(edges), []
+            for i, (node, phase, name) in enumerate(resources):
+                staged_actions.extend(_attach_t_resource(staged, pipes, node, phase, name, placements[i],
+                                                         edge_index=indices[node]))
+            return staged, pipes, staged_actions, placements, strategy
+
         for attempt in range(self.max_attempts):
             started = perf_counter() if attempt else planning_started
+            if (pending is None and owned_failure and attempt + 1 == self.max_attempts
+                    and alternate is not None):
+                pending, alternate, greedy = alternate, None, None
             if pending is not None:
                 staged, pipes, staged_actions, placements, strategy = pending
                 pending = None
             else:
-                strategy = 'reuse'
+                # Keep one bounded escape from refinement that discovers aliases
+                # serially; private columns still require full native validation.
+                strategy = ('private' if private_requested or (owned_failure and not private_tried
+                            and attempt + 1 == self.max_attempts) else 'reuse')
+                private_requested = False
                 try:
-                    placements = (_maze_t_placements(nodes, edges, resources, positions, conflicts=conflicts)
-                                  if resources else {})
-                    staged, pipes, staged_actions = nodes.copy(), list(edges), []
-                    for i, (node, phase, name) in enumerate(resources):
-                        staged_actions.extend(_attach_t_resource(staged, pipes, node, phase, name, placements[i],
-                                                                 edge_index=indices[node]))
+                    staged, pipes, staged_actions, placements, strategy = route(strategy)
                 except GeometryError as error:
-                    if greedy is None:
-                        if last_native_error is not None:
-                            raise error from last_native_error
+                    if error.code not in ('resource_collision', 'resource_placement_limit'):
                         raise
-                    staged, pipes, staged_actions, placements = greedy
-                    greedy = alternate = None
-                    strategy = 'short_arm'
+                    if greedy is None:
+                        if not owned_failure or private_tried:
+                            raise
+                        staged, pipes, staged_actions, placements, strategy = route('private')
+                    else:
+                        staged, pipes, staged_actions, placements = greedy
+                        greedy = alternate = None
+                        strategy = 'short_arm'
                 else:
                     # A fresh reuse plan supersedes its previously cached plan.
                     if alternate is not None and alternate[-1] == 'reuse':
                         alternate = None
-                    if greedy is not None:
+                    if greedy is not None and strategy == 'reuse':
                         alternate = (*greedy, 'short_arm')
                         if _spatial_cost(greedy[0]) <= _spatial_cost(staged):
                             alternate = (staged, pipes, staged_actions, placements, 'reuse')
@@ -153,16 +181,36 @@ class _Compilation:
                     owners = _resource_owners(graph, resources)
                     for witness in [conflict, *conflict.get('related', ())]:
                         pairs.update(_conflicting_resources(witness, owners, centers, columns))
+                    waiting = {owners[tuple(p)]
+                               for witness in [conflict, *conflict.get('related', ())]
+                               for role in ('producer', 'consumer')
+                               for p in witness.get(role, {}).get('blocks', ()) if tuple(p) in owners}
+                    # A repeated pending state survived pair refinement. Once
+                    # sharing stalls, reserve implicated outlets instead of
+                    # discovering their replacement users one at a time.
+                    isolated = waiting if exclusive else waiting & seen_waiters
+                    new_exclusive = isolated - exclusive
+                    exclusive.update(isolated)
+                    seen_waiters.update(waiting)
+                else:
+                    new_exclusive = set()
+                involved = (conflict is not None
+                            and conflict['kind'] in ('live_qubit_reuse', 'overlapping_node_qubit') and any(
+                    tuple(position) in owners
+                    for witness in [conflict, *conflict.get('related', ())]
+                    for role in ('producer', 'consumer', 'reuser', 'first', 'second')
+                    for position in witness.get(role, {}).get('blocks', ())))
+                owned_failure |= involved
                 new_pairs = [pair for pair in pairs if any(b not in conflicts[a] for a in pair for b in pair if a != b)]
-                if not new_pairs:
-                    involved = (conflict is not None and any(
-                        tuple(position) in owners
-                        for witness in [conflict, *conflict.get('related', ())]
-                        for role in ('producer', 'consumer', 'reuser', 'first', 'second')
-                        for position in witness.get(role, {}).get('blocks', ())))
-                    if not involved or alternate is None:
+                if not new_pairs and not new_exclusive:
+                    if not involved or attempt + 1 == self.max_attempts:
                         raise
-                    pending, alternate, greedy = alternate, None, None
+                    if alternate is not None:
+                        pending, alternate, greedy = alternate, None, None
+                    elif not private_tried:
+                        private_requested = True
+                    else:
+                        raise
                 for pair in new_pairs:
                     a, b = pair
                     conflicts[a].add(b)

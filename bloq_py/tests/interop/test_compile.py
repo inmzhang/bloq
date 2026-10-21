@@ -156,3 +156,108 @@ def test_unactionable_owned_conflict_tries_cached_alternative(
     assert len(calls) == 2 and calls[0] != calls[1]
     strategies = [attempt['strategy'] for attempt in compilation.attempts]
     assert strategies == (['short_arm', 'reuse'] if resource_count == 1 else ['reuse', 'short_arm'])
+
+
+@pytest.mark.parametrize('budget,stall', [(2, None), (3, 'routing'), (3, 'aliases'), (2, 'native')])
+def test_owned_conflict_can_fall_back_to_native_validated_private_columns(
+        two_resources, native_error, budget, stall, monkeypatch):
+    from bloq.interop import _compile
+
+    compilation = _Compilation(3, True, None, budget)
+    native, routes, calls = compilation.context, [], []
+    clock = [0.0]
+    monkeypatch.setattr(_compile, 'perf_counter', lambda: clock[0])
+    original = _compile._maze_t_placements
+
+    def no_short_arm(*args):
+        raise GeometryError('resource_collision', 'No short arm')
+
+    def route(*args, **options):
+        routes.append(options.get('conflicts'))
+        if options.get('conflicts') is None:
+            clock[0] += 10
+        if stall == 'routing' and calls and options.get('conflicts') is not None:
+            raise GeometryError('resource_placement_limit', 'Reuse routing exhausted its budget')
+        return original(*args, **options)
+
+    monkeypatch.setattr(_compile, '_greedy_t_resources', no_short_arm)
+    monkeypatch.setattr(_compile, '_maze_t_placements', route)
+
+    class RejectReusedColumns:
+        def compile(self, graph, **options):
+            clock[0] += 1
+            sources = sorted(block.pos for block in graph.flatten().blocks() if block.kind.is_t)
+            calls.append(sources)
+            if len(calls) == 1 or stall == 'native' or (stall == 'aliases' and len(calls) == 2):
+                native_error.layout_conflict = {
+                    'kind': 'live_qubit_reuse', 'qubit': (0, 0),
+                    'producer': {'id': 0, 'blocks': [sources[0]]},
+                    'consumer': {'id': 1, 'blocks': []},
+                    'reuser': {'id': 2, 'blocks': [sources[1]]},
+                }
+                raise native_error
+            return native.compile(graph, **options)
+
+    compilation.context = RejectReusedColumns()
+    if stall == 'native':
+        with pytest.raises(bloq.CompileError) as caught:
+            compilation.build(*two_resources)
+        assert caught.value is native_error
+        assert compilation.program is None
+    else:
+        compilation.build(*two_resources)
+        assert compilation.attempts[-1]['status'] == 'accepted'
+        assert compilation.program is not None
+    assert compilation.attempts[-1]['strategy'] == 'private'
+    assert compilation.attempts[-1]['layout_seconds'] == 10
+    assert compilation.attempts[-1]['seconds'] == 11
+    assert compilation.attempts[-1]['native_seconds'] == 1
+    assert routes[-1] is None
+    assert len(calls) <= budget
+    assert len({p[:2] for p in calls[-1]}) == 2
+
+
+def test_persistent_waiter_gets_an_exclusive_outlet_while_other_factories_share(
+        two_resources, native_error, monkeypatch):
+    from bloq.interop import _compile
+
+    nodes, edges, qubits, actions, resources = two_resources
+    output = nodes['w7']['other']
+    nodes['w7']['other'] = None
+    for z in range(8, 16):
+        nodes[f'w{z}'] = dict(position=(0, 0, z), tqec='XZX', other=output if z == 15 else None)
+        edges.append((f'w{z - 1}', f'w{z}'))
+    for i, z in ((2, 9), (3, 13)):
+        nodes[f'r{i}'] = dict(position=(1, 0, z), tqec=None, other='T')
+        edges.append((f'w{z}', f'r{i}'))
+        resources.append((f'r{i}', '1/4', f't{i}'))
+
+    def no_short_arm(*args):
+        raise GeometryError('resource_collision', 'No short arm')
+
+    monkeypatch.setattr(_compile, '_greedy_t_resources', no_short_arm)
+    compilation = _Compilation(3, True, None, 4)
+    native, sources = compilation.context, []
+
+    class PersistentWait:
+        def compile(self, graph, **options):
+            owners = _compile._resource_owners(graph, resources)
+            sources.append({owners[b.pos]: b.pos for b in graph.flatten().blocks() if b.kind.is_t})
+            if len(sources) <= 2:
+                current, other = sources[-1], f'r{len(sources)}'
+                assert current['r0'][:2] == current[other][:2]
+                native_error.layout_conflict = {
+                    'kind': 'live_qubit_reuse', 'qubit': (0, 0),
+                    'producer': {'id': 0, 'blocks': [current['r0']]},
+                    'consumer': {'id': 1, 'blocks': []},
+                    'reuser': {'id': 2, 'blocks': [current[other]]},
+                }
+                raise native_error
+            return native.compile(graph, **options)
+
+    compilation.context = PersistentWait()
+    compilation.build(nodes, edges, qubits, actions, resources)
+    assert len(sources) == 3
+    assert len({p[:2] for node, p in sources[-1].items() if node != 'r0'}) == 1
+    assert sources[-1]['r0'][:2] != sources[-1]['r3'][:2]
+    assert compilation.attempts[-1]['strategy'] == 'reuse'

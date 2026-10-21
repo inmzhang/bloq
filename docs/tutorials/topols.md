@@ -107,14 +107,18 @@ check synthesis; execution checks every joint output Pauli expectation.
 - Pure imports try short arms, joint doglegs, and bounded maze routing with
   private T columns. `compile_qasm` instead reuses columns and learns conflicting
   resource assignments from native physical-lifetime witnesses, including a
-  bounded batch from each failed compile. Narrow exits route first. Source Z
+  bounded batch from each failed compile. Persistent waits trigger exclusive
+  outlets for implicated resources while the remaining factories keep sharing.
+  Narrow exits route first. Source Z
   separation never certifies reuse: every accepted layout passes full native
   validation at the requested distance and a binary round trip. Intermediate
   construction defers readout analysis until this final check. Identity arms
   preserve the signed injection recipe. Search is bounded and not optimal;
-  exhausted searches reject rather than expanding into large factory banks.
+  stalled refinement can try private columns within the same attempt budget.
+  The fallback still requires full native validation; exhausted searches reject.
 - Before T attachment, the importer moves spatial Hadamard walls onto temporal
-  pipes while preserving fixed port, resource, and feedback frames. If complete
+  pipes, conjugating explicit X/Z edge feedback with its source cube's frame.
+  Ports, resources, and unproved action frames remain fixed. If complete
   elimination is impossible, it tries retaining walls on one spatial axis.
   Irreducible mixed-axis components still reject; supported remaining walls
   retain Bloq's distance warning.
