@@ -4,3 +4,7 @@
 !README.md
 !report.pdf
 !artifacts.tar.zst
+!compact-placement/
+compact-placement/*
+!compact-placement/report.pdf
+!compact-artifacts.tar.zst

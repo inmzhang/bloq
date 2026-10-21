@@ -1,21 +1,29 @@
 # MQT Bench compilation catalog — 2026-10-21
 
-[Read the report](report.pdf). It records 53 successful distance-25 compilations
-across 26 circuit cases and 21 algorithm families: SpiderLS 26, TopoLS 19, and
+[Read the report](report.pdf). It records 63 successful distance-25 compilations
+across 30 circuit cases and 23 algorithm families: SpiderLS 30, TopoLS 25, and
 Topologiq 8. Twenty-six runs also pass sampled QuiZX and distance-3 VM checks
 with ideal T sources. Large runs, including the 32-qubit CDKM adder, are
 compilation-only results. The report retains unsuccessful and inconclusive
 outcomes separately.
 
-The PDF is available directly. Its relative links become usable after extracting
-`artifacts.tar.zst` into this directory. The archive retains the Typst source,
+The [compact-placement addendum](compact-placement/report.pdf) records ten new
+compilations and compares their geometry with the rejected exterior-bank
+prototype. QAOA3/SpiderLS uses 73.5% less bounding area and 31% fewer occupied
+spatial columns. These compilation-only additions retain private factory
+columns; they do not claim optimal packing or VM execution.
+
+The PDFs are available directly. Their relative links become usable after extracting
+`artifacts.tar.zst` and `compact-artifacts.tar.zst` into this directory. The archive retains the Typst source,
 ledgers, provenance, QASM, BLOG, binary IR, previews, interactive viewers, and
-stage logs. Unpacked evidence occupies about 1.6 GB and is ignored by Git.
+stage logs. Unpacked evidence is ignored by Git.
 
 Run from the repository root, with `tar` and `zstd` installed:
 
 ```sh
 rtk proxy tar --zstd -xf bloq_py/examples/reports/mqt-bench-2026-10-21/artifacts.tar.zst \
+    -C bloq_py/examples/reports/mqt-bench-2026-10-21
+rtk proxy tar --zstd -xf bloq_py/examples/reports/mqt-bench-2026-10-21/compact-artifacts.tar.zst \
     -C bloq_py/examples/reports/mqt-bench-2026-10-21
 rtk proxy python3 bloq_py/examples/mqt_bench_report.py \
     bloq_py/examples/reports/mqt-bench-2026-10-21 --verify
