@@ -130,7 +130,16 @@ def test_adjacent_t_outlets_use_disjoint_doglegs_with_the_native_channel_fixture
     assert graph.to_text().rstrip() + '\n' == fixture.read_text()
 
 
-def test_t_factories_do_not_alias_later_resources_or_data_columns():
+@pytest.mark.parametrize('compact', (False, True))
+def test_t_factories_do_not_alias_later_resources_or_data_columns(compact, monkeypatch):
+    if compact:
+        from bloq.interop import _geometry
+
+        def exhausted(*args, **kwargs):
+            raise GeometryError('resource_collision', 'Exercise compact placement')
+
+        monkeypatch.setattr(_geometry, 'add_t_resource', exhausted)
+        monkeypatch.setattr(_geometry, '_search_t_placements', exhausted)
     nodes = resource_nodes()
     nodes.update(root_later=dict(position=(0, 0, 10), tqec='XZX', other=None),
                  resource_later=dict(position=(1, 0, 10), tqec=None, other='T'),
@@ -206,7 +215,7 @@ def test_t_endpoints_reject_coordinate_overflow_without_mutation(z):
     assert nodes == before and edges == [('root', 'resource')]
 
 
-def test_initial_joint_domains_respect_the_candidate_budget_without_mutation(monkeypatch):
+def test_exhausted_candidate_budget_falls_back_to_compact_routing(monkeypatch):
     from bloq.interop import _geometry
 
     nodes, edges = resource_nodes(), [('root', 'resource')]
@@ -223,9 +232,9 @@ def test_initial_joint_domains_respect_the_candidate_budget_without_mutation(mon
 
     monkeypatch.setattr(_geometry, 'add_t_resource', blocked_greedy)
     monkeypatch.setattr(_geometry, '_t_placements', candidates)
-    with pytest.raises(GeometryError, match='T placement exceeded 100000 candidates'):
-        add_t_resources(nodes, edges, [('resource', '1/4', 't')])
-    assert nodes == before and edges == [('root', 'resource')]
+    actions = add_t_resources(nodes, edges, [('resource', '1/4', 't')])
+    assert nodes != before and len(actions) == 2
+    assert len({data['position'] for data in nodes.values()}) == len(nodes)
 
 
 def test_joint_backtracking_restores_choices_but_keeps_earlier_constraints():

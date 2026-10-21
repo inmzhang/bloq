@@ -2,7 +2,7 @@
 
 use bloq_compile::{CompileConfig, CompileContext};
 use bloq_graph::{
-    BlockGraph,
+    Block, BlockGraph, BlockKind, CubeKind, Direction, Pipe,
     verify::{BoundaryOrder, LogicalVerifier},
 };
 use glam::{IVec3, ivec3};
@@ -73,12 +73,45 @@ fn neighboring_t_resources_have_the_signed_channel(#[case] dagger: bool, #[case]
     );
 }
 
-#[test]
-fn time_z_dogleg_preserves_the_entangled_signed_channel() {
+#[rstest::rstest]
+#[case::dogleg(false)]
+#[case::winding(true)]
+fn time_z_spatial_paths_preserve_the_entangled_signed_channel(#[case] winding: bool) {
+    let mut graph = BlockGraph::from_blog_text(include_str!("data/interop_t_outlets_time_z.blog"))
+        .expect("generated outlet fixture parses");
+    if winding {
+        let corners = [
+            ivec3(1, -2, 2),
+            ivec3(0, -2, 2),
+            ivec3(0, -4, 2),
+            ivec3(4, -4, 2),
+            ivec3(4, -2, 2),
+            ivec3(2, -2, 2),
+        ];
+        // Four XY bends replace one identity seam without changing the final
+        // signed injection seam, canonical elbow, selector, or feedback.
+        let [start, .., end] = corners;
+        graph.remove_pipe(start, end).expect("arm seam exists");
+        for pair in corners.windows(2) {
+            let step = (pair[1] - pair[0]).signum();
+            let direction = Direction::try_from(step).expect("arm stays axial");
+            let mut previous = pair[0];
+            while previous != pair[1] {
+                let next = previous + step;
+                if next != end {
+                    graph.add_block(Block::new(next, BlockKind::Cube(CubeKind::XXZ)));
+                }
+                graph.add_pipe(Pipe::new(previous, direction));
+                previous = next;
+            }
+        }
+    }
     let inputs = [ivec3(0, 0, 0), ivec3(2, 0, 0)];
     let outputs = [ivec3(2, 0, 5), ivec3(0, 0, 5)];
     let program = compile_source_channel(
-        include_str!("data/interop_t_outlets_time_z.blog"),
+        &graph
+            .to_program_blog_text()
+            .expect("outlet graph serializes"),
         include_str!("data/topols/entangled_tdg.qasm"),
         &inputs,
         &outputs,

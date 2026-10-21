@@ -200,6 +200,22 @@ def _space_diagram(nodes, edges):
     return spaced, pipes
 
 
+def _t_placement(path, frame, axis, arm_frame, sign=1):
+    end = path[-1]
+    additions = {f'arm_{i}': (position, arm_frame) for i, position in enumerate(path[:-1])}
+    if frame[2] == 'Z':
+        terminal = 'ZXZ' if axis == 0 else 'XZZ'
+        center = (end[0] + sign * (axis == 1), end[1] + sign * (axis == 0), end[2] + 1)
+        canonical = 'ZXX' if axis == 0 else 'XZX'
+        additions.update(turn=((end[0], end[1], end[2] + 1), canonical), center=(center, canonical))
+    else:
+        terminal = 'XZX' if axis == 0 else 'ZXX'
+        center = end
+    additions.update(source=((center[0], center[1], center[2] - 1), 'T'),
+                     cap=((center[0], center[1], center[2] + 1), 'XY'))
+    return len(path) - 1, end, terminal, additions, frozenset([end, *(r for r, _ in additions.values())])
+
+
 def _t_placements(nodes, edges, node, *, bends=False, margin=2, positions=None, occupied=None):
     """Enumerate verified arm/elbow footprints without changing the routed graph."""
     p = _position(nodes[node]['position'])
@@ -268,40 +284,27 @@ def _t_placements(nodes, edges, node, *, bends=False, margin=2, positions=None, 
                     queue.append((path + [end], f, s, o, d))
 
     for path, arm_frame in paths():
-        end, distance = path[-1], len(path) - 1
         choices = []
         for sign in ((1, -1) if frame[2] == 'Z' else (1,)):
-            if frame[2] == 'Z':
-                terminal = 'ZXZ' if axis == 0 else 'XZZ'
-                turn = (end[0], end[1], end[2] + 1)
-                center = (end[0] + sign * (axis == 1), end[1] + sign * (axis == 0), end[2] + 1)
-                canonical = 'ZXX' if axis == 0 else 'XZX'
-            else:
-                terminal = 'XZX' if axis == 0 else 'ZXX'
-                center = end
+            placement = _t_placement(path, frame, axis, arm_frame, sign)
+            _, end, _, additions, footprint = placement
+            center = additions['source'][0]
             # The adaptive cap may wait beyond its source layer. A different
             # Z coordinate does not certify that its stored state was consumed.
             if center[:2] in space:
                 continue
-            additions = {f'arm_{i}': (position, arm_frame) for i, position in enumerate(path[:-1])}
-            if frame[2] == 'Z':
-                additions.update(turn=(turn, canonical), center=(center, canonical))
-            additions.update(source=((center[0], center[1], center[2] - 1), 'T'),
-                             cap=((center[0], center[1], center[2] + 1), 'XY'))
-            footprint = [end, *(r for r, _ in additions.values())]
-            if (len(set(footprint)) != len(footprint) or any(r != excluded and r in occupied for r in footprint)
+            if (len(footprint) != len(additions) + 1 or any(r != excluded and r in occupied for r in footprint)
                     or any(r[:2] in factories for r in footprint)):
                 continue
-            # Arm positions were validated while enumerating paths.
-            for r in footprint[len(path):]:
+            for r in footprint:
                 _position(r)
             extra = {r[:2] for r in footprint} - space
             width, height = (max(hi, max((r[i] for r in extra), default=hi))
                              - min(lo, min((r[i] for r in extra), default=lo)) + 1
                              for i, (lo, hi) in enumerate(bounds))
-            choices.append((width * height, len(space) + len(extra), end, terminal, additions, frozenset(footprint)))
-        for _, _, end, terminal, additions, cells in sorted(choices, key=lambda c: c[:2]):
-            yield distance, end, terminal, additions, cells
+            choices.append((width * height, len(space) + len(extra), placement))
+        for _, _, placement in sorted(choices, key=lambda c: c[:2]):
+            yield placement
 
 
 def _t_phase(phase):
@@ -311,9 +314,13 @@ def _t_phase(phase):
     return phase
 
 
-def _attach_t_resource(nodes, edges, node, phase, name, placement):
+def _attach_t_resource(nodes, edges, node, phase, name, placement, *, edge_index=None):
     dagger = phase in (Fraction(3, 4), Fraction(7, 4))
-    neighbor = next(b if a == node else a for a, b in edges if node in (a, b))
+    if edge_index is None:
+        neighbor = next(b if a == node else a for a, b in edges if node in (a, b))
+    else:
+        a, b = edges[edge_index]
+        neighbor = b if a == node else a
     frame = nodes[neighbor]['tqec']
     distance, end, terminal, additions, _ = placement
     if any(f'{name}_{suffix}' in nodes for suffix in additions):
@@ -324,9 +331,14 @@ def _attach_t_resource(nodes, edges, node, phase, name, placement):
         nodes[f'{name}_{suffix}'] = dict(position=position, tqec=kind, other=None)
     arms = [f'{name}_arm_{i}' for i in range(distance)]
     if arms:
-        edges.remove((neighbor, node) if (neighbor, node) in edges else (node, neighbor))
         path = [neighbor, *arms, node]
-        edges.extend(zip(path, path[1:]))
+        if edge_index is None:
+            edges.remove((neighbor, node) if (neighbor, node) in edges else (node, neighbor))
+            edges.extend(zip(path, path[1:]))
+        else:
+            # Replacing in place keeps the other original seam indices valid.
+            edges[edge_index] = (path[0], path[1])
+            edges.extend(zip(path[1:], path[2:]))
     if frame[2] == 'Z':
         turn_id, center_id = f'{name}_turn', f'{name}_center'
         edges.extend([(node, turn_id), (turn_id, center_id)])
@@ -459,8 +471,14 @@ def _joint_t_placements(domains, *, max_attempts=100_000):
 def _spatial_t_endpoints(nodes, edges, resources):
     """Turn proved temporal-X resource wires through phase-zero identity elbows."""
     occupied = {_position(data['position']) for data in nodes.values()}
+    neighbors: dict[Any, list[Any]] = {node: [] for node, _, _ in resources}
+    for a, b in edges:
+        if a in neighbors:
+            neighbors[a].append(b)
+        if b in neighbors:
+            neighbors[b].append(a)
     for node, _, name in resources:
-        adjacent = [b if a == node else a for a, b in edges if node in (a, b)]
+        adjacent = neighbors[node]
         if len(adjacent) != 1:
             raise GeometryError('resource_frame', f'T resource {node!r} is not terminal')
         neighbor = adjacent[0]
@@ -487,6 +505,146 @@ def _spatial_t_endpoints(nodes, edges, resources):
         occupied.add(target)
 
 
+def _search_t_placements(nodes, edges, resources, positions):
+    occupied = frozenset(positions.values())
+    domains, remaining = [], 100_000
+    for node, _, _ in resources:
+        domain = list(islice(_t_placements(nodes, edges, node, positions=positions, occupied=occupied), remaining + 1))
+        remaining -= len(domain)
+        if remaining < 0:
+            raise GeometryError('resource_placement_limit', 'T placement exceeded 100000 candidates')
+        domains.append(domain)
+    try:
+        placements = _joint_t_placements(domains)
+    except GeometryError as error:
+        if error.code != 'resource_collision':
+            raise
+        streams = [_t_placements(nodes, edges, node, bends=True,
+                                 margin=max(2, isqrt(len(resources)) + 1), positions=positions, occupied=occupied)
+                   for node, _, _ in resources]
+        domains = [[] for _ in resources]
+        # Try small candidate prefixes; grow only after a bounded solve.
+        batch = 4
+        while True:
+            added = 0
+            for domain, stream in zip(domains, streams):
+                choices = list(islice(stream, batch))
+                domain.extend(choices)
+                added += len(choices)
+            if not added:
+                placements = _joint_t_placements(domains)
+                break
+            if sum(map(len, domains)) > 100_000:
+                raise GeometryError('resource_placement_limit', 'T placement exceeded 100000 candidates')
+            try:
+                placements = _joint_t_placements(domains, max_attempts=max(64, 2 * len(resources)))
+                break
+            except GeometryError as error:
+                if error.code not in ('resource_collision', 'resource_placement_limit'):
+                    raise
+            batch *= 2
+    return placements
+
+
+def _maze_t_placements(nodes, edges, resources, positions):
+    """Pack private factory columns using bounded, negotiated shortest paths.
+
+    Even/even outlets leave room between factories. Arms are phase-zero identity
+    chains; their last step keeps the original signed seam and injection recipe.
+    A blocked resource gets priority on the next pass instead of forcing a large
+    exterior bank. Physical lifetime validation remains the compiler's authority.
+    """
+    neighbors: dict[Any, list[Any]] = {node: [] for node, _, _ in resources}
+    for a, b in edges:
+        if a in neighbors:
+            neighbors[a].append(b)
+        if b in neighbors:
+            neighbors[b].append(a)
+    roots, entries = {}, defaultdict(set)
+    initial = frozenset(positions.values())
+    for node in neighbors:
+        if len(neighbors[node]) != 1:
+            raise GeometryError('resource_frame', f'T resource {node!r} is not terminal')
+        neighbor, = neighbors[node]
+        p, q = positions[node], positions[neighbor]
+        axis = 'XYZ'.index(_direction(q, p)[1])
+        frame = nodes[neighbor]['tqec']
+        if axis == 2 or frame not in _CUBES:
+            raise GeometryError('resource_frame', f'T resource {node!r} has no proved spatial ZZ seam')
+        roots[node] = (p, q, axis, frame)
+        entry = tuple(2 * a - b for a, b in zip(p, q))
+        if entry not in initial:
+            entries[entry].add(node)
+    bulk = {p[:2] for p in initial} | {p[:2] for p in entries}
+    priorities = dict.fromkeys(roots, 0)
+    work = 0
+    for attempt in range(32):
+        occupied, space, factories = set(initial), set(bulk), set()
+        bounds = [(min(p[i] for p in bulk), max(p[i] for p in bulk)) for i in (0, 1)]
+        selected = {}
+        for node in sorted(roots, key=lambda n: (-priorities[n], positions[n][2])):
+            p, q, axis, frame = roots[node]
+            step = p[axis] - q[axis]
+            placement = None
+            for margin in range(0, 2 * isqrt(len(resources)) + 9, 2):
+                previous, queue = {p: None}, deque([p])
+                while queue:
+                    work += 1
+                    if work > 10_000_000:
+                        raise GeometryError('resource_placement_limit', 'Compact T routing exceeded 10000000 cells')
+                    current = queue.popleft()
+                    end = tuple(v + (step if i == axis else 0) for i, v in enumerate(current))
+                    if end not in occupied and end != previous[current]:
+                        for sign in ((1, -1) if frame[2] == 'Z' else (1,)):
+                            center = (end[0] + sign * (axis == 1), end[1] + sign * (axis == 0)) if frame[2] == 'Z' else end[:2]
+                            if center in space or any(v % 2 for v in center):
+                                continue
+                            path, at = [end], current
+                            while at is not None:
+                                work += 1
+                                if work > 10_000_000:
+                                    raise GeometryError('resource_placement_limit', 'Compact T routing exceeded 10000000 cells')
+                                path.append(at)
+                                at = previous[at]
+                            path.reverse()
+                            candidate = _t_placement(path, frame, axis, 'ZZX' if frame[2] == 'X' else 'XXZ', sign)
+                            footprint = candidate[-1]
+                            if (len(footprint) != len(candidate[3]) + 1
+                                    or any(r != p and r in occupied for r in footprint)
+                                    or any(r[:2] in factories or (r in entries and entries[r] != {node}) for r in footprint)):
+                                continue
+                            for r in footprint:
+                                _position(r)
+                            placement = candidate
+                            break
+                        if placement is not None:
+                            break
+                    for direction in (0, 1):
+                        for sign in (1, -1):
+                            other = tuple(v + (sign if i == direction else 0) for i, v in enumerate(current))
+                            if (other in previous or other in occupied or other[:2] in factories
+                                    or (other in entries and entries[other] != {node})
+                                    or any(not lo - margin <= other[i] <= hi + margin for i, (lo, hi) in enumerate(bounds))):
+                                continue
+                            previous[other] = current
+                            queue.append(other)
+                if placement is not None:
+                    break
+            if placement is None:
+                priorities[node] = attempt + 1
+                break
+            selected[node] = placement
+            occupied.remove(p)
+            occupied.update(placement[-1])
+            space.update(r[:2] for r in placement[-1])
+            factories.add(placement[3]['source'][0][:2])
+            bounds = [(min(lo, min(r[i] for r in placement[-1])), max(hi, max(r[i] for r in placement[-1])))
+                      for i, (lo, hi) in enumerate(bounds)]
+        else:
+            return {i: selected[node] for i, (node, _, _) in enumerate(resources)}
+    raise GeometryError('resource_placement_limit', 'Compact T routing exhausted 32 priority passes')
+
+
 def add_t_resources(nodes, edges, resources):
     """Preserve working placements; jointly replan collisions before committing."""
     resources = [(node, _t_phase(phase), name) for node, phase, name in resources]
@@ -505,46 +663,22 @@ def add_t_resources(nodes, edges, resources):
     except GeometryError as error:
         if error.code != 'resource_collision':
             raise
-        occupied = frozenset(positions.values())
-        domains, remaining = [], 100_000
-        for node, _, _ in resources:
-            domain = list(islice(_t_placements(nodes, edges, node, positions=positions, occupied=occupied), remaining + 1))
-            remaining -= len(domain)
-            if remaining < 0:
-                raise GeometryError('resource_placement_limit', 'T placement exceeded 100000 candidates')
-            domains.append(domain)
         try:
-            placements = _joint_t_placements(domains)
+            placements = _search_t_placements(nodes, edges, resources, positions)
         except GeometryError as error:
-            if error.code != 'resource_collision':
+            if error.code not in ('resource_collision', 'resource_placement_limit'):
                 raise
-            streams = [_t_placements(nodes, edges, node, bends=True,
-                                     margin=max(2, isqrt(len(resources)) + 1), positions=positions, occupied=occupied)
-                       for node, _, _ in resources]
-            domains = [[] for _ in resources]
-            # Try small candidate prefixes; grow only after a bounded solve.
-            batch = 4
-            while True:
-                added = 0
-                for domain, stream in zip(domains, streams):
-                    choices = list(islice(stream, batch))
-                    domain.extend(choices)
-                    added += len(choices)
-                if not added:
-                    placements = _joint_t_placements(domains)
-                    break
-                if sum(map(len, domains)) > 100_000:
-                    raise GeometryError('resource_placement_limit', 'T placement exceeded 100000 candidates')
-                try:
-                    placements = _joint_t_placements(domains, max_attempts=max(64, 2 * len(resources)))
-                    break
-                except GeometryError as error:
-                    if error.code not in ('resource_collision', 'resource_placement_limit'):
-                        raise
-                batch *= 2
+            try:
+                placements = _maze_t_placements(nodes, edges, resources, positions)
+            except GeometryError as compact_error:
+                if compact_error.code not in ('resource_collision', 'resource_placement_limit'):
+                    raise
+                raise error from compact_error
         staged, pipes, actions = nodes.copy(), list(edges), []
+        endpoints = {node for node, _, _ in resources}
+        indices = {node: index for index, edge in enumerate(edges) for node in edge if node in endpoints}
         for i, (node, phase, name) in enumerate(resources):
-            actions.extend(_attach_t_resource(staged, pipes, node, phase, name, placements[i]))
+            actions.extend(_attach_t_resource(staged, pipes, node, phase, name, placements[i], edge_index=indices[node]))
     target_nodes.clear()
     target_nodes.update(staged)
     target_edges[:] = pipes

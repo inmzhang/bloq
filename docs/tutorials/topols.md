@@ -99,10 +99,13 @@ check synthesis; execution checks every joint output Pauli expectation.
   parity. Signed Y caps are reserved before T attachments. `grid_spacing` records
   `(1, 1, 3)` before temporal contraction; the original embedding is retained.
   Endpoint gadgets still contribute to the imported volume.
-- T attachments try the shortest outward arms, then bounded joint placement
-  with spatial doglegs of identity cubes. Pending T patches reserve distinct
-  spatial columns clear of data and other gadgets, even at different source
-  times. The injection axis and signed control recipe are preserved.
+- T attachments try short outward arms and joint doglegs, then bounded maze
+  routing to densely spaced factory columns. Blocked resources gain priority
+  on a fresh routing pass. Pending T patches keep distinct columns clear of
+  data and other arms, even at different source times; native lifetime checks
+  remain authoritative. Identity bends preserve the injection axis and signed
+  control recipe. This avoids large exterior banks but is not optimal packing;
+  safe temporal reuse of factory columns remains a future improvement.
 - Before T attachment, the importer moves spatial Hadamard walls onto temporal
   pipes while preserving fixed port, resource, and feedback frames. If complete
   elimination is impossible, it tries retaining walls on one spatial axis.
