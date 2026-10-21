@@ -495,7 +495,7 @@ def add_t_resources(nodes, edges, resources):
     target_nodes, target_edges = nodes, edges
     nodes, edges = nodes.copy(), list(edges)
     _spatial_t_endpoints(nodes, edges, resources)
-    positions = {n: _position(d['position']) for n, d in nodes.items()} if resources else {}
+    positions = {n: _position(d['position']) for n, d in nodes.items()}
     staged_positions = positions.copy()
     staged, pipes = nodes.copy(), list(edges)
     actions = []
