@@ -4,6 +4,8 @@ use std::collections::{BTreeMap, hash_map::Entry};
 
 use super::qubit_layout::{QubitRun, template_qubit_runs};
 
+const MAX_REUSE_CONFLICTS: usize = 256;
+
 #[derive(Clone, Copy)]
 struct OccupancyEvent {
     y: i32,
@@ -361,6 +363,14 @@ fn plan_live_era_reordering(
     qubits.sort_unstable_by_key(glam::IVec2::to_array);
     let mut work = BooleanDecisionDiagram::default();
     let mut ordering = crate::FxSet::default();
+    // The graph stays fixed while planning an era. Its reachability does not
+    // depend on which physical qubit or guard led to the same node pair.
+    let mut paths = crate::FxMap::default();
+    let mut has_path = |from, to| {
+        *paths
+            .entry((from, to))
+            .or_insert_with(|| bloq.has_path_backwards_with_scratch(from, to, scratch))
+    };
     for qubit in qubits {
         let mut pending = Vec::new();
         for input in &direction.entry(&supports[&endpoint])[&qubit] {
@@ -408,7 +418,7 @@ fn plan_live_era_reordering(
                         continue;
                     }
                     let (from, to) = direction.orient(next, reuser);
-                    if bloq.has_path_with_scratch(to, from, scratch) {
+                    if has_path(to, from) {
                         let (producer, consumer) = direction.orient(endpoint, next);
                         return Err(crate::CompileError::LiveQubitReuse {
                             producer,
@@ -421,7 +431,7 @@ fn plan_live_era_reordering(
                             related: Vec::new(),
                         });
                     }
-                    if !bloq.has_path_with_scratch(from, to, scratch) {
+                    if !has_path(from, to) {
                         ordering.insert((from, to));
                     }
                     if let Some(inputs) = direction.entry(&supports[&next]).get(&qubit) {
@@ -865,7 +875,7 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
         }
         if batch_acyclic
             || (ranked && !backward)
-            || !bloq.has_path_with_scratch(to, from, &mut scratch)
+            || !bloq.has_path_backwards_with_scratch(to, from, &mut scratch)
         {
             if failure.is_none() {
                 bloq.add_edge(from, to, BloqEdge::Order);
@@ -928,7 +938,7 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
                         // their proposed edges must never influence witnesses.
                         failure = Some(error);
                     }
-                    if conflicts.len() == 64 {
+                    if conflicts.len() == MAX_REUSE_CONFLICTS {
                         break 'pairs;
                     }
                 }
@@ -1096,7 +1106,7 @@ mod tests {
 
     #[test]
     fn live_reuse_diagnostics_batch_independent_conflicts_without_changing_the_failed_ir() {
-        for count in [2, 70] {
+        for count in [2, MAX_REUSE_CONFLICTS as i32 + 6] {
             let mut bloq = Bloq::new();
             let mut expected = Vec::new();
             for x in 0..count {
@@ -1137,7 +1147,7 @@ mod tests {
             let actual: Vec<_> = std::iter::once((producer, consumer, reuser))
                 .chain(related.iter().map(|w| (w.producer, w.consumer, w.reuser)))
                 .collect();
-            assert_eq!(actual, expected[..expected.len().min(64)]);
+            assert_eq!(actual, expected[..expected.len().min(MAX_REUSE_CONFLICTS)]);
             for (x, witness) in related.iter().enumerate() {
                 assert_eq!(witness.qubit, ivec2(2 * (x as i32 + 1), 0));
                 assert_eq!(
