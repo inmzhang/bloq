@@ -30,8 +30,14 @@ def demo(monkeypatch):
     adapter = SimpleNamespace(AUDITED_REVISION="test", from_qasm=lambda *args, **kwargs: imported)
     program = SimpleNamespace(save=retain, qubit_count=2, stats=lambda: SimpleNamespace(node_count=2),
                               logical_outputs=lambda: [SimpleNamespace(port=p) for p in reversed(PORTS)])
-    monkeypatch.setitem(run.__globals__, "import_module", lambda _: adapter)
-    monkeypatch.setattr(bloq, "compile", lambda *args, **kwargs: program)
+    def compile_qasm(*args, **kwargs):
+        assert kwargs == dict(compiler="spiderls", distance=3, prepare_t_with_mpps=True)
+        return SimpleNamespace(imported=imported, program=program,
+                               placement_attempts=(dict(status="accepted", native_seconds=0),))
+
+    monkeypatch.setitem(run.__globals__, "import_module", lambda name:
+                        SimpleNamespace(compile_qasm=compile_qasm) if name == "bloq.interop" else adapter)
+    monkeypatch.setattr(bloq, "compile", lambda *args, **kwargs: pytest.fail("Accepted IR must not compile twice"))
     return run, program
 
 
@@ -66,7 +72,28 @@ def test_source_output_order_controls_expectations_and_report(demo, tmp_path, mo
     ideal = np.eye(4)[:, [1, 0, 3, 2]]
     result = run("source", "compiled", ideal, tmp_path, {}, compiler="spiderls", shots=1)
     assert result["status"] == "executed"
+    assert result["placement_attempts"] == (dict(status="accepted", native_seconds=0),)
     assert result["shots"][0]["joint_state_fidelity"] == pytest.approx(1)
     assert result["shots"][0]["logical_bloch"] == [[0, 0, -1], [0, 0, 1]]
     assert result["shots"][0]["logical_probabilities"] == pytest.approx([0, 1, 0, 0])
     assert json.loads((tmp_path / "execution.json").read_text()) == execution
+
+
+@pytest.mark.parametrize("native", [True, False])
+def test_native_certified_demo_classifies_failure_at_its_own_stage(demo, tmp_path, monkeypatch, native):
+    from bloq.interop._geometry import GeometryError
+
+    run, _ = demo
+    error = bloq.CompileError("native lifetime conflict") if native else GeometryError(
+        "resource_placement_limit", "bounded search exhausted")
+
+    def reject(*args, **kwargs):
+        raise error
+
+    monkeypatch.setitem(run.__globals__, "import_module", lambda name: SimpleNamespace(compile_qasm=reject))
+    with pytest.raises(type(error)) as caught:
+        run("source", "compiled", None, tmp_path, {}, compiler="spiderls", compile_only=True)
+    assert caught.value is error
+    result = json.loads((tmp_path / "result.json").read_text())
+    assert result["failed_stage"] == ("compile" if native else "layout")
+    assert result["failure_layer"] == ("compile" if native else "adapter")

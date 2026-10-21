@@ -1,0 +1,50 @@
+BLOG 1.0
+
+module main {
+  in in_0: data = 0
+  out out_0: data = 6
+
+  0: Port [0, 0, 0] role=input
+  1: XZX [0, 0, 1]
+  2: XZX [0, 0, 2]
+  3: XZX [0, 0, 3]
+  4: XZX [0, 0, 4]
+  5: XZX [0, 0, 5]
+  6: Port [0, 0, 6] role=output
+  7: XZX [4, 0, 1]
+  8: XZX [4, 0, 4]
+  9: ZZX [1, 0, 1]
+  10: ZZX [2, 0, 1]
+  11: ZZX [3, 0, 1]
+  12: T [4, 0, 0]
+  13: XY [4, 0, 2]
+  14: ZZX [1, 0, 4]
+  15: ZZX [2, 0, 4]
+  16: ZZX [3, 0, 4]
+  17: T [4, 0, 3]
+  18: XY [4, 0, 5]
+  0 -> +Z
+  1 -> +Z
+  1 -> +X
+  2 -> +Z
+  3 -> +Z
+  4 -> +Z
+  4 -> +X
+  5 -> +Z
+  7 -> +Z
+  8 -> +Z
+  9 -> +X
+  10 -> +X
+  11 -> +X
+  12 -> +Z
+  14 -> +X
+  15 -> +X
+  16 -> +X
+  17 -> +Z
+
+  t0 = measure 11 -> +X
+  resolve 13 if !t0
+  t1 = measure 16 -> +X
+  resolve 18 if t1
+
+}

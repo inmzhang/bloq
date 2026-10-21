@@ -59,9 +59,23 @@ def run_demo(source_qasm, clifford_t_qasm, ideal_unitary, output_dir: Path, summ
         summary.update(status="running", stage=stage, layout_options=options)
         save()
         print(f"Routing with {compiler}...", file=sys.stderr, flush=True)
-        started = time.perf_counter()
+        pipeline_started = time.perf_counter()
         adapter = import_module(f"bloq.interop.{compiler}")
-        imported = adapter.from_qasm(clifford_t_qasm, **options)
+        program, native_seconds, compile_warnings = None, 0.0, []
+        if compiler in ("topols", "spiderls"):
+            try:
+                with warnings.catch_warnings(record=True) as compile_warnings:
+                    warnings.simplefilter("always")
+                    compiled = import_module("bloq.interop").compile_qasm(
+                        clifford_t_qasm, compiler=compiler, distance=3, prepare_t_with_mpps=True, **options)
+            except bloq.CompileError:
+                stage = "compile"
+                raise
+            imported, program = compiled.imported, compiled.program
+            summary["placement_attempts"] = compiled.placement_attempts
+            native_seconds = sum(attempt["native_seconds"] for attempt in compiled.placement_attempts)
+        else:
+            imported = adapter.from_qasm(clifford_t_qasm, **options)
         if compiler == "topols":
             (output_dir / "normalized.qasm").write_text(imported.normalized_qasm, encoding="utf-8")
         imported.graph.save(output_dir / "layout.blog")
@@ -70,7 +84,7 @@ def run_demo(source_qasm, clifford_t_qasm, ideal_unitary, output_dir: Path, summ
         hadamards = {axis: sum(pipe.hadamard and pipe.src[i] != pipe.dst[i]
                                for pipe in flat.pipes()) for i, axis in enumerate("XYZ")}
         summary.update(
-            layout_seconds=time.perf_counter() - started, layout_options=imported.layout_options,
+            layout_seconds=time.perf_counter() - pipeline_started - native_seconds, layout_options=imported.layout_options,
             layout_blocks=flat.block_count, hadamard_pipes_by_axis=hadamards,
             pyzx_version=version("pyzx"), bloq_version=bloq.__version__,
             input_ports=imported.input_ports, output_ports=imported.output_ports,
@@ -82,14 +96,16 @@ def run_demo(source_qasm, clifford_t_qasm, ideal_unitary, output_dir: Path, summ
         save()
         print("Compiling validated IR with ideal T-source proxies...", file=sys.stderr, flush=True)
         started = time.perf_counter()
-        with warnings.catch_warnings(record=True) as compile_warnings:
-            warnings.simplefilter("always")
-            program = bloq.compile(imported.graph, distance=3, prepare_t_with_mpps=True, validate=True)
+        if program is None:
+            with warnings.catch_warnings(record=True) as compile_warnings:
+                warnings.simplefilter("always")
+                program = bloq.compile(imported.graph, distance=3, prepare_t_with_mpps=True, validate=True)
         for warning in compile_warnings:
             warnings.showwarning(warning.message, warning.category, warning.filename, warning.lineno)
         program.save(output_dir / "program.bloq")
         summary.update(
-            compile_seconds=time.perf_counter() - started, distance=3, t_preparation="ideal_t_proxy",
+            compile_seconds=native_seconds + time.perf_counter() - started,
+            pipeline_seconds=time.perf_counter() - pipeline_started, distance=3, t_preparation="ideal_t_proxy",
             physical_qubits=program.qubit_count, ir_nodes=program.stats().node_count,
             compile_warnings=[str(w.message) for w in compile_warnings], status="compiled",
         )

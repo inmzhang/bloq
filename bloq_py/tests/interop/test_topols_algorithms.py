@@ -36,6 +36,7 @@ def test_shared_runner_retains_topols_diagnostic_without_node_metadata(tmp_path,
     options = dict(engine="python", seed=8, iterations=2, time_bound=0.01)
 
     def fail(*args, **kwargs):
+        assert callable(kwargs.pop("_build"))
         assert kwargs == options
         raise failure
 

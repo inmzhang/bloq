@@ -48,8 +48,10 @@ def test_timeout_kills_descendants_and_preserves_compilation(driver, tmp_path):
 
 
 @pytest.mark.parametrize("requested", [None, {"spacing": 4}])
-def test_compile_worker_compiles_d25_first_with_proxy_and_binary_roundtrip(driver, monkeypatch, tmp_path, requested):
-    run_dir = tmp_path / "spiderls"
+@pytest.mark.parametrize("compiler", ["topologiq", "topols", "spiderls"])
+def test_compile_worker_compiles_d25_first_with_proxy_and_binary_roundtrip(driver, monkeypatch, tmp_path,
+                                                                        requested, compiler):
+    run_dir = tmp_path / compiler
     run_dir.mkdir()
     (tmp_path / "clifford_t.qasm").write_text("input")
     initial = dict(status="running", stage="layout")
@@ -66,10 +68,13 @@ def test_compile_worker_compiles_d25_first_with_proxy_and_binary_roundtrip(drive
         logical_outputs=lambda: [types.SimpleNamespace(port=(0, 0, 1))],
         qubit_count=12, measurement_count=8, stats=lambda: types.SimpleNamespace(node_count=3))
     calls = []
+    clock = [0.0]
+    monkeypatch.setattr(driver.time, "perf_counter", lambda: clock[0])
 
     def compile_graph(actual, **options):
         assert actual is graph
         calls.append(options)
+        clock[0] += 5
         return program
 
     fake_bloq = types.SimpleNamespace(compile=compile_graph, Bloq=types.SimpleNamespace(load=lambda path: program),
@@ -78,19 +83,63 @@ def test_compile_worker_compiles_d25_first_with_proxy_and_binary_roundtrip(drive
     actual_options = {"spacing": 4, "effective": "upstream settings"}
 
     def from_qasm(qasm, **options):
-        assert options == (requested if requested is not None else driver.LAYOUT_OPTIONS["spiderls"])
+        assert options == (requested if requested is not None else driver.LAYOUT_OPTIONS[compiler])
+        clock[0] += 2
         return types.SimpleNamespace(graph=graph, input_ports=[(0, 0, 0)], output_ports=[(0, 0, 1)],
-                                     layout_options=actual_options, upstream_revision="test")
+                                     layout_options=actual_options, upstream_revision="test", normalized_qasm="normalized")
+
+    attempts = (dict(status="rejected", native_seconds=3), dict(status="accepted", native_seconds=2))
+
+    def compile_qasm(qasm, **options):
+        calls.append(options)
+        assert qasm == "input"
+        imported = from_qasm(qasm, **{key: value for key, value in options.items()
+                                     if key not in ("compiler", "distance", "prepare_t_with_mpps")})
+        clock[0] += 5
+        return types.SimpleNamespace(imported=imported, program=program, placement_attempts=attempts)
 
     adapter = types.SimpleNamespace(AUDITED_REVISION="test", from_qasm=from_qasm)
-    monkeypatch.setattr(driver, "import_module", lambda name: adapter)
-    driver._compile_worker(tmp_path, "spiderls")
+    monkeypatch.setattr(driver, "import_module", lambda name:
+                        types.SimpleNamespace(compile_qasm=compile_qasm) if name == "bloq.interop" else adapter)
+    driver._compile_worker(tmp_path, compiler)
     result = json.loads((run_dir / "result.json").read_text())
-    assert calls == [dict(distance=25, prepare_t_with_mpps=True, validate=True)]
+    if compiler == "topologiq":
+        assert calls == [dict(distance=25, prepare_t_with_mpps=True, validate=True)]
+        assert "placement_attempts" not in result
+    else:
+        assert calls == [dict(compiler=compiler, distance=25, prepare_t_with_mpps=True,
+                              **(requested if requested is not None else driver.LAYOUT_OPTIONS[compiler]))]
+        assert result["placement_attempts"] == list(attempts)
     assert result["status"] == "compiled"
     assert result["ir_d25"]["round_trip"]
     assert result["layout_options"] == actual_options
+    assert result["layout_seconds"] == 2
+    assert result["ir_d25"]["seconds"] == 5
+    assert result["pipeline_seconds"] == 7
     assert not (run_dir / "program_d3.bloq").exists()
+
+
+@pytest.mark.parametrize("native", [True, False])
+def test_native_certified_worker_keeps_native_and_placement_failure_stages(driver, monkeypatch, tmp_path, native):
+    import bloq
+    from bloq.interop._geometry import GeometryError
+
+    run_dir = tmp_path / "spiderls"
+    run_dir.mkdir()
+    (tmp_path / "clifford_t.qasm").write_text("input")
+    error = bloq.CompileError("native lifetime conflict") if native else GeometryError(
+        "resource_placement_limit", "bounded search exhausted")
+
+    def reject(*args, **kwargs):
+        raise error
+
+    monkeypatch.setattr(driver, "import_module", lambda name: types.SimpleNamespace(compile_qasm=reject))
+    driver._compile_worker(tmp_path, "spiderls")
+    result = json.loads((run_dir / "result.json").read_text())
+    stage = "ir_d25" if native else "layout"
+    assert result["failed_stage"] == stage
+    assert result[stage]["error"] == str(error)
+    assert result[stage]["status"] == ("failed" if native else "inconclusive")
 
 
 def test_vm_keeps_exact_lowered_check_and_source_error_bound(driver):

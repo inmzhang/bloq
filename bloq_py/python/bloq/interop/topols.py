@@ -150,7 +150,7 @@ def _pipe_diagram(embedding: dict[str, Any]):
     return nodes, edges
 
 
-def _convert(embedding: dict[str, Any], qubits: int) -> tuple[bloq.BlockGraph, tuple[Position, ...], tuple[Position, ...]]:
+def _convert(embedding: dict[str, Any], qubits: int, *, _build=None) -> tuple[bloq.BlockGraph, tuple[Position, ...], tuple[Position, ...]]:
     nodes, edges = _pipe_diagram(embedding)
     nodes, pipes = _space_diagram(nodes, edges)
     edges = list(pipes)
@@ -223,12 +223,14 @@ def _convert(embedding: dict[str, Any], qubits: int) -> tuple[bloq.BlockGraph, t
         if resources[resource] != sum(t == typ for t in embedding["type_hist"].values()):
             raise TopoLSImportError("source_provenance", f"Missing or duplicate {resource} attachment")
     push_spatial_hadamards(nodes, edges, fixed)
+    if _build is not None:
+        return _build(nodes, edges, qubits, actions, t_resources)
     actions.extend(add_t_resources(nodes, edges, t_resources))
     return build_graph(nodes, edges, qubits, actions)
 
 
 def from_qasm(qasm: str, *, seed: int = 0, engine: str = "python",
-              time_bound: float = 0.1, iterations: int = 100) -> TopoLSImport:
+              time_bound: float = 0.1, iterations: int = 100, _build=None) -> TopoLSImport:
     """Route a static Clifford+T QASM circuit with the pinned TopoLS API.
 
     Only S/T endpoint frames covered by native channel tests are accepted.
@@ -283,7 +285,7 @@ def from_qasm(qasm: str, *, seed: int = 0, engine: str = "python",
         if normalized.count(f"\n{gate} q[") != sum(p == phase for p in phases.values()):
             raise TopoLSImportError("source_provenance", f"Layout lost or duplicated signed {gate.upper()} resources")
     embedding = dict(pos_hist=pos, ori_hist=ori, type_hist=typ, path_hist=paths, io_info=io, phase_hist=phases)
-    graph, inputs, outputs = _convert(embedding, qubits)
+    graph, inputs, outputs = _convert(embedding, qubits, _build=_build)
     revision = _installed_revision("topols")
     options.update(engine=engine, block_size_max=20, zx_opt=1, grid_spacing=GRID_SPACING)
     return TopoLSImport(graph, inputs, outputs, qasm, normalized, revision, options, embedding)

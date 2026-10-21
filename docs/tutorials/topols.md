@@ -39,16 +39,16 @@ VIRTUAL_ENV="$PWD/bloq_py/.venv" uvx --from 'maturin>=1.15,<2' maturin develop \
 
 ```python
 import bloq
-from bloq.interop.topols import from_qasm
+from bloq.interop import compile_qasm
 
-imported = from_qasm('''OPENQASM 2.0;
+compiled = compile_qasm('''OPENQASM 2.0;
 include "qelib1.inc";
 qreg q[1];
 h q[0];
 tdg q[0];
-''', engine="python")
+''', compiler="topols", engine="python", distance=3, prepare_t_with_mpps=True)
+imported, program = compiled.imported, compiled.program
 imported.graph.save("layout.blog")
-program = bloq.compile(imported.graph, distance=3, prepare_t_with_mpps=True, validate=True)
 program.save("program.bloq")
 report = bloq.run_noiseless(program, shots=3, input_state="zero", include_signature=True)
 ```
@@ -58,6 +58,11 @@ exact signed resource phases, layout options, and ports in source-qubit order.
 VM outputs use coordinate order; match them by `port`. `TopoLSImportError.code`
 identifies source, provenance, and geometry failures; native compile errors remain
 authoritative.
+
+`compile_qasm` routes upstream once, searches reusable T-resource patches, and
+returns only natively validated IR. `placement_attempts` records footprint and
+timing for accepted and rejected candidates. Use `from_qasm` from
+`bloq.interop.topols` for pure graph import with conservative private T columns.
 
 Run four-spin Ising dynamics with two Trotter steps and eight T gates:
 
@@ -99,13 +104,15 @@ check synthesis; execution checks every joint output Pauli expectation.
   parity. Signed Y caps are reserved before T attachments. `grid_spacing` records
   `(1, 1, 3)` before temporal contraction; the original embedding is retained.
   Endpoint gadgets still contribute to the imported volume.
-- T attachments try short outward arms and joint doglegs, then bounded maze
-  routing to densely spaced factory columns. Blocked resources gain priority
-  on a fresh routing pass. Pending T patches keep distinct columns clear of
-  data and other arms, even at different source times; native lifetime checks
-  remain authoritative. Identity bends preserve the injection axis and signed
-  control recipe. This avoids large exterior banks but is not optimal packing;
-  safe temporal reuse of factory columns remains a future improvement.
+- Pure imports try short arms, joint doglegs, and bounded maze routing with
+  private T columns. `compile_qasm` instead reuses columns and learns conflicting
+  resource assignments from native physical-lifetime witnesses, including a
+  bounded batch from each failed compile. Narrow exits route first. Source Z
+  separation never certifies reuse: every accepted layout passes full native
+  validation at the requested distance and a binary round trip. Intermediate
+  construction defers readout analysis until this final check. Identity arms
+  preserve the signed injection recipe. Search is bounded and not optimal;
+  exhausted searches reject rather than expanding into large factory banks.
 - Before T attachment, the importer moves spatial Hadamard walls onto temporal
   pipes while preserving fixed port, resource, and feedback frames. If complete
   elimination is impossible, it tries retaining walls on one spatial axis.

@@ -118,7 +118,7 @@ def _phase_history(source, target, schedule):
     return {m.measurement_id: m for m in measurements}, gadgets
 
 
-def _convert(source, target, schedule, routing):
+def _convert(source, target, schedule, routing, *, _build=None):
     from bloq.interop._spiderls_timeline import diagram
 
     measurements, gadgets = _phase_history(source, target, schedule)
@@ -168,14 +168,16 @@ def _convert(source, target, schedule, routing):
     if {mid for _, _, mid in resources} != expected or len(resources) != len(expected):
         raise SpiderLSImportError('source_provenance', 'Missing or duplicate T endpoint')
     push_spatial_hadamards(nodes, edges, fixed)
-    actions.extend(add_t_resources(nodes, edges, [(node, phase, f'spiderls_t_{mid}')
-                                                   for node, phase, mid in resources]))
+    resources = [(node, phase, f'spiderls_t_{mid}') for node, phase, mid in resources]
+    if _build is not None:
+        return _build(nodes, edges, len(source.inputs()), actions, resources)
+    actions.extend(add_t_resources(nodes, edges, resources))
     return build_graph(nodes, edges, len(source.inputs()), actions)
 
 
 def from_qasm(qasm: str, *, spacing: int = 3, routing_margin: int = 3,
               placement_margin: int | None = None,
-              max_physical_layers: int | None = None) -> SpiderLSImport:
+              max_physical_layers: int | None = None, _build=None) -> SpiderLSImport:
     """Reduce, schedule, route, and import an exact static Clifford+T source.
 
     Routing spacing must be at least two; margins must be positive. Smaller
@@ -214,7 +216,7 @@ def from_qasm(qasm: str, *, spacing: int = 3, routing_margin: int = 3,
         from pyzx_routing import BoundingBox, RoutingResult
 
         routing = RoutingResult((), BoundingBox(0, 0, 0, 0), 0, {}, {}, {}, 0, 0, 0, 0)
-    graph, inputs, outputs = _convert(source, target, schedule, routing)
+    graph, inputs, outputs = _convert(source, target, schedule, routing, _build=_build)
     root = Path(execution.__file__).resolve().parents[1]
     try:
         revision = subprocess.run(['git', '-C', str(root), 'rev-parse', 'HEAD'], capture_output=True, text=True)

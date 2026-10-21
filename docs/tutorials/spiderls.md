@@ -69,17 +69,22 @@ For direct use:
 
 ```python
 import bloq
-from bloq.interop.spiderls import from_qasm
+from bloq.interop import compile_qasm
 
-imported = from_qasm('''OPENQASM 2.0;
+compiled = compile_qasm('''OPENQASM 2.0;
 include "qelib1.inc";
 qreg q[1];
 h q[0];
 tdg q[0];
-''')
-program = bloq.compile(imported.graph, distance=3, prepare_t_with_mpps=True, validate=True)
+''', compiler="spiderls", distance=3, prepare_t_with_mpps=True)
+imported, program = compiled.imported, compiled.program
 report = bloq.run_noiseless(program, shots=3, input_state="zero", include_signature=True)
 ```
+
+This entry point searches compact reusable T patches using native lifetime
+conflicts and returns validated IR. Its `placement_attempts` records footprint
+and timing. `from_qasm` in `bloq.interop.spiderls` remains a pure graph importer
+with private T columns; the routing options above apply to both entry points.
 
 ## Semantics and limits
 

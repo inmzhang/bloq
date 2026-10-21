@@ -180,11 +180,27 @@ def _compile_worker(case_dir, compiler):
     run_dir = case_dir / compiler
     result = _read(run_dir / "result.json")
     stage = "layout"
-    started = time.perf_counter()
+    pipeline_started = time.perf_counter()
     try:
         adapter = import_module(f"bloq.interop.{compiler}")
         options = result.get("requested_layout_options", LAYOUT_OPTIONS[compiler])
-        imported = adapter.from_qasm((case_dir / "clifford_t.qasm").read_text(), **options)
+        qasm = (case_dir / "clifford_t.qasm").read_text()
+        program, native_seconds, compile_warnings = None, 0.0, []
+        if compiler in ("topols", "spiderls"):
+            try:
+                with warnings.catch_warnings(record=True) as caught:
+                    warnings.simplefilter("always")
+                    compiled = import_module("bloq.interop").compile_qasm(
+                        qasm, compiler=compiler, distance=25, prepare_t_with_mpps=True, **options)
+            except bloq.CompileError:
+                stage = "ir_d25"
+                raise
+            imported, program = compiled.imported, compiled.program
+            result["placement_attempts"] = compiled.placement_attempts
+            native_seconds = sum(attempt["native_seconds"] for attempt in compiled.placement_attempts)
+            compile_warnings = [str(warning.message) for warning in caught]
+        else:
+            imported = adapter.from_qasm(qasm, **options)
         graph = imported.graph
         graph.save(run_dir / "layout.blog")
         saved_graph = bloq.BlockGraph.load(run_dir / "layout.blog")
@@ -202,25 +218,27 @@ def _compile_worker(case_dir, compiler):
                       extents=[max(p[i] for p in positions) - min(p[i] for p in positions) + 1 for i in range(3)],
                       hadamard_pipes_by_axis={axis: sum(pipe.hadamard and pipe.src[i] != pipe.dst[i]
                                                        for pipe in flat.pipes()) for i, axis in enumerate("XYZ")},
-                      layout_seconds=time.perf_counter() - started,
+                      layout_seconds=time.perf_counter() - pipeline_started - native_seconds,
                       layout=dict(status="passed", round_trip=True, blog_sha256=_digest(run_dir / "layout.blog")))
         stage = "ir_d25"
         result["stage"] = stage
         save_json(run_dir / "result.json", result)
         started = time.perf_counter()
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            program = bloq.compile(graph, distance=25, prepare_t_with_mpps=True, validate=True)
+        if program is None:
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                program = bloq.compile(graph, distance=25, prepare_t_with_mpps=True, validate=True)
+            compile_warnings = [str(warning.message) for warning in caught]
         path = run_dir / "program_d25.bloq"
         program.save(path)
         if bloq.Bloq.load(path).to_binary() != program.to_binary():
             raise RuntimeError("binary round trip changed the validated IR")
         _output_indices(program, imported.output_ports)
-        result.update(status="compiled", ir_d25=dict(
+        result.update(status="compiled", pipeline_seconds=time.perf_counter() - pipeline_started, ir_d25=dict(
             status="compiled", distance=25, t_preparation="ideal_t_proxy", validated=True, round_trip=True,
-            seconds=time.perf_counter() - started, physical_qubits=program.qubit_count,
+            seconds=native_seconds + time.perf_counter() - started, physical_qubits=program.qubit_count,
             measurements=program.measurement_count, nodes=program.stats().node_count, sha256=_digest(path),
-            warnings=[str(warning.message) for warning in caught]))
+            warnings=compile_warnings))
     except Exception as error:
         result.update(status="failed", failed_stage=stage)
         result[stage] = _failure(error)

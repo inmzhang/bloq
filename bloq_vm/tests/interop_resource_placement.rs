@@ -73,6 +73,35 @@ fn neighboring_t_resources_have_the_signed_channel(#[case] dagger: bool, #[case]
     );
 }
 
+#[test]
+fn one_factory_column_can_be_reused_after_its_conditional_cap_is_consumed() {
+    let inputs = [ivec3(0, 0, 0)];
+    let outputs = [ivec3(0, 0, 6)];
+    let program = compile_source_channel(
+        include_str!("data/interop_t_reuse.blog"),
+        "OPENQASM 2.0; include \"qelib1.inc\"; qreg q[1]; t q[0]; tdg q[0];",
+        &inputs,
+        &outputs,
+    );
+    let oracle = ExactChoi::new(&inputs, &outputs, |_| Ok(()));
+    let mut selectors = BTreeMap::<String, BTreeSet<bool>>::new();
+    for seed in [0x11, 0x22, 0x33] {
+        let report = oracle.run(&program, 8, seed, |_, context| {
+            for &(name, value) in context.named_branch_selectors {
+                selectors.entry(name.to_owned()).or_default().insert(value);
+            }
+            Ok(())
+        });
+        assert!(report.all_detectors_constant());
+    }
+    assert_eq!(selectors.len(), 2);
+    assert!(
+        selectors
+            .values()
+            .all(|values| *values == BTreeSet::from([false, true]))
+    );
+}
+
 #[rstest::rstest]
 #[case::dogleg(false)]
 #[case::winding(true)]

@@ -359,20 +359,6 @@ def _attach_t_resource(nodes, edges, node, phase, name, placement, *, edge_index
     return actions
 
 
-def add_t_resource(nodes, edges, node, *, phase, name, positions=None):
-    """Place one T gadget on its shortest free verified outward arm."""
-    phase = _t_phase(phase)
-    placement = (next(_t_placements(nodes, edges, node, positions=positions), None)
-                 or next(_t_placements(nodes, edges, node, bends=True, positions=positions), None))
-    if placement is None:
-        raise GeometryError('resource_collision', f'T resource {node!r} has no free outward arm')
-    actions = _attach_t_resource(nodes, edges, node, phase, name, placement)
-    if positions is not None:
-        positions[node] = placement[1]
-        positions.update((f'{name}_{suffix}', p) for suffix, (p, _) in placement[3].items())
-    return actions
-
-
 def _match_t_outlets(domains):
     matched: dict[tuple[int, int], int] = {}
     assigned: dict[int, tuple[int, int]] = {}
@@ -546,13 +532,12 @@ def _search_t_placements(nodes, edges, resources, positions):
     return placements
 
 
-def _maze_t_placements(nodes, edges, resources, positions):
-    """Pack private factory columns using bounded, negotiated shortest paths.
+def _maze_t_placements(nodes, edges, resources, positions, *, conflicts=None):
+    """Route identity arms on a bounded grid, preserving the signed injection seam.
 
-    Even/even outlets leave room between factories. Arms are phase-zero identity
-    chains; their last step keeps the original signed seam and injection recipe.
-    A blocked resource gets priority on the next pass instead of forcing a large
-    exterior bank. Physical lifetime validation remains the compiler's authority.
+    Without ``conflicts``, factories keep private columns. With it, native
+    lifetime witnesses exclude conflicting factory/arm assignments; all other
+    reuse is speculative until the caller compiles and validates the graph.
     """
     neighbors: dict[Any, list[Any]] = {node: [] for node, _, _ in resources}
     for a, b in edges:
@@ -577,14 +562,39 @@ def _maze_t_placements(nodes, edges, resources, positions):
             entries[entry].add(node)
     bulk = {p[:2] for p in initial} | {p[:2] for p in entries}
     priorities = dict.fromkeys(roots, 0)
+    reuse = conflicts is not None
+    # Narrow endpoints must escape before flexible elbows occupy their lanes.
+    exits = {node: sum(tuple(v + (sign if i == axis else 0) for i, v in enumerate(p)) not in initial
+                       for axis in (0, 1) for sign in (1, -1)) if reuse else 0
+             for node, (p, _, _, _) in roots.items()}
     work = 0
     for attempt in range(32):
-        occupied, space, factories = set(initial), set(bulk), set()
+        occupied, space = set(initial), set(bulk)
+        factories: dict[tuple[int, int], set[Any]] = defaultdict(set)
+        columns: dict[tuple[int, int], set[Any]] = defaultdict(set)
         bounds = [(min(p[i] for p in bulk), max(p[i] for p in bulk)) for i in (0, 1)]
         selected = {}
-        for node in sorted(roots, key=lambda n: (-priorities[n], positions[n][2])):
+        for node in sorted(roots, key=lambda n: (-priorities[n], exits[n], positions[n][2])):
             p, q, axis, frame = roots[node]
+            blocked_owners = (conflicts or {}).get(node, ())
             step = p[axis] - q[axis]
+
+            def blocked_column(column):
+                return column in factories and (not reuse or any(
+                    owner in blocked_owners for owner in factories[column]))
+
+            def available_center(center):
+                return (center not in (bulk if reuse else space) and not any(v % 2 for v in center)
+                        and not any(owner in blocked_owners for owner in columns.get(center, ())))
+
+            def fits(candidate):
+                footprint = candidate[-1]
+                return (available_center(candidate[3]['source'][0][:2])
+                        and len(footprint) == len(candidate[3]) + 1
+                        and not any(r != p and r in occupied for r in footprint)
+                        and not any(blocked_column(r[:2]) or (r in entries and entries[r] != {node})
+                                    for r in footprint))
+
             placement = None
             for margin in range(0, 2 * isqrt(len(resources)) + 9, 2):
                 previous, queue = {p: None}, deque([p])
@@ -597,7 +607,7 @@ def _maze_t_placements(nodes, edges, resources, positions):
                     if end not in occupied and end != previous[current]:
                         for sign in ((1, -1) if frame[2] == 'Z' else (1,)):
                             center = (end[0] + sign * (axis == 1), end[1] + sign * (axis == 0)) if frame[2] == 'Z' else end[:2]
-                            if center in space or any(v % 2 for v in center):
+                            if not available_center(center):
                                 continue
                             path, at = [end], current
                             while at is not None:
@@ -608,13 +618,8 @@ def _maze_t_placements(nodes, edges, resources, positions):
                                 at = previous[at]
                             path.reverse()
                             candidate = _t_placement(path, frame, axis, 'ZZX' if frame[2] == 'X' else 'XXZ', sign)
-                            footprint = candidate[-1]
-                            if (len(footprint) != len(candidate[3]) + 1
-                                    or any(r != p and r in occupied for r in footprint)
-                                    or any(r[:2] in factories or (r in entries and entries[r] != {node}) for r in footprint)):
+                            if not fits(candidate):
                                 continue
-                            for r in footprint:
-                                _position(r)
                             placement = candidate
                             break
                         if placement is not None:
@@ -622,7 +627,8 @@ def _maze_t_placements(nodes, edges, resources, positions):
                     for direction in (0, 1):
                         for sign in (1, -1):
                             other = tuple(v + (sign if i == direction else 0) for i, v in enumerate(current))
-                            if (other in previous or other in occupied or other[:2] in factories
+                            if (other in previous or other in occupied
+                                    or blocked_column(other[:2])
                                     or (other in entries and entries[other] != {node})
                                     or any(not lo - margin <= other[i] <= hi + margin for i, (lo, hi) in enumerate(bounds))):
                                 continue
@@ -633,16 +639,37 @@ def _maze_t_placements(nodes, edges, resources, positions):
             if placement is None:
                 priorities[node] = attempt + 1
                 break
+            for r in placement[-1]:
+                _position(r)
             selected[node] = placement
             occupied.remove(p)
             occupied.update(placement[-1])
-            space.update(r[:2] for r in placement[-1])
-            factories.add(placement[3]['source'][0][:2])
+            center = placement[3]['source'][0][:2]
+            space.update(r[:2] for r in placement[-1] if not reuse or r[:2] != center)
+            factories[center].add(node)
+            for r in placement[-1]:
+                columns[r[:2]].add(node)
             bounds = [(min(lo, min(r[i] for r in placement[-1])), max(hi, max(r[i] for r in placement[-1])))
                       for i, (lo, hi) in enumerate(bounds)]
         else:
             return {i: selected[node] for i, (node, _, _) in enumerate(resources)}
     raise GeometryError('resource_placement_limit', 'Compact T routing exhausted 32 priority passes')
+
+
+def _greedy_t_resources(nodes, edges, resources, positions):
+    """Stage the existing short-arm placements without mutating the import."""
+    staged, pipes, positions = nodes.copy(), list(edges), positions.copy()
+    actions, placements = [], {}
+    for i, (node, phase, name) in enumerate(resources):
+        placement = (next(_t_placements(staged, pipes, node, positions=positions), None)
+                     or next(_t_placements(staged, pipes, node, bends=True, positions=positions), None))
+        if placement is None:
+            raise GeometryError('resource_collision', f'T resource {node!r} has no free outward arm')
+        placements[i] = placement
+        actions.extend(_attach_t_resource(staged, pipes, node, phase, name, placement))
+        positions[node] = placement[1]
+        positions.update((f'{name}_{suffix}', p) for suffix, (p, _) in placement[3].items())
+    return staged, pipes, actions, placements
 
 
 def add_t_resources(nodes, edges, resources):
@@ -654,12 +681,8 @@ def add_t_resources(nodes, edges, resources):
     nodes, edges = nodes.copy(), list(edges)
     _spatial_t_endpoints(nodes, edges, resources)
     positions = {n: _position(d['position']) for n, d in nodes.items()}
-    staged_positions = positions.copy()
-    staged, pipes = nodes.copy(), list(edges)
-    actions = []
     try:
-        for node, phase, name in resources:
-            actions.extend(add_t_resource(staged, pipes, node, phase=phase, name=name, positions=staged_positions))
+        staged, pipes, actions, _ = _greedy_t_resources(nodes, edges, resources, positions)
     except GeometryError as error:
         if error.code != 'resource_collision':
             raise
@@ -685,7 +708,7 @@ def add_t_resources(nodes, edges, resources):
     return actions
 
 
-def _compact_temporal_layers(graph):
+def _compact_temporal_layers(graph, *, defer_analysis=False):
     """Contract complete identity slices in a flat, unit-height import.
 
     This is an import optimization, not a rewrite of authored memory duration.
@@ -695,7 +718,7 @@ def _compact_temporal_layers(graph):
     """
     if graph.has_module_structure:
         raise GeometryError('time_compaction', 'Flatten the imported graph before time compaction')
-    graph.validate()
+    (graph.validate_structure if defer_analysis else graph.validate)()
     blocks = {b.pos: b for b in graph.blocks()}
     positions = {p: p for p in blocks}
     actions = graph.actions()
@@ -767,12 +790,12 @@ def _compact_temporal_layers(graph):
                 for t in action.feedback_targets
             ], action.condition)
         remapped.append(action)
-    compact.set_actions(remapped)
-    compact.validate()
+    compact.set_actions(remapped, defer_analysis=defer_analysis)
+    (compact.validate_structure if defer_analysis else compact.validate)()
     return compact, positions
 
 
-def build_graph(nodes, edges, qubits, actions):
+def build_graph(nodes, edges, qubits, actions, *, defer_analysis=False):
     """Validate frames and bind the complete, source-ordered interface."""
     positions = {n: _position(d['position']) for n, d in nodes.items()}
     if len(set(positions.values())) != len(positions):
@@ -797,16 +820,17 @@ def build_graph(nodes, edges, qubits, actions):
         graph.add_pipe(bloq.Pipe(positions[a], _direction(positions[a], positions[b]), hadamard=all(flips)))
     if any(set(mapping) != set(range(qubits)) for mapping in ports.values()):
         raise GeometryError('boundaries', 'Layout does not cover the source interface')
-    graph.set_actions(actions)
+    graph.set_actions(actions, defer_analysis=defer_analysis)
     # Resource collars can precede the upstream origin. Keep interface maps
     # aligned with the nonnegative coordinates used by native compilation.
     min_z = min(p[2] for p in positions.values())
     graph = graph.with_zero_min_z()
     inputs, outputs = (tuple((x, y, z - min_z) for _, (x, y, z) in sorted(ports[role].items()))
                        for role in ('input', 'output'))
-    graph, positions = _compact_temporal_layers(graph)
+    graph, positions = _compact_temporal_layers(graph, defer_analysis=defer_analysis)
     inputs, outputs = (tuple(positions[p] for p in interface) for interface in (inputs, outputs))
     graph = bloq.BlockGraph.definition('main', graph,
-        inputs={f'in_{i}': p for i, p in enumerate(inputs)}, outputs={f'out_{i}': p for i, p in enumerate(outputs)})
-    graph.validate()
+        inputs={f'in_{i}': p for i, p in enumerate(inputs)}, outputs={f'out_{i}': p for i, p in enumerate(outputs)},
+        defer_analysis=defer_analysis)
+    (graph.validate_structure if defer_analysis else graph.validate)()
     return graph, inputs, outputs

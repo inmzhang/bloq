@@ -6,7 +6,7 @@ import bloq
 import copy
 
 from bloq.interop._geometry import (
-    GeometryError, _compact_temporal_layers, _space_diagram, add_t_resource, add_t_resources, build_graph,
+    GeometryError, _compact_temporal_layers, _space_diagram, add_t_resources, build_graph,
     push_spatial_hadamards,
 )
 
@@ -50,7 +50,7 @@ def test_t_arm_extends_outward_when_its_temporal_cap_is_occupied():
     nodes = resource_nodes()
     nodes['obstacle'] = dict(position=(1, 0, 1), tqec='ZXX', other=None)
     edges = [('root', 'resource')]
-    actions = add_t_resource(nodes, edges, 'resource', phase='1/4', name='t')
+    actions = add_t_resources(nodes, edges, [('resource', '1/4', 't')])
     assert nodes['resource']['position'] == (2, 0, 0)
     assert nodes['t_arm_0'] == dict(position=(1, 0, 0), tqec='XZX', other=None)
     assert ('root', 't_arm_0') in edges and ('t_arm_0', 'resource') in edges
@@ -61,15 +61,14 @@ def test_t_arm_extends_outward_when_its_temporal_cap_is_occupied():
 def test_bent_t_arm_can_use_the_opposite_perpendicular_side():
     nodes = resource_nodes('ZXZ')
     nodes['obstacle'] = dict(position=(1, 1, 0), tqec='ZXX', other=None)
-    actions = add_t_resource(nodes, [('root', 'resource')], 'resource', phase='7/4', name='t')
+    actions = add_t_resources(nodes, [('root', 'resource')], [('resource', '7/4', 't')])
     assert nodes['resource']['position'] == (1, 0, 0)
     assert nodes['t_center']['position'] == (1, -1, 1)
     assert str(actions[0].target.direction) == '-Y'
     assert str(actions[1].condition) == 't'
 
 
-@pytest.mark.parametrize("joint", [False, True])
-def test_t_placement_rejects_a_blocked_ray_without_partial_mutation(joint):
+def test_t_placement_rejects_a_blocked_ray_without_partial_mutation():
     from copy import deepcopy
 
     nodes = resource_nodes()
@@ -79,10 +78,7 @@ def test_t_placement_rejects_a_blocked_ray_without_partial_mutation(joint):
     edges = [('root', 'resource')]
     before = deepcopy(nodes)
     with pytest.raises(GeometryError) as error:
-        if joint:
-            add_t_resources(nodes, edges, [('resource', '1/4', 't')])
-        else:
-            add_t_resource(nodes, edges, 'resource', phase='1/4', name='t')
+        add_t_resources(nodes, edges, [('resource', '1/4', 't')])
     assert error.value.code == 'resource_collision'
     assert nodes == before and edges == [('root', 'resource')]
 
@@ -111,7 +107,7 @@ def test_adjacent_t_outlets_use_disjoint_doglegs_with_the_native_channel_fixture
                 assert index < 4, 'A solved layout must not enumerate unused alternatives'
                 yield candidate
 
-        monkeypatch.setattr(_geometry, 'add_t_resource', blocked_greedy)
+        monkeypatch.setattr(_geometry, '_greedy_t_resources', blocked_greedy)
         monkeypatch.setattr(_geometry, '_t_placements', bounded_candidates)
 
     nodes = {f'w{z}': dict(position=(0, 0, z), tqec=frame,
@@ -138,7 +134,7 @@ def test_t_factories_do_not_alias_later_resources_or_data_columns(compact, monke
         def exhausted(*args, **kwargs):
             raise GeometryError('resource_collision', 'Exercise compact placement')
 
-        monkeypatch.setattr(_geometry, 'add_t_resource', exhausted)
+        monkeypatch.setattr(_geometry, '_greedy_t_resources', exhausted)
         monkeypatch.setattr(_geometry, '_search_t_placements', exhausted)
     nodes = resource_nodes()
     nodes.update(root_later=dict(position=(0, 0, 10), tqec='XZX', other=None),
@@ -230,7 +226,7 @@ def test_exhausted_candidate_budget_falls_back_to_compact_routing(monkeypatch):
             yield placement
         pytest.fail('Candidate enumeration exceeded its budget')
 
-    monkeypatch.setattr(_geometry, 'add_t_resource', blocked_greedy)
+    monkeypatch.setattr(_geometry, '_greedy_t_resources', blocked_greedy)
     monkeypatch.setattr(_geometry, '_t_placements', candidates)
     actions = add_t_resources(nodes, edges, [('resource', '1/4', 't')])
     assert nodes != before and len(actions) == 2
