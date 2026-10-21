@@ -1132,7 +1132,18 @@ impl BlockGraph {
         self.set_actions_with_inputs_impl(actions, inputs, false, limits)
     }
 
-    pub(crate) fn set_actions_deferred_with_inputs(
+    /// Replaces source actions and external Boolean inputs, deferring readout
+    /// surfaces and implicit dependencies as in [`Self::set_actions_deferred`].
+    ///
+    /// Input names and source-action semantics are checked now. Call
+    /// [`Self::analyze_actions`], full validation, or a compiler before treating
+    /// the completed graph as executable.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`BlockGraphError`] for invalid input names or source actions,
+    /// leaving the previous actions and input declarations unchanged.
+    pub fn set_actions_deferred_with_inputs(
         &mut self,
         actions: Vec<Action>,
         inputs: impl IntoIterator<Item = String>,

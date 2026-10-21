@@ -99,7 +99,17 @@ Examples:
     BlockGraphError: BloqError =>
         "A block-graph operation or validation failed.";
     CompileError: BloqError =>
-        "Lowering a block graph to Bloq IR failed.";
+"Lowering a block graph to Bloq IR failed.
+
+The ``layout_conflict`` attribute is None except for physical ownership
+conflicts. Its dictionary contains ``kind``, the physical ``qubit`` coordinate,
+and conflicting nodes: ``producer``, ``consumer``, ``reuser`` for live-state
+reuse, or ``first``, ``second`` for same-layer overlap. Each node contains its
+graph-local ``id`` and sorted source ``blocks`` coordinates. Pipe endpoints
+and nested region members are included; synthetic nodes may have no blocks.
+``related`` contains additional reuse witnesses from the same frozen failed
+scheduling state. This bounded diagnostic list may be partial or empty.
+";
     LowerError: BloqError =>
         "Lowering Bloq IR to a VM program failed.";
     BloqValidationError: BloqError =>

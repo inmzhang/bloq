@@ -1,6 +1,21 @@
 use glam::{IVec2, IVec3};
 use thiserror::Error;
 
+/// One dependency-forced interruption of a pending quantum state.
+#[derive(Debug)]
+pub struct QubitReuseConflict {
+    /// Node that has already produced the live state.
+    pub producer: bloq_ir::BloqNodeId,
+    /// Node still requiring that state.
+    pub consumer: bloq_ir::BloqNodeId,
+    /// Intervening node using the same physical coordinate.
+    pub reuser: bloq_ir::BloqNodeId,
+    /// Shared physical coordinate.
+    pub qubit: IVec2,
+    /// Graph-local nodes and their source block positions.
+    pub source_positions: Box<[(bloq_ir::BloqNodeId, Vec<IVec3>)]>,
+}
+
 /// An error raised while validating or compiling a [`BlockGraph`](bloq_graph::BlockGraph).
 ///
 /// Variants cover invalid configuration, unsupported or malformed blocks,
@@ -163,6 +178,9 @@ pub enum CompileError {
         second: bloq_ir::BloqNodeId,
         /// Shared physical coordinate.
         qubit: IVec2,
+        /// Graph-local node IDs and their source block positions, including
+        /// temporal-pipe endpoints and nested region members.
+        source_positions: Box<[(bloq_ir::BloqNodeId, Vec<IVec3>)]>,
     },
     /// A dependency forces another node to reuse a qubit while a temporal
     /// seam still carries its state to an unexecuted consumer.
@@ -178,6 +196,12 @@ pub enum CompileError {
         reuser: bloq_ir::BloqNodeId,
         /// Shared physical coordinate.
         qubit: IVec2,
+        /// Graph-local node IDs and their source block positions, including
+        /// temporal-pipe endpoints and nested region members.
+        source_positions: Box<[(bloq_ir::BloqNodeId, Vec<IVec3>)]>,
+        /// Additional witnesses found against the same failed scheduling state.
+        /// This bounded diagnostic list is not an exhaustive conflict census.
+        related: Vec<QubitReuseConflict>,
     },
     /// A reused region footprint needs a boundary summary whose body membership
     /// cannot be expressed in the containing graph's Boolean domain.
@@ -308,6 +332,42 @@ pub enum CompileError {
     /// Hierarchical block-graph validation or linking failed.
     #[error("{0}")]
     Module(#[from] Box<bloq_graph::ModuleError>),
+}
+
+pub(crate) fn layout_conflict_sources<'a>(
+    nodes: impl IntoIterator<Item = (bloq_ir::BloqNodeId, &'a bloq_ir::BloqNode)>,
+) -> Box<[(bloq_ir::BloqNodeId, Vec<IVec3>)]> {
+    nodes
+        .into_iter()
+        .map(|(id, node)| {
+            let mut pending = vec![node];
+            let mut positions = Vec::new();
+            while let Some(node) = pending.pop() {
+                use bloq_ir::NodeProvenance;
+                match &node.provenance {
+                    NodeProvenance::BlockComponent { members } => {
+                        positions.extend(members.iter().map(|member| member.pos));
+                    }
+                    NodeProvenance::TemporalPipe { pipe }
+                    | NodeProvenance::MemoryPadding { pipe, .. } => {
+                        positions.extend([pipe.src, pipe.dst]);
+                    }
+                    NodeProvenance::SpatialPortSubstitution { source, .. } => {
+                        positions.push(*source);
+                    }
+                    _ => {}
+                }
+                if let Some(region) = node.try_region() {
+                    for (_, body) in region.bodies() {
+                        pending.extend(body.nodes().map(|(_, node)| node));
+                    }
+                }
+            }
+            positions.sort_unstable_by_key(IVec3::to_array);
+            positions.dedup();
+            (id, positions)
+        })
+        .collect()
 }
 
 impl From<bloq_graph::ModuleError> for CompileError {
@@ -527,6 +587,28 @@ pub enum WalkError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn layout_conflict_sources_include_pipe_endpoints_inside_regions() {
+        use bloq_ir::{BloqNode, BloqNodeId, RegionNode, SubGraph, TemporalPipeRef};
+        use glam::ivec3;
+
+        let mut body = SubGraph::new();
+        body.add_node(BloqNode::from_temporal_pipe(TemporalPipeRef {
+            src: ivec3(2, 0, 4),
+            dst: ivec3(2, 0, 5),
+            hadamard: true,
+        }));
+        let node = BloqNode::region(RegionNode::RepeatUntilSuccess {
+            body,
+            restart_condition: bloq_ir::ClassicalExpr::Const(false),
+            restart_source: None,
+        });
+        assert_eq!(
+            layout_conflict_sources([(BloqNodeId(7), &node)]).as_ref(),
+            &[(BloqNodeId(7), vec![ivec3(2, 0, 4), ivec3(2, 0, 5)])],
+        );
+    }
 
     #[test]
     fn flow_composition_errors_retain_their_cause() {

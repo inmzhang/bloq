@@ -1072,12 +1072,15 @@ impl PyBlockGraph {
     ///     bit_outputs: Exported expressions or local/child value names.
     ///     actions: Optional replacement actions, using the declared bit inputs.
     ///     resources: Quantum port resource types; unspecified ports use `data`.
+    ///     defer_analysis: Validate source actions now and defer readout surfaces
+    ///         and implicit dependencies. Validate or compile the completed graph
+    ///         before execution; the default performs this analysis eagerly.
     ///
     /// Raises:
     ///     InvalidArgumentError: If a resource names an undeclared port.
     ///     BlockGraphError: If classical input declarations are invalid.
     #[staticmethod]
-    #[pyo3(signature = (name, body, *, inputs=None, outputs=None, bit_inputs=None, bit_outputs=None, actions=None, resources=None))]
+    #[pyo3(signature = (name, body, *, inputs=None, outputs=None, bit_inputs=None, bit_outputs=None, actions=None, resources=None, defer_analysis=false))]
     #[allow(clippy::too_many_arguments, reason = "named Python interface fields")]
     fn definition(
         name: String,
@@ -1092,6 +1095,7 @@ impl PyBlockGraph {
         >,
         actions: Option<Vec<PyAction>>,
         resources: Option<HashMap<String, String>>,
+        defer_analysis: bool,
     ) -> PyResult<Self> {
         use bloq_graph::{BitOutput, PortDirection, QuantumPort};
         let mut body = body.0;
@@ -1138,8 +1142,8 @@ impl PyBlockGraph {
                 })
                 .collect::<PyResult<_>>()?;
         }
-        // A copied definition is analyzed as a standalone local body before
-        // receiving its reusable name, just like extract_definition.
+        // Install copied actions in a standalone local body before receiving
+        // its reusable name, just like extract_definition.
         body.name = bloq_graph::BlockGraph::ENTRY_MODULE.into();
         let actions = actions.map_or_else(
             || body.actions(),
@@ -1153,8 +1157,12 @@ impl PyBlockGraph {
                 .filter(|name| name.contains('.'))
                 .map(str::to_owned)
         }));
-        body.set_actions_with_inputs(actions, action_inputs)
-            .map_err(graph_err)?;
+        if defer_analysis {
+            body.set_actions_deferred_with_inputs(actions, action_inputs)
+        } else {
+            body.set_actions_with_inputs(actions, action_inputs)
+        }
+        .map_err(graph_err)?;
         let instances = std::mem::take(&mut body.instances);
         let connections = std::mem::take(&mut body.quantum_connections);
         let bindings = std::mem::take(&mut body.bit_bindings);
@@ -2315,18 +2323,26 @@ impl PyBlockGraph {
         self.0.add_action(action.0).map_err(graph_err)
     }
 
-    /// Replaces all actions, rederiving measurement surfaces and the action DAG.
+    /// Replaces all actions, deriving measurement surfaces and dependencies eagerly by default.
     ///
     /// Args:
     ///     actions: The structured actions to install, replacing any existing.
+    ///     defer_analysis: Validate source actions now and defer readout surfaces
+    ///         and implicit dependencies. Validate or compile the completed graph
+    ///         before execution; the default performs this analysis eagerly.
     ///
     /// Raises:
-    ///     BlockGraphError: If action semantics, measurement-surface derivation,
-    ///         or the resulting dependency DAG is invalid.
-    fn set_actions(&mut self, actions: Vec<PyAction>) -> PyResult<()> {
-        self.0
-            .set_actions(actions.into_iter().map(|a| a.0).collect())
-            .map_err(graph_err)
+    ///     BlockGraphError: If source actions are invalid, or eager readout and
+    ///         dependency analysis fails.
+    #[pyo3(signature = (actions, *, defer_analysis=false))]
+    fn set_actions(&mut self, actions: Vec<PyAction>, defer_analysis: bool) -> PyResult<()> {
+        let actions = actions.into_iter().map(|a| a.0).collect();
+        if defer_analysis {
+            self.0.set_actions_deferred(actions)
+        } else {
+            self.0.set_actions(actions)
+        }
+        .map_err(graph_err)
     }
 
     /// The graph's actions as structured `Action` values; `str(action)`

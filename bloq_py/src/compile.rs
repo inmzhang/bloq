@@ -11,6 +11,7 @@ use bloq_compile::{
     CompileConfig, CompileContext, SharedCompileCache,
 };
 use pyo3::prelude::*;
+use pyo3::types::{PyDict, PyList};
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyfunction, gen_stub_pymethods};
 use stim::{Circuit, CircuitItem, GateTarget};
 
@@ -20,7 +21,101 @@ use crate::ir::PyBloq;
 use crate::primitives::PyBasis;
 
 fn compile_error(e: bloq_compile::CompileError) -> PyErr {
-    errors::CompileError::new_err(compile_error_message(&e))
+    Python::attach(|py| {
+        let exception = errors::CompileError::new_err(compile_error_message(&e));
+        let result = (|| -> PyResult<()> {
+            exception
+                .value(py)
+                .setattr("layout_conflict", layout_conflict(py, &e)?)
+        })();
+        result.err().unwrap_or(exception)
+    })
+}
+
+fn layout_conflict<'py>(
+    py: Python<'py>,
+    error: &bloq_compile::CompileError,
+) -> PyResult<Option<Bound<'py, PyDict>>> {
+    use bloq_compile::CompileError;
+
+    let (kind, qubit, source_positions, roles, related) = match error {
+        CompileError::LiveQubitReuse {
+            producer,
+            consumer,
+            reuser,
+            qubit,
+            source_positions,
+            related,
+        } => (
+            "live_qubit_reuse",
+            qubit,
+            source_positions,
+            vec![
+                ("producer", producer),
+                ("consumer", consumer),
+                ("reuser", reuser),
+            ],
+            related.as_slice(),
+        ),
+        CompileError::OverlappingNodeQubit {
+            first,
+            second,
+            qubit,
+            source_positions,
+        } => (
+            "overlapping_node_qubit",
+            qubit,
+            source_positions,
+            vec![("first", first), ("second", second)],
+            &[][..],
+        ),
+        _ => return Ok(None),
+    };
+    let conflict = layout_conflict_dict(py, kind, qubit, source_positions, roles)?;
+    let witnesses = PyList::empty(py);
+    for witness in related {
+        let detail = layout_conflict_dict(
+            py,
+            "live_qubit_reuse",
+            &witness.qubit,
+            &witness.source_positions,
+            vec![
+                ("producer", &witness.producer),
+                ("consumer", &witness.consumer),
+                ("reuser", &witness.reuser),
+            ],
+        )?;
+        witnesses.append(detail)?;
+    }
+    conflict.set_item("related", witnesses)?;
+    Ok(Some(conflict))
+}
+
+fn layout_conflict_dict<'py>(
+    py: Python<'py>,
+    kind: &str,
+    qubit: &glam::IVec2,
+    source_positions: &[(bloq_ir::BloqNodeId, Vec<glam::IVec3>)],
+    roles: Vec<(&str, &bloq_ir::BloqNodeId)>,
+) -> PyResult<Bound<'py, PyDict>> {
+    let conflict = PyDict::new(py);
+    conflict.set_item("kind", kind)?;
+    conflict.set_item("qubit", (qubit.x, qubit.y))?;
+    conflict.set_item("related", PyList::empty(py))?;
+    for (role, id) in roles {
+        let node = PyDict::new(py);
+        node.set_item("id", id.0)?;
+        let positions = source_positions
+            .iter()
+            .find(|(source_id, _)| source_id == id)
+            .into_iter()
+            .flat_map(|(_, positions)| positions)
+            .map(|p| (p.x, p.y, p.z))
+            .collect::<Vec<_>>();
+        node.set_item("blocks", positions)?;
+        conflict.set_item(role, node)?;
+    }
+    Ok(conflict)
 }
 
 pub(crate) const LIMIT_OVERRIDE_HELP: &str = "Retry with a larger count or None in the matching limits entry \

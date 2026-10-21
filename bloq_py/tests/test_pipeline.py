@@ -9,6 +9,7 @@ import pickle
 import sys
 import warnings
 from collections.abc import Hashable
+from pathlib import Path
 
 import pytest
 import stim
@@ -403,6 +404,28 @@ def test_exception_hierarchy():
     assert issubclass(bloq.BloqError, Exception)
 
 
+@pytest.mark.parametrize("defer_analysis", [False, True])
+def test_compile_lifetime_conflict_exposes_source_positions(defer_analysis):
+    source = Path(__file__).resolve().parents[2] / "bloq_compile/tests/data/late_control_t.blog"
+    graph = bloq.BlockGraph.from_text(source.read_text())
+    if defer_analysis:
+        graph.set_actions(graph.actions(), defer_analysis=True)
+        graph = bloq.BlockGraph.definition("main", graph, defer_analysis=True)
+    with pytest.raises(bloq.CompileError, match="reuses live qubit") as caught:
+        bloq.compile(graph, distance=3, prepare_t_with_mpps=True)
+    conflict = caught.value.layout_conflict
+    positions = set(graph.positions())
+    witnesses = [conflict, *conflict["related"]]
+    assert 1 <= len(witnesses) <= 64
+    for witness in witnesses:
+        assert witness["kind"] == "live_qubit_reuse"
+        assert len(witness["qubit"]) == 2
+        for role in ("producer", "consumer", "reuser"):
+            node = witness[role]
+            assert isinstance(node["id"], int)
+            assert node["blocks"] and set(node["blocks"]) <= positions
+
+
 # ---------------------------------------------------------------------------
 # BlockKind
 # ---------------------------------------------------------------------------
@@ -602,6 +625,7 @@ def test_compiler_limit_overrides_and_argument_errors():
         with pytest.raises(bloq.CompileError, match="> 0") as refused:
             compile_graph({"max_expanded_blocks": 0})
         assert "limits=" in str(refused.value)
+        assert refused.value.layout_conflict is None
         compile_graph({"max_expanded_blocks": None})
 
     with pytest.raises(bloq.CompileError, match="Boolean work steps.*> 0"):

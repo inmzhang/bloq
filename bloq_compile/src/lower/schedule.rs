@@ -415,6 +415,10 @@ fn plan_live_era_reordering(
                             consumer,
                             reuser,
                             qubit,
+                            source_positions: crate::error::layout_conflict_sources(
+                                [producer, consumer, reuser].map(|id| (id, &bloq[id])),
+                            ),
+                            related: Vec::new(),
                         });
                     }
                     if !bloq.has_path_with_scratch(from, to, scratch) {
@@ -853,7 +857,9 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
     // Forward edges cannot close a cycle until a backward edge is inserted.
     let mut ranked = true;
     let mut scratch = bloq.path_scratch();
-    for (_, backward, from, to) in pairs {
+    let mut failure = None;
+    let mut conflicts = crate::FxSet::default();
+    'pairs: for (_, backward, from, to) in pairs {
         if has_edge(bloq, from, to) {
             continue;
         }
@@ -861,35 +867,83 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
             || (ranked && !backward)
             || !bloq.has_path_with_scratch(to, from, &mut scratch)
         {
-            bloq.add_edge(from, to, BloqEdge::Order);
-            ranked &= !backward;
+            if failure.is_none() {
+                bloq.add_edge(from, to, BloqEdge::Order);
+                ranked &= !backward;
+            }
             continue;
         }
         ranked = false;
-        for (from, to) in plan_live_era_reordering(
-            bloq,
-            from,
-            to,
-            &neighbors.predecessors,
-            LiveDirection::BeforeInputs,
-            &mut live_supports,
-            &mut scratch,
-        )? {
-            bloq.add_edge(from, to, BloqEdge::Order);
-        }
-        for (before, after) in plan_live_era_reordering(
-            bloq,
-            to,
-            from,
-            &neighbors.successors,
-            LiveDirection::AfterOutputs,
-            &mut live_supports,
-            &mut scratch,
-        )? {
-            bloq.add_edge(before, after, BloqEdge::Order);
+        for (endpoint, reuser, adjacent, direction) in [
+            (
+                from,
+                to,
+                &neighbors.predecessors,
+                LiveDirection::BeforeInputs,
+            ),
+            (to, from, &neighbors.successors, LiveDirection::AfterOutputs),
+        ] {
+            match plan_live_era_reordering(
+                bloq,
+                endpoint,
+                reuser,
+                adjacent,
+                direction,
+                &mut live_supports,
+                &mut scratch,
+            ) {
+                Ok(ordering) if failure.is_none() => {
+                    for (before, after) in ordering {
+                        bloq.add_edge(before, after, BloqEdge::Order);
+                    }
+                }
+                Ok(_) => {}
+                Err(mut error @ crate::CompileError::LiveQubitReuse { .. }) => {
+                    let crate::CompileError::LiveQubitReuse {
+                        producer,
+                        consumer,
+                        reuser,
+                        qubit,
+                        source_positions,
+                        ..
+                    } = &mut error
+                    else {
+                        unreachable!()
+                    };
+                    if !conflicts.insert((*producer, *consumer, *reuser)) {
+                        continue;
+                    }
+                    if let Some(crate::CompileError::LiveQubitReuse { related, .. }) = &mut failure
+                    {
+                        related.push(crate::QubitReuseConflict {
+                            producer: *producer,
+                            consumer: *consumer,
+                            reuser: *reuser,
+                            qubit: *qubit,
+                            source_positions: std::mem::take(source_positions),
+                        });
+                    } else {
+                        // Keep the first error and freeze the IR here. Later
+                        // planners only diagnose this same failed prefix;
+                        // their proposed edges must never influence witnesses.
+                        failure = Some(error);
+                    }
+                    if conflicts.len() == 64 {
+                        break 'pairs;
+                    }
+                }
+                Err(error) => {
+                    if failure.is_none() {
+                        return Err(error);
+                    }
+                    // Auxiliary diagnostics cannot replace the original
+                    // failure. Resource/guard limits end the partial scan.
+                    break 'pairs;
+                }
+            }
         }
     }
-    Ok(())
+    failure.map_or(Ok(()), Err)
 }
 
 #[cfg(test)]
@@ -1014,14 +1068,83 @@ mod tests {
             bloq.add_edge(producer, consumer, BloqEdge::quantum(vec![]));
             bloq.add_edge(producer, reuser, BloqEdge::Order);
             bloq.add_edge(reuser, consumer, BloqEdge::Order);
+            let error = induce_occupancy_order_edges(&mut bloq).unwrap_err();
             assert!(matches!(
-                induce_occupancy_order_edges(&mut bloq),
-                Err(crate::CompileError::LiveQubitReuse {
+                &error,
+                crate::CompileError::LiveQubitReuse {
                     producer: actual_producer, consumer: actual_consumer,
-                    reuser: actual_reuser, qubit,
-                }) if (actual_producer, actual_consumer, actual_reuser, qubit)
+                    reuser: actual_reuser, qubit, ..
+                } if (*actual_producer, *actual_consumer, *actual_reuser, *qubit)
                     == (producer, consumer, reuser, ivec2(0, 0))
             ));
+            let crate::CompileError::LiveQubitReuse {
+                source_positions, ..
+            } = error
+            else {
+                unreachable!()
+            };
+            assert_eq!(
+                source_positions.as_ref(),
+                &[
+                    (producer, vec![ivec3(0, 0, 0)]),
+                    (consumer, vec![ivec3(0, 0, 2)]),
+                    (reuser, vec![ivec3(0, 0, 4)]),
+                ]
+            );
+        }
+    }
+
+    #[test]
+    fn live_reuse_diagnostics_batch_independent_conflicts_without_changing_the_failed_ir() {
+        for count in [2, 70] {
+            let mut bloq = Bloq::new();
+            let mut expected = Vec::new();
+            for x in 0..count {
+                let producer = add_live_node(&mut bloq, 0, false, true);
+                let consumer = add_live_node(&mut bloq, 2, true, false);
+                let reuser = add_block_node(&mut bloq, ivec3(x, 0, 4), ivec2(2 * x, 0));
+                for (id, z) in [(producer, 0), (consumer, 2)] {
+                    let node = bloq.node_mut(id).unwrap();
+                    node.provenance = bloq_ir::NodeProvenance::BlockComponent {
+                        members: vec![SourceBlockRef {
+                            pos: ivec3(x, 0, z),
+                        }],
+                    };
+                    node.expect_quantum_mut().instances[0].offset = ivec2(2 * x, 0);
+                }
+                bloq.add_edge(producer, consumer, BloqEdge::quantum(vec![]));
+                bloq.add_edge(producer, reuser, BloqEdge::Order);
+                bloq.add_edge(reuser, consumer, BloqEdge::Order);
+                expected.push((producer, consumer, reuser));
+            }
+            let before = order_edges(&bloq);
+            let error = induce_occupancy_order_edges(&mut bloq).unwrap_err();
+            assert_eq!(order_edges(&bloq), before);
+            assert_eq!(
+                error.to_string(),
+                "WF-LAYOUT: node BloqNodeId(2) reuses live qubit IVec2(0, 0) after producer BloqNodeId(0) but before its required consumer BloqNodeId(1); the required execution order cannot preserve the pending quantum state"
+            );
+            let crate::CompileError::LiveQubitReuse {
+                producer,
+                consumer,
+                reuser,
+                related,
+                ..
+            } = error
+            else {
+                unreachable!()
+            };
+            let actual: Vec<_> = std::iter::once((producer, consumer, reuser))
+                .chain(related.iter().map(|w| (w.producer, w.consumer, w.reuser)))
+                .collect();
+            assert_eq!(actual, expected[..expected.len().min(64)]);
+            for (x, witness) in related.iter().enumerate() {
+                assert_eq!(witness.qubit, ivec2(2 * (x as i32 + 1), 0));
+                assert_eq!(
+                    witness.source_positions[0].1,
+                    vec![ivec3(x as i32 + 1, 0, 0)]
+                );
+            }
         }
     }
 

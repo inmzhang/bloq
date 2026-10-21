@@ -196,11 +196,13 @@ def test_structured_equals_parsed_gallery_actions():
     assert g.actions() == structured_t_actions()
 
 
-def test_set_actions_round_trips_to_text():
+@pytest.mark.parametrize("defer_analysis", [False, True])
+def test_set_actions_round_trips_to_text(defer_analysis):
     g = bloq.GalleryItem("t_gate").load()
     original = g.to_text()
-    g.set_actions(structured_t_actions())
+    g.set_actions(structured_t_actions(), defer_analysis=defer_analysis)
     assert g.to_text() == original
+    g.validate()
 
 
 def test_set_actions_matches_text_path():
@@ -313,3 +315,23 @@ def test_three_bit_adder_action_svg_contains_every_node_and_edge(tmp_path, monke
         "Classical", "SelectiveSupport", "ReadoutParity", "FeedbackAnticommutation"
     }
     assert all(0 <= a < len(dag) and 0 <= b < len(dag) for a, b, _ in dag.dependencies())
+
+
+@pytest.mark.parametrize("defer_analysis", [False, True])
+def test_action_install_preserves_source_checks_and_atomicity(defer_analysis):
+    graph = bloq.GalleryItem.T_GATE.load()
+    before = graph.to_text()
+    with pytest.raises(bloq.BlockGraphError):
+        graph.set_actions([bloq.Action.discard_if("undefined")], defer_analysis=defer_analysis)
+    assert graph.to_text() == before
+
+
+def test_deferred_definition_preserves_external_input_contract():
+    body = bloq.GalleryItem.S_GATE.load().flatten()
+    actions = [bloq.Action.feedback([("Z", (0, 0, 2))], "control")]
+    options = dict(bit_inputs=["control"], actions=actions)
+    eager = bloq.BlockGraph.definition("Gate", body, **options)
+    deferred = bloq.BlockGraph.definition("Gate", body, defer_analysis=True, **options)
+    assert deferred.to_text() == eager.to_text()
+    with pytest.raises(bloq.BlockGraphError):
+        bloq.BlockGraph.definition("Gate", body, actions=actions, defer_analysis=True)

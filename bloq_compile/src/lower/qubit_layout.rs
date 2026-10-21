@@ -167,6 +167,9 @@ fn validate_level_qubit_layout(
                     first: BloqNodeId(left),
                     second: right_id,
                     qubit: IVec2::new(x, y),
+                    source_positions: crate::error::layout_conflict_sources(
+                        [BloqNodeId(left), right_id].map(|id| (id, &level[id])),
+                    ),
                 });
             }
             for footprint in footprints {
@@ -588,6 +591,7 @@ mod tests {
                         first: actual_first,
                         second: actual_second,
                         qubit: actual_qubit,
+                        ..
                     }),
                 ) => assert_eq!(
                     (actual_first, actual_second, actual_qubit),
@@ -706,7 +710,12 @@ mod tests {
                 first: actual_first,
                 second: actual_second,
                 qubit,
+                ref source_positions,
             } if actual_first == first && actual_second == third && qubit == ivec2(6, 0)
+                && source_positions.as_ref() == [
+                    (first, vec![ivec3(0, 0, 0)]),
+                    (third, vec![ivec3(2, 0, 0)]),
+                ]
         ));
     }
 

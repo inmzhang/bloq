@@ -81,7 +81,7 @@ pub use compile::{
     compile_with, compiled_distance,
 };
 pub use config::{CompileConfig, MAX_CODE_DISTANCE, spatial_hadamard_distance_warning};
-pub use error::{CompileError, InvalidDistance, WalkError};
+pub use error::{CompileError, InvalidDistance, QubitReuseConflict, WalkError};
 pub(crate) use error::{add_resource, check_resource};
 pub use lower::validate_bloq_qubit_layout_for_source;
 pub use signature::Connectivity;

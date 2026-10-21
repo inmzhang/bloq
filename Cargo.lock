@@ -2348,6 +2348,7 @@ dependencies = [
  "bloq_stim",
  "bloq_utils",
  "bloq_vm",
+ "glam",
  "pyo3",
  "pyo3-stub-gen",
  "rand 0.10.3",

@@ -520,7 +520,7 @@ class BlockGraph:
             2
         """
     @staticmethod
-    def definition(name: builtins.str, body: BlockGraph, *, inputs: dict[str, tuple[int, int, int]] | None = None, outputs: dict[str, tuple[int, int, int]] | None = None, bit_inputs: typing.Optional[typing.Sequence[builtins.str]] = None, bit_outputs: dict[str, Expr | str] | None = None, actions: typing.Optional[typing.Sequence[Action]] = None, resources: typing.Optional[typing.Mapping[builtins.str, builtins.str]] = None) -> BlockGraph:
+    def definition(name: builtins.str, body: BlockGraph, *, inputs: dict[str, tuple[int, int, int]] | None = None, outputs: dict[str, tuple[int, int, int]] | None = None, bit_inputs: typing.Optional[typing.Sequence[builtins.str]] = None, bit_outputs: dict[str, Expr | str] | None = None, actions: typing.Optional[typing.Sequence[Action]] = None, resources: typing.Optional[typing.Mapping[builtins.str, builtins.str]] = None, defer_analysis: builtins.bool = False) -> BlockGraph:
         r"""
         Copies a graph into a reusable module definition.
         Omitted interface arguments retain the body's existing declarations.
@@ -538,6 +538,9 @@ class BlockGraph:
             bit_outputs: Exported expressions or local/child value names.
             actions: Optional replacement actions, using the declared bit inputs.
             resources: Quantum port resource types; unspecified ports use `data`.
+            defer_analysis: Validate source actions now and defer readout surfaces
+                and implicit dependencies. Validate or compile the completed graph
+                before execution; the default performs this analysis eagerly.
 
         Raises:
             InvalidArgumentError: If a resource names an undeclared port.
@@ -1167,16 +1170,19 @@ class BlockGraph:
             BlockGraphError: If action semantics, measurement-surface derivation,
                 or the resulting dependency DAG is invalid.
         """
-    def set_actions(self, actions: typing.Sequence[Action]) -> None:
+    def set_actions(self, actions: typing.Sequence[Action], *, defer_analysis: builtins.bool = False) -> None:
         r"""
-        Replaces all actions, rederiving measurement surfaces and the action DAG.
+        Replaces all actions, deriving measurement surfaces and dependencies eagerly by default.
 
         Args:
             actions: The structured actions to install, replacing any existing.
+            defer_analysis: Validate source actions now and defer readout surfaces
+                and implicit dependencies. Validate or compile the completed graph
+                before execution; the default performs this analysis eagerly.
 
         Raises:
-            BlockGraphError: If action semantics, measurement-surface derivation,
-                or the resulting dependency DAG is invalid.
+            BlockGraphError: If source actions are invalid, or eager readout and
+                dependency analysis fails.
         """
     def actions(self) -> builtins.list[Action]:
         r"""
@@ -3055,6 +3061,15 @@ class CompileContext:
 class CompileError(BloqError):
     r"""
     Lowering a block graph to Bloq IR failed.
+
+    The ``layout_conflict`` attribute is None except for physical ownership
+    conflicts. Its dictionary contains ``kind``, the physical ``qubit`` coordinate,
+    and conflicting nodes: ``producer``, ``consumer``, ``reuser`` for live-state
+    reuse, or ``first``, ``second`` for same-layer overlap. Each node contains its
+    graph-local ``id`` and sorted source ``blocks`` coordinates. Pipe endpoints
+    and nested region members are included; synthetic nodes may have no blocks.
+    ``related`` contains additional reuse witnesses from the same frozen failed
+    scheduling state. This bounded diagnostic list may be partial or empty.
     """
     ...
 
