@@ -125,8 +125,6 @@ def _convert(source, target, schedule, routing, *, _build=None):
     nodes, edges, zs = diagram(source, target, schedule, routing)
     routes = {c.measurement_id: (c, layer) for layer in routing.layers for c in layer.connections}
     actions = [bloq.Action.feedback([bloq.FeedbackTarget(pauli, nodes[n]['position'], direction='+Z')]) for n, pauli in zs]
-    # Feedback targets and their legs keep the frames their Paulis name.
-    fixed = {n for target, _ in zs for edge in edges if target in edge for n in edge}
     resources = []
     s_gadgets = set()
     for n, d in nodes.items():
@@ -160,14 +158,13 @@ def _convert(source, target, schedule, routing, *, _build=None):
                 p = nodes[root]['position']
                 leg = _latest_leg(p, (nodes[b if a == root else a]['position'] for a, b in edges if root in (a, b)))
                 actions.append(bloq.Action.feedback([bloq.FeedbackTarget('Z', p, direction=leg)]))
-                fixed.update(n for edge in edges if root in edge for n in edge)
     expected_s = {gadget for gadget, (kind, _, _) in gadgets.items() if kind == 'S'}
     if s_gadgets != expected_s:
         raise SpiderLSImportError('source_provenance', 'Missing S endpoint')
     expected = {ms[0].measurement_id for kind, _, ms in gadgets.values() if kind == 'T'}
     if {mid for _, _, mid in resources} != expected or len(resources) != len(expected):
         raise SpiderLSImportError('source_provenance', 'Missing or duplicate T endpoint')
-    push_spatial_hadamards(nodes, edges, fixed)
+    actions = push_spatial_hadamards(nodes, edges, actions=actions)
     resources = [(node, phase, f'spiderls_t_{mid}') for node, phase, mid in resources]
     if _build is not None:
         return _build(nodes, edges, len(source.inputs()), actions, resources)

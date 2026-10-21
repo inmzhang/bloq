@@ -364,23 +364,28 @@ def hadamard_axes(graph):
     return [str(p.direction)[1] for p in graph.flatten().pipes() if p.hadamard]
 
 
-def test_spatial_walls_move_to_temporal_pipes_without_changing_the_channel():
+@pytest.mark.parametrize(('target', 'pauli'), [(None, None), ('b', 'X'), ('b', 'Z'), ('c', 'X'), ('c', 'Z')])
+def test_spatial_walls_move_to_temporal_pipes_without_changing_the_channel(target, pauli):
     nodes, edges = turn()
     source = copy.deepcopy(nodes)
-    push_spatial_hadamards(nodes, edges)
+    actions = ([] if target is None else [bloq.Action.feedback([
+        bloq.FeedbackTarget(pauli, nodes[target]['position'], direction='+X' if target == 'b' else '+Z')
+    ])])
+    transported = push_spatial_hadamards(nodes, edges, actions=actions)
     assert {n: d["tqec"] for n, d in nodes.items() if d["tqec"] != source[n]["tqec"]} == {"c": "ZXZ"}
-    pushed, _, _ = build_graph(nodes, edges, 1, [])
-    original, _, _ = build_graph(source, edges, 1, [])
+    pushed, _, _ = build_graph(nodes, edges, 1, transported)
+    original, _, _ = build_graph(source, edges, 1, actions)
     assert hadamard_axes(original) == ["X"]
     assert hadamard_axes(pushed) == ["Z"]
     for state in ("zero", "plus"):
         expected, actual = (
-            bloq.run_noiseless(bloq.compile(graph, distance=3), input_state=state)["samples"][0]["logical_bloch"][0]
+            bloq.run_noiseless(bloq.compile(graph, distance=3, prepare_t_with_mpps=True),
+                               input_state=state)["samples"][0]["logical_bloch"][0]
             for graph in (original, pushed)
         )
         assert actual == pytest.approx(expected, abs=1e-8)
     again = copy.deepcopy(nodes)
-    push_spatial_hadamards(again, edges)
+    assert push_spatial_hadamards(again, edges, actions=transported) == transported
     assert again == nodes
 
 
@@ -388,6 +393,32 @@ def test_conflicting_fixed_frames_keep_the_wall():
     nodes, edges = turn()
     source = copy.deepcopy(nodes)
     push_spatial_hadamards(nodes, edges, fixed={"b", "c"})
+    assert nodes == source
+
+
+def test_feedback_transport_preserves_guards_directions_and_unchanged_endpoint_frames():
+    nodes, edges = turn()
+    guard = bloq.Expr.var('control')
+    action = bloq.Action.feedback([
+        bloq.FeedbackTarget('Z', nodes['b']['position'], direction='+X'),
+        bloq.FeedbackTarget('Z', nodes['c']['position'], direction='+Z'),
+    ], guard)
+    transported = push_spatial_hadamards(nodes, edges, actions=[action])
+    assert transported == [bloq.Action.feedback([
+        bloq.FeedbackTarget('Z', nodes['b']['position'], direction='+X'),
+        bloq.FeedbackTarget('X', nodes['c']['position'], direction='+Z'),
+    ], guard)]
+
+
+@pytest.mark.parametrize('action', [
+    bloq.Action.feedback([bloq.FeedbackTarget('Y', (1, 0, 1), direction='+Z')]),
+    bloq.Action.feedback([bloq.FeedbackTarget('X', (1, 0, 1))]),
+    bloq.Action.measure(bloq.MeasureTarget.edge((1, 0, 1), '+Z'), 'readout'),
+])
+def test_unproved_action_frames_stay_fixed_during_hadamard_push(action):
+    nodes, edges = turn()
+    source = copy.deepcopy(nodes)
+    assert push_spatial_hadamards(nodes, edges, actions=[action]) == [action]
     assert nodes == source
 
 

@@ -82,20 +82,31 @@ def _transverse_flips(nodes, a, b):
     return [ka[i] != kb[i] for i in range(3) if i != axis] if ka in _CUBES and kb in _CUBES else [False, False]
 
 
-def push_spatial_hadamards(nodes, edges, fixed=()):
+def push_spatial_hadamards(nodes, edges, fixed=(), *, actions=()):
     """Move spatial Hadamards into time, or retain walls on only one axis.
 
     A ZX color change swaps a cube's X and Z faces, toggling every incident
-    Hadamard. Cubes touching other blocks, or listed in ``fixed``, keep their
-    frames. If those anchors prevent removing every wall, solve each choice
-    of remaining spatial axis. Unsatisfiable components keep their frames.
+    Hadamard. Edge feedback follows its source endpoint's frame: X and Z
+    exchange when that endpoint flips. Other action targets, resource frames,
+    and explicit ``fixed`` anchors stay fixed. Return the transported actions.
+    If complete elimination fails, try retaining one spatial wall axis.
     """
     def cube(n):
         return nodes[n]["other"] is None and nodes[n]["tqec"] in _CUBES
 
-    fixed = set(fixed)
+    fixed, actions = set(fixed), list(actions)
+    anchored: set[Position] = set()
+    for action in actions:
+        if action.feedback_targets is not None:
+            anchored.update(t.pos for t in action.feedback_targets
+                            if t.direction is None or str(t.pauli) == 'Y')
+        else:
+            anchored.update(p for p in (action.target.pos if action.target is not None else None,
+                                       action.resolve_target, action.branch_target) if p is not None)
     spatial = defaultdict(list)
     for a, b in edges:
+        if _position(nodes[a]['position']) in anchored or _position(nodes[b]['position']) in anchored:
+            fixed.update((a, b))
         if not (cube(a) and cube(b)):
             fixed.update((a, b))
         elif (axis := _direction(_position(nodes[a]["position"]), _position(nodes[b]["position"]))[1]) != "Z":
@@ -127,6 +138,7 @@ def push_spatial_hadamards(nodes, edges, fixed=()):
         return result
 
     seen: set[Any] = set()
+    flipped = set()
     for start in list(spatial):
         if start in seen:
             continue
@@ -153,6 +165,11 @@ def push_spatial_hadamards(nodes, edges, fixed=()):
         for n, flip in flips.items():
             if flip:
                 nodes[n]["tqec"] = nodes[n]["tqec"].translate(_COLOR_CHANGE)
+                flipped.add(_position(nodes[n]['position']))
+    return [bloq.Action.feedback([
+        bloq.FeedbackTarget(str(t.pauli).translate(_COLOR_CHANGE) if t.pos in flipped else t.pauli,
+                            t.pos, direction=t.direction) for t in action.feedback_targets
+    ], action.condition) if action.feedback_targets is not None else action for action in actions]
 
 
 def _latest_leg(start: Position, legs) -> str:

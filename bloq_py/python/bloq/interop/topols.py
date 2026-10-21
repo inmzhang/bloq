@@ -162,7 +162,6 @@ def _convert(embedding: dict[str, Any], qubits: int, *, _build=None) -> tuple[bl
     occupied = {_position(data["position"]) for data in nodes.values()}
     resources = {"S": 0, "T": 0}
     t_resources = []
-    fixed = set()
     # Reserve signed Y caps before placing the movable T endpoints.
     for node, data in list(nodes.items()):
         other = data["other"]
@@ -218,11 +217,10 @@ def _convert(embedding: dict[str, Any], qubits: int, *, _build=None) -> tuple[bl
             p = _position(nodes[root]["position"])
             leg = _latest_leg(p, (nodes[n]["position"] for n in neighbors[root]))
             actions.append(bloq.Action.feedback([bloq.FeedbackTarget("Z", p, direction=leg)]))
-            fixed.update([root, *neighbors[root]])
     for resource, typ in (("S", 4), ("T", 5)):
         if resources[resource] != sum(t == typ for t in embedding["type_hist"].values()):
             raise TopoLSImportError("source_provenance", f"Missing or duplicate {resource} attachment")
-    push_spatial_hadamards(nodes, edges, fixed)
+    actions = push_spatial_hadamards(nodes, edges, actions=actions)
     if _build is not None:
         return _build(nodes, edges, qubits, actions, t_resources)
     actions.extend(add_t_resources(nodes, edges, t_resources))
