@@ -1,0 +1,6 @@
+# Linked evidence is retained in artifacts.tar.zst; extraction stays local.
+*
+!.gitignore
+!README.md
+!report.pdf
+!artifacts.tar.zst
