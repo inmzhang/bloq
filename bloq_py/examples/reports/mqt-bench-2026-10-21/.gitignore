@@ -8,3 +8,7 @@
 compact-placement/*
 !compact-placement/report.pdf
 !compact-artifacts.tar.zst
+!native-reuse/
+native-reuse/*
+!native-reuse/comparison.pdf
+!native-reuse-artifacts*.tar.zst

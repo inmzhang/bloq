@@ -1,22 +1,35 @@
 # MQT Bench compilation catalog — 2026-10-21
 
-[Read the report](report.pdf). It records 63 successful distance-25 compilations
-across 30 circuit cases and 23 algorithm families: SpiderLS 30, TopoLS 25, and
-Topologiq 8. Twenty-six runs also pass sampled QuiZX and distance-3 VM checks
-with ideal T sources. Large runs, including the 32-qubit CDKM adder, are
-compilation-only results. The report retains unsuccessful and inconclusive
-outcomes separately.
+[Read the accepted catalog](report.pdf). It selects 65 successful
+compilations at requested distance 25 across 31 circuit cases and
+24 algorithm families: SpiderLS 31,
+TopoLS 26, and Topologiq 8.
+26 selected runs also have sampled QuiZX and distance-3 VM checks
+with ideal T sources. Compilation, synthesis approximation, partial or inconclusive
+checks, and sampled execution remain separate claims.
+Another 3 selected runs pass VM checks
+while their bounded logical checks remain inconclusive; they carry no logical-channel proof.
+Requested distances are nominal: retained spatial-Hadamard warnings can indicate
+lower effective circuit distance. No measured-distance guarantee is claimed.
 
-The [compact-placement addendum](compact-placement/report.pdf) records ten new
-compilations and compares their geometry with the rejected exterior-bank
-prototype. QAOA3/SpiderLS uses 73.5% less bounding area and 31% fewer occupied
-spatial columns. These compilation-only additions retain private factory
-columns; they do not claim optimal packing or VM execution.
+The [native T-patch reuse comparison](native-reuse/comparison.pdf) records
+26 strict footprint improvements and 2 new compiler–circuit
+pairs. Equal or worse footprints and unsuccessful replays retain accepted baseline
+artifacts. Replacements increase none of bounding XY area, occupied columns, blocks,
+or temporal extent. All 65 replay outcomes and every historical result remain in
+their original ledgers. New layouts receive semantic evidence only through exact
+BLOG, lowered-QASM, and program hashes.
 
-The PDFs are available directly. Their relative links become usable after extracting
-`artifacts.tar.zst` and `compact-artifacts.tar.zst` into this directory. The archive retains the Typst source,
-ledgers, provenance, QASM, BLOG, binary IR, previews, interactive viewers, and
-stage logs. Unpacked evidence is ignored by Git.
+The [earlier compact-placement addendum](compact-placement/report.pdf) and the
+historical catalog retained in the archives document the prior private-factory-column
+experiments. Current reuse candidates instead pass native lifetime and dependency
+validation. These results do not claim optimal packing or large-circuit execution.
+
+The PDFs are available directly. Extract all evidence layers below to enable their
+relative links to QASM, BLOG, distance-25 IR, previews, viewers, logs, and provenance.
+The two historical archives remain byte-for-byte unchanged; the native-reuse layer
+adds the reviewed selection and retains older evidence. Unpacked files are ignored
+by Git.
 
 Run from the repository root, with `tar` and `zstd` installed:
 
@@ -25,13 +38,17 @@ rtk proxy tar --zstd -xf bloq_py/examples/reports/mqt-bench-2026-10-21/artifacts
     -C bloq_py/examples/reports/mqt-bench-2026-10-21
 rtk proxy tar --zstd -xf bloq_py/examples/reports/mqt-bench-2026-10-21/compact-artifacts.tar.zst \
     -C bloq_py/examples/reports/mqt-bench-2026-10-21
+rtk proxy tar --zstd -xf bloq_py/examples/reports/mqt-bench-2026-10-21/native-reuse-artifacts-01.tar.zst \
+    -C bloq_py/examples/reports/mqt-bench-2026-10-21
+rtk proxy tar --zstd -xf bloq_py/examples/reports/mqt-bench-2026-10-21/native-reuse-artifacts-02.tar.zst \
+    -C bloq_py/examples/reports/mqt-bench-2026-10-21
+rtk proxy tar --zstd -xf bloq_py/examples/reports/mqt-bench-2026-10-21/native-reuse-artifacts-03.tar.zst \
+    -C bloq_py/examples/reports/mqt-bench-2026-10-21
 rtk proxy python3 bloq_py/examples/mqt_bench_report.py \
     bloq_py/examples/reports/mqt-bench-2026-10-21 --verify
 ```
 
-Verification checks every retained artifact hash and local file link. Open the
-extracted `layout.html` files through the report's viewer links. The recorded
-manifests identify the source revisions and patches used for the experiments;
-subsequent cleanup commits do not alter that evidence.
-
-For new experiments, follow [the MQT Bench tutorial](../../../../docs/tutorials/mqt-bench.md).
+Verification checks retained artifact hashes and local links. The manifests record
+source revisions, patches, exact inputs, seeds, and source snapshots; later cleanup
+commits do not change that evidence. For new runs, follow the
+[MQT Bench tutorial](../../../../docs/tutorials/mqt-bench.md).
