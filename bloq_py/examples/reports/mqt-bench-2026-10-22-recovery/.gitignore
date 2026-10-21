@@ -1,0 +1,5 @@
+*
+!.gitignore
+!README.md
+!report.pdf
+!artifacts*.tar.zst
