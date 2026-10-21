@@ -57,7 +57,8 @@ def test_compile_worker_compiles_d25_first_with_proxy_and_binary_roundtrip(drive
         initial["requested_layout_options"] = requested
     driver.save_json(run_dir / "result.json", initial)
     graph = types.SimpleNamespace(
-        save=lambda path: path.write_text("BLOG"), export_html_viewer=lambda path: path.write_text("viewer"),
+        save=lambda path: path.write_text("BLOG"),
+        export_html_viewer=lambda path: pytest.fail("IR compilation must not render a viewer"),
         to_text=lambda: "BLOG", flatten=lambda: graph, positions=lambda: [(0, 0, 0), (0, 0, 1)],
         pipes=lambda: [], block_count=2, pipe_count=1, t_count=0)
     program = types.SimpleNamespace(

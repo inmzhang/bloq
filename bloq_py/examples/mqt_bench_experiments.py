@@ -191,7 +191,6 @@ def _compile_worker(case_dir, compiler):
         if saved_graph.to_text() != graph.to_text():
             raise RuntimeError("BLOG round trip changed the imported layout")
         graph = saved_graph
-        graph.export_html_viewer(run_dir / "layout.html")
         if compiler == "topols":
             (run_dir / "normalized.qasm").write_text(imported.normalized_qasm, encoding="utf-8")
         flat = graph.flatten()

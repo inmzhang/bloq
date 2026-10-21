@@ -93,7 +93,7 @@ def experiment(root):
                     and ir.get("distance") == 25 and ir.get("t_preparation") == "ideal_t_proxy"
                     and ir.get("sha256") and row.get("layout", {}).get("blog_sha256")):
                 raise ValueError(f"{row['case']}/{row['compiler']}: incomplete distance-25 audit evidence")
-            for name in ("source.qasm", "clifford_t.qasm", "layout.blog", "layout.html",
+            for name in ("source.qasm", "clifford_t.qasm", "layout.blog",
                          "program_d25.bloq", "result.json"):
                 if not (run_dir / name).is_file():
                     raise ValueError(f"missing successful-run artifact: {run_dir / name}")
@@ -146,7 +146,7 @@ def build(root, includes=()):
 
     summary, files = collect(root, includes)
     save(root / "report-summary.json", summary)
-    assets = dict(runs={}, cases={}, thumbnails={}, provenance=sorted(
+    assets = dict(runs={}, cases={}, thumbnails={}, viewers={}, provenance=sorted(
         path for session in summary["experiments"] for path in session["provenance"]))
     limits = {session["id"]: session["manifest"].get("memory_gib", 8) for session in summary["experiments"]}
     for row in summary["runs"]:
@@ -159,6 +159,13 @@ def build(root, includes=()):
         image_dir = inside(root, f"report-images/{row['run_dir']}")
         if row.get("ir_d25", {}).get("status") == "compiled":
             image_dir.mkdir(parents=True, exist_ok=True)
+            if not (run_dir / "layout.html").is_file():
+                viewer = _bounded([sys.executable, str(Path(__file__).resolve()),
+                                   "--viewer", str(run_dir / "layout.blog"), str(image_dir / "layout.html")],
+                                  image_dir, "viewer", 120, memory_gib=min(8, limits[row["experiment"]]))
+                assets["viewers"][row["run_dir"]] = viewer
+                if viewer["status"] != "completed":
+                    (image_dir / "layout.html").unlink(missing_ok=True)
             # Each native mesh and its SVG triangles are released before the
             # next layout; rendering failures never change compilation evidence.
             rendered = _bounded([sys.executable, str(Path(__file__).resolve()),
@@ -170,7 +177,7 @@ def build(root, includes=()):
                     (image_dir / name).unlink(missing_ok=True)
         artifacts = {name: (run_dir / name).relative_to(root).as_posix()
                      for name in ARTIFACTS if name not in ("layout.svg", "layout.png") and (run_dir / name).is_file()}
-        for name in ("layout.svg", "layout.png"):
+        for name in ("layout.svg", "layout.png", "layout.html"):
             if (image_dir / name).is_file():
                 artifacts[name] = (image_dir / name).relative_to(root).as_posix()
         assets["runs"][row["run_dir"]] = artifacts
@@ -194,17 +201,24 @@ def main():
     parser.add_argument("output_dir", type=Path, nargs="?", default=ROOT / "target/mqt-bench")
     parser.add_argument("--include", type=Path, nargs="+", default=[], help="additional recorded experiment directories")
     parser.add_argument("--verify", action="store_true")
-    parser.add_argument("--thumbnail", type=Path, nargs=2, metavar=("BLOG", "SVG"), help=argparse.SUPPRESS)
+    render = parser.add_mutually_exclusive_group()
+    render.add_argument("--thumbnail", type=Path, nargs=2, metavar=("BLOG", "SVG"), help=argparse.SUPPRESS)
+    render.add_argument("--viewer", type=Path, nargs=2, metavar=("BLOG", "HTML"), help=argparse.SUPPRESS)
     args = parser.parse_args()
-    if args.thumbnail:
+    if args.thumbnail or args.viewer:
         sys.path.insert(0, str(ROOT / "tools"))
         import bloq
+
+        source, output = args.thumbnail or args.viewer
+        graph = bloq.BlockGraph.load(source)
+        if args.viewer:
+            graph.export_html_viewer(output)
+            return
         from render_block_thumbnails import thumbnail
 
-        source, output = args.thumbnail
         raster = output.with_suffix(".png")
         raster.unlink(missing_ok=True)
-        thumbnail(bloq.BlockGraph.load(source), output, source.parent.name, opaque=True)
+        thumbnail(graph, output, source.parent.name, opaque=True)
         # Large meshes exceed Typst's SVG node limit; retain a print-size preview.
         if output.stat().st_size > 8 * 1024**2:
             subprocess.run(["magick", "-background", "white", "-density", "1800", f"MSVG:{output}",

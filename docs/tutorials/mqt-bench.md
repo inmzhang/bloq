@@ -41,6 +41,8 @@ rtk proxy uv run --project bloq_py --no-sync python \
 Reports, viewers, source circuits, and binary programs stay under the output
 directory. The manifest records package versions, source hashes, upstream
 revisions and patches, and the Bloq revision and working-tree snapshot.
+Viewer meshes and static previews are generated with separate budgets when
+building the report; a rendering failure does not invalidate compiled IR.
 Add `--include target/another-run` to collect a separately recorded experiment
 in the same report. Original ledgers stay unchanged; included artifacts and
 provenance are copied into the report directory.

@@ -72,3 +72,23 @@ def test_include_rejects_recursive_copy_and_escaping_artifact_path(reporter, tmp
     reporter.save(root / "summary.json", summary)
     with pytest.raises(ValueError):
         reporter.collect(root, [])
+
+
+def test_compilation_evidence_does_not_require_a_rendered_viewer(reporter, tmp_path):
+    root = make_experiment(reporter, tmp_path, 'source')
+    summary, _ = reporter.experiment(root)
+    row = summary['runs'][0]
+    run = root / row['run_dir']
+    for name in ('source.qasm', 'clifford_t.qasm', 'layout.blog', 'program_d25.bloq'):
+        (run / name).write_text(name)
+    row.update(status='compiled',
+               layout=dict(blog_sha256=reporter.fingerprint(run / 'layout.blog')['sha256']),
+               ir_d25=dict(status='compiled', distance=25, t_preparation='ideal_t_proxy',
+                           validated=True, round_trip=True,
+                           sha256=reporter.fingerprint(run / 'program_d25.bloq')['sha256']))
+    reporter.save(root / 'summary.json', summary)
+    assert not (run / 'layout.html').exists()
+    assert reporter.experiment(root)[0]['runs'][0]['ir_d25']['status'] == 'compiled'
+    (run / 'program_d25.bloq').write_text('changed IR')
+    with pytest.raises(ValueError, match='differs from experiment evidence'):
+        reporter.experiment(root)

@@ -233,8 +233,13 @@ zero routed T resources in SpiderLS and is not a magic-state demonstration.
       #shown(assets.thumbnails.at(row.run_dir))]
     parbreak()
   }
-  align(center)[#text(size: 8pt)[Static projection of the generated block graph;
-    #link(links.at("layout.html"))[open the interactive 3D viewer].]]
+  if "layout.html" in links {
+    align(center)[#text(size: 8pt)[Static projection of the generated block graph;
+      #link(links.at("layout.html"))[open the interactive 3D viewer].]]
+  } else {
+    [Interactive viewer unavailable within its rendering budget:
+      #shown(assets.viewers.at(row.run_dir, default: (:))) ]
+  }
   parbreak()
   let ir = row.ir_d25
   table(columns: (1fr, 1fr, 1fr, 1fr),
