@@ -63,6 +63,11 @@ target/release/examples/compile_qasm circuit.qasm spiderls new-result-directory 
 The output includes BLOG, validated binary IR, persisted-file round-trip
 checks, compilation times, separate block/column/footprint/time metrics, and
 the reduction actually selected. The result directory must not already exist.
+The example compiles the persisted BLOG after exact canonical checks, including
+after flattening; full source analysis and IR validation run on that graph.
+`matched_pipeline_seconds` covers source-file reading through the validated IR
+round trip, before result metadata. `pipeline_seconds` includes that metadata
+and starts after the source-file read.
 Measure process wall time and peak RSS with an external isolated runner under
 the same CPU, memory, and timeout limits for both implementations. Column and
 footprint comparisons must consistently include extended blocks' reserved cells;

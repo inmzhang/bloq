@@ -3,7 +3,7 @@
 use std::{collections::BTreeSet, error::Error, fs, path::Path, time::Instant};
 
 use bloq_compile::CompileConfig;
-use bloq_graph::BlockGraph;
+use bloq_graph::{lower_blog_graph_ast_deferred, parse_blog_program_to_ast};
 use bloq_interop::{LayoutOptions, Strategy, layout_qasm};
 use bloq_ir::Bloq;
 use serde_json::json;
@@ -22,6 +22,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
     let distance = args.get(3).map_or(Ok(25), |s| s.parse::<u32>())?;
     let config = CompileConfig::try_new(distance)?.with_prepare_t_with_mpps(true);
+    let matched_started = Instant::now();
     let source = fs::read_to_string(&args[0])?;
     let output = Path::new(&args[2]);
     fs::create_dir(output)?;
@@ -33,7 +34,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     });
     let outcome = (|| -> Result<(), Box<dyn Error>> {
         result["failed_stage"] = "layout".into();
-        let layout = layout_qasm(
+        let mut layout = layout_qasm(
             &source,
             &LayoutOptions {
                 strategy,
@@ -45,11 +46,20 @@ fn main() -> Result<(), Box<dyn Error>> {
         result["reduction_fallback"] = json!(layout.reduction_fallback);
         let blog = layout.graph.to_blog_text();
         fs::write(output.join("layout.blog"), &blog)?;
-        if BlockGraph::from_text(&fs::read_to_string(output.join("layout.blog"))?)?.to_blog_text()
-            != blog
-        {
-            return Err("BLOG round trip changed the generated graph".into());
-        }
+        layout.graph = {
+            let parsed = lower_blog_graph_ast_deferred(&parse_blog_program_to_ast(
+                &fs::read_to_string(output.join("layout.blog"))?,
+            )?)?;
+            if parsed.to_blog_text() != blog {
+                return Err("BLOG round trip changed the generated graph".into());
+            }
+            // Restore flat dispatch; reject any geometry or interface normalization.
+            let flat = parsed.flatten()?;
+            if flat.to_blog_text() != blog {
+                return Err("BLOG flattening changed the generated graph".into());
+            }
+            flat
+        };
         let columns: BTreeSet<_> = layout
             .graph
             .occupied_positions()
@@ -109,16 +119,18 @@ fn main() -> Result<(), Box<dyn Error>> {
         {
             return Err("IR output interface differs from the source".into());
         }
-        result["physical_qubits"] = program.qubit_count()?.into();
-        result["measurements"] = program.measurement_count().into();
         let binary = program.to_binary();
         let ir_path = output.join(format!("program_d{distance}.bloq"));
         fs::write(&ir_path, &binary)?;
         // Keep only one full IR in memory during persistence verification.
         drop(program);
-        if Bloq::from_binary(&fs::read(ir_path)?)?.to_binary() != binary {
+        let persisted = Bloq::from_binary(&fs::read(ir_path)?)?;
+        if persisted.to_binary() != binary {
             return Err("IR binary round trip changed the validated program".into());
         }
+        result["matched_pipeline_seconds"] = matched_started.elapsed().as_secs_f64().into();
+        result["physical_qubits"] = persisted.qubit_count()?.into();
+        result["measurements"] = persisted.measurement_count().into();
         result["warnings"] = json!(artifacts.warnings);
         result["validated"] = true.into();
         result["blog_round_trip"] = true.into();
