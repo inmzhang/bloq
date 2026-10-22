@@ -43,7 +43,8 @@ def test_process_crashes_are_failures_without_resource_limit_evidence(driver, tm
         assert result["reason"] == f"process terminated by signal {termination}: {signal.strsignal(termination)}"
 
 
-@pytest.mark.parametrize("state", ["audited", "extra_change", "wrong_revision", "staged"])
+@pytest.mark.parametrize("state", ["audited", "extra_change", "wrong_revision", "staged",
+                                  "missing_ignored_file", "changed_ignored_file", "untracked", "git_config"])
 def test_provenance_requires_exact_audited_upstream_patch(driver, monkeypatch, tmp_path, state):
     def git(path, *arguments):
         return subprocess.check_output(["git", "-C", str(path), *arguments])
@@ -53,25 +54,41 @@ def test_provenance_requires_exact_audited_upstream_patch(driver, monkeypatch, t
         checkout.mkdir()
         git(checkout, "init", "-q")
         (checkout / "source.py").write_text("original = True\n")
+        (checkout / ".gitignore").write_text("/tests/\n")
         git(checkout, "add", ".")
         git(checkout, "-c", "user.name=Test", "-c", "user.email=test@example.invalid",
             "-c", "commit.gpgsign=false", "commit", "-qm", "fixture")
     revision = git(upstream, "rev-parse", "HEAD").decode().strip()
     source = upstream / "source.py"
     source.write_text("patched = True\n")
+    ignored = upstream / "tests/test_regressions.py"
+    ignored.parent.mkdir()
+    ignored.write_text("assert True\n")
+    git(upstream, "add", "-N", "-f", str(ignored.relative_to(upstream)))
     patch = repository / "bloq_py/examples/topols.patch"
     patch.parent.mkdir(parents=True)
     patch.write_bytes(git(upstream, "diff", "HEAD"))
+    git(upstream, "reset", "--quiet", "HEAD", "--", str(ignored.relative_to(upstream)))
     if state == "extra_change":
         source.write_text(source.read_text() + "unaudited = True\n")
     elif state == "staged":
         git(upstream, "add", ".")
+    elif state == "missing_ignored_file":
+        ignored.unlink()
+    elif state == "changed_ignored_file":
+        ignored.write_text("assert False\n")
+    elif state == "untracked":
+        (upstream / "extra.py").write_text("unaudited = True\n")
+    elif state == "git_config":
+        git(upstream, "config", "diff.noprefix", "true")
+        git(upstream, "config", "diff.mnemonicPrefix", "true")
     monkeypatch.setattr(driver, "ROOT", repository)
     monkeypatch.setattr(driver, "import_module", lambda name:
                         types.SimpleNamespace(__file__=source) if name == "topols" else
                         types.SimpleNamespace(AUDITED_REVISION="wrong" if state == "wrong_revision" else revision))
     output.mkdir()
-    if state != "audited":
+    original_index = (upstream / ".git/index").read_bytes()
+    if state not in ("audited", "git_config"):
         with pytest.raises(RuntimeError, match="staged changes" if state == "staged" else "audited revision"):
             driver._provenance(output, ["topols"])
     else:
@@ -79,6 +96,7 @@ def test_provenance_requires_exact_audited_upstream_patch(driver, monkeypatch, t
         assert provenance["revision"] == revision
         assert provenance["patch_applied"]
         assert (output / provenance["diff_file"]).read_bytes() == patch.read_bytes()
+    assert (upstream / ".git/index").read_bytes() == original_index
 
 
 def test_timeout_kills_descendants_and_preserves_compilation(driver, tmp_path):

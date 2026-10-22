@@ -51,6 +51,8 @@ def _git(path, *args):
 
 
 def _provenance(output, compilers):
+    from bloq.interop._upstream import checked_revision
+
     diff = _git(ROOT, "diff", "--binary", "HEAD")
     (output / "bloq.diff").write_bytes(diff)
     source_paths = _git(ROOT, "ls-files", "--cached", "--others", "--exclude-standard", "-z").decode().split("\0")
@@ -63,14 +65,10 @@ def _provenance(output, compilers):
         checkout = Path(module.__file__).resolve().parent
         checkout = Path(_git(checkout, "rev-parse", "--show-toplevel").decode().strip())
         patch = ROOT / f"bloq_py/examples/{compiler}.patch"
-        revision = _git(checkout, "rev-parse", "HEAD").decode().strip()
         audited_revision = import_module(f"bloq.interop.{compiler}").AUDITED_REVISION
-        if revision != audited_revision or _git(checkout, "diff", "HEAD") != patch.read_bytes():
-            raise RuntimeError(f"{compiler} must match the audited revision plus exactly {patch.name}")
-        if _git(checkout, "diff", "--cached"):
-            raise RuntimeError(f"{compiler} checkout contains staged changes")
+        revision = checked_revision(checkout, audited_revision, patch)
         upstream_diff = output / f"{compiler}.diff"
-        upstream_diff.write_bytes(_git(checkout, "diff", "--binary", "HEAD"))
+        upstream_diff.write_bytes(patch.read_bytes())
         upstream[compiler] = dict(revision=revision, patch_sha256=_digest(patch), patch_applied=True,
                                   diff_file=upstream_diff.name, diff_sha256=_digest(upstream_diff))
     packages = {}

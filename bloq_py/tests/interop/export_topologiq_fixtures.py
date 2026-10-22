@@ -15,7 +15,6 @@ from hashlib import sha256
 from importlib.metadata import version
 import json
 from pathlib import Path
-import subprocess
 import runpy
 from unittest.mock import patch
 
@@ -23,6 +22,7 @@ import topologiq
 
 from bloq.interop._qasm import parse_qasm
 from bloq.interop._topologiq_t import lower_t_gadgets
+from bloq.interop._upstream import checked_revision
 from bloq.interop.topologiq import AUDITED_REVISION, _CUBES, _convert_geometry, _direction, _routed_path, _from_qasm
 
 
@@ -299,17 +299,8 @@ def main() -> None:
     if Path(topologiq.__file__).resolve() != upstream / "src/topologiq/__init__.py":
         raise RuntimeError("Imported Topologiq does not come from --upstream-root")
 
-    def git(*arguments: str) -> str:
-        return subprocess.check_output(
-            ["git", "-C", str(upstream), *arguments], text=True,
-        ).strip()
-
-    revision = git("rev-parse", "HEAD")
     patch = repository / "bloq_py/examples/topologiq.patch"
-    if revision != AUDITED_REVISION or git("diff", "HEAD") != patch.read_text().strip():
-        raise RuntimeError("Upstream must match the audited revision plus exactly topologiq.patch")
-    if git("diff", "--cached"):
-        raise RuntimeError("Upstream checkout contains staged changes")
+    revision = checked_revision(upstream, AUDITED_REVISION, patch)
 
     destination = repository / "bloq_vm/tests/data/topologiq"
     destination.mkdir(parents=True, exist_ok=True)

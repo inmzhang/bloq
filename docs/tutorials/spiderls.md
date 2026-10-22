@@ -16,7 +16,6 @@ uv sync --project bloq_py --locked --group dev --group interop --inexact
 git clone https://github.com/fluorite42/SpiderLS ../spiderls
 git -C ../spiderls checkout 2c8c205ed3b9c707aca8b2f73c1b3bfd9b025bea
 git -C ../spiderls apply "$PWD/bloq_py/examples/spiderls.patch"
-git -C ../spiderls add -N .
 export PYTHONPATH="$PWD/../spiderls/src${PYTHONPATH:+:$PYTHONPATH}"
 uv run --project bloq_py --no-sync python bloq_py/examples/spiderls_algorithms.py \
     --candidate walk3 --shots 3 --output-dir target/spiderls-walk

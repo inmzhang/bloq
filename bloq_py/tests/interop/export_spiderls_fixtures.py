@@ -10,11 +10,11 @@ from hashlib import sha256
 import json
 from pathlib import Path
 import runpy
-import subprocess
 
 import pyzx_execution_order
 
 from bloq.interop.spiderls import AUDITED_REVISION, from_qasm
+from bloq.interop._upstream import checked_revision
 
 SOURCES = {
     "identity": (1, ""),
@@ -41,15 +41,8 @@ def checked_upstream(repository, upstream):
     if Path(pyzx_execution_order.__file__).resolve() != upstream / "src/pyzx_execution_order.py":
         raise RuntimeError("Imported SpiderLS does not come from --upstream-root")
 
-    def git(*arguments):
-        return subprocess.check_output(["git", "-C", str(upstream), *arguments], text=True)
-
-    revision = git("rev-parse", "HEAD").strip()
     patch = repository / "bloq_py/examples/spiderls.patch"
-    if revision != AUDITED_REVISION or git("diff", "HEAD") != patch.read_text():
-        raise RuntimeError("Upstream must match the audited revision plus exactly spiderls.patch")
-    if git("diff", "--cached"):
-        raise RuntimeError("Upstream checkout contains staged changes")
+    revision = checked_revision(upstream, AUDITED_REVISION, patch)
     return dict(upstream_revision=revision, upstream_patch="bloq_py/examples/spiderls.patch",
                 upstream_patch_sha256=sha256(patch.read_bytes()).hexdigest())
 

@@ -11,12 +11,12 @@ from importlib import metadata
 import json
 from pathlib import Path
 import runpy
-import subprocess
 from urllib.parse import unquote, urlparse
 
 import topols
 
 from bloq.interop.topols import AUDITED_REVISION, from_qasm
+from bloq.interop._upstream import checked_revision
 
 SOURCES = {
     "s": (1, "s q[0];"),
@@ -39,15 +39,8 @@ def checked_upstream(repository, upstream):
     if Path(topols.__file__).resolve() != upstream / "src/topols/__init__.py":
         raise RuntimeError("Imported TopoLS does not come from --upstream-root")
 
-    def git(*arguments):
-        return subprocess.check_output(["git", "-C", str(upstream), *arguments], text=True)
-
-    revision = git("rev-parse", "HEAD").strip()
     patch = repository / "bloq_py/examples/topols.patch"
-    if revision != AUDITED_REVISION or git("diff", "HEAD") != patch.read_text():
-        raise RuntimeError("Upstream must match the audited revision plus exactly topols.patch")
-    if git("diff", "--cached"):
-        raise RuntimeError("Upstream checkout contains staged changes")
+    revision = checked_revision(upstream, AUDITED_REVISION, patch)
     direct = metadata.distribution("topols-core").read_text("direct_url.json")
     source = json.loads(direct or "{}")
     url = urlparse(source.get("url", ""))

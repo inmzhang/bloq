@@ -28,8 +28,8 @@ stage logs and failures. Layout/IR, graph checks, and VM execution have separate
 budgets; see `--help` for available limits.
 The runner requires each audited upstream revision with exactly its checked-in
 integration patch. It rejects patch drift and staged changes before running cases.
-The setup's `git add -N` makes new patch files visible in that diff without
-staging their contents.
+It compares the checkout contents with the patched tree, including new files
+ignored by upstream; Git diff formatting and intent-to-add entries are irrelevant.
 The pinned 32-qubit CDKM case requests SpiderLS spacing four to leave room for
 T-factory attachments. Requested and effective layout settings are retained
 separately; the logical circuit is unchanged.
