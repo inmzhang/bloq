@@ -20,6 +20,7 @@ uv sync --project bloq_py --locked --group dev --group interop --inexact
 git clone https://github.com/tqec/topologiq ../topologiq
 git -C ../topologiq checkout d010bd3e63686c93c12c922a84a944a3386ac785
 git -C ../topologiq apply "$PWD/bloq_py/examples/topologiq.patch"
+git -C ../topologiq add -N .
 uv pip install --python bloq_py/.venv/bin/python --no-deps --editable ../topologiq
 ```
 

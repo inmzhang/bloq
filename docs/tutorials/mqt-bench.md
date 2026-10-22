@@ -15,9 +15,9 @@ The experiment runner uses POSIX process groups and resource limits. Build the
 independent graph checker once:
 
 ```sh
-rtk proxy env CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=2 cargo build --release --locked \
+env CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=2 cargo build --release --locked \
     -p bloq_vm --example verify_interop_layout
-rtk proxy uv run --project bloq_py --no-sync python \
+uv run --project bloq_py --no-sync python \
     bloq_py/examples/mqt_bench_experiments.py --cases full_adder_4_coherent grover_3 qpeexact_3 \
     --output-dir target/mqt-small --jobs 2
 ```
@@ -26,6 +26,10 @@ Omit `--cases` for the complete suite. `--compilers topols spiderls` limits
 compiler comparisons. Each run requires an empty output directory and retains
 stage logs and failures. Layout/IR, graph checks, and VM execution have separate
 budgets; see `--help` for available limits.
+The runner requires each audited upstream revision with exactly its checked-in
+integration patch. It rejects patch drift and staged changes before running cases.
+The setup's `git add -N` makes new patch files visible in that diff without
+staging their contents.
 The pinned 32-qubit CDKM case requests SpiderLS spacing four to leave room for
 T-factory attachments. Requested and effective layout settings are retained
 separately; the logical circuit is unchanged.
@@ -34,7 +38,7 @@ Generate a fresh report with Typst installed (ImageMagick is also needed for
 large layout previews):
 
 ```sh
-rtk proxy uv run --project bloq_py --no-sync python \
+uv run --project bloq_py --no-sync python \
     bloq_py/examples/mqt_bench_report.py target/mqt-small
 ```
 

@@ -19,6 +19,7 @@ uv sync --project bloq_py --locked --group dev --group interop --inexact
 git clone https://github.com/tqec/TopoLS ../topols
 git -C ../topols checkout e564d350a596cfea3227e09698733210e2e14dcf
 git -C ../topols apply "$PWD/bloq_py/examples/topols.patch"
+git -C ../topols add -N .
 uv pip install --python bloq_py/.venv/bin/python --no-deps --editable ../topols
 ```
 

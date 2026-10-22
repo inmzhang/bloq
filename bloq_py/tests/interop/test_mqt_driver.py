@@ -3,6 +3,8 @@
 from importlib import import_module
 import json
 from pathlib import Path
+import signal
+import subprocess
 import sys
 import types
 
@@ -23,6 +25,60 @@ def test_bounded_process_applies_limit_and_retains_logs(driver, tmp_path):
     assert result["status"] == "completed"
     assert int((tmp_path / result["stdout"]).read_text()) == 1024**3
     assert (tmp_path / result["stderr"]).exists()
+
+
+@pytest.mark.parametrize("termination", [signal.SIGSEGV, signal.SIGABRT, signal.SIGKILL, None]
+                         + ([signal.SIGRTMIN + 1] if hasattr(signal, "SIGRTMIN") else []))
+def test_process_crashes_are_failures_without_resource_limit_evidence(driver, tmp_path, termination):
+    code = ("raise MemoryError('test allocation')" if termination is None else
+            "import os,resource; resource.setrlimit(resource.RLIMIT_CORE,(0,0)); "
+            f"os.kill(os.getpid(),{int(termination)})")
+    result = driver._bounded([sys.executable, "-c", code], tmp_path, "crash", 5)
+    if termination is None:
+        assert result["status"] == "inconclusive"
+        assert result["reason"] == "process exceeded memory bound"
+    else:
+        assert result["status"] == "failed"
+        assert result["returncode"] == -termination
+        assert result["reason"] == f"process terminated by signal {termination}: {signal.strsignal(termination)}"
+
+
+@pytest.mark.parametrize("state", ["audited", "extra_change", "wrong_revision", "staged"])
+def test_provenance_requires_exact_audited_upstream_patch(driver, monkeypatch, tmp_path, state):
+    def git(path, *arguments):
+        return subprocess.check_output(["git", "-C", str(path), *arguments])
+
+    repository, upstream, output = [tmp_path / name for name in ("bloq", "upstream", "output")]
+    for checkout in (repository, upstream):
+        checkout.mkdir()
+        git(checkout, "init", "-q")
+        (checkout / "source.py").write_text("original = True\n")
+        git(checkout, "add", ".")
+        git(checkout, "-c", "user.name=Test", "-c", "user.email=test@example.invalid",
+            "-c", "commit.gpgsign=false", "commit", "-qm", "fixture")
+    revision = git(upstream, "rev-parse", "HEAD").decode().strip()
+    source = upstream / "source.py"
+    source.write_text("patched = True\n")
+    patch = repository / "bloq_py/examples/topols.patch"
+    patch.parent.mkdir(parents=True)
+    patch.write_bytes(git(upstream, "diff", "HEAD"))
+    if state == "extra_change":
+        source.write_text(source.read_text() + "unaudited = True\n")
+    elif state == "staged":
+        git(upstream, "add", ".")
+    monkeypatch.setattr(driver, "ROOT", repository)
+    monkeypatch.setattr(driver, "import_module", lambda name:
+                        types.SimpleNamespace(__file__=source) if name == "topols" else
+                        types.SimpleNamespace(AUDITED_REVISION="wrong" if state == "wrong_revision" else revision))
+    output.mkdir()
+    if state != "audited":
+        with pytest.raises(RuntimeError, match="staged changes" if state == "staged" else "audited revision"):
+            driver._provenance(output, ["topols"])
+    else:
+        provenance = driver._provenance(output, ["topols"])["upstream"]["topols"]
+        assert provenance["revision"] == revision
+        assert provenance["patch_applied"]
+        assert (output / provenance["diff_file"]).read_bytes() == patch.read_bytes()
 
 
 def test_timeout_kills_descendants_and_preserves_compilation(driver, tmp_path):

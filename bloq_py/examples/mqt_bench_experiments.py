@@ -63,12 +63,15 @@ def _provenance(output, compilers):
         checkout = Path(module.__file__).resolve().parent
         checkout = Path(_git(checkout, "rev-parse", "--show-toplevel").decode().strip())
         patch = ROOT / f"bloq_py/examples/{compiler}.patch"
-        applied = subprocess.run(["git", "-C", str(checkout), "apply", "--check", "-R", str(patch)],
-                                 capture_output=True).returncode == 0
+        revision = _git(checkout, "rev-parse", "HEAD").decode().strip()
+        audited_revision = import_module(f"bloq.interop.{compiler}").AUDITED_REVISION
+        if revision != audited_revision or _git(checkout, "diff", "HEAD") != patch.read_bytes():
+            raise RuntimeError(f"{compiler} must match the audited revision plus exactly {patch.name}")
+        if _git(checkout, "diff", "--cached"):
+            raise RuntimeError(f"{compiler} checkout contains staged changes")
         upstream_diff = output / f"{compiler}.diff"
         upstream_diff.write_bytes(_git(checkout, "diff", "--binary", "HEAD"))
-        upstream[compiler] = dict(revision=_git(checkout, "rev-parse", "HEAD").decode().strip(),
-                                  patch_sha256=_digest(patch), patch_applied=applied,
+        upstream[compiler] = dict(revision=revision, patch_sha256=_digest(patch), patch_applied=True,
                                   diff_file=upstream_diff.name, diff_sha256=_digest(upstream_diff))
     packages = {}
     for package in ("bloq-py", "mqt.bench", "qiskit", "pyzx", "pygridsynth", "numpy"):
@@ -105,9 +108,12 @@ def _bounded(command, directory, label, timeout, memory_gib=8):
             process.wait()
             result = dict(status="inconclusive", reason=f"timed out after {timeout:g} s", returncode=process.returncode)
     diagnostic = stderr.read_text(errors="replace")
-    if process.returncode < 0 or any(text in diagnostic.lower() for text in
-                                     ("memoryerror", "memory allocation", "cannot allocate memory", "out of memory")):
-        result.update(status="inconclusive", reason=result.get("reason", "process crashed or exceeded memory bound"))
+    if any(text in diagnostic.lower() for text in
+           ("memoryerror", "memory allocation", "cannot allocate memory", "out of memory")):
+        result.update(status="inconclusive", reason=result.get("reason", "process exceeded memory bound"))
+    elif process.returncode < 0 and "reason" not in result:
+        number = -process.returncode
+        result["reason"] = f"process terminated by signal {number}: {signal.strsignal(number)}"
     return dict(result, seconds=time.perf_counter() - started,
                 stdout=str(stdout.relative_to(directory)), stderr=str(stderr.relative_to(directory)))
 
