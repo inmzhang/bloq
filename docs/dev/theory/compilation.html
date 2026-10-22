@@ -1157,6 +1157,16 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#measuring-reuse" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Measuring reuse</span>
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2600,6 +2610,16 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#measuring-reuse" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Measuring reuse</span>
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2747,11 +2767,13 @@ compile cache already holds a finished artifact for that key and
 configuration, compilation reuses it.</p>
 <p>On a cache miss, a hierarchical graph is prepared definition by definition:</p>
 <ol class="arabic simple">
-<li><p><strong>Reuse.</strong> A definition variant compiled earlier for the same configuration
-and orientation is reused, including across different root programs.</p></li>
-<li><p><strong>Link.</strong> The root geometry is linked once. Only missing definition variants
-materialize descendant geometry, join connected ports, and qualify action
-names by instance path.</p></li>
+<li><p><strong>Reuse.</strong> Logical definition relations are shared independently of physical
+configuration; their keys include transitive definitions and certification
+limits. Physical definition variants are shared within their configuration
+and orientation. Both can be reused across different root programs.</p></li>
+<li><p><strong>Link.</strong> Each prepared definition retains its linked graph and qualified
+instance names. Certification, DAG inspection, and physical preparation reuse
+that graph. Each instance still owns its outcome names and physical records.</p></li>
 <li><p><strong>Certify.</strong> Each child definition’s public interface is checked: every
 named readout must close before its live outputs. The root is checked again
 after composition, because a new connection can make a locally valid
@@ -2762,14 +2784,19 @@ algorithm is still evolving. <a class="reference internal" href="../modules/inde
 authoring model it implements.</p>
 <h2 id="correlations">3. Correlations<a class="headerlink" href="#correlations" title="Link to this heading">¶</a></h2>
 <p>This stage computes the logical side of the program. It first builds the
-<strong>guarded topology</strong>: the reachable assignments of every selector and
-structural branch, and the local shape of each block under each assignment.
+<strong>guarded topology</strong>: shared Boolean functions describing reachability, and
+the locally reachable neighborhood variants of each block.
 Reachability here describes Boolean control, not the probability of a quantum
 outcome. If one selector is <span class="math notranslate nohighlight">\(a\)</span> and another is <span class="math notranslate nohighlight">\(\neg a\)</span>, the planner does not
 treat all four joint choices as reachable.</p>
-<p>The general composed-surface planner builds the correlation space by seam
-elimination with Boolean-guarded coefficients, plans named readouts in causal
-waves, and derives terminal frame equations. It produces these recipes:</p>
+<p>The composed-surface planner reuses compatible definition relations and closes
+parent seams with Boolean-guarded coefficients. Public module summaries derive
+their signed presentation from the same complete relation; production prepares
+the factored relation directly without computing certificate phases. Signed
+summary construction and placement map raw support directly and replay exact
+local witnesses for phases. Public boundary rows share the complete certificate’s
+storage. After composition, the planner selects named readouts in causal waves
+and derives terminal frame equations:</p>
 <table class="docutils data align-default">
 <thead>
 <tr class="row-odd"><th class="head"><p>Recipe</p></th>
@@ -2802,8 +2829,10 @@ share one quantum node. Their templates merge tick by tick, so slides and
 glides run together while preserving each patch’s measurement records.</p></li>
 <li><p><strong>Reservations.</strong> T-resource spill cells are reserved against the union of
 all alternatives that can occupy them.</p></li>
-<li><p><strong>Spatial Ports.</strong> A spatial Port expands into an inferred cube and a
-temporal Port, with explicit provenance for the substituted qubits.</p></li>
+<li><p><strong>Ports.</strong> A spatial Port expands into an inferred cube and a temporal
+boundary. Reversed temporal roles use ideal Bell adapters. Shared boundary
+planning reserves private input/output qubits against all reachable geometry;
+the IR records which instances implement ideal boundaries.</p></li>
 <li><p><strong>Coordinates.</strong> A block at <span class="math notranslate nohighlight">\((x,y)\)</span> is placed at physical offset
 <span class="math notranslate nohighlight">\((x,y)\cdot(2d+2)\)</span>. Coordinate overflow is a typed error.</p></li>
 </ul>
@@ -2825,6 +2854,13 @@ template’s measurement records.</p></li>
 </ul>
 <p>A selective cap has one template per basis. A T block has cultivation and
 escape templates, or the configured ideal preparation.</p>
+<p>Hierarchies without continuing branches retain a physical inventory per
+definition, including both arms of each selective cap. Linking chooses entries
+using the actual connectivity, orientation, boundary basis, and component
+schedule. The inventory is reusable across parent programs with different
+classical bindings: each instance binds its selector and receives its own
+measurement records during guarded assembly. Continuing branches keep their
+local guarded physical contexts.</p>
 <p><strong>Place instances.</strong> An instance places a template at an offset for one source
 block. Two instances of the same template share circuit data but own distinct
 measurement records. Structural branches become guarded instance membership
@@ -2845,6 +2881,21 @@ pattern and asks that instance’s gateway for the records that realize it. The
 records of all blocks combine into one complete <code class="docutils literal notranslate"><span class="pre">Observable</span></code> node per named
 readout or output axis. That node carries both the raw parity and the
 corrected value. The decoder estimates the difference between them.</p>
+<p>Named readouts and output frames preserve the authored physical outcome
+convention; lowering adds no separate tensor-sign bit. Closed logical
+observables absorb their gateway transport offsets into the reference parity.
+The Clifford proxy also retains public observable references for its frame
+equations: temporal-Hadamard offsets are collected together with pipe records
+and combined with spatial wall offsets. These references are distinct from
+the signed correlation certificate described in
+<a class="reference internal" href="correlation-surfaces.html#signs"><span class="std std-ref">Correlation Surfaces</span></a>.</p>
+<p>The Clifford distance proxy certifies the full guarded source, restricts its
+signed relation to jointly reachable pins, and keeps the source’s planned
+readouts and frames under those pins as its public rows. Pins follow expanded
+<code class="docutils literal notranslate"><span class="pre">(z,</span> <span class="pre">x,</span> <span class="pre">y)</span></code> block order, and structural branches require explicit projection.
+The proxy replaces T regions with perfect input ports and omits source
+feedback; check the original program with the logical or physical execution
+oracles.</p>
 <p>The source’s classical behavior becomes IR nodes:</p>
 <table class="docutils data align-default">
 <thead>
@@ -2894,7 +2945,32 @@ logical operators from the optimized IR.</p></li>
 <li><p><strong>Check the layout.</strong> Confirm that no two coexisting instances claim the
 same physical qubit at the same time.</p></li>
 </ol>
+<p>Occupancy ordering also protects pending quantum state while a readout or
+selector is unavailable. Boundary flows identify the qubits that must remain
+live between a producer and its consumer. A complete patch lifetime may move
+before or after another use, but a dependency that forces reuse inside that
+lifetime is a <code class="docutils literal notranslate"><span class="pre">LiveQubitReuse</span></code> compile error. The compiler never resolves that
+conflict by discarding the required lifetime ordering. Conditional uses are
+checked under their shared predicates; region reuse is rejected when its
+conditional body cannot be summarized in the containing Boolean domain.</p>
 <p>The result records the code distance and construction convention as metadata.</p>
+<h2 id="measuring-reuse">Measuring reuse<a class="headerlink" href="#measuring-reuse" title="Link to this heading">¶</a></h2>
+<p>The source-planner probe separates topology construction, relation composition,
+and causal readout planning, and reports computed and reused seam equations:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>cargo<span class="w"> </span>run<span class="w"> </span>--release<span class="w"> </span>--locked<span class="w"> </span>-p<span class="w"> </span>bloq_graph<span class="w"> </span>--example<span class="w"> </span>profile_source_planner<span class="w"> </span>--<span class="w"> </span><span class="m">32</span>
+</code></pre></div>
+</div>
+<p>The argument selects an adder width. Use <code class="docutils literal notranslate"><span class="pre">yoke:32</span></code> for a flat-graph control or
+<code class="docutils literal notranslate"><span class="pre">file:program.blog</span></code> for an authored hierarchy. Definition preparation is reported
+separately; the uncached reference excludes definition certification, so its
+total is not a complete cold-compiler baseline.</p>
+<p>The selective inventory benchmark compares cold compilation, warm block
+templates, and reused definitions under changed parent bindings:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>cargo<span class="w"> </span>bench<span class="w"> </span>--locked<span class="w"> </span>-p<span class="w"> </span>bloq_compile<span class="w"> </span>--bench<span class="w"> </span>bench<span class="w"> </span>--<span class="w"> </span>selective-definition-inventory
+</code></pre></div>
+</div>
+<p>Cache-warming setup is outside the timed compilation iterations. Instance
+mapping, selector binding, and physical record allocation still run in each case.</p>
 
 
 
@@ -2945,7 +3021,7 @@ same physical qubit at the same time.</p></li>
   
     Created using
     <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
-    9.1.0.
+    8.2.3.
      and
     <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
   

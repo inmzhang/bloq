@@ -76,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#lower-once-run-many-shots" class="md-skip">
+        <a href="#check-a-physical-output-state-without-timing" class="md-skip">
           Skip to content
         </a>
       
@@ -2382,6 +2382,16 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#check-a-physical-output-state-without-timing" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Check a physical output state without timing</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#lower-once-run-many-shots" class="md-nav__link">
     
     <span class="md-ellipsis">
@@ -2455,6 +2465,32 @@ non-Clifford gates, classical choices, resource retries, and causal timing
 with <code class="docutils literal notranslate"><span class="pre">ticit</span></code>. Its decoder and timing models are for testing, not practical
 execution. Compile and lower once, then reuse the simulation across shots.</p>
 <p>The <a class="reference internal" href="thth.html"><span class="std std-doc">T–H–T–H example</span></a> combines these features in one small computation.</p>
+<h2 id="check-a-physical-output-state-without-timing">Check a physical output state without timing<a class="headerlink" href="#check-a-physical-output-state-without-timing" title="Link to this heading">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">bloq.run_noiseless</span></code> executes compiled physical circuits, adaptive controls, and
+native resource retries with ideal decoding. It accepts uniform logical
+<code class="docutils literal notranslate"><span class="pre">&quot;zero&quot;</span></code> or <code class="docutils literal notranslate"><span class="pre">&quot;plus&quot;</span></code> inputs and returns corrected X/Y/Z expectations per output.
+For up to six outputs, <code class="docutils literal notranslate"><span class="pre">include_signature=True</span></code> also returns all joint Pauli
+expectations, preserving correlations that single-qubit marginals cannot show.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span class="n">report</span> <span class="o">=</span> <span class="n">bloq</span><span class="o">.</span><span class="n">run_noiseless</span><span class="p">(</span>
+    <span class="n">program</span><span class="p">,</span> <span class="n">shots</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">input_state</span><span class="o">=</span><span class="s2">"zero"</span><span class="p">,</span> <span class="n">include_signature</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="k">assert</span> <span class="n">report</span><span class="p">[</span><span class="s2">"discarded"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span>
+<span class="k">assert</span> <span class="n">report</span><span class="p">[</span><span class="s2">"all_detectors_constant"</span><span class="p">]</span>
+</code></pre></div>
+</div>
+<p>This mode captures an output on a private simulator qubit before its physical
+patch is reused. Input injection and output capture are ideal boundaries;
+the supplied physical circuits execute as compiled. For ordinary gate and
+algorithm checks, compile with <code class="docutils literal notranslate"><span class="pre">prepare_t_with_mpps=True</span></code> to prepare ideal
+logical T sources without cultivation. Output order matches
+<code class="docutils literal notranslate"><span class="pre">program.logical_outputs()</span></code>. A discarded shot has no sample.</p>
+<p>Detector reports cover applicable physical checks. Checks spanning an ideal
+input replacement are omitted: their earlier syndrome records describe the
+replaced state. Checks within the physical segments remain active.</p>
+<p>This executor adds no noise and has no hardware clock or decoder-latency model.
+Any explicit noise already present in the supplied IR still executes. Use the
+dynamic API below to study simulated timing and waits. Dynamic lowering does
+not yet support reused output cuts.</p>
 <h2 id="lower-once-run-many-shots">Lower once, run many shots<a class="headerlink" href="#lower-once-run-many-shots" title="Link to this heading">¶</a></h2>
 <p>Python’s <code class="docutils literal notranslate"><span class="pre">bloq</span></code> package includes the VM. Rust applications enable it with
 <code class="docutils literal notranslate"><span class="pre">cargo</span> <span class="pre">add</span> <span class="pre">bloq&#64;=0.1.1</span> <span class="pre">--features</span> <span class="pre">vm</span></code>.</p>
@@ -2515,6 +2551,12 @@ in the source distribution. The three shots write the reusable instructions
 to <code class="docutils literal notranslate"><span class="pre">cnot.instructions.json</span></code> and the last shot’s trace to <code class="docutils literal notranslate"><span class="pre">cnot.trace.json</span></code>.</p>
 <p>Each run starts a new shot. A discarded shot has no logical output. For an
 accepted shot, the X/Y/Z expectations include the output’s Pauli frame correction.</p>
+<p>Reversed temporal Ports use <a class="reference internal" href="../circuit-constructions.html#temporal-port"><span class="std std-ref">ideal Bell adapters</span></a>.
+A future-connected output retains a private qubit; a past-connected input
+arrives on a private qubit before its Bell measurement. Bell outcomes enter
+corrected readouts and output frames without discarding shots. Intentional
+postselection requires an explicit discard. These boundary operations remain
+ideal when circuit noise is enabled.</p>
 <div class="important tip admonition">
 <p class="admonition-title">Important</p>
 <p>The default decoder is a stochastic policy model, not a syndrome decoder.
@@ -2679,7 +2721,7 @@ unsupported. Guarded-stage lowering also has a quantum-variant cap.</p>
   
     Created using
     <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
-    9.1.0.
+    8.2.3.
      and
     <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
   

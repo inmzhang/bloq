@@ -2515,7 +2515,7 @@
 <h1 id="benchmarking">Benchmarking<a class="headerlink" href="#benchmarking" title="Link to this heading">¶</a></h1>
 <p>Measure compilation or Stim emission with the shared workloads before adding a
 new benchmark. Workloads live in crate <code class="docutils literal notranslate"><span class="pre">benches/</span></code> and <code class="docutils literal notranslate"><span class="pre">examples/</span></code> directories
-and <code class="docutils literal notranslate"><span class="pre">bloq_test::benchmark</span></code>; reports and profiles stay local.</p>
+and <code class="docutils literal notranslate"><span class="pre">bloq_test::benchmark</span></code>; measurements and profiles stay local.</p>
 <h2 id="choose-a-workload">Choose a workload<a class="headerlink" href="#choose-a-workload" title="Link to this heading">¶</a></h2>
 <table class="docutils data align-default">
 <thead>
@@ -2543,16 +2543,12 @@ and <code class="docutils literal notranslate"><span class="pre">bloq_test::benc
 </table>
 <div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>just<span class="w"> </span>bench-case-list
 just<span class="w"> </span>bench-cases<span class="w"> </span>cube_line
-just<span class="w"> </span>bench-report
 </code></pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">bench-report</span></code> writes <code class="docutils literal notranslate"><span class="pre">target/benchmark/index.html</span></code> and <code class="docutils literal notranslate"><span class="pre">target/benchmark/data.json</span></code> from
-<code class="docutils literal notranslate"><span class="pre">target/criterion</span></code>. Times are nanoseconds. An existing local report supplies the
-previous baseline; without one, the report omits changes.</p>
 <div class="tip admonition">
 <p class="admonition-title">Tip</p>
 <p>Criterion output can contain old workloads. Use a fresh <code class="docutils literal notranslate"><span class="pre">CARGO_TARGET_DIR</span></code> for
-an isolated run, and use the same directory when generating its report.</p>
+an isolated run.</p>
 </div>
 <h2 id="compare-a-change">Compare a change<a class="headerlink" href="#compare-a-change" title="Link to this heading">¶</a></h2>
 <p>Keep the workload, code distance, feature flags, and resource settings fixed.
@@ -2602,7 +2598,7 @@ several operations.</p>
 </code></pre></div>
 </div>
 <p>Large cases may reach a compiler resource cap. Keep
-those refusals in the report instead of dropping difficult samples.</p>
+those refusals in the results instead of dropping difficult samples.</p>
 
 
 
@@ -2653,7 +2649,7 @@ those refusals in the report instead of dropping difficult samples.</p>
   
     Created using
     <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
-    9.1.0.
+    8.2.3.
      and
     <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
   

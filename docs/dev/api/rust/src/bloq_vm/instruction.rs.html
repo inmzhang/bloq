@@ -122,7 +122,7 @@
 <a href=#122 id=122 data-nosnippet>122</a>        <span class="self">self</span>.tasks.iter().map(|task| <span class="kw-2">&amp;</span>task.instruction)
 <a href=#123 id=123 data-nosnippet>123</a>    }
 <a href=#124 id=124 data-nosnippet>124</a>
-<a href=#125 id=125 data-nosnippet>125</a>    <span class="doccomment">/// Independently released sources in dense task order.
+<a href=#125 id=125 data-nosnippet>125</a>    <span class="doccomment">/// Source releases and input arrivals in dense task order.
 <a href=#126 id=126 data-nosnippet>126</a>    </span><span class="attr">#[must_use]
 <a href=#127 id=127 data-nosnippet>127</a>    </span><span class="kw">pub fn </span>sources(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;SourceSchedule&gt; {
 <a href=#128 id=128 data-nosnippet>128</a>        <span class="self">self</span>.tasks
@@ -180,7 +180,7 @@
 <a href=#180 id=180 data-nosnippet>180</a>    </span><span class="kw">pub </span>label: String,
 <a href=#181 id=181 data-nosnippet>181</a>    <span class="doccomment">/// Absolute earliest start time.
 <a href=#182 id=182 data-nosnippet>182</a>    </span><span class="kw">pub </span>release: f64,
-<a href=#183 id=183 data-nosnippet>183</a>    <span class="doccomment">/// Source role, present only on independently released roots.
+<a href=#183 id=183 data-nosnippet>183</a>    <span class="doccomment">/// External preparation role, including inputs arriving at a dependent task.
 <a href=#184 id=184 data-nosnippet>184</a>    </span><span class="kw">pub </span>source: <span class="prelude-ty">Option</span>&lt;SourceRole&gt;,
 <a href=#185 id=185 data-nosnippet>185</a>    <span class="doccomment">/// All predecessors, including Bloq value, order, and quantum edges and
 <a href=#186 id=186 data-nosnippet>186</a>    /// sequencing added for physical qubit reuse.
@@ -197,7 +197,7 @@
 <a href=#197 id=197 data-nosnippet>197</a>    <span class="kw">pub </span>instruction: Instruction,
 <a href=#198 id=198 data-nosnippet>198</a>}
 <a href=#199 id=199 data-nosnippet>199</a>
-<a href=#200 id=200 data-nosnippet>200</a><span class="doccomment">/// Why an independently released task exists.
+<a href=#200 id=200 data-nosnippet>200</a><span class="doccomment">/// External preparation associated with a task.
 <a href=#201 id=201 data-nosnippet>201</a></span><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 <a href=#202 id=202 data-nosnippet>202</a>#[serde(rename_all = <span class="string">"snake_case"</span>)]
 <a href=#203 id=203 data-nosnippet>203</a></span><span class="kw">pub enum </span>SourceRole {
@@ -207,7 +207,7 @@
 <a href=#207 id=207 data-nosnippet>207</a>    Clifford,
 <a href=#208 id=208 data-nosnippet>208</a>}
 <a href=#209 id=209 data-nosnippet>209</a>
-<a href=#210 id=210 data-nosnippet>210</a><span class="doccomment">/// Stable schedule summary for one independently released source.
+<a href=#210 id=210 data-nosnippet>210</a><span class="doccomment">/// Stable schedule summary for one external preparation.
 <a href=#211 id=211 data-nosnippet>211</a></span><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 <a href=#212 id=212 data-nosnippet>212</a></span><span class="kw">pub struct </span>SourceSchedule {
 <a href=#213 id=213 data-nosnippet>213</a>    <span class="kw">pub </span>task: TaskId,
@@ -521,132 +521,156 @@
 <a href=#521 id=521 data-nosnippet>521</a>    },
 <a href=#522 id=522 data-nosnippet>522</a>}
 <a href=#523 id=523 data-nosnippet>523</a>
-<a href=#524 id=524 data-nosnippet>524</a><span class="attr">#[cfg(test)]
-<a href=#525 id=525 data-nosnippet>525</a></span><span class="kw">mod </span>tests {
-<a href=#526 id=526 data-nosnippet>526</a>    <span class="kw">use </span>serde_json::json;
-<a href=#527 id=527 data-nosnippet>527</a>
-<a href=#528 id=528 data-nosnippet>528</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#529 id=529 data-nosnippet>529</a>
-<a href=#530 id=530 data-nosnippet>530</a>    <span class="attr">#[test]
-<a href=#531 id=531 data-nosnippet>531</a>    </span><span class="kw">fn </span>program_json_exposes_physical_stream_and_schedule_metadata() {
-<a href=#532 id=532 data-nosnippet>532</a>        <span class="kw">let </span>quantum = Task {
-<a href=#533 id=533 data-nosnippet>533</a>            label: <span class="string">"source"</span>.into(),
-<a href=#534 id=534 data-nosnippet>534</a>            release: <span class="number">2.0</span>,
-<a href=#535 id=535 data-nosnippet>535</a>            source: <span class="prelude-val">Some</span>(SourceRole::Clifford),
-<a href=#536 id=536 data-nosnippet>536</a>            dependencies: Box::new([]),
-<a href=#537 id=537 data-nosnippet>537</a>            activation: <span class="prelude-val">None</span>,
-<a href=#538 id=538 data-nosnippet>538</a>            output: <span class="prelude-val">None</span>,
-<a href=#539 id=539 data-nosnippet>539</a>            qubits: Box::new([<span class="number">0</span>]),
-<a href=#540 id=540 data-nosnippet>540</a>            duration: <span class="number">1.0</span>,
-<a href=#541 id=541 data-nosnippet>541</a>            instruction: Instruction::Quantum(QuantumTask {
-<a href=#542 id=542 data-nosnippet>542</a>                alternatives: Box::new([QuantumAlternative {
-<a href=#543 id=543 data-nosnippet>543</a>                    stream: QuantumStream {
-<a href=#544 id=544 data-nosnippet>544</a>                        moments: Box::new([Moment {
-<a href=#545 id=545 data-nosnippet>545</a>                            kind: <span class="prelude-val">Some</span>(MomentKind::Rotation),
-<a href=#546 id=546 data-nosnippet>546</a>                            duration: <span class="number">1.0</span>,
-<a href=#547 id=547 data-nosnippet>547</a>                            operations: Box::new([QuantumOp::Gate1 {
-<a href=#548 id=548 data-nosnippet>548</a>                                gate: Clifford1::H,
-<a href=#549 id=549 data-nosnippet>549</a>                                qubit: <span class="number">0</span>,
-<a href=#550 id=550 data-nosnippet>550</a>                            }]),
-<a href=#551 id=551 data-nosnippet>551</a>                        }]),
-<a href=#552 id=552 data-nosnippet>552</a>                    },
-<a href=#553 id=553 data-nosnippet>553</a>                    ..QuantumAlternative::default()
-<a href=#554 id=554 data-nosnippet>554</a>                }]),
-<a href=#555 id=555 data-nosnippet>555</a>            }),
-<a href=#556 id=556 data-nosnippet>556</a>        };
-<a href=#557 id=557 data-nosnippet>557</a>        <span class="kw">let </span>dependent = Task {
-<a href=#558 id=558 data-nosnippet>558</a>            label: <span class="string">"ready"</span>.into(),
-<a href=#559 id=559 data-nosnippet>559</a>            release: <span class="number">0.0</span>,
-<a href=#560 id=560 data-nosnippet>560</a>            source: <span class="prelude-val">None</span>,
-<a href=#561 id=561 data-nosnippet>561</a>            dependencies: Box::new([<span class="number">0</span>]),
-<a href=#562 id=562 data-nosnippet>562</a>            activation: <span class="prelude-val">None</span>,
-<a href=#563 id=563 data-nosnippet>563</a>            output: <span class="prelude-val">None</span>,
-<a href=#564 id=564 data-nosnippet>564</a>            qubits: Box::new([]),
-<a href=#565 id=565 data-nosnippet>565</a>            duration: <span class="number">0.0</span>,
-<a href=#566 id=566 data-nosnippet>566</a>            instruction: Instruction::SignalReady { resource: <span class="number">0 </span>},
-<a href=#567 id=567 data-nosnippet>567</a>        };
-<a href=#568 id=568 data-nosnippet>568</a>        <span class="kw">let </span>decode = Task {
-<a href=#569 id=569 data-nosnippet>569</a>            label: <span class="string">"decode"</span>.into(),
-<a href=#570 id=570 data-nosnippet>570</a>            release: <span class="number">0.0</span>,
-<a href=#571 id=571 data-nosnippet>571</a>            source: <span class="prelude-val">None</span>,
-<a href=#572 id=572 data-nosnippet>572</a>            dependencies: Box::new([<span class="number">0</span>]),
-<a href=#573 id=573 data-nosnippet>573</a>            activation: <span class="prelude-val">None</span>,
-<a href=#574 id=574 data-nosnippet>574</a>            output: <span class="prelude-val">Some</span>(<span class="number">0</span>),
-<a href=#575 id=575 data-nosnippet>575</a>            qubits: Box::new([]),
-<a href=#576 id=576 data-nosnippet>576</a>            duration: <span class="number">0.0</span>,
-<a href=#577 id=577 data-nosnippet>577</a>            instruction: Instruction::Decode(DecodeRequest {
-<a href=#578 id=578 data-nosnippet>578</a>                output: bloq_ir::ObservableOutput::Corrected,
-<a href=#579 id=579 data-nosnippet>579</a>                observable: <span class="number">1</span>,
-<a href=#580 id=580 data-nosnippet>580</a>                index: <span class="number">0</span>,
-<a href=#581 id=581 data-nosnippet>581</a>                raw: <span class="number">1</span>,
-<a href=#582 id=582 data-nosnippet>582</a>                round_duration: <span class="number">1.5</span>,
-<a href=#583 id=583 data-nosnippet>583</a>                timing: DecodeTiming::Measurement,
-<a href=#584 id=584 data-nosnippet>584</a>            }),
-<a href=#585 id=585 data-nosnippet>585</a>        };
-<a href=#586 id=586 data-nosnippet>586</a>        <span class="kw">let </span>product = PauliProduct {
-<a href=#587 id=587 data-nosnippet>587</a>            negative: <span class="bool-val">false</span>,
-<a href=#588 id=588 data-nosnippet>588</a>            terms: Box::new([(<span class="number">0</span>, Pauli::Z)]),
-<a href=#589 id=589 data-nosnippet>589</a>        };
-<a href=#590 id=590 data-nosnippet>590</a>        <span class="kw">let </span>program = Program {
-<a href=#591 id=591 data-nosnippet>591</a>            qubit_count: <span class="number">1</span>,
-<a href=#592 id=592 data-nosnippet>592</a>            bit_count: <span class="number">2</span>,
-<a href=#593 id=593 data-nosnippet>593</a>            tasks: <span class="macro">vec!</span>[quantum, dependent, decode],
-<a href=#594 id=594 data-nosnippet>594</a>            task_origins: <span class="macro">vec!</span>[
-<a href=#595 id=595 data-nosnippet>595</a>                TaskOrigin {
-<a href=#596 id=596 data-nosnippet>596</a>                    function: TaskFunction::Cube,
-<a href=#597 id=597 data-nosnippet>597</a>                    sites: Box::new([[<span class="number">3</span>, <span class="number">4</span>]]),
-<a href=#598 id=598 data-nosnippet>598</a>                    members: Box::new([[<span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>]]),
-<a href=#599 id=599 data-nosnippet>599</a>                },
-<a href=#600 id=600 data-nosnippet>600</a>                TaskOrigin::default(),
-<a href=#601 id=601 data-nosnippet>601</a>                TaskOrigin::default(),
-<a href=#602 id=602 data-nosnippet>602</a>            ],
-<a href=#603 id=603 data-nosnippet>603</a>            entry: Stream {
-<a href=#604 id=604 data-nosnippet>604</a>                tasks: Box::new([<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>]),
-<a href=#605 id=605 data-nosnippet>605</a>                ..Stream::default()
-<a href=#606 id=606 data-nosnippet>606</a>            },
-<a href=#607 id=607 data-nosnippet>607</a>            inputs: <span class="macro">vec!</span>[LogicalInput {
-<a href=#608 id=608 data-nosnippet>608</a>                port: [<span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>],
-<a href=#609 id=609 data-nosnippet>609</a>                task: <span class="number">0</span>,
-<a href=#610 id=610 data-nosnippet>610</a>                data_qubits: Box::new([<span class="number">0</span>]),
-<a href=#611 id=611 data-nosnippet>611</a>                stabilizers: Box::new([]),
-<a href=#612 id=612 data-nosnippet>612</a>                x: product.clone(),
-<a href=#613 id=613 data-nosnippet>613</a>                z: product.clone(),
-<a href=#614 id=614 data-nosnippet>614</a>            }],
-<a href=#615 id=615 data-nosnippet>615</a>            outputs: <span class="macro">vec!</span>[LogicalOutput {
-<a href=#616 id=616 data-nosnippet>616</a>                port: [<span class="number">3</span>, <span class="number">4</span>, <span class="number">6</span>],
-<a href=#617 id=617 data-nosnippet>617</a>                x: product.clone(),
-<a href=#618 id=618 data-nosnippet>618</a>                z: product,
-<a href=#619 id=619 data-nosnippet>619</a>                frame_x: <span class="number">0</span>,
-<a href=#620 id=620 data-nosnippet>620</a>                frame_z: <span class="number">1</span>,
-<a href=#621 id=621 data-nosnippet>621</a>            }],
-<a href=#622 id=622 data-nosnippet>622</a>            ..Program::default()
-<a href=#623 id=623 data-nosnippet>623</a>        };
-<a href=#624 id=624 data-nosnippet>624</a>
-<a href=#625 id=625 data-nosnippet>625</a>        <span class="kw">let </span>value: serde_json::Value = serde_json::from_str(<span class="kw-2">&amp;</span>program.to_json().unwrap()).unwrap();
-<a href=#626 id=626 data-nosnippet>626</a>        <span class="macro">assert_eq!</span>(value[<span class="string">"entry"</span>][<span class="string">"tasks"</span>], <span class="macro">json!</span>([<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>]));
-<a href=#627 id=627 data-nosnippet>627</a>        <span class="macro">assert_eq!</span>(value[<span class="string">"tasks"</span>][<span class="number">0</span>][<span class="string">"source"</span>], <span class="string">"clifford"</span>);
-<a href=#628 id=628 data-nosnippet>628</a>        <span class="macro">assert_eq!</span>(value[<span class="string">"tasks"</span>][<span class="number">1</span>][<span class="string">"dependencies"</span>], <span class="macro">json!</span>([<span class="number">0</span>]));
-<a href=#629 id=629 data-nosnippet>629</a>        <span class="macro">assert_eq!</span>(
-<a href=#630 id=630 data-nosnippet>630</a>            value[<span class="string">"tasks"</span>][<span class="number">0</span>][<span class="string">"instruction"</span>][<span class="string">"Quantum"</span>][<span class="string">"alternatives"</span>][<span class="number">0</span>][<span class="string">"stream"</span>][<span class="string">"moments"</span>][<span class="number">0</span>]
-<a href=#631 id=631 data-nosnippet>631</a>                [<span class="string">"operations"</span>][<span class="number">0</span>][<span class="string">"Gate1"</span>],
-<a href=#632 id=632 data-nosnippet>632</a>            <span class="macro">json!</span>({ <span class="string">"gate"</span>: <span class="string">"H"</span>, <span class="string">"qubit"</span>: <span class="number">0 </span>})
-<a href=#633 id=633 data-nosnippet>633</a>        );
-<a href=#634 id=634 data-nosnippet>634</a>        <span class="comment">// `DecodeRequest` is a newtype payload, so its fields stay flat under
-<a href=#635 id=635 data-nosnippet>635</a>        // the variant tag exactly as the old struct variant serialized them.
-<a href=#636 id=636 data-nosnippet>636</a>        </span><span class="macro">assert_eq!</span>(
-<a href=#637 id=637 data-nosnippet>637</a>            value[<span class="string">"tasks"</span>][<span class="number">2</span>][<span class="string">"instruction"</span>][<span class="string">"Decode"</span>],
-<a href=#638 id=638 data-nosnippet>638</a>            <span class="macro">json!</span>({
-<a href=#639 id=639 data-nosnippet>639</a>                <span class="string">"output"</span>: <span class="string">"Corrected"</span>,
-<a href=#640 id=640 data-nosnippet>640</a>                <span class="string">"observable"</span>: <span class="number">1</span>,
-<a href=#641 id=641 data-nosnippet>641</a>                <span class="string">"index"</span>: <span class="number">0</span>,
-<a href=#642 id=642 data-nosnippet>642</a>                <span class="string">"raw"</span>: <span class="number">1</span>,
-<a href=#643 id=643 data-nosnippet>643</a>                <span class="string">"round_duration"</span>: <span class="number">1.5</span>,
-<a href=#644 id=644 data-nosnippet>644</a>                <span class="string">"timing"</span>: <span class="string">"Measurement"</span>,
-<a href=#645 id=645 data-nosnippet>645</a>            })
-<a href=#646 id=646 data-nosnippet>646</a>        );
-<a href=#647 id=647 data-nosnippet>647</a>        <span class="macro">assert_eq!</span>(value[<span class="string">"task_origins"</span>][<span class="number">0</span>][<span class="string">"function"</span>], <span class="string">"cube"</span>);
-<a href=#648 id=648 data-nosnippet>648</a>        <span class="macro">assert_eq!</span>(value[<span class="string">"inputs"</span>][<span class="number">0</span>][<span class="string">"task"</span>], <span class="number">0</span>);
-<a href=#649 id=649 data-nosnippet>649</a>        <span class="macro">assert_eq!</span>(value[<span class="string">"outputs"</span>][<span class="number">0</span>][<span class="string">"port"</span>], <span class="macro">json!</span>([<span class="number">3</span>, <span class="number">4</span>, <span class="number">6</span>]));
-<a href=#650 id=650 data-nosnippet>650</a>    }
-<a href=#651 id=651 data-nosnippet>651</a>}
+<a href=#524 id=524 data-nosnippet>524</a><span class="kw">impl </span>QuantumOp {
+<a href=#525 id=525 data-nosnippet>525</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>qubits(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Box&lt;<span class="kw">dyn </span>Iterator&lt;Item = QubitId&gt; + <span class="lifetime">'_</span>&gt; {
+<a href=#526 id=526 data-nosnippet>526</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#527 id=527 data-nosnippet>527</a>            QuantumOp::Gate1 { qubit, .. }
+<a href=#528 id=528 data-nosnippet>528</a>            | QuantumOp::Pauli { qubit, .. }
+<a href=#529 id=529 data-nosnippet>529</a>            | QuantumOp::T { qubit, .. }
+<a href=#530 id=530 data-nosnippet>530</a>            | QuantumOp::Reset { qubit, .. }
+<a href=#531 id=531 data-nosnippet>531</a>            | QuantumOp::ConditionalPauli { qubit, .. } =&gt; Box::new(std::iter::once(<span class="kw-2">*</span>qubit)),
+<a href=#532 id=532 data-nosnippet>532</a>            QuantumOp::Gate2 {
+<a href=#533 id=533 data-nosnippet>533</a>                control, target, ..
+<a href=#534 id=534 data-nosnippet>534</a>            } =&gt; Box::new([<span class="kw-2">*</span>control, <span class="kw-2">*</span>target].into_iter()),
+<a href=#535 id=535 data-nosnippet>535</a>            QuantumOp::Measure { observable, .. } =&gt; {
+<a href=#536 id=536 data-nosnippet>536</a>                Box::new(observable.terms.iter().map(|(qubit, <span class="kw">_</span>)| <span class="kw-2">*</span>qubit))
+<a href=#537 id=537 data-nosnippet>537</a>            }
+<a href=#538 id=538 data-nosnippet>538</a>            QuantumOp::Depolarize1 { qubits, .. } | QuantumOp::PauliError { qubits, .. } =&gt; {
+<a href=#539 id=539 data-nosnippet>539</a>                Box::new(qubits.iter().copied())
+<a href=#540 id=540 data-nosnippet>540</a>            }
+<a href=#541 id=541 data-nosnippet>541</a>            QuantumOp::Depolarize2 { pairs, .. } =&gt; {
+<a href=#542 id=542 data-nosnippet>542</a>                Box::new(pairs.iter().flat_map(|<span class="kw-2">&amp;</span>(left, right)| [left, right]))
+<a href=#543 id=543 data-nosnippet>543</a>            }
+<a href=#544 id=544 data-nosnippet>544</a>        }
+<a href=#545 id=545 data-nosnippet>545</a>    }
+<a href=#546 id=546 data-nosnippet>546</a>}
+<a href=#547 id=547 data-nosnippet>547</a>
+<a href=#548 id=548 data-nosnippet>548</a><span class="attr">#[cfg(test)]
+<a href=#549 id=549 data-nosnippet>549</a></span><span class="kw">mod </span>tests {
+<a href=#550 id=550 data-nosnippet>550</a>    <span class="kw">use </span>serde_json::json;
+<a href=#551 id=551 data-nosnippet>551</a>
+<a href=#552 id=552 data-nosnippet>552</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#553 id=553 data-nosnippet>553</a>
+<a href=#554 id=554 data-nosnippet>554</a>    <span class="attr">#[test]
+<a href=#555 id=555 data-nosnippet>555</a>    </span><span class="kw">fn </span>program_json_exposes_physical_stream_and_schedule_metadata() {
+<a href=#556 id=556 data-nosnippet>556</a>        <span class="kw">let </span>quantum = Task {
+<a href=#557 id=557 data-nosnippet>557</a>            label: <span class="string">"source"</span>.into(),
+<a href=#558 id=558 data-nosnippet>558</a>            release: <span class="number">2.0</span>,
+<a href=#559 id=559 data-nosnippet>559</a>            source: <span class="prelude-val">Some</span>(SourceRole::Clifford),
+<a href=#560 id=560 data-nosnippet>560</a>            dependencies: Box::new([]),
+<a href=#561 id=561 data-nosnippet>561</a>            activation: <span class="prelude-val">None</span>,
+<a href=#562 id=562 data-nosnippet>562</a>            output: <span class="prelude-val">None</span>,
+<a href=#563 id=563 data-nosnippet>563</a>            qubits: Box::new([<span class="number">0</span>]),
+<a href=#564 id=564 data-nosnippet>564</a>            duration: <span class="number">1.0</span>,
+<a href=#565 id=565 data-nosnippet>565</a>            instruction: Instruction::Quantum(QuantumTask {
+<a href=#566 id=566 data-nosnippet>566</a>                alternatives: Box::new([QuantumAlternative {
+<a href=#567 id=567 data-nosnippet>567</a>                    stream: QuantumStream {
+<a href=#568 id=568 data-nosnippet>568</a>                        moments: Box::new([Moment {
+<a href=#569 id=569 data-nosnippet>569</a>                            kind: <span class="prelude-val">Some</span>(MomentKind::Rotation),
+<a href=#570 id=570 data-nosnippet>570</a>                            duration: <span class="number">1.0</span>,
+<a href=#571 id=571 data-nosnippet>571</a>                            operations: Box::new([QuantumOp::Gate1 {
+<a href=#572 id=572 data-nosnippet>572</a>                                gate: Clifford1::H,
+<a href=#573 id=573 data-nosnippet>573</a>                                qubit: <span class="number">0</span>,
+<a href=#574 id=574 data-nosnippet>574</a>                            }]),
+<a href=#575 id=575 data-nosnippet>575</a>                        }]),
+<a href=#576 id=576 data-nosnippet>576</a>                    },
+<a href=#577 id=577 data-nosnippet>577</a>                    ..QuantumAlternative::default()
+<a href=#578 id=578 data-nosnippet>578</a>                }]),
+<a href=#579 id=579 data-nosnippet>579</a>            }),
+<a href=#580 id=580 data-nosnippet>580</a>        };
+<a href=#581 id=581 data-nosnippet>581</a>        <span class="kw">let </span>dependent = Task {
+<a href=#582 id=582 data-nosnippet>582</a>            label: <span class="string">"ready"</span>.into(),
+<a href=#583 id=583 data-nosnippet>583</a>            release: <span class="number">0.0</span>,
+<a href=#584 id=584 data-nosnippet>584</a>            source: <span class="prelude-val">None</span>,
+<a href=#585 id=585 data-nosnippet>585</a>            dependencies: Box::new([<span class="number">0</span>]),
+<a href=#586 id=586 data-nosnippet>586</a>            activation: <span class="prelude-val">None</span>,
+<a href=#587 id=587 data-nosnippet>587</a>            output: <span class="prelude-val">None</span>,
+<a href=#588 id=588 data-nosnippet>588</a>            qubits: Box::new([]),
+<a href=#589 id=589 data-nosnippet>589</a>            duration: <span class="number">0.0</span>,
+<a href=#590 id=590 data-nosnippet>590</a>            instruction: Instruction::SignalReady { resource: <span class="number">0 </span>},
+<a href=#591 id=591 data-nosnippet>591</a>        };
+<a href=#592 id=592 data-nosnippet>592</a>        <span class="kw">let </span>decode = Task {
+<a href=#593 id=593 data-nosnippet>593</a>            label: <span class="string">"decode"</span>.into(),
+<a href=#594 id=594 data-nosnippet>594</a>            release: <span class="number">0.0</span>,
+<a href=#595 id=595 data-nosnippet>595</a>            source: <span class="prelude-val">None</span>,
+<a href=#596 id=596 data-nosnippet>596</a>            dependencies: Box::new([<span class="number">0</span>]),
+<a href=#597 id=597 data-nosnippet>597</a>            activation: <span class="prelude-val">None</span>,
+<a href=#598 id=598 data-nosnippet>598</a>            output: <span class="prelude-val">Some</span>(<span class="number">0</span>),
+<a href=#599 id=599 data-nosnippet>599</a>            qubits: Box::new([]),
+<a href=#600 id=600 data-nosnippet>600</a>            duration: <span class="number">0.0</span>,
+<a href=#601 id=601 data-nosnippet>601</a>            instruction: Instruction::Decode(DecodeRequest {
+<a href=#602 id=602 data-nosnippet>602</a>                output: bloq_ir::ObservableOutput::Corrected,
+<a href=#603 id=603 data-nosnippet>603</a>                observable: <span class="number">1</span>,
+<a href=#604 id=604 data-nosnippet>604</a>                index: <span class="number">0</span>,
+<a href=#605 id=605 data-nosnippet>605</a>                raw: <span class="number">1</span>,
+<a href=#606 id=606 data-nosnippet>606</a>                round_duration: <span class="number">1.5</span>,
+<a href=#607 id=607 data-nosnippet>607</a>                timing: DecodeTiming::Measurement,
+<a href=#608 id=608 data-nosnippet>608</a>            }),
+<a href=#609 id=609 data-nosnippet>609</a>        };
+<a href=#610 id=610 data-nosnippet>610</a>        <span class="kw">let </span>product = PauliProduct {
+<a href=#611 id=611 data-nosnippet>611</a>            negative: <span class="bool-val">false</span>,
+<a href=#612 id=612 data-nosnippet>612</a>            terms: Box::new([(<span class="number">0</span>, Pauli::Z)]),
+<a href=#613 id=613 data-nosnippet>613</a>        };
+<a href=#614 id=614 data-nosnippet>614</a>        <span class="kw">let </span>program = Program {
+<a href=#615 id=615 data-nosnippet>615</a>            qubit_count: <span class="number">1</span>,
+<a href=#616 id=616 data-nosnippet>616</a>            bit_count: <span class="number">2</span>,
+<a href=#617 id=617 data-nosnippet>617</a>            tasks: <span class="macro">vec!</span>[quantum, dependent, decode],
+<a href=#618 id=618 data-nosnippet>618</a>            task_origins: <span class="macro">vec!</span>[
+<a href=#619 id=619 data-nosnippet>619</a>                TaskOrigin {
+<a href=#620 id=620 data-nosnippet>620</a>                    function: TaskFunction::Cube,
+<a href=#621 id=621 data-nosnippet>621</a>                    sites: Box::new([[<span class="number">3</span>, <span class="number">4</span>]]),
+<a href=#622 id=622 data-nosnippet>622</a>                    members: Box::new([[<span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>]]),
+<a href=#623 id=623 data-nosnippet>623</a>                },
+<a href=#624 id=624 data-nosnippet>624</a>                TaskOrigin::default(),
+<a href=#625 id=625 data-nosnippet>625</a>                TaskOrigin::default(),
+<a href=#626 id=626 data-nosnippet>626</a>            ],
+<a href=#627 id=627 data-nosnippet>627</a>            entry: Stream {
+<a href=#628 id=628 data-nosnippet>628</a>                tasks: Box::new([<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>]),
+<a href=#629 id=629 data-nosnippet>629</a>                ..Stream::default()
+<a href=#630 id=630 data-nosnippet>630</a>            },
+<a href=#631 id=631 data-nosnippet>631</a>            inputs: <span class="macro">vec!</span>[LogicalInput {
+<a href=#632 id=632 data-nosnippet>632</a>                port: [<span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>],
+<a href=#633 id=633 data-nosnippet>633</a>                task: <span class="number">0</span>,
+<a href=#634 id=634 data-nosnippet>634</a>                data_qubits: Box::new([<span class="number">0</span>]),
+<a href=#635 id=635 data-nosnippet>635</a>                stabilizers: Box::new([]),
+<a href=#636 id=636 data-nosnippet>636</a>                x: product.clone(),
+<a href=#637 id=637 data-nosnippet>637</a>                z: product.clone(),
+<a href=#638 id=638 data-nosnippet>638</a>            }],
+<a href=#639 id=639 data-nosnippet>639</a>            outputs: <span class="macro">vec!</span>[LogicalOutput {
+<a href=#640 id=640 data-nosnippet>640</a>                port: [<span class="number">3</span>, <span class="number">4</span>, <span class="number">6</span>],
+<a href=#641 id=641 data-nosnippet>641</a>                x: product.clone(),
+<a href=#642 id=642 data-nosnippet>642</a>                z: product,
+<a href=#643 id=643 data-nosnippet>643</a>                frame_x: <span class="number">0</span>,
+<a href=#644 id=644 data-nosnippet>644</a>                frame_z: <span class="number">1</span>,
+<a href=#645 id=645 data-nosnippet>645</a>            }],
+<a href=#646 id=646 data-nosnippet>646</a>            ..Program::default()
+<a href=#647 id=647 data-nosnippet>647</a>        };
+<a href=#648 id=648 data-nosnippet>648</a>
+<a href=#649 id=649 data-nosnippet>649</a>        <span class="kw">let </span>value: serde_json::Value = serde_json::from_str(<span class="kw-2">&amp;</span>program.to_json().unwrap()).unwrap();
+<a href=#650 id=650 data-nosnippet>650</a>        <span class="macro">assert_eq!</span>(value[<span class="string">"entry"</span>][<span class="string">"tasks"</span>], <span class="macro">json!</span>([<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>]));
+<a href=#651 id=651 data-nosnippet>651</a>        <span class="macro">assert_eq!</span>(value[<span class="string">"tasks"</span>][<span class="number">0</span>][<span class="string">"source"</span>], <span class="string">"clifford"</span>);
+<a href=#652 id=652 data-nosnippet>652</a>        <span class="macro">assert_eq!</span>(value[<span class="string">"tasks"</span>][<span class="number">1</span>][<span class="string">"dependencies"</span>], <span class="macro">json!</span>([<span class="number">0</span>]));
+<a href=#653 id=653 data-nosnippet>653</a>        <span class="macro">assert_eq!</span>(
+<a href=#654 id=654 data-nosnippet>654</a>            value[<span class="string">"tasks"</span>][<span class="number">0</span>][<span class="string">"instruction"</span>][<span class="string">"Quantum"</span>][<span class="string">"alternatives"</span>][<span class="number">0</span>][<span class="string">"stream"</span>][<span class="string">"moments"</span>][<span class="number">0</span>]
+<a href=#655 id=655 data-nosnippet>655</a>                [<span class="string">"operations"</span>][<span class="number">0</span>][<span class="string">"Gate1"</span>],
+<a href=#656 id=656 data-nosnippet>656</a>            <span class="macro">json!</span>({ <span class="string">"gate"</span>: <span class="string">"H"</span>, <span class="string">"qubit"</span>: <span class="number">0 </span>})
+<a href=#657 id=657 data-nosnippet>657</a>        );
+<a href=#658 id=658 data-nosnippet>658</a>        <span class="comment">// `DecodeRequest` is a newtype payload, so its fields stay flat under
+<a href=#659 id=659 data-nosnippet>659</a>        // the variant tag exactly as the old struct variant serialized them.
+<a href=#660 id=660 data-nosnippet>660</a>        </span><span class="macro">assert_eq!</span>(
+<a href=#661 id=661 data-nosnippet>661</a>            value[<span class="string">"tasks"</span>][<span class="number">2</span>][<span class="string">"instruction"</span>][<span class="string">"Decode"</span>],
+<a href=#662 id=662 data-nosnippet>662</a>            <span class="macro">json!</span>({
+<a href=#663 id=663 data-nosnippet>663</a>                <span class="string">"output"</span>: <span class="string">"Corrected"</span>,
+<a href=#664 id=664 data-nosnippet>664</a>                <span class="string">"observable"</span>: <span class="number">1</span>,
+<a href=#665 id=665 data-nosnippet>665</a>                <span class="string">"index"</span>: <span class="number">0</span>,
+<a href=#666 id=666 data-nosnippet>666</a>                <span class="string">"raw"</span>: <span class="number">1</span>,
+<a href=#667 id=667 data-nosnippet>667</a>                <span class="string">"round_duration"</span>: <span class="number">1.5</span>,
+<a href=#668 id=668 data-nosnippet>668</a>                <span class="string">"timing"</span>: <span class="string">"Measurement"</span>,
+<a href=#669 id=669 data-nosnippet>669</a>            })
+<a href=#670 id=670 data-nosnippet>670</a>        );
+<a href=#671 id=671 data-nosnippet>671</a>        <span class="macro">assert_eq!</span>(value[<span class="string">"task_origins"</span>][<span class="number">0</span>][<span class="string">"function"</span>], <span class="string">"cube"</span>);
+<a href=#672 id=672 data-nosnippet>672</a>        <span class="macro">assert_eq!</span>(value[<span class="string">"inputs"</span>][<span class="number">0</span>][<span class="string">"task"</span>], <span class="number">0</span>);
+<a href=#673 id=673 data-nosnippet>673</a>        <span class="macro">assert_eq!</span>(value[<span class="string">"outputs"</span>][<span class="number">0</span>][<span class="string">"port"</span>], <span class="macro">json!</span>([<span class="number">3</span>, <span class="number">4</span>, <span class="number">6</span>]));
+<a href=#674 id=674 data-nosnippet>674</a>    }
+<a href=#675 id=675 data-nosnippet>675</a>}
 </code></pre></div></section></main></body></html>

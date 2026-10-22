@@ -1059,6 +1059,22 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Signs">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bell-boundary-outcomes" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Bell boundary outcomes</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2678,6 +2694,22 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Signs">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bell-boundary-outcomes" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Bell boundary outcomes</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -3133,9 +3165,68 @@ parity where required by the readout convention. Named measurements and output
 frames retain their authored outcome labels; closed logical checks absorb
 known offsets into their reference parity. Binding does not add the tensor
 sign a second time.</p>
-<p>Projection can erase local factors, so signed witnesses and module reference
-certificates preserve their contribution. Elimination multiplies these signed
-rows with phases modulo four instead of losing their signs through XOR alone.</p>
+<p>The representations have separate responsibilities:</p>
+<table class="docutils data align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Representation</p></th>
+<th class="head"><p>Producer and consumer</p></th>
+<th class="head"><p>Sign ownership</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Guarded Pauli support (<code class="docutils literal notranslate"><span class="pre">BooleanRow</span></code>)</p></td>
+<td><p>Surface construction, seam elimination, and causal planning</p></td>
+<td><p>No phase is stored; production lowering consumes local support</p></td>
+</tr>
+<tr class="row-odd"><td><p>Signed certificate (<code class="docutils literal notranslate"><span class="pre">PhasedPauliString</span></code>, <code class="docutils literal notranslate"><span class="pre">FlowWitness</span></code>)</p></td>
+<td><p>Module summaries and signed elimination</p></td>
+<td><p>Exact local tensor factors retain phases modulo four; replay transports them into the linked graph</p></td>
+</tr>
+<tr class="row-even"><td><p>Materialized <code class="docutils literal notranslate"><span class="pre">Stabilizer::sign</span></code></p></td>
+<td><p>Dense surface materialization for analysis, verification, and diagnostics</p></td>
+<td><p>Reconstructed from the signed relation; required to distinguish positive and negative correlations</p></td>
+</tr>
+<tr class="row-odd"><td><p>Gateway transport offset</p></td>
+<td><p>Temporal Hadamard and spatial wall binding</p></td>
+<td><p>Normalizes closed logical observables to their physical reference</p></td>
+</tr>
+<tr class="row-even"><td><p>Authored outcome labels and output frames</p></td>
+<td><p>Physical instruments and native readout lowering</p></td>
+<td><p>Records, folds, feedback, and decoder flips determine the value; no extra tensor sign is XORed in</p></td>
+</tr>
+<tr class="row-odd"><td><p>Proxy observable reference offsets</p></td>
+<td><p>Public observable binding and proxy frame emission</p></td>
+<td><p>Accumulated with the frame surface’s gateway offset; distinct from <code class="docutils literal notranslate"><span class="pre">Stabilizer::sign</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p>The symbolic planner retains full native half-edge support while eliminating
+binary coefficients. Signed projection tables reconstruct exact local witnesses
+and multiply their phases modulo four. This recovers the tensor sign once even
+when a boundary projection omits interior factors. When a certificate is placed
+in a linked graph, support materialization returns its raw Pauli row; the
+transformed witness supplies the authoritative phase and must reproduce that
+row. There is no intermediate signed surface whose phase is then discarded.
+Summary construction likewise maps raw rows directly into positioned support.
+Public boundary rows are a view of the complete certificate’s prefix, so their
+signed rows, support, and witnesses are stored once.</p>
+<p>Ordinary diagnostic rows recover their phase from local tensors. An installed
+composed phase basis remains authoritative; parallel-edge graphs retain signed
+reduction. Physical fragment caches also retain transport offsets when their
+first consumer is an output frame, because a later closed logical query can
+reuse the same fragment.</p>
+<p>The Clifford proxy collects temporal-Hadamard reference offsets while binding
+the corresponding pipe records and combines them with spatial wall offsets by
+XOR. Its frame equations retain these references without a separate edge scan.</p>
+<h3 id="bell-boundary-outcomes">Bell boundary outcomes<a class="headerlink" href="#bell-boundary-outcomes" title="Link to this heading">¶</a></h3>
+<p>Ideal Port adapters retain both Bell measurement bits <span class="math notranslate nohighlight">\(b_{XX}\)</span> and <span class="math notranslate nohighlight">\(b_{ZZ}\)</span>.
+Their signed relations are <span class="math notranslate nohighlight">\(XX=(-1)^{b_{XX}}\)</span>, <span class="math notranslate nohighlight">\(ZZ=(-1)^{b_{ZZ}}\)</span>, and
+<span class="math notranslate nohighlight">\(YY=(-1)^{b_{XX}\oplus b_{ZZ}\oplus1}\)</span>, since <span class="math notranslate nohighlight">\(XX\,ZZ=-YY\)</span>.
+The gateway includes these records and the input transpose sign <span class="math notranslate nohighlight">\(Y^T=-Y\)</span>
+exactly once in corrected readouts, selectors, and output frames. Spatial
+Port surgery uses the same signed binding. Orientation alone never requests
+postselection; selecting a Bell sector requires an explicit
+<a class="reference internal" href="../graphs/actions.html#discard"><span class="std std-ref">discard condition</span></a>.</p>
 <h2 id="dynamic-choices">Dynamic choices<a class="headerlink" href="#dynamic-choices" title="Link to this heading">¶</a></h2>
 <p>Selective caps and structural branches make a block graph a family of graphs.
 Assign a value to every selector variable, and you obtain one ordinary graph.
@@ -3207,6 +3298,11 @@ outcome. Its overlap with any feedback whose condition is still unknown is
 even.</p></li>
 <li><p><strong>Activation.</strong> <span class="math notranslate nohighlight">\(w\)</span> is active on every reachable choice.</p></li>
 </ol>
+<p>Source validation, dependency analysis, <code class="docutils literal notranslate"><span class="pre">stabilizers()</span></code>, and physical
+compilation all apply these four conditions to the same guarded relation. A
+named record whose only readout reaches a live output is therefore invalid at
+validation, not only at compilation. Compilation separately derives the
+terminal output frames.</p>
 <p>Some readouts must wait for earlier values. A selective cap can be read only
 after the value that chooses its basis is known. Bloq therefore plans in
 <strong>causal waves</strong>:</p>
@@ -3221,10 +3317,34 @@ while some named measurement is unknown:
     known ← known ∪ accepted names
 </code></pre></div>
 </div>
+<p>These conditions do not by themselves make <span class="math notranslate nohighlight">\(\operatorname{parity}(w)\)</span> the
+authored record: unnamed merges and terminal measurements carry no named
+coordinate, so a surface can also pick up their records. When a named merge is
+repeated by a later unnamed merge between the same patches, both records agree
+and a surface through both has constant parity. Among the surfaces that meet
+the four conditions, Bloq therefore prefers the one that completes earliest.
+Each physical column carries a completion time: its layer, raised by the guards
+of the blocks it touches and by the condition of any feedback that toggles it.
+A known name’s column carries the time its own readout completed, so a fold
+costs as much as the readout it reuses. Bloq reduces each readout against the
+relation latest column first, breaking ties by layer and then by longer spatial
+extent. The accepted surface keeps late support only when no earlier witness
+exists, so it does not reach a later record it does not need. An earlier
+unnamed record can still be required, as for a parity read jointly with a
+terminal measurement. This selection rule removes the repeated-merge failure;
+it is not a general proof that a surface never depends on an unnamed record in
+the same layer.</p>
 <p>Availability constraints only relax as values become known. Bloq keeps their
 pivots between waves and releases each constraint when its condition becomes
 available, so later waves do not restart elimination. An accepted readout is
-removed from the live relation, and later readouts refer to it by name.</p>
+removed from the live relation, and later readouts refer to it by name. Its
+defining relation is restored while a later readout chooses its witness, so
+that witness can move to an earlier equivalent coset through the known value.</p>
+<p>Source <code class="docutils literal notranslate"><span class="pre">z</span></code> is a preference, not a control deadline: a readout may extend above
+its controlled cap. Lowering orders the required records before the cap, and
+scheduling preserves the pending state or rejects destructive qubit reuse.
+The timing preference is conservative across reachable choices; it does not
+find a separately optimal schedule for every branch.</p>
 <h3 id="corrected-values">Corrected values<a class="headerlink" href="#corrected-values" title="Link to this heading">¶</a></h3>
 <p>An accepted surface becomes a recipe for the <strong>corrected</strong> named value:</p>
 <div class="math notranslate nohighlight">
@@ -3233,13 +3353,15 @@ removed from the live relation, and later readouts refer to it by name.</p>
 = \operatorname{parity}(w_i)
 \oplus \bigoplus_{j&lt;i} L_{ij}\operatorname{corrected}(m_j)
 \oplus \text{feedback}
-\oplus \sigma_i
 \oplus \widehat\delta_i .
 \]</div>
 <p>The <span class="math notranslate nohighlight">\(L_{ij}\)</span> terms, called folds, are the named coordinates of earlier
-measurements in <span class="math notranslate nohighlight">\(w_i\)</span>. <span class="math notranslate nohighlight">\(\sigma_i\)</span> is the <a class="reference internal" href="#signs">constant sign</a> expressed in
-this readout’s outcome convention, and <span class="math notranslate nohighlight">\(\widehat\delta_i\)</span> is the decoder’s flip
-estimate for this readout.</p>
+measurements in <span class="math notranslate nohighlight">\(w_i\)</span>, and <span class="math notranslate nohighlight">\(\widehat\delta_i\)</span> is the decoder’s flip estimate.
+Here <span class="math notranslate nohighlight">\(\operatorname{parity}(w_i)\)</span> uses the authored physical measurement
+records. Their outcome convention already realizes the relation’s constant
+sign, so the implemented named recipe adds no separate <span class="math notranslate nohighlight">\(\sigma_i\)</span> term.
+Closed logical observables use their own gateway reference offsets as
+described under <a class="reference internal" href="#signs">Signs</a>.</p>
 <p>Folds use corrected values, not raw records. Suppose a first parity <span class="math notranslate nohighlight">\(r_1\)</span>
 reads <span class="math notranslate nohighlight">\(m_1\)</span>, while a later parity <span class="math notranslate nohighlight">\(r_{2,b}\)</span> reads <span class="math notranslate nohighlight">\(m_2\oplus m_1\)</span> under a
 choice <span class="math notranslate nohighlight">\(b=m_1\)</span>. With decoder estimates <span class="math notranslate nohighlight">\(\widehat\delta_1\)</span> and
@@ -3329,14 +3451,27 @@ templates’ stabilizer flows, which <a class="reference internal" href="compila
 across blocks. Logical support alone does not determine every physical check.</p>
 <h2 id="module-composition">Module composition<a class="headerlink" href="#module-composition" title="Link to this heading">¶</a></h2>
 <p>For <a class="reference internal" href="../modules/index.html"><span class="std std-doc">modular graphs</span></a>, Bloq computes correlations from the
-innermost instances outward. Each child first closes its internal seams. Its
-relation retains both correlations reaching its exposed Ports and closed
-surfaces within the child, together with their signs and internal support.</p>
+innermost instances outward. A definition retains the result of closing its
+internal seams, with external half-edges left open. Compatible instances reuse
+that result through local column and Boolean-variable mappings. The relation
+retains both correlations reaching exposed Ports and closed surfaces, including
+complete interior support in native half-edge frames.</p>
 <p>The parent combines these child relations with its own local tensors and
 applies the same seam constraints at connected Ports. Pauli support must match
 across each connection, with X and Z exchanged on a Hadamard seam. Compatible
 combinations form the parent’s correlation space. Repeating this through the
 hierarchy produces surfaces that can span several module instances.</p>
+<p><code class="docutils literal notranslate"><span class="pre">ModuleSummary</span></code> and production compilation share this factored relation.
+The public signed certificate is a presentation of its complete rows; deriving
+that presentation does not solve the internal seams again. Production keeps
+Boolean coefficients factored and does not enumerate joint selector assignments.
+Instance positions, outcome names, and physical measurement records remain
+distinct even when their relation or physical templates are shared.</p>
+<p>Reuse requires the same ordered tensor and seam equations after renaming
+columns and Boolean variables. Translation alone does not change those
+equations. Rotations or port replacements that change the local tensor or
+boundary frame produce separate compatible variants. Local topology construction,
+column mapping, and parent seam composition still cost work for each use.</p>
 <p>Named readouts and terminal frames are then selected from the composed relation
 using the guarded and causal rules above. Classical bindings and feedback can
 create dependencies across modules. Named readouts are checked both within
@@ -3392,7 +3527,7 @@ live outputs.</p>
   
     Created using
     <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
-    9.1.0.
+    8.2.3.
      and
     <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
   

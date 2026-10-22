@@ -1046,210 +1046,211 @@
 <a href=#1046 id=1046 data-nosnippet>1046</a>        <span class="attr">#[values(<span class="number">3</span>, <span class="number">5</span>, <span class="number">7</span>, <span class="number">9</span>)] </span>d: u32,
 <a href=#1047 id=1047 data-nosnippet>1047</a>        <span class="attr">#[values(Direction::ZMINUS, Direction::ZPLUS)] </span>pipe_dir: Direction,
 <a href=#1048 id=1048 data-nosnippet>1048</a>    ) {
-<a href=#1049 id=1049 data-nosnippet>1049</a>        compile_and_verify(basis, d, pipe_dir);
-<a href=#1050 id=1050 data-nosnippet>1050</a>    }
-<a href=#1051 id=1051 data-nosnippet>1051</a>
-<a href=#1052 id=1052 data-nosnippet>1052</a>    <span class="attr">#[rstest]
-<a href=#1053 id=1053 data-nosnippet>1053</a>    </span><span class="kw">fn </span>test_y_chunk_structure(<span class="attr">#[values(<span class="number">3</span>, <span class="number">5</span>, <span class="number">7</span>, <span class="number">9</span>)] </span>d: u32) {
-<a href=#1054 id=1054 data-nosnippet>1054</a>        <span class="kw">let </span>expected_reps = d / <span class="number">2</span>;
-<a href=#1055 id=1055 data-nosnippet>1055</a>        <span class="kw">let </span>template = compile_and_verify(Basis::X, d, Direction::ZMINUS);
-<a href=#1056 id=1056 data-nosnippet>1056</a>        <span class="kw">if </span>expected_reps == <span class="number">1 </span>{
-<a href=#1057 id=1057 data-nosnippet>1057</a>            <span class="macro">assert_eq!</span>(loop_repetitions(<span class="kw-2">&amp;</span>template), <span class="prelude-val">None</span>);
-<a href=#1058 id=1058 data-nosnippet>1058</a>        } <span class="kw">else </span>{
-<a href=#1059 id=1059 data-nosnippet>1059</a>            <span class="macro">assert_eq!</span>(loop_repetitions(<span class="kw-2">&amp;</span>template), <span class="prelude-val">Some</span>(expected_reps));
-<a href=#1060 id=1060 data-nosnippet>1060</a>        }
-<a href=#1061 id=1061 data-nosnippet>1061</a>    }
-<a href=#1062 id=1062 data-nosnippet>1062</a>
-<a href=#1063 id=1063 data-nosnippet>1063</a>    <span class="attr">#[rstest]
-<a href=#1064 id=1064 data-nosnippet>1064</a>    </span><span class="kw">fn </span>test_y_transition_round_extracts_basis_changes_into_rotation_moment(
-<a href=#1065 id=1065 data-nosnippet>1065</a>        <span class="attr">#[values(Basis::X, Basis::Z)] </span>basis: Basis,
-<a href=#1066 id=1066 data-nosnippet>1066</a>    ) {
-<a href=#1067 id=1067 data-nosnippet>1067</a>        <span class="kw">let </span>(transition, <span class="kw">_</span>) = make_y_transition_round(<span class="number">5</span>, basis).expect(<span class="string">"transition chunk"</span>);
-<a href=#1068 id=1068 data-nosnippet>1068</a>
-<a href=#1069 id=1069 data-nosnippet>1069</a>        <span class="kw">let </span>moments = split_ops_into_moments(
-<a href=#1070 id=1070 data-nosnippet>1070</a>            transition
-<a href=#1071 id=1071 data-nosnippet>1071</a>                .circuit
-<a href=#1072 id=1072 data-nosnippet>1072</a>                .body(transition.circuit.entry_body())
-<a href=#1073 id=1073 data-nosnippet>1073</a>                .unwrap()
-<a href=#1074 id=1074 data-nosnippet>1074</a>                .ops(),
-<a href=#1075 id=1075 data-nosnippet>1075</a>        );
-<a href=#1076 id=1076 data-nosnippet>1076</a>        <span class="kw">let </span>rotation_moment = moments
-<a href=#1077 id=1077 data-nosnippet>1077</a>            .get(<span class="number">6</span>)
-<a href=#1078 id=1078 data-nosnippet>1078</a>            .expect(<span class="string">"transition keeps a pre-measurement rotation moment"</span>);
-<a href=#1079 id=1079 data-nosnippet>1079</a>        <span class="macro">assert!</span>(
-<a href=#1080 id=1080 data-nosnippet>1080</a>            rotation_moment.iter().any(|op| <span class="macro">matches!</span>(
-<a href=#1081 id=1081 data-nosnippet>1081</a>                op,
-<a href=#1082 id=1082 data-nosnippet>1082</a>                Op::Gate {
-<a href=#1083 id=1083 data-nosnippet>1083</a>                    gate: GateType::H,
-<a href=#1084 id=1084 data-nosnippet>1084</a>                    ..
-<a href=#1085 id=1085 data-nosnippet>1085</a>                }
-<a href=#1086 id=1086 data-nosnippet>1086</a>            )),
-<a href=#1087 id=1087 data-nosnippet>1087</a>            <span class="string">"data-qubit Hadamards should move into the explicit rotation moment"
-<a href=#1088 id=1088 data-nosnippet>1088</a>        </span>);
-<a href=#1089 id=1089 data-nosnippet>1089</a>        <span class="macro">assert!</span>(
-<a href=#1090 id=1090 data-nosnippet>1090</a>            rotation_moment.iter().any(|op| <span class="macro">matches!</span>(
-<a href=#1091 id=1091 data-nosnippet>1091</a>                op,
-<a href=#1092 id=1092 data-nosnippet>1092</a>                Op::Gate {
-<a href=#1093 id=1093 data-nosnippet>1093</a>                    gate: GateType::S,
-<a href=#1094 id=1094 data-nosnippet>1094</a>                    ..
-<a href=#1095 id=1095 data-nosnippet>1095</a>                }
-<a href=#1096 id=1096 data-nosnippet>1096</a>            )),
-<a href=#1097 id=1097 data-nosnippet>1097</a>            <span class="string">"twist-line basis changes should be represented explicitly as S rotations"
-<a href=#1098 id=1098 data-nosnippet>1098</a>        </span>);
-<a href=#1099 id=1099 data-nosnippet>1099</a>
-<a href=#1100 id=1100 data-nosnippet>1100</a>        <span class="kw">let </span>final_moment = moments
-<a href=#1101 id=1101 data-nosnippet>1101</a>            .get(<span class="number">7</span>)
-<a href=#1102 id=1102 data-nosnippet>1102</a>            .expect(<span class="string">"transition keeps the final measurement moment"</span>);
-<a href=#1103 id=1103 data-nosnippet>1103</a>        <span class="macro">assert!</span>(
-<a href=#1104 id=1104 data-nosnippet>1104</a>            final_moment
-<a href=#1105 id=1105 data-nosnippet>1105</a>                .iter()
-<a href=#1106 id=1106 data-nosnippet>1106</a>                .any(|op| <span class="macro">matches!</span>(op, Op::Measure { .. })),
-<a href=#1107 id=1107 data-nosnippet>1107</a>            <span class="string">"final moment should still contain the measurements"
-<a href=#1108 id=1108 data-nosnippet>1108</a>        </span>);
-<a href=#1109 id=1109 data-nosnippet>1109</a>        <span class="macro">assert!</span>(
-<a href=#1110 id=1110 data-nosnippet>1110</a>            final_moment
-<a href=#1111 id=1111 data-nosnippet>1111</a>                .iter()
-<a href=#1112 id=1112 data-nosnippet>1112</a>                .all(|op| <span class="macro">matches!</span>(op, Op::Measure { .. })),
-<a href=#1113 id=1113 data-nosnippet>1113</a>            <span class="string">"final moment should be measurement-only after extracting rotations"
-<a href=#1114 id=1114 data-nosnippet>1114</a>        </span>);
-<a href=#1115 id=1115 data-nosnippet>1115</a>    }
-<a href=#1116 id=1116 data-nosnippet>1116</a>
-<a href=#1117 id=1117 data-nosnippet>1117</a>    <span class="attr">#[test]
-<a href=#1118 id=1118 data-nosnippet>1118</a>    </span><span class="kw">fn </span>test_fixed_bulk_compiler_y_dispatch() {
-<a href=#1119 id=1119 data-nosnippet>1119</a>        <span class="kw">let </span>sig = BlockSignature {
-<a href=#1120 id=1120 data-nosnippet>1120</a>            kind: BlockKind::Y,
-<a href=#1121 id=1121 data-nosnippet>1121</a>            rounds: <span class="prelude-val">None</span>,
-<a href=#1122 id=1122 data-nosnippet>1122</a>            connectivity: Connectivity::ISOLATED.with_pipe(Direction::ZMINUS),
-<a href=#1123 id=1123 data-nosnippet>1123</a>            boundary_basis: <span class="prelude-val">Some</span>(Basis::X),
-<a href=#1124 id=1124 data-nosnippet>1124</a>            layer_schedule: <span class="prelude-val">None</span>,
-<a href=#1125 id=1125 data-nosnippet>1125</a>            surgery_side: <span class="prelude-val">None</span>,
-<a href=#1126 id=1126 data-nosnippet>1126</a>        };
-<a href=#1127 id=1127 data-nosnippet>1127</a>        <span class="kw">let </span>template = compile_fixed_bulk(sig, <span class="number">3</span>).unwrap();
-<a href=#1128 id=1128 data-nosnippet>1128</a>        <span class="macro">assert!</span>(template.program_template.circuit.num_measurements() &gt; <span class="number">0</span>);
-<a href=#1129 id=1129 data-nosnippet>1129</a>    }
-<a href=#1130 id=1130 data-nosnippet>1130</a>
-<a href=#1131 id=1131 data-nosnippet>1131</a>    <span class="attr">#[test]
-<a href=#1132 id=1132 data-nosnippet>1132</a>    </span><span class="kw">fn </span>test_fixed_bulk_compiler_y_missing_basis() {
-<a href=#1133 id=1133 data-nosnippet>1133</a>        <span class="kw">let </span>sig = BlockSignature {
-<a href=#1134 id=1134 data-nosnippet>1134</a>            kind: BlockKind::Y,
-<a href=#1135 id=1135 data-nosnippet>1135</a>            rounds: <span class="prelude-val">None</span>,
-<a href=#1136 id=1136 data-nosnippet>1136</a>            connectivity: Connectivity::ISOLATED.with_pipe(Direction::ZMINUS),
-<a href=#1137 id=1137 data-nosnippet>1137</a>            boundary_basis: <span class="prelude-val">None</span>,
-<a href=#1138 id=1138 data-nosnippet>1138</a>            layer_schedule: <span class="prelude-val">None</span>,
-<a href=#1139 id=1139 data-nosnippet>1139</a>            surgery_side: <span class="prelude-val">None</span>,
-<a href=#1140 id=1140 data-nosnippet>1140</a>        };
-<a href=#1141 id=1141 data-nosnippet>1141</a>        <span class="macro">assert!</span>(validate_fixed_bulk(sig).is_err());
-<a href=#1142 id=1142 data-nosnippet>1142</a>    }
-<a href=#1143 id=1143 data-nosnippet>1143</a>
-<a href=#1144 id=1144 data-nosnippet>1144</a>    <span class="attr">#[rstest]
-<a href=#1145 id=1145 data-nosnippet>1145</a>    </span><span class="kw">fn </span>test_fixed_bulk_compiler_y_normalizes_temporal_hadamard(
-<a href=#1146 id=1146 data-nosnippet>1146</a>        <span class="attr">#[values(Direction::ZMINUS, Direction::ZPLUS)] </span>dir: Direction,
-<a href=#1147 id=1147 data-nosnippet>1147</a>    ) {
-<a href=#1148 id=1148 data-nosnippet>1148</a>        <span class="kw">let </span>sig = BlockSignature {
-<a href=#1149 id=1149 data-nosnippet>1149</a>            kind: BlockKind::Y,
-<a href=#1150 id=1150 data-nosnippet>1150</a>            rounds: <span class="prelude-val">None</span>,
-<a href=#1151 id=1151 data-nosnippet>1151</a>            connectivity: Connectivity::ISOLATED.with_hadamard(dir),
-<a href=#1152 id=1152 data-nosnippet>1152</a>            boundary_basis: <span class="prelude-val">Some</span>(Basis::X),
-<a href=#1153 id=1153 data-nosnippet>1153</a>            layer_schedule: <span class="prelude-val">None</span>,
-<a href=#1154 id=1154 data-nosnippet>1154</a>            surgery_side: <span class="prelude-val">None</span>,
-<a href=#1155 id=1155 data-nosnippet>1155</a>        };
-<a href=#1156 id=1156 data-nosnippet>1156</a>
-<a href=#1157 id=1157 data-nosnippet>1157</a>        validate_fixed_bulk(sig).expect(<span class="string">"temporal H is owned by the realignment pipe node"</span>);
-<a href=#1158 id=1158 data-nosnippet>1158</a>        <span class="kw">let </span>template = compile_fixed_bulk(sig, <span class="number">3</span>).unwrap();
-<a href=#1159 id=1159 data-nosnippet>1159</a>        <span class="kw">let </span>key = template.observable_gateway.keys().next().unwrap();
-<a href=#1160 id=1160 data-nosnippet>1160</a>        <span class="macro">assert!</span>(key.has_arm(dir));
-<a href=#1161 id=1161 data-nosnippet>1161</a>        <span class="macro">assert!</span>(!key.connectivity().has_hadamard(dir));
-<a href=#1162 id=1162 data-nosnippet>1162</a>    }
-<a href=#1163 id=1163 data-nosnippet>1163</a>
-<a href=#1164 id=1164 data-nosnippet>1164</a>    <span class="attr">#[rstest]
-<a href=#1165 id=1165 data-nosnippet>1165</a>    </span><span class="kw">fn </span>test_fixed_bulk_compiler_y_rejects_invalid_connectivity(
-<a href=#1166 id=1166 data-nosnippet>1166</a>        <span class="attr">#[values(
-<a href=#1167 id=1167 data-nosnippet>1167</a>            Connectivity::ISOLATED,
-<a href=#1168 id=1168 data-nosnippet>1168</a>            Connectivity::ISOLATED
-<a href=#1169 id=1169 data-nosnippet>1169</a>                .with_pipe(Direction::ZMINUS)
-<a href=#1170 id=1170 data-nosnippet>1170</a>                .with_pipe(Direction::ZPLUS),
-<a href=#1171 id=1171 data-nosnippet>1171</a>            Connectivity::ISOLATED.with_pipe(Direction::XPLUS)
-<a href=#1172 id=1172 data-nosnippet>1172</a>        )]
-<a href=#1173 id=1173 data-nosnippet>1173</a>        </span>connectivity: Connectivity,
-<a href=#1174 id=1174 data-nosnippet>1174</a>    ) {
-<a href=#1175 id=1175 data-nosnippet>1175</a>        <span class="kw">let </span>sig = BlockSignature {
-<a href=#1176 id=1176 data-nosnippet>1176</a>            kind: BlockKind::Y,
-<a href=#1177 id=1177 data-nosnippet>1177</a>            rounds: <span class="prelude-val">None</span>,
-<a href=#1178 id=1178 data-nosnippet>1178</a>            connectivity,
-<a href=#1179 id=1179 data-nosnippet>1179</a>            boundary_basis: <span class="prelude-val">Some</span>(Basis::X),
-<a href=#1180 id=1180 data-nosnippet>1180</a>            layer_schedule: <span class="prelude-val">None</span>,
-<a href=#1181 id=1181 data-nosnippet>1181</a>            surgery_side: <span class="prelude-val">None</span>,
-<a href=#1182 id=1182 data-nosnippet>1182</a>        };
-<a href=#1183 id=1183 data-nosnippet>1183</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-<a href=#1184 id=1184 data-nosnippet>1184</a>            validate_fixed_bulk(sig),
-<a href=#1185 id=1185 data-nosnippet>1185</a>            <span class="prelude-val">Err</span>(CompileError::InvalidConnectivity {
-<a href=#1186 id=1186 data-nosnippet>1186</a>                kind: BlockKind::Y,
-<a href=#1187 id=1187 data-nosnippet>1187</a>                ..
-<a href=#1188 id=1188 data-nosnippet>1188</a>            })
-<a href=#1189 id=1189 data-nosnippet>1189</a>        ));
-<a href=#1190 id=1190 data-nosnippet>1190</a>    }
-<a href=#1191 id=1191 data-nosnippet>1191</a>
-<a href=#1192 id=1192 data-nosnippet>1192</a>    <span class="attr">#[rstest]
-<a href=#1193 id=1193 data-nosnippet>1193</a>    </span><span class="kw">fn </span>test_y_observable_meas_qubits_consistency(
-<a href=#1194 id=1194 data-nosnippet>1194</a>        <span class="attr">#[values(Basis::X, Basis::Z)] </span>top_basis: Basis,
-<a href=#1195 id=1195 data-nosnippet>1195</a>        <span class="attr">#[values(<span class="number">3</span>, <span class="number">5</span>, <span class="number">7</span>, <span class="number">9</span>)] </span>d: u32,
-<a href=#1196 id=1196 data-nosnippet>1196</a>    ) {
-<a href=#1197 id=1197 data-nosnippet>1197</a>        <span class="kw">let </span>set = TransitionSets::new(d, top_basis);
-<a href=#1198 id=1198 data-nosnippet>1198</a>        <span class="kw">let </span>init_observable_qubits: <span class="kw">crate</span>::FxSet&lt;IVec2&gt; =
-<a href=#1199 id=1199 data-nosnippet>1199</a>            collect_observable_meas_qubits_reversed(<span class="kw-2">&amp;</span>set, d <span class="kw">as </span>i32, top_basis)
-<a href=#1200 id=1200 data-nosnippet>1200</a>                .iter()
-<a href=#1201 id=1201 data-nosnippet>1201</a>                .copied()
-<a href=#1202 id=1202 data-nosnippet>1202</a>                .collect();
-<a href=#1203 id=1203 data-nosnippet>1203</a>        <span class="kw">let </span>(_chunks, gateway) = build_y_chunks(top_basis, d, d / <span class="number">2</span>, <span class="bool-val">true</span>).unwrap();
-<a href=#1204 id=1204 data-nosnippet>1204</a>        <span class="kw">let </span>key = gateway
-<a href=#1205 id=1205 data-nosnippet>1205</a>            .keys()
-<a href=#1206 id=1206 data-nosnippet>1206</a>            .next()
-<a href=#1207 id=1207 data-nosnippet>1207</a>            .expect(<span class="string">"Y block has an observable gateway"</span>);
-<a href=#1208 id=1208 data-nosnippet>1208</a>        <span class="kw">let </span>entry = <span class="kw-2">&amp;</span>gateway[key];
-<a href=#1209 id=1209 data-nosnippet>1209</a>        <span class="kw">let </span>(transition_round_init, <span class="kw">_</span>) = make_y_transition_round_reversed(d, top_basis).unwrap();
-<a href=#1210 id=1210 data-nosnippet>1210</a>        <span class="kw">let </span>measurement_from_gateway: <span class="kw">crate</span>::FxSet&lt;<span class="kw">_</span>&gt; = entry.measurements[<span class="number">0</span>]
-<a href=#1211 id=1211 data-nosnippet>1211</a>            .measurements
-<a href=#1212 id=1212 data-nosnippet>1212</a>            .iter()
-<a href=#1213 id=1213 data-nosnippet>1213</a>            .map(|<span class="kw-2">&amp;</span>measurement| {
-<a href=#1214 id=1214 data-nosnippet>1214</a>                transition_round_init
-<a href=#1215 id=1215 data-nosnippet>1215</a>                    .circuit
-<a href=#1216 id=1216 data-nosnippet>1216</a>                    .meas_registry()
-<a href=#1217 id=1217 data-nosnippet>1217</a>                    .record(measurement)
-<a href=#1218 id=1218 data-nosnippet>1218</a>                    .expect(<span class="string">"flow references a circuit measurement"</span>)
-<a href=#1219 id=1219 data-nosnippet>1219</a>                    .qubit
-<a href=#1220 id=1220 data-nosnippet>1220</a>            })
-<a href=#1221 id=1221 data-nosnippet>1221</a>            .collect();
-<a href=#1222 id=1222 data-nosnippet>1222</a>        <span class="macro">assert_eq!</span>(init_observable_qubits, measurement_from_gateway);
-<a href=#1223 id=1223 data-nosnippet>1223</a>    }
-<a href=#1224 id=1224 data-nosnippet>1224</a>
-<a href=#1225 id=1225 data-nosnippet>1225</a>    <span class="attr">#[rstest]
-<a href=#1226 id=1226 data-nosnippet>1226</a>    </span><span class="kw">fn </span>test_standalone_y_chunks_have_open_boundary_flows(
-<a href=#1227 id=1227 data-nosnippet>1227</a>        <span class="attr">#[values(Basis::X, Basis::Z)] </span>basis: Basis,
-<a href=#1228 id=1228 data-nosnippet>1228</a>        <span class="attr">#[values(<span class="number">3</span>, <span class="number">5</span>, <span class="number">7</span>, <span class="number">9</span>)] </span>d: u32,
-<a href=#1229 id=1229 data-nosnippet>1229</a>    ) {
-<a href=#1230 id=1230 data-nosnippet>1230</a>        <span class="comment">// A measurement-side Y block consumes stabilizers from the cube below,
-<a href=#1231 id=1231 data-nosnippet>1231</a>        // so its template keeps flows with an open `start` as boundary residual.
-<a href=#1232 id=1232 data-nosnippet>1232</a>        </span><span class="kw">let </span>(chunks, <span class="kw">_</span>) = build_y_chunks(basis, d, d / <span class="number">2</span>, <span class="bool-val">false</span>).unwrap();
-<a href=#1233 id=1233 data-nosnippet>1233</a>        <span class="kw">let </span>template = LoweringTemplate::from_chunks(chunks, ObservableGateway::new()).unwrap();
-<a href=#1234 id=1234 data-nosnippet>1234</a>        <span class="macro">assert!</span>(
-<a href=#1235 id=1235 data-nosnippet>1235</a>            template
-<a href=#1236 id=1236 data-nosnippet>1236</a>                .program_template
-<a href=#1237 id=1237 data-nosnippet>1237</a>                .boundary_flows
-<a href=#1238 id=1238 data-nosnippet>1238</a>                .iter()
-<a href=#1239 id=1239 data-nosnippet>1239</a>                .any(|flow| !flow.start.is_empty()),
-<a href=#1240 id=1240 data-nosnippet>1240</a>            <span class="string">"expected open-start boundary flows on the standalone Y template"
-<a href=#1241 id=1241 data-nosnippet>1241</a>        </span>);
-<a href=#1242 id=1242 data-nosnippet>1242</a>    }
-<a href=#1243 id=1243 data-nosnippet>1243</a>
-<a href=#1244 id=1244 data-nosnippet>1244</a>    <span class="attr">#[rstest]
-<a href=#1245 id=1245 data-nosnippet>1245</a>    </span><span class="kw">fn </span>test_y_observable_gateway(
-<a href=#1246 id=1246 data-nosnippet>1246</a>        <span class="attr">#[values(Direction::ZMINUS, Direction::ZPLUS)] </span>pipe_dir: Direction,
-<a href=#1247 id=1247 data-nosnippet>1247</a>    ) {
-<a href=#1248 id=1248 data-nosnippet>1248</a>        <span class="kw">let </span>template = compile_and_verify(Basis::X, <span class="number">3</span>, pipe_dir);
-<a href=#1249 id=1249 data-nosnippet>1249</a>        <span class="macro">assert_eq!</span>(template.observable_gateway.len(), <span class="number">1</span>);
-<a href=#1250 id=1250 data-nosnippet>1250</a>        <span class="kw">let </span>key = template.observable_gateway.keys().next().unwrap();
-<a href=#1251 id=1251 data-nosnippet>1251</a>        <span class="macro">assert_eq!</span>(key.center_basis(), Pauli::Y);
-<a href=#1252 id=1252 data-nosnippet>1252</a>        <span class="macro">assert!</span>(key.has_arm(pipe_dir));
-<a href=#1253 id=1253 data-nosnippet>1253</a>    }
-<a href=#1254 id=1254 data-nosnippet>1254</a>}
+<a href=#1049 id=1049 data-nosnippet>1049</a>        <span class="kw">let </span>template = compile_and_verify(basis, d, pipe_dir);
+<a href=#1050 id=1050 data-nosnippet>1050</a>        <span class="kw">let </span>expected_reps = d / <span class="number">2</span>;
+<a href=#1051 id=1051 data-nosnippet>1051</a>        <span class="kw">if </span>expected_reps == <span class="number">1 </span>{
+<a href=#1052 id=1052 data-nosnippet>1052</a>            <span class="macro">assert_eq!</span>(loop_repetitions(<span class="kw-2">&amp;</span>template), <span class="prelude-val">None</span>);
+<a href=#1053 id=1053 data-nosnippet>1053</a>        } <span class="kw">else </span>{
+<a href=#1054 id=1054 data-nosnippet>1054</a>            <span class="macro">assert_eq!</span>(loop_repetitions(<span class="kw-2">&amp;</span>template), <span class="prelude-val">Some</span>(expected_reps));
+<a href=#1055 id=1055 data-nosnippet>1055</a>        }
+<a href=#1056 id=1056 data-nosnippet>1056</a>    }
+<a href=#1057 id=1057 data-nosnippet>1057</a>
+<a href=#1058 id=1058 data-nosnippet>1058</a>    <span class="attr">#[rstest]
+<a href=#1059 id=1059 data-nosnippet>1059</a>    </span><span class="kw">fn </span>test_y_transition_round_extracts_basis_changes_into_rotation_moment(
+<a href=#1060 id=1060 data-nosnippet>1060</a>        <span class="attr">#[values(Basis::X, Basis::Z)] </span>basis: Basis,
+<a href=#1061 id=1061 data-nosnippet>1061</a>    ) {
+<a href=#1062 id=1062 data-nosnippet>1062</a>        <span class="kw">let </span>(transition, <span class="kw">_</span>) = make_y_transition_round(<span class="number">5</span>, basis).expect(<span class="string">"transition chunk"</span>);
+<a href=#1063 id=1063 data-nosnippet>1063</a>
+<a href=#1064 id=1064 data-nosnippet>1064</a>        <span class="kw">let </span>moments = split_ops_into_moments(
+<a href=#1065 id=1065 data-nosnippet>1065</a>            transition
+<a href=#1066 id=1066 data-nosnippet>1066</a>                .circuit
+<a href=#1067 id=1067 data-nosnippet>1067</a>                .body(transition.circuit.entry_body())
+<a href=#1068 id=1068 data-nosnippet>1068</a>                .unwrap()
+<a href=#1069 id=1069 data-nosnippet>1069</a>                .ops(),
+<a href=#1070 id=1070 data-nosnippet>1070</a>        );
+<a href=#1071 id=1071 data-nosnippet>1071</a>        <span class="kw">let </span>rotation_moment = moments
+<a href=#1072 id=1072 data-nosnippet>1072</a>            .get(<span class="number">6</span>)
+<a href=#1073 id=1073 data-nosnippet>1073</a>            .expect(<span class="string">"transition keeps a pre-measurement rotation moment"</span>);
+<a href=#1074 id=1074 data-nosnippet>1074</a>        <span class="macro">assert!</span>(
+<a href=#1075 id=1075 data-nosnippet>1075</a>            rotation_moment.iter().any(|op| <span class="macro">matches!</span>(
+<a href=#1076 id=1076 data-nosnippet>1076</a>                op,
+<a href=#1077 id=1077 data-nosnippet>1077</a>                Op::Gate {
+<a href=#1078 id=1078 data-nosnippet>1078</a>                    gate: GateType::H,
+<a href=#1079 id=1079 data-nosnippet>1079</a>                    ..
+<a href=#1080 id=1080 data-nosnippet>1080</a>                }
+<a href=#1081 id=1081 data-nosnippet>1081</a>            )),
+<a href=#1082 id=1082 data-nosnippet>1082</a>            <span class="string">"data-qubit Hadamards should move into the explicit rotation moment"
+<a href=#1083 id=1083 data-nosnippet>1083</a>        </span>);
+<a href=#1084 id=1084 data-nosnippet>1084</a>        <span class="macro">assert!</span>(
+<a href=#1085 id=1085 data-nosnippet>1085</a>            rotation_moment.iter().any(|op| <span class="macro">matches!</span>(
+<a href=#1086 id=1086 data-nosnippet>1086</a>                op,
+<a href=#1087 id=1087 data-nosnippet>1087</a>                Op::Gate {
+<a href=#1088 id=1088 data-nosnippet>1088</a>                    gate: GateType::S,
+<a href=#1089 id=1089 data-nosnippet>1089</a>                    ..
+<a href=#1090 id=1090 data-nosnippet>1090</a>                }
+<a href=#1091 id=1091 data-nosnippet>1091</a>            )),
+<a href=#1092 id=1092 data-nosnippet>1092</a>            <span class="string">"twist-line basis changes should be represented explicitly as S rotations"
+<a href=#1093 id=1093 data-nosnippet>1093</a>        </span>);
+<a href=#1094 id=1094 data-nosnippet>1094</a>
+<a href=#1095 id=1095 data-nosnippet>1095</a>        <span class="kw">let </span>final_moment = moments
+<a href=#1096 id=1096 data-nosnippet>1096</a>            .get(<span class="number">7</span>)
+<a href=#1097 id=1097 data-nosnippet>1097</a>            .expect(<span class="string">"transition keeps the final measurement moment"</span>);
+<a href=#1098 id=1098 data-nosnippet>1098</a>        <span class="macro">assert!</span>(
+<a href=#1099 id=1099 data-nosnippet>1099</a>            final_moment
+<a href=#1100 id=1100 data-nosnippet>1100</a>                .iter()
+<a href=#1101 id=1101 data-nosnippet>1101</a>                .any(|op| <span class="macro">matches!</span>(op, Op::Measure { .. })),
+<a href=#1102 id=1102 data-nosnippet>1102</a>            <span class="string">"final moment should still contain the measurements"
+<a href=#1103 id=1103 data-nosnippet>1103</a>        </span>);
+<a href=#1104 id=1104 data-nosnippet>1104</a>        <span class="macro">assert!</span>(
+<a href=#1105 id=1105 data-nosnippet>1105</a>            final_moment
+<a href=#1106 id=1106 data-nosnippet>1106</a>                .iter()
+<a href=#1107 id=1107 data-nosnippet>1107</a>                .all(|op| <span class="macro">matches!</span>(op, Op::Measure { .. })),
+<a href=#1108 id=1108 data-nosnippet>1108</a>            <span class="string">"final moment should be measurement-only after extracting rotations"
+<a href=#1109 id=1109 data-nosnippet>1109</a>        </span>);
+<a href=#1110 id=1110 data-nosnippet>1110</a>    }
+<a href=#1111 id=1111 data-nosnippet>1111</a>
+<a href=#1112 id=1112 data-nosnippet>1112</a>    <span class="attr">#[test]
+<a href=#1113 id=1113 data-nosnippet>1113</a>    </span><span class="kw">fn </span>test_fixed_bulk_compiler_y_dispatch() {
+<a href=#1114 id=1114 data-nosnippet>1114</a>        <span class="kw">let </span>sig = BlockSignature {
+<a href=#1115 id=1115 data-nosnippet>1115</a>            kind: BlockKind::Y,
+<a href=#1116 id=1116 data-nosnippet>1116</a>            rounds: <span class="prelude-val">None</span>,
+<a href=#1117 id=1117 data-nosnippet>1117</a>            connectivity: Connectivity::ISOLATED.with_pipe(Direction::ZMINUS),
+<a href=#1118 id=1118 data-nosnippet>1118</a>            boundary_basis: <span class="prelude-val">Some</span>(Basis::X),
+<a href=#1119 id=1119 data-nosnippet>1119</a>            layer_schedule: <span class="prelude-val">None</span>,
+<a href=#1120 id=1120 data-nosnippet>1120</a>            surgery_side: <span class="prelude-val">None</span>,
+<a href=#1121 id=1121 data-nosnippet>1121</a>        };
+<a href=#1122 id=1122 data-nosnippet>1122</a>        <span class="kw">let </span>template = compile_fixed_bulk(sig, <span class="number">3</span>).unwrap();
+<a href=#1123 id=1123 data-nosnippet>1123</a>        <span class="macro">assert!</span>(template.program_template.circuit.num_measurements() &gt; <span class="number">0</span>);
+<a href=#1124 id=1124 data-nosnippet>1124</a>    }
+<a href=#1125 id=1125 data-nosnippet>1125</a>
+<a href=#1126 id=1126 data-nosnippet>1126</a>    <span class="attr">#[rstest]
+<a href=#1127 id=1127 data-nosnippet>1127</a>    </span><span class="kw">fn </span>test_fixed_bulk_compiler_y_missing_basis(
+<a href=#1128 id=1128 data-nosnippet>1128</a>        <span class="attr">#[values(Connectivity::ISOLATED, Connectivity::ISOLATED.with_pipe(Direction::ZMINUS))]
+<a href=#1129 id=1129 data-nosnippet>1129</a>        </span>connectivity: Connectivity,
+<a href=#1130 id=1130 data-nosnippet>1130</a>    ) {
+<a href=#1131 id=1131 data-nosnippet>1131</a>        <span class="kw">let </span>sig = BlockSignature {
+<a href=#1132 id=1132 data-nosnippet>1132</a>            kind: BlockKind::Y,
+<a href=#1133 id=1133 data-nosnippet>1133</a>            rounds: <span class="prelude-val">None</span>,
+<a href=#1134 id=1134 data-nosnippet>1134</a>            connectivity,
+<a href=#1135 id=1135 data-nosnippet>1135</a>            boundary_basis: <span class="prelude-val">None</span>,
+<a href=#1136 id=1136 data-nosnippet>1136</a>            layer_schedule: <span class="prelude-val">None</span>,
+<a href=#1137 id=1137 data-nosnippet>1137</a>            surgery_side: <span class="prelude-val">None</span>,
+<a href=#1138 id=1138 data-nosnippet>1138</a>        };
+<a href=#1139 id=1139 data-nosnippet>1139</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+<a href=#1140 id=1140 data-nosnippet>1140</a>            validate_fixed_bulk(sig),
+<a href=#1141 id=1141 data-nosnippet>1141</a>            <span class="prelude-val">Err</span>(CompileError::MissingBoundaryBasis { kind: BlockKind::Y })
+<a href=#1142 id=1142 data-nosnippet>1142</a>        ));
+<a href=#1143 id=1143 data-nosnippet>1143</a>    }
+<a href=#1144 id=1144 data-nosnippet>1144</a>
+<a href=#1145 id=1145 data-nosnippet>1145</a>    <span class="attr">#[rstest]
+<a href=#1146 id=1146 data-nosnippet>1146</a>    </span><span class="kw">fn </span>test_fixed_bulk_compiler_y_normalizes_temporal_hadamard(
+<a href=#1147 id=1147 data-nosnippet>1147</a>        <span class="attr">#[values(Direction::ZMINUS, Direction::ZPLUS)] </span>dir: Direction,
+<a href=#1148 id=1148 data-nosnippet>1148</a>    ) {
+<a href=#1149 id=1149 data-nosnippet>1149</a>        <span class="kw">let </span>sig = BlockSignature {
+<a href=#1150 id=1150 data-nosnippet>1150</a>            kind: BlockKind::Y,
+<a href=#1151 id=1151 data-nosnippet>1151</a>            rounds: <span class="prelude-val">None</span>,
+<a href=#1152 id=1152 data-nosnippet>1152</a>            connectivity: Connectivity::ISOLATED.with_hadamard(dir),
+<a href=#1153 id=1153 data-nosnippet>1153</a>            boundary_basis: <span class="prelude-val">Some</span>(Basis::X),
+<a href=#1154 id=1154 data-nosnippet>1154</a>            layer_schedule: <span class="prelude-val">None</span>,
+<a href=#1155 id=1155 data-nosnippet>1155</a>            surgery_side: <span class="prelude-val">None</span>,
+<a href=#1156 id=1156 data-nosnippet>1156</a>        };
+<a href=#1157 id=1157 data-nosnippet>1157</a>
+<a href=#1158 id=1158 data-nosnippet>1158</a>        validate_fixed_bulk(sig).expect(<span class="string">"temporal H is owned by the realignment pipe node"</span>);
+<a href=#1159 id=1159 data-nosnippet>1159</a>        <span class="kw">let </span>template = compile_fixed_bulk(sig, <span class="number">3</span>).unwrap();
+<a href=#1160 id=1160 data-nosnippet>1160</a>        <span class="kw">let </span>key = template.observable_gateway.keys().next().unwrap();
+<a href=#1161 id=1161 data-nosnippet>1161</a>        <span class="macro">assert!</span>(key.has_arm(dir));
+<a href=#1162 id=1162 data-nosnippet>1162</a>        <span class="macro">assert!</span>(!key.connectivity().has_hadamard(dir));
+<a href=#1163 id=1163 data-nosnippet>1163</a>    }
+<a href=#1164 id=1164 data-nosnippet>1164</a>
+<a href=#1165 id=1165 data-nosnippet>1165</a>    <span class="attr">#[rstest]
+<a href=#1166 id=1166 data-nosnippet>1166</a>    </span><span class="kw">fn </span>test_fixed_bulk_compiler_y_rejects_invalid_connectivity(
+<a href=#1167 id=1167 data-nosnippet>1167</a>        <span class="attr">#[values(
+<a href=#1168 id=1168 data-nosnippet>1168</a>            Connectivity::ISOLATED,
+<a href=#1169 id=1169 data-nosnippet>1169</a>            Connectivity::ISOLATED
+<a href=#1170 id=1170 data-nosnippet>1170</a>                .with_pipe(Direction::ZMINUS)
+<a href=#1171 id=1171 data-nosnippet>1171</a>                .with_pipe(Direction::ZPLUS),
+<a href=#1172 id=1172 data-nosnippet>1172</a>            Connectivity::ISOLATED.with_pipe(Direction::XPLUS)
+<a href=#1173 id=1173 data-nosnippet>1173</a>        )]
+<a href=#1174 id=1174 data-nosnippet>1174</a>        </span>connectivity: Connectivity,
+<a href=#1175 id=1175 data-nosnippet>1175</a>    ) {
+<a href=#1176 id=1176 data-nosnippet>1176</a>        <span class="kw">let </span>sig = BlockSignature {
+<a href=#1177 id=1177 data-nosnippet>1177</a>            kind: BlockKind::Y,
+<a href=#1178 id=1178 data-nosnippet>1178</a>            rounds: <span class="prelude-val">None</span>,
+<a href=#1179 id=1179 data-nosnippet>1179</a>            connectivity,
+<a href=#1180 id=1180 data-nosnippet>1180</a>            boundary_basis: <span class="prelude-val">Some</span>(Basis::X),
+<a href=#1181 id=1181 data-nosnippet>1181</a>            layer_schedule: <span class="prelude-val">None</span>,
+<a href=#1182 id=1182 data-nosnippet>1182</a>            surgery_side: <span class="prelude-val">None</span>,
+<a href=#1183 id=1183 data-nosnippet>1183</a>        };
+<a href=#1184 id=1184 data-nosnippet>1184</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+<a href=#1185 id=1185 data-nosnippet>1185</a>            validate_fixed_bulk(sig),
+<a href=#1186 id=1186 data-nosnippet>1186</a>            <span class="prelude-val">Err</span>(CompileError::InvalidConnectivity {
+<a href=#1187 id=1187 data-nosnippet>1187</a>                kind: BlockKind::Y,
+<a href=#1188 id=1188 data-nosnippet>1188</a>                ..
+<a href=#1189 id=1189 data-nosnippet>1189</a>            })
+<a href=#1190 id=1190 data-nosnippet>1190</a>        ));
+<a href=#1191 id=1191 data-nosnippet>1191</a>    }
+<a href=#1192 id=1192 data-nosnippet>1192</a>
+<a href=#1193 id=1193 data-nosnippet>1193</a>    <span class="attr">#[rstest]
+<a href=#1194 id=1194 data-nosnippet>1194</a>    </span><span class="kw">fn </span>test_y_observable_meas_qubits_consistency(
+<a href=#1195 id=1195 data-nosnippet>1195</a>        <span class="attr">#[values(Basis::X, Basis::Z)] </span>top_basis: Basis,
+<a href=#1196 id=1196 data-nosnippet>1196</a>        <span class="attr">#[values(<span class="number">3</span>, <span class="number">5</span>, <span class="number">7</span>, <span class="number">9</span>)] </span>d: u32,
+<a href=#1197 id=1197 data-nosnippet>1197</a>    ) {
+<a href=#1198 id=1198 data-nosnippet>1198</a>        <span class="kw">let </span>set = TransitionSets::new(d, top_basis);
+<a href=#1199 id=1199 data-nosnippet>1199</a>        <span class="kw">let </span>init_observable_qubits: <span class="kw">crate</span>::FxSet&lt;IVec2&gt; =
+<a href=#1200 id=1200 data-nosnippet>1200</a>            collect_observable_meas_qubits_reversed(<span class="kw-2">&amp;</span>set, d <span class="kw">as </span>i32, top_basis)
+<a href=#1201 id=1201 data-nosnippet>1201</a>                .iter()
+<a href=#1202 id=1202 data-nosnippet>1202</a>                .copied()
+<a href=#1203 id=1203 data-nosnippet>1203</a>                .collect();
+<a href=#1204 id=1204 data-nosnippet>1204</a>        <span class="kw">let </span>(_chunks, gateway) = build_y_chunks(top_basis, d, d / <span class="number">2</span>, <span class="bool-val">true</span>).unwrap();
+<a href=#1205 id=1205 data-nosnippet>1205</a>        <span class="kw">let </span>key = gateway
+<a href=#1206 id=1206 data-nosnippet>1206</a>            .keys()
+<a href=#1207 id=1207 data-nosnippet>1207</a>            .next()
+<a href=#1208 id=1208 data-nosnippet>1208</a>            .expect(<span class="string">"Y block has an observable gateway"</span>);
+<a href=#1209 id=1209 data-nosnippet>1209</a>        <span class="kw">let </span>entry = <span class="kw-2">&amp;</span>gateway[key];
+<a href=#1210 id=1210 data-nosnippet>1210</a>        <span class="kw">let </span>(transition_round_init, <span class="kw">_</span>) = make_y_transition_round_reversed(d, top_basis).unwrap();
+<a href=#1211 id=1211 data-nosnippet>1211</a>        <span class="kw">let </span>measurement_from_gateway: <span class="kw">crate</span>::FxSet&lt;<span class="kw">_</span>&gt; = entry.measurements[<span class="number">0</span>]
+<a href=#1212 id=1212 data-nosnippet>1212</a>            .measurements
+<a href=#1213 id=1213 data-nosnippet>1213</a>            .iter()
+<a href=#1214 id=1214 data-nosnippet>1214</a>            .map(|<span class="kw-2">&amp;</span>measurement| {
+<a href=#1215 id=1215 data-nosnippet>1215</a>                transition_round_init
+<a href=#1216 id=1216 data-nosnippet>1216</a>                    .circuit
+<a href=#1217 id=1217 data-nosnippet>1217</a>                    .meas_registry()
+<a href=#1218 id=1218 data-nosnippet>1218</a>                    .record(measurement)
+<a href=#1219 id=1219 data-nosnippet>1219</a>                    .expect(<span class="string">"flow references a circuit measurement"</span>)
+<a href=#1220 id=1220 data-nosnippet>1220</a>                    .qubit
+<a href=#1221 id=1221 data-nosnippet>1221</a>            })
+<a href=#1222 id=1222 data-nosnippet>1222</a>            .collect();
+<a href=#1223 id=1223 data-nosnippet>1223</a>        <span class="macro">assert_eq!</span>(init_observable_qubits, measurement_from_gateway);
+<a href=#1224 id=1224 data-nosnippet>1224</a>    }
+<a href=#1225 id=1225 data-nosnippet>1225</a>
+<a href=#1226 id=1226 data-nosnippet>1226</a>    <span class="attr">#[rstest]
+<a href=#1227 id=1227 data-nosnippet>1227</a>    </span><span class="kw">fn </span>test_standalone_y_chunks_have_open_boundary_flows(
+<a href=#1228 id=1228 data-nosnippet>1228</a>        <span class="attr">#[values(Basis::X, Basis::Z)] </span>basis: Basis,
+<a href=#1229 id=1229 data-nosnippet>1229</a>        <span class="attr">#[values(<span class="number">3</span>, <span class="number">5</span>, <span class="number">7</span>, <span class="number">9</span>)] </span>d: u32,
+<a href=#1230 id=1230 data-nosnippet>1230</a>    ) {
+<a href=#1231 id=1231 data-nosnippet>1231</a>        <span class="comment">// A measurement-side Y block consumes stabilizers from the cube below,
+<a href=#1232 id=1232 data-nosnippet>1232</a>        // so its template keeps flows with an open `start` as boundary residual.
+<a href=#1233 id=1233 data-nosnippet>1233</a>        </span><span class="kw">let </span>(chunks, <span class="kw">_</span>) = build_y_chunks(basis, d, d / <span class="number">2</span>, <span class="bool-val">false</span>).unwrap();
+<a href=#1234 id=1234 data-nosnippet>1234</a>        <span class="kw">let </span>template = LoweringTemplate::from_chunks(chunks, ObservableGateway::new()).unwrap();
+<a href=#1235 id=1235 data-nosnippet>1235</a>        <span class="macro">assert!</span>(
+<a href=#1236 id=1236 data-nosnippet>1236</a>            template
+<a href=#1237 id=1237 data-nosnippet>1237</a>                .program_template
+<a href=#1238 id=1238 data-nosnippet>1238</a>                .boundary_flows
+<a href=#1239 id=1239 data-nosnippet>1239</a>                .iter()
+<a href=#1240 id=1240 data-nosnippet>1240</a>                .any(|flow| !flow.start.is_empty()),
+<a href=#1241 id=1241 data-nosnippet>1241</a>            <span class="string">"expected open-start boundary flows on the standalone Y template"
+<a href=#1242 id=1242 data-nosnippet>1242</a>        </span>);
+<a href=#1243 id=1243 data-nosnippet>1243</a>    }
+<a href=#1244 id=1244 data-nosnippet>1244</a>
+<a href=#1245 id=1245 data-nosnippet>1245</a>    <span class="attr">#[rstest]
+<a href=#1246 id=1246 data-nosnippet>1246</a>    </span><span class="kw">fn </span>test_y_observable_gateway(
+<a href=#1247 id=1247 data-nosnippet>1247</a>        <span class="attr">#[values(Direction::ZMINUS, Direction::ZPLUS)] </span>pipe_dir: Direction,
+<a href=#1248 id=1248 data-nosnippet>1248</a>    ) {
+<a href=#1249 id=1249 data-nosnippet>1249</a>        <span class="kw">let </span>template = compile_and_verify(Basis::X, <span class="number">3</span>, pipe_dir);
+<a href=#1250 id=1250 data-nosnippet>1250</a>        <span class="macro">assert_eq!</span>(template.observable_gateway.len(), <span class="number">1</span>);
+<a href=#1251 id=1251 data-nosnippet>1251</a>        <span class="kw">let </span>key = template.observable_gateway.keys().next().unwrap();
+<a href=#1252 id=1252 data-nosnippet>1252</a>        <span class="macro">assert_eq!</span>(key.center_basis(), Pauli::Y);
+<a href=#1253 id=1253 data-nosnippet>1253</a>        <span class="macro">assert!</span>(key.has_arm(pipe_dir));
+<a href=#1254 id=1254 data-nosnippet>1254</a>    }
+<a href=#1255 id=1255 data-nosnippet>1255</a>}
 </code></pre></div></section></main></body></html>

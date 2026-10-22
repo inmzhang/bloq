@@ -2604,17 +2604,17 @@ area, including dependency-only fixes such as <code class="docutils literal notr
 commits remain visible under General. See <a class="reference internal" href="../releasing.html#changelog"><span class="std std-ref">changelog generation</span></a>.
 <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">changelog</span></code> previews generated notes without writing the file.</p>
 <h2 id="issues-and-pull-requests">Issues and pull requests<a class="headerlink" href="#issues-and-pull-requests" title="Link to this heading">¶</a></h2>
-<p>Use the <a class="reference external" href="https://github.com/inmzhang/bloq/blob/efe9d719cc45cde75da3817ce584e8e17d20b13e/.github/ISSUE_TEMPLATE/bug_report.md">bug report</a>,
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/efe9d719cc45cde75da3817ce584e8e17d20b13e/.github/ISSUE_TEMPLATE/feature_request.md">feature request</a>, or
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/efe9d719cc45cde75da3817ce584e8e17d20b13e/.github/ISSUE_TEMPLATE/question.md">question</a> template when opening an issue.
-Pull requests use the <a class="reference external" href="https://github.com/inmzhang/bloq/blob/efe9d719cc45cde75da3817ce584e8e17d20b13e/.github/pull_request_template.md">PR template</a>; describe
+<p>Use the <a class="reference external" href="https://github.com/inmzhang/bloq/blob/733f1a88aedcd2b3eea68fc0053c7981d7d60718/.github/ISSUE_TEMPLATE/bug_report.md">bug report</a>,
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/733f1a88aedcd2b3eea68fc0053c7981d7d60718/.github/ISSUE_TEMPLATE/feature_request.md">feature request</a>, or
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/733f1a88aedcd2b3eea68fc0053c7981d7d60718/.github/ISSUE_TEMPLATE/question.md">question</a> template when opening an issue.
+Pull requests use the <a class="reference external" href="https://github.com/inmzhang/bloq/blob/733f1a88aedcd2b3eea68fc0053c7981d7d60718/.github/pull_request_template.md">PR template</a>; describe
 the change and record the checks you ran. These templates are adapted from
 <a class="reference external" href="https://github.com/tqec/tqec/tree/main/.github/ISSUE_TEMPLATE">TQEC’s issue templates</a>
 and <a class="reference external" href="https://github.com/tqec/tqec/blob/main/.github/pull_request_template.md">PR template</a>.</p>
 <h2 id="contributor-agreement">Contributor agreement<a class="headerlink" href="#contributor-agreement" title="Link to this heading">¶</a></h2>
 <p>By submitting an issue or pull request, you confirm that you created the
 contribution or have the right to submit it, and license it under this project’s
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/efe9d719cc45cde75da3817ce584e8e17d20b13e/LICENSE">Apache-2.0 license</a>. Check the contributor agreement in the template.</p>
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/733f1a88aedcd2b3eea68fc0053c7981d7d60718/LICENSE">Apache-2.0 license</a>. Check the contributor agreement in the template.</p>
 <h2 id="ai-assisted-contributions">AI-assisted contributions<a class="headerlink" href="#ai-assisted-contributions" title="Link to this heading">¶</a></h2>
 <p>AI-assisted contributions are welcome. Review all generated code, documentation,
 issue text, and pull request text before submitting. You remain responsible for
@@ -2681,6 +2681,10 @@ recipes live in <code class="docutils literal notranslate"><span class="pre">too
 <p>Use <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">test-full</span></code> for ignored or slow tests in release mode, and <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">fidelity</span></code>
 for both physical Choi suites. Graph-level logical checks use QuiZX;
 non-Clifford physical execution checks belong in <code class="docutils literal notranslate"><span class="pre">bloq_vm/tests</span></code>.
+Use ideal T-source proxies for ordinary VM tests: set
+<code class="docutils literal notranslate"><span class="pre">CompileConfig::with_prepare_t_with_mpps(true)</span></code> in Rust or
+<code class="docutils literal notranslate"><span class="pre">prepare_t_with_mpps=True</span></code> in Python. Execute full cultivation circuits when
+the test specifically covers cultivation or its native factory retry protocol.
 Prose-only edits need a diff and link review; changed Rust API examples need
 doctests. Keep regression tests that protect behavior rather than private layout.</p>
 <p>Python stubs are generated from Rust annotations with <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">py-stub</span></code>; do not
@@ -2765,7 +2769,7 @@ maintainer action covered by <a class="reference internal" href="../releasing.ht
   
     Created using
     <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
-    9.1.0.
+    8.2.3.
      and
     <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
   

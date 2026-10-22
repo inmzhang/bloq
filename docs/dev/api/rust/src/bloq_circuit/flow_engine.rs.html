@@ -1356,611 +1356,587 @@
 <a href=#1356 id=1356 data-nosnippet>1356</a>    }
 <a href=#1357 id=1357 data-nosnippet>1357</a>
 <a href=#1358 id=1358 data-nosnippet>1358</a>    <span class="attr">#[test]
-<a href=#1359 id=1359 data-nosnippet>1359</a>    </span><span class="kw">fn </span>boundary_composition_accepts_an_equivalent_generator_basis() {
-<a href=#1360 id=1360 data-nosnippet>1360</a>        <span class="kw">let </span>a = x(IVec2::new(<span class="number">0</span>, <span class="number">0</span>));
-<a href=#1361 id=1361 data-nosnippet>1361</a>        <span class="kw">let </span>b = z(IVec2::new(<span class="number">1</span>, <span class="number">0</span>));
-<a href=#1362 id=1362 data-nosnippet>1362</a>        <span class="kw">let </span>ab = <span class="kw-2">&amp;</span>a ^ <span class="kw-2">&amp;</span>b;
-<a href=#1363 id=1363 data-nosnippet>1363</a>        <span class="kw">let </span>creators = [
-<a href=#1364 id=1364 data-nosnippet>1364</a>            flow(PauliMap::empty(), a.clone(), <span class="prelude-val">Some</span>(<span class="number">0</span>)),
-<a href=#1365 id=1365 data-nosnippet>1365</a>            flow(PauliMap::empty(), b, <span class="prelude-val">Some</span>(<span class="number">1</span>)),
-<a href=#1366 id=1366 data-nosnippet>1366</a>        ];
-<a href=#1367 id=1367 data-nosnippet>1367</a>        <span class="kw">let </span>consumers = [
-<a href=#1368 id=1368 data-nosnippet>1368</a>            flow(ab, PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">2</span>)),
-<a href=#1369 id=1369 data-nosnippet>1369</a>            flow(a, PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">3</span>)),
-<a href=#1370 id=1370 data-nosnippet>1370</a>        ];
-<a href=#1371 id=1371 data-nosnippet>1371</a>        <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;u32&gt;::new();
-<a href=#1372 id=1372 data-nosnippet>1372</a>        engine
-<a href=#1373 id=1373 data-nosnippet>1373</a>            .append_group_allowing_dangling(
-<a href=#1374 id=1374 data-nosnippet>1374</a>                <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>creators, IVec2::ZERO)],
-<a href=#1375 id=1375 data-nosnippet>1375</a>                |<span class="kw">_</span>, <span class="kw-2">&amp;</span>measurement| measurement,
-<a href=#1376 id=1376 data-nosnippet>1376</a>            )
-<a href=#1377 id=1377 data-nosnippet>1377</a>            .expect(<span class="string">"open the original basis"</span>);
-<a href=#1378 id=1378 data-nosnippet>1378</a>        engine
-<a href=#1379 id=1379 data-nosnippet>1379</a>            .append_group_allowing_stabilizer_transition(
-<a href=#1380 id=1380 data-nosnippet>1380</a>                <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>consumers, IVec2::ZERO)],
-<a href=#1381 id=1381 data-nosnippet>1381</a>                |<span class="kw">_</span>, <span class="kw-2">&amp;</span>measurement| measurement,
-<a href=#1382 id=1382 data-nosnippet>1382</a>            )
-<a href=#1383 id=1383 data-nosnippet>1383</a>            .expect(<span class="string">"consume the equivalent basis"</span>);
-<a href=#1384 id=1384 data-nosnippet>1384</a>
-<a href=#1385 id=1385 data-nosnippet>1385</a>        <span class="kw">let </span><span class="kw-2">mut </span>completed = engine.finish().expect(<span class="string">"the rebased seam closes"</span>);
-<a href=#1386 id=1386 data-nosnippet>1386</a>        completed.sort_by_key(|flow| flow.measurements[<span class="number">0</span>]);
-<a href=#1387 id=1387 data-nosnippet>1387</a>        <span class="macro">assert_eq!</span>(completed[<span class="number">0</span>].measurements.as_slice(), [<span class="number">2</span>, <span class="number">0</span>, <span class="number">1</span>]);
-<a href=#1388 id=1388 data-nosnippet>1388</a>        <span class="macro">assert_eq!</span>(completed[<span class="number">1</span>].measurements.as_slice(), [<span class="number">3</span>, <span class="number">0</span>]);
-<a href=#1389 id=1389 data-nosnippet>1389</a>    }
-<a href=#1390 id=1390 data-nosnippet>1390</a>
-<a href=#1391 id=1391 data-nosnippet>1391</a>    <span class="attr">#[test]
-<a href=#1392 id=1392 data-nosnippet>1392</a>    </span><span class="kw">fn </span>indexed_pivots_match_eager_dependency_masks() {
-<a href=#1393 id=1393 data-nosnippet>1393</a>        <span class="kw">for </span>seed <span class="kw">in </span><span class="number">0</span>..<span class="number">64u32 </span>{
-<a href=#1394 id=1394 data-nosnippet>1394</a>            <span class="kw">let </span>generators = (<span class="number">0</span>..<span class="number">75u32</span>)
-<a href=#1395 id=1395 data-nosnippet>1395</a>                .map(|index| {
-<a href=#1396 id=1396 data-nosnippet>1396</a>                    <span class="kw">let </span>bits = seed
-<a href=#1397 id=1397 data-nosnippet>1397</a>                        .wrapping_mul(<span class="number">0x9e37_79b9</span>)
-<a href=#1398 id=1398 data-nosnippet>1398</a>                        .wrapping_add(index.wrapping_mul(<span class="number">0x85eb_ca6b</span>));
-<a href=#1399 id=1399 data-nosnippet>1399</a>                    pauli_map(
-<a href=#1400 id=1400 data-nosnippet>1400</a>                        [
-<a href=#1401 id=1401 data-nosnippet>1401</a>                            IVec2::new(i32::MIN, <span class="number">0</span>),
-<a href=#1402 id=1402 data-nosnippet>1402</a>                            IVec2::ZERO,
-<a href=#1403 id=1403 data-nosnippet>1403</a>                            IVec2::Y,
-<a href=#1404 id=1404 data-nosnippet>1404</a>                            IVec2::X,
-<a href=#1405 id=1405 data-nosnippet>1405</a>                            IVec2::new(i32::MAX, <span class="number">0</span>),
-<a href=#1406 id=1406 data-nosnippet>1406</a>                        ]
-<a href=#1407 id=1407 data-nosnippet>1407</a>                        .into_iter()
-<a href=#1408 id=1408 data-nosnippet>1408</a>                        .enumerate()
-<a href=#1409 id=1409 data-nosnippet>1409</a>                        .map(|(site, coord)| {
-<a href=#1410 id=1410 data-nosnippet>1410</a>                            (
-<a href=#1411 id=1411 data-nosnippet>1411</a>                                coord,
-<a href=#1412 id=1412 data-nosnippet>1412</a>                                [Pauli::I, Pauli::X, Pauli::Y, Pauli::Z]
-<a href=#1413 id=1413 data-nosnippet>1413</a>                                    [((bits &gt;&gt; (<span class="number">2 </span>* site)) &amp; <span class="number">3</span>) <span class="kw">as </span>usize],
-<a href=#1414 id=1414 data-nosnippet>1414</a>                            )
-<a href=#1415 id=1415 data-nosnippet>1415</a>                        }),
-<a href=#1416 id=1416 data-nosnippet>1416</a>                    )
-<a href=#1417 id=1417 data-nosnippet>1417</a>                })
-<a href=#1418 id=1418 data-nosnippet>1418</a>                .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-<a href=#1419 id=1419 data-nosnippet>1419</a>            <span class="kw">let </span>generators: Vec&lt;<span class="kw-2">&amp;</span>PauliMap&gt; = generators.iter().collect();
-<a href=#1420 id=1420 data-nosnippet>1420</a>            <span class="kw">let </span>actual = pauli_dependencies(<span class="kw-2">&amp;</span>generators)
-<a href=#1421 id=1421 data-nosnippet>1421</a>                .into_iter()
-<a href=#1422 id=1422 data-nosnippet>1422</a>                .map(|(index, mask)| {
-<a href=#1423 id=1423 data-nosnippet>1423</a>                    (
-<a href=#1424 id=1424 data-nosnippet>1424</a>                        index,
-<a href=#1425 id=1425 data-nosnippet>1425</a>                        (<span class="number">0</span>..generators.len())
-<a href=#1426 id=1426 data-nosnippet>1426</a>                            .map(|bit| mask[bit / <span class="number">64</span>] &amp; (<span class="number">1 </span>&lt;&lt; (bit % <span class="number">64</span>)) != <span class="number">0</span>)
-<a href=#1427 id=1427 data-nosnippet>1427</a>                            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
-<a href=#1428 id=1428 data-nosnippet>1428</a>                    )
-<a href=#1429 id=1429 data-nosnippet>1429</a>                })
-<a href=#1430 id=1430 data-nosnippet>1430</a>                .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-<a href=#1431 id=1431 data-nosnippet>1431</a>            <span class="macro">assert_eq!</span>(actual, eager_pauli_dependencies(<span class="kw-2">&amp;</span>generators), <span class="string">"seed {seed}"</span>);
-<a href=#1432 id=1432 data-nosnippet>1432</a>        }
-<a href=#1433 id=1433 data-nosnippet>1433</a>    }
-<a href=#1434 id=1434 data-nosnippet>1434</a>
-<a href=#1435 id=1435 data-nosnippet>1435</a>    <span class="attr">#[test]
-<a href=#1436 id=1436 data-nosnippet>1436</a>    </span><span class="kw">fn </span>sparse_commutation_matches_product_phase() {
-<a href=#1437 id=1437 data-nosnippet>1437</a>        <span class="kw">let </span>maps: Vec&lt;<span class="kw">_</span>&gt; = (<span class="number">0</span>..<span class="number">128</span>)
-<a href=#1438 id=1438 data-nosnippet>1438</a>            .map(|bits| {
-<a href=#1439 id=1439 data-nosnippet>1439</a>                pauli_map(
-<a href=#1440 id=1440 data-nosnippet>1440</a>                    [IVec2::new(-<span class="number">2</span>, <span class="number">1</span>), IVec2::ZERO, IVec2::new(<span class="number">5</span>, -<span class="number">1</span>)]
-<a href=#1441 id=1441 data-nosnippet>1441</a>                        .into_iter()
-<a href=#1442 id=1442 data-nosnippet>1442</a>                        .enumerate()
-<a href=#1443 id=1443 data-nosnippet>1443</a>                        .map(|(index, coord)| {
-<a href=#1444 id=1444 data-nosnippet>1444</a>                            (
-<a href=#1445 id=1445 data-nosnippet>1445</a>                                coord,
-<a href=#1446 id=1446 data-nosnippet>1446</a>                                [Pauli::I, Pauli::X, Pauli::Y, Pauli::Z][(bits &gt;&gt; (<span class="number">2 </span>* index)) &amp; <span class="number">3</span>],
-<a href=#1447 id=1447 data-nosnippet>1447</a>                            )
-<a href=#1448 id=1448 data-nosnippet>1448</a>                        }),
-<a href=#1449 id=1449 data-nosnippet>1449</a>                )
-<a href=#1450 id=1450 data-nosnippet>1450</a>            })
-<a href=#1451 id=1451 data-nosnippet>1451</a>            .collect();
-<a href=#1452 id=1452 data-nosnippet>1452</a>        <span class="kw">for </span>offset <span class="kw">in </span>[IVec2::ZERO, IVec2::X, IVec2::new(<span class="number">9</span>, <span class="number">0</span>)] {
-<a href=#1453 id=1453 data-nosnippet>1453</a>            <span class="comment">// Three Pauli sites give 64 unique columns; keep 128 rows to cover
-<a href=#1454 id=1454 data-nosnippet>1454</a>            // swap-removal across both packed words.
-<a href=#1455 id=1455 data-nosnippet>1455</a>            </span><span class="kw">let </span>measured = maps
-<a href=#1456 id=1456 data-nosnippet>1456</a>                .iter()
-<a href=#1457 id=1457 data-nosnippet>1457</a>                .take(<span class="number">64</span>)
-<a href=#1458 id=1458 data-nosnippet>1458</a>                .map(|map| map.translated(offset))
-<a href=#1459 id=1459 data-nosnippet>1459</a>                .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-<a href=#1460 id=1460 data-nosnippet>1460</a>            <span class="kw">let </span>columns = pauli_commutation_columns(maps.iter(), measured.iter());
-<a href=#1461 id=1461 data-nosnippet>1461</a>            <span class="kw">for </span>(row, a) <span class="kw">in </span>maps.iter().enumerate() {
-<a href=#1462 id=1462 data-nosnippet>1462</a>                <span class="kw">for </span>(column, b) <span class="kw">in </span>measured.iter().enumerate() {
-<a href=#1463 id=1463 data-nosnippet>1463</a>                    <span class="kw">let </span>expected = a.product_phase(b) % <span class="number">2 </span>== <span class="number">1</span>;
-<a href=#1464 id=1464 data-nosnippet>1464</a>                    <span class="macro">assert_eq!</span>(columns[column][row / <span class="number">64</span>] &amp; (<span class="number">1 </span>&lt;&lt; (row % <span class="number">64</span>)) != <span class="number">0</span>, expected);
-<a href=#1465 id=1465 data-nosnippet>1465</a>                }
-<a href=#1466 id=1466 data-nosnippet>1466</a>            }
-<a href=#1467 id=1467 data-nosnippet>1467</a>            <span class="kw">for </span>removed <span class="kw">in </span>[<span class="number">0</span>, <span class="number">63</span>, <span class="number">64</span>, <span class="number">127</span>] {
-<a href=#1468 id=1468 data-nosnippet>1468</a>                <span class="kw">let </span><span class="kw-2">mut </span>remaining = maps.clone();
-<a href=#1469 id=1469 data-nosnippet>1469</a>                remaining.swap_remove(removed);
-<a href=#1470 id=1470 data-nosnippet>1470</a>                <span class="kw">let </span><span class="kw-2">mut </span>shortened = columns.clone();
-<a href=#1471 id=1471 data-nosnippet>1471</a>                <span class="kw">for </span>column <span class="kw">in </span><span class="kw-2">&amp;mut </span>shortened {
-<a href=#1472 id=1472 data-nosnippet>1472</a>                    swap_remove_bit(column, removed, maps.len() - <span class="number">1</span>);
-<a href=#1473 id=1473 data-nosnippet>1473</a>                }
-<a href=#1474 id=1474 data-nosnippet>1474</a>                <span class="kw">let </span>expected = pauli_commutation_columns(remaining.iter(), measured.iter());
-<a href=#1475 id=1475 data-nosnippet>1475</a>                <span class="macro">assert_eq!</span>(shortened, expected);
-<a href=#1476 id=1476 data-nosnippet>1476</a>            }
-<a href=#1477 id=1477 data-nosnippet>1477</a>        }
-<a href=#1478 id=1478 data-nosnippet>1478</a>    }
-<a href=#1479 id=1479 data-nosnippet>1479</a>
-<a href=#1480 id=1480 data-nosnippet>1480</a>    <span class="attr">#[test]
-<a href=#1481 id=1481 data-nosnippet>1481</a>    </span><span class="kw">fn </span>borrowed_flow_keys_match_translated_maps_and_reject_overflow() {
-<a href=#1482 id=1482 data-nosnippet>1482</a>        <span class="kw">let </span>local = pauli_map([(IVec2::ZERO, Pauli::X), (IVec2::X, Pauli::Z)]);
-<a href=#1483 id=1483 data-nosnippet>1483</a>        <span class="kw">let </span>offset = IVec2::new(-<span class="number">7</span>, <span class="number">13</span>);
-<a href=#1484 id=1484 data-nosnippet>1484</a>        <span class="kw">let </span>translated = local.translated(offset);
-<a href=#1485 id=1485 data-nosnippet>1485</a>        <span class="kw">let </span>key = FlowKey::try_new(<span class="kw-2">&amp;</span>local, offset).unwrap();
-<a href=#1486 id=1486 data-nosnippet>1486</a>        <span class="kw">let </span>placed = FlowKey::try_new(<span class="kw-2">&amp;</span>translated, IVec2::ZERO).unwrap();
-<a href=#1487 id=1487 data-nosnippet>1487</a>        <span class="kw">let </span><span class="kw-2">mut </span>keys = FxHashMap::default();
-<a href=#1488 id=1488 data-nosnippet>1488</a>        keys.insert(key, <span class="number">42</span>);
-<a href=#1489 id=1489 data-nosnippet>1489</a>        <span class="macro">assert_eq!</span>(keys.get(<span class="kw-2">&amp;</span>placed), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="number">42</span>));
-<a href=#1490 id=1490 data-nosnippet>1490</a>        <span class="macro">assert_ne!</span>(key, FlowKey::try_new(<span class="kw-2">&amp;</span>local, IVec2::ZERO).unwrap());
-<a href=#1491 id=1491 data-nosnippet>1491</a>        FlowKey::try_new(<span class="kw-2">&amp;</span>local, IVec2::new(i32::MAX, <span class="number">0</span>)).unwrap_err();
-<a href=#1492 id=1492 data-nosnippet>1492</a>    }
-<a href=#1493 id=1493 data-nosnippet>1493</a>
-<a href=#1494 id=1494 data-nosnippet>1494</a>    <span class="attr">#[test]
-<a href=#1495 id=1495 data-nosnippet>1495</a>    </span><span class="kw">fn </span>stabilizer_products_keep_their_sign_through_basis_and_gauge_changes() {
-<a href=#1496 id=1496 data-nosnippet>1496</a>        <span class="kw">let </span>a = IVec2::ZERO;
-<a href=#1497 id=1497 data-nosnippet>1497</a>        <span class="kw">let </span>b = IVec2::X;
-<a href=#1498 id=1498 data-nosnippet>1498</a>        <span class="kw">let </span>pair = |pauli| pauli_map([(a, pauli), (b, pauli)]);
-<a href=#1499 id=1499 data-nosnippet>1499</a>        <span class="kw">let </span>creators = [
-<a href=#1500 id=1500 data-nosnippet>1500</a>            flow(PauliMap::empty(), pair(Pauli::X), <span class="prelude-val">Some</span>(<span class="number">0</span>)),
-<a href=#1501 id=1501 data-nosnippet>1501</a>            flow(PauliMap::empty(), pair(Pauli::Z), <span class="prelude-val">Some</span>(<span class="number">1</span>)),
-<a href=#1502 id=1502 data-nosnippet>1502</a>        ];
-<a href=#1503 id=1503 data-nosnippet>1503</a>        <span class="kw">let </span>measured = pauli_map([(a, Pauli::X), (b, Pauli::Z)]);
-<a href=#1504 id=1504 data-nosnippet>1504</a>        <span class="kw">let </span>gauge = [
-<a href=#1505 id=1505 data-nosnippet>1505</a>            flow(measured.clone(), PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">2</span>)),
-<a href=#1506 id=1506 data-nosnippet>1506</a>            flow(PauliMap::empty(), measured, <span class="prelude-val">Some</span>(<span class="number">2</span>)),
-<a href=#1507 id=1507 data-nosnippet>1507</a>        ];
-<a href=#1508 id=1508 data-nosnippet>1508</a>        <span class="kw">let </span>consumers = [flow(pair(Pauli::Y), PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">3</span>))];
-<a href=#1509 id=1509 data-nosnippet>1509</a>        <span class="kw">for </span>change_gauge <span class="kw">in </span>[<span class="bool-val">false</span>, <span class="bool-val">true</span>] {
-<a href=#1510 id=1510 data-nosnippet>1510</a>            <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;u32&gt;::new();
-<a href=#1511 id=1511 data-nosnippet>1511</a>            engine
-<a href=#1512 id=1512 data-nosnippet>1512</a>                .append_group_allowing_dangling(
-<a href=#1513 id=1513 data-nosnippet>1513</a>                    <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>creators, IVec2::ZERO)],
-<a href=#1514 id=1514 data-nosnippet>1514</a>                    |<span class="kw">_</span>, <span class="kw-2">&amp;</span>m| m,
-<a href=#1515 id=1515 data-nosnippet>1515</a>                )
-<a href=#1516 id=1516 data-nosnippet>1516</a>                .unwrap();
-<a href=#1517 id=1517 data-nosnippet>1517</a>            <span class="kw">if </span>change_gauge {
-<a href=#1518 id=1518 data-nosnippet>1518</a>                engine
-<a href=#1519 id=1519 data-nosnippet>1519</a>                    .append_group_allowing_stabilizer_transition(
-<a href=#1520 id=1520 data-nosnippet>1520</a>                        <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>gauge, IVec2::ZERO)],
-<a href=#1521 id=1521 data-nosnippet>1521</a>                        |<span class="kw">_</span>, <span class="kw-2">&amp;</span>m| m,
-<a href=#1522 id=1522 data-nosnippet>1522</a>                    )
-<a href=#1523 id=1523 data-nosnippet>1523</a>                    .unwrap();
-<a href=#1524 id=1524 data-nosnippet>1524</a>            }
-<a href=#1525 id=1525 data-nosnippet>1525</a>            engine
-<a href=#1526 id=1526 data-nosnippet>1526</a>                .append_group_allowing_stabilizer_transition(
-<a href=#1527 id=1527 data-nosnippet>1527</a>                    <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>consumers, IVec2::ZERO)],
-<a href=#1528 id=1528 data-nosnippet>1528</a>                    |<span class="kw">_</span>, <span class="kw-2">&amp;</span>m| m,
-<a href=#1529 id=1529 data-nosnippet>1529</a>                )
-<a href=#1530 id=1530 data-nosnippet>1530</a>                .unwrap();
-<a href=#1531 id=1531 data-nosnippet>1531</a>            <span class="kw">let </span>completed = engine.finish().unwrap();
-<a href=#1532 id=1532 data-nosnippet>1532</a>            <span class="macro">assert_eq!</span>(completed.len(), <span class="number">1</span>);
-<a href=#1533 id=1533 data-nosnippet>1533</a>            <span class="kw">let </span>parity =
-<a href=#1534 id=1534 data-nosnippet>1534</a>                DetectorParity::from_measurements(completed[<span class="number">0</span>].measurements.iter().copied())
-<a href=#1535 id=1535 data-nosnippet>1535</a>                    .with_sign(completed[<span class="number">0</span>].sign);
-<a href=#1536 id=1536 data-nosnippet>1536</a>            <span class="macro">assert_eq!</span>(
-<a href=#1537 id=1537 data-nosnippet>1537</a>                parity,
-<a href=#1538 id=1538 data-nosnippet>1538</a>                DetectorParity::from_measurements([<span class="number">0</span>, <span class="number">1</span>, <span class="number">3</span>]).with_sign(<span class="bool-val">true</span>),
-<a href=#1539 id=1539 data-nosnippet>1539</a>                <span class="string">"XX * ZZ = -YY, including when their product survives as a latent check"
-<a href=#1540 id=1540 data-nosnippet>1540</a>            </span>);
-<a href=#1541 id=1541 data-nosnippet>1541</a>        }
-<a href=#1542 id=1542 data-nosnippet>1542</a>    }
-<a href=#1543 id=1543 data-nosnippet>1543</a>
-<a href=#1544 id=1544 data-nosnippet>1544</a>    <span class="attr">#[test]
-<a href=#1545 id=1545 data-nosnippet>1545</a>    </span><span class="kw">fn </span>a_group_reads_only_boundaries_from_earlier_groups() {
-<a href=#1546 id=1546 data-nosnippet>1546</a>        <span class="kw">let </span>(a, b) = (x(IVec2::ZERO), x(IVec2::X));
-<a href=#1547 id=1547 data-nosnippet>1547</a>        <span class="kw">let </span>swap = [
-<a href=#1548 id=1548 data-nosnippet>1548</a>            flow(a.clone(), b.clone(), <span class="prelude-val">None</span>),
-<a href=#1549 id=1549 data-nosnippet>1549</a>            flow(b.clone(), a.clone(), <span class="prelude-val">None</span>),
-<a href=#1550 id=1550 data-nosnippet>1550</a>        ];
-<a href=#1551 id=1551 data-nosnippet>1551</a>        <span class="kw">let </span><span class="kw-2">mut </span>residual = FlowEngine::&lt;u32&gt;::new();
-<a href=#1552 id=1552 data-nosnippet>1552</a>        residual
-<a href=#1553 id=1553 data-nosnippet>1553</a>            .append_residual_group(<span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>swap, IVec2::ZERO)], |<span class="kw">_</span>, <span class="kw-2">&amp;</span>m| m)
-<a href=#1554 id=1554 data-nosnippet>1554</a>            .unwrap();
-<a href=#1555 id=1555 data-nosnippet>1555</a>        <span class="kw">let </span>residuals = residual.into_residual_flows();
-<a href=#1556 id=1556 data-nosnippet>1556</a>        <span class="macro">assert_eq!</span>(residuals.len(), <span class="number">2</span>);
-<a href=#1557 id=1557 data-nosnippet>1557</a>        <span class="macro">assert!</span>(residuals.iter().any(|f| f.start == a &amp;&amp; f.end == b));
-<a href=#1558 id=1558 data-nosnippet>1558</a>        <span class="macro">assert!</span>(residuals.iter().any(|f| f.start == b &amp;&amp; f.end == a));
-<a href=#1559 id=1559 data-nosnippet>1559</a>
-<a href=#1560 id=1560 data-nosnippet>1560</a>        <span class="kw">let </span>creators = [
-<a href=#1561 id=1561 data-nosnippet>1561</a>            flow(PauliMap::empty(), a.clone(), <span class="prelude-val">Some</span>(<span class="number">0</span>)),
-<a href=#1562 id=1562 data-nosnippet>1562</a>            flow(PauliMap::empty(), b.clone(), <span class="prelude-val">Some</span>(<span class="number">1</span>)),
-<a href=#1563 id=1563 data-nosnippet>1563</a>        ];
-<a href=#1564 id=1564 data-nosnippet>1564</a>        <span class="kw">let </span>consumers = [
-<a href=#1565 id=1565 data-nosnippet>1565</a>            flow(a, PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">2</span>)),
-<a href=#1566 id=1566 data-nosnippet>1566</a>            flow(b, PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">3</span>)),
-<a href=#1567 id=1567 data-nosnippet>1567</a>        ];
-<a href=#1568 id=1568 data-nosnippet>1568</a>        <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;u32&gt;::new();
-<a href=#1569 id=1569 data-nosnippet>1569</a>        <span class="kw">for </span>group <span class="kw">in </span>[<span class="kw-2">&amp;</span>creators, <span class="kw-2">&amp;</span>swap, <span class="kw-2">&amp;</span>consumers] {
-<a href=#1570 id=1570 data-nosnippet>1570</a>            engine
-<a href=#1571 id=1571 data-nosnippet>1571</a>                .append_group_allowing_dangling(<span class="kw-2">&amp;</span>[OffsetFlows::new(group, IVec2::ZERO)], |<span class="kw">_</span>, <span class="kw-2">&amp;</span>m| m)
-<a href=#1572 id=1572 data-nosnippet>1572</a>                .unwrap();
-<a href=#1573 id=1573 data-nosnippet>1573</a>        }
-<a href=#1574 id=1574 data-nosnippet>1574</a>        <span class="kw">let </span>completed = engine.finish().unwrap();
-<a href=#1575 id=1575 data-nosnippet>1575</a>        <span class="macro">assert_eq!</span>(completed[<span class="number">0</span>].measurements.as_slice(), [<span class="number">2</span>, <span class="number">1</span>]);
-<a href=#1576 id=1576 data-nosnippet>1576</a>        <span class="macro">assert_eq!</span>(completed[<span class="number">1</span>].measurements.as_slice(), [<span class="number">3</span>, <span class="number">0</span>]);
-<a href=#1577 id=1577 data-nosnippet>1577</a>    }
-<a href=#1578 id=1578 data-nosnippet>1578</a>
-<a href=#1579 id=1579 data-nosnippet>1579</a>    <span class="attr">#[test]
-<a href=#1580 id=1580 data-nosnippet>1580</a>    </span><span class="kw">fn </span>boundary_composition_matches_an_exact_generator_basis() {
-<a href=#1581 id=1581 data-nosnippet>1581</a>        <span class="kw">let </span>a = x(IVec2::new(<span class="number">0</span>, <span class="number">0</span>));
-<a href=#1582 id=1582 data-nosnippet>1582</a>        <span class="kw">let </span>b = z(IVec2::new(<span class="number">1</span>, <span class="number">0</span>));
-<a href=#1583 id=1583 data-nosnippet>1583</a>        <span class="kw">let </span>creators = [
-<a href=#1584 id=1584 data-nosnippet>1584</a>            flow(PauliMap::empty(), a.clone(), <span class="prelude-val">Some</span>(<span class="number">0</span>)),
-<a href=#1585 id=1585 data-nosnippet>1585</a>            flow(PauliMap::empty(), b.clone(), <span class="prelude-val">Some</span>(<span class="number">1</span>)),
-<a href=#1586 id=1586 data-nosnippet>1586</a>        ];
-<a href=#1587 id=1587 data-nosnippet>1587</a>        <span class="kw">let </span>consumers = [
-<a href=#1588 id=1588 data-nosnippet>1588</a>            flow(a, PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">2</span>)),
-<a href=#1589 id=1589 data-nosnippet>1589</a>            flow(b, PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">3</span>)),
-<a href=#1590 id=1590 data-nosnippet>1590</a>        ];
-<a href=#1591 id=1591 data-nosnippet>1591</a>        <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;u32&gt;::new();
-<a href=#1592 id=1592 data-nosnippet>1592</a>        engine
-<a href=#1593 id=1593 data-nosnippet>1593</a>            .append_group_allowing_dangling(
-<a href=#1594 id=1594 data-nosnippet>1594</a>                <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>creators, IVec2::ZERO)],
-<a href=#1595 id=1595 data-nosnippet>1595</a>                |<span class="kw">_</span>, <span class="kw-2">&amp;</span>measurement| measurement,
-<a href=#1596 id=1596 data-nosnippet>1596</a>            )
-<a href=#1597 id=1597 data-nosnippet>1597</a>            .expect(<span class="string">"open the basis"</span>);
-<a href=#1598 id=1598 data-nosnippet>1598</a>        engine
-<a href=#1599 id=1599 data-nosnippet>1599</a>            .append_group_allowing_stabilizer_transition(
-<a href=#1600 id=1600 data-nosnippet>1600</a>                <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>consumers, IVec2::ZERO)],
-<a href=#1601 id=1601 data-nosnippet>1601</a>                |<span class="kw">_</span>, <span class="kw-2">&amp;</span>measurement| measurement,
-<a href=#1602 id=1602 data-nosnippet>1602</a>            )
-<a href=#1603 id=1603 data-nosnippet>1603</a>            .expect(<span class="string">"consume the same basis"</span>);
-<a href=#1604 id=1604 data-nosnippet>1604</a>
-<a href=#1605 id=1605 data-nosnippet>1605</a>        <span class="kw">let </span>completed = engine.finish().expect(<span class="string">"the seam closes"</span>);
-<a href=#1606 id=1606 data-nosnippet>1606</a>        <span class="macro">assert_eq!</span>(completed[<span class="number">0</span>].measurements.as_slice(), [<span class="number">2</span>, <span class="number">0</span>]);
-<a href=#1607 id=1607 data-nosnippet>1607</a>        <span class="macro">assert_eq!</span>(completed[<span class="number">1</span>].measurements.as_slice(), [<span class="number">3</span>, <span class="number">1</span>]);
-<a href=#1608 id=1608 data-nosnippet>1608</a>    }
-<a href=#1609 id=1609 data-nosnippet>1609</a>
-<a href=#1610 id=1610 data-nosnippet>1610</a>    <span class="attr">#[test]
-<a href=#1611 id=1611 data-nosnippet>1611</a>    </span><span class="kw">fn </span>gauge_transition_carries_only_commuting_old_products() {
-<a href=#1612 id=1612 data-nosnippet>1612</a>        <span class="kw">let </span>z0 = z(IVec2::new(<span class="number">0</span>, <span class="number">0</span>));
-<a href=#1613 id=1613 data-nosnippet>1613</a>        <span class="kw">let </span>z1 = z(IVec2::new(<span class="number">1</span>, <span class="number">0</span>));
-<a href=#1614 id=1614 data-nosnippet>1614</a>        <span class="kw">let </span>joint_x = <span class="kw-2">&amp;</span>x(IVec2::new(<span class="number">0</span>, <span class="number">0</span>)) ^ <span class="kw-2">&amp;</span>x(IVec2::new(<span class="number">1</span>, <span class="number">0</span>));
-<a href=#1615 id=1615 data-nosnippet>1615</a>        <span class="kw">let </span>old_creators = [
-<a href=#1616 id=1616 data-nosnippet>1616</a>            flow(PauliMap::empty(), z0.clone(), <span class="prelude-val">Some</span>(<span class="number">0</span>)),
-<a href=#1617 id=1617 data-nosnippet>1617</a>            flow(PauliMap::empty(), z1.clone(), <span class="prelude-val">Some</span>(<span class="number">1</span>)),
-<a href=#1618 id=1618 data-nosnippet>1618</a>        ];
-<a href=#1619 id=1619 data-nosnippet>1619</a>        <span class="kw">let </span>merge = [
-<a href=#1620 id=1620 data-nosnippet>1620</a>            flow(joint_x.clone(), PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">2</span>)),
-<a href=#1621 id=1621 data-nosnippet>1621</a>            flow(PauliMap::empty(), joint_x, <span class="prelude-val">Some</span>(<span class="number">3</span>)),
-<a href=#1622 id=1622 data-nosnippet>1622</a>        ];
-<a href=#1623 id=1623 data-nosnippet>1623</a>        <span class="kw">let </span>split_left = [flow(z0, PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">4</span>))];
-<a href=#1624 id=1624 data-nosnippet>1624</a>        <span class="kw">let </span>split_right = [flow(z1, PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">5</span>))];
-<a href=#1625 id=1625 data-nosnippet>1625</a>
-<a href=#1626 id=1626 data-nosnippet>1626</a>        <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;u32&gt;::new();
-<a href=#1627 id=1627 data-nosnippet>1627</a>        engine
-<a href=#1628 id=1628 data-nosnippet>1628</a>            .append_group_allowing_dangling(
-<a href=#1629 id=1629 data-nosnippet>1629</a>                <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>old_creators, IVec2::ZERO)],
-<a href=#1630 id=1630 data-nosnippet>1630</a>                |<span class="kw">_</span>, <span class="kw-2">&amp;</span>measurement| measurement,
-<a href=#1631 id=1631 data-nosnippet>1631</a>            )
-<a href=#1632 id=1632 data-nosnippet>1632</a>            .expect(<span class="string">"open the old basis"</span>);
-<a href=#1633 id=1633 data-nosnippet>1633</a>        engine
-<a href=#1634 id=1634 data-nosnippet>1634</a>            .append_group_allowing_stabilizer_transition(
-<a href=#1635 id=1635 data-nosnippet>1635</a>                <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>merge, IVec2::ZERO)],
-<a href=#1636 id=1636 data-nosnippet>1636</a>                |<span class="kw">_</span>, <span class="kw-2">&amp;</span>measurement| measurement,
-<a href=#1637 id=1637 data-nosnippet>1637</a>            )
-<a href=#1638 id=1638 data-nosnippet>1638</a>            .expect(<span class="string">"measure the temporary gauge"</span>);
-<a href=#1639 id=1639 data-nosnippet>1639</a>        engine
-<a href=#1640 id=1640 data-nosnippet>1640</a>            .append_group_allowing_stabilizer_transition(
-<a href=#1641 id=1641 data-nosnippet>1641</a>                <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>split_left, IVec2::ZERO)],
-<a href=#1642 id=1642 data-nosnippet>1642</a>                |<span class="kw">_</span>, <span class="kw-2">&amp;</span>measurement| measurement,
-<a href=#1643 id=1643 data-nosnippet>1643</a>            )
-<a href=#1644 id=1644 data-nosnippet>1644</a>            .expect(<span class="string">"restore the left half of the old basis"</span>);
-<a href=#1645 id=1645 data-nosnippet>1645</a>        engine
-<a href=#1646 id=1646 data-nosnippet>1646</a>            .append_group_allowing_stabilizer_transition(
-<a href=#1647 id=1647 data-nosnippet>1647</a>                <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>split_right, IVec2::ZERO)],
-<a href=#1648 id=1648 data-nosnippet>1648</a>                |<span class="kw">_</span>, <span class="kw-2">&amp;</span>measurement| measurement,
-<a href=#1649 id=1649 data-nosnippet>1649</a>            )
-<a href=#1650 id=1650 data-nosnippet>1650</a>            .expect(<span class="string">"restore the right half of the old basis"</span>);
-<a href=#1651 id=1651 data-nosnippet>1651</a>
-<a href=#1652 id=1652 data-nosnippet>1652</a>        <span class="kw">let </span>completed = engine.finish().expect(<span class="string">"the restored basis closes"</span>);
-<a href=#1653 id=1653 data-nosnippet>1653</a>        <span class="macro">assert_eq!</span>(completed.len(), <span class="number">1</span>);
-<a href=#1654 id=1654 data-nosnippet>1654</a>        <span class="kw">let </span><span class="kw-2">mut </span>measurements = completed[<span class="number">0</span>].measurements.to_vec();
-<a href=#1655 id=1655 data-nosnippet>1655</a>        measurements.sort_unstable();
-<a href=#1656 id=1656 data-nosnippet>1656</a>        <span class="macro">assert_eq!</span>(measurements, [<span class="number">0</span>, <span class="number">1</span>, <span class="number">4</span>, <span class="number">5</span>]);
-<a href=#1657 id=1657 data-nosnippet>1657</a>    }
+<a href=#1359 id=1359 data-nosnippet>1359</a>    </span><span class="kw">fn </span>boundary_composition_accepts_exact_and_equivalent_generator_bases() {
+<a href=#1360 id=1360 data-nosnippet>1360</a>        <span class="kw">for </span>equivalent <span class="kw">in </span>[<span class="bool-val">false</span>, <span class="bool-val">true</span>] {
+<a href=#1361 id=1361 data-nosnippet>1361</a>            <span class="kw">let </span>a = x(IVec2::new(<span class="number">0</span>, <span class="number">0</span>));
+<a href=#1362 id=1362 data-nosnippet>1362</a>            <span class="kw">let </span>b = z(IVec2::new(<span class="number">1</span>, <span class="number">0</span>));
+<a href=#1363 id=1363 data-nosnippet>1363</a>            <span class="kw">let </span>creators = [
+<a href=#1364 id=1364 data-nosnippet>1364</a>                flow(PauliMap::empty(), a.clone(), <span class="prelude-val">Some</span>(<span class="number">0</span>)),
+<a href=#1365 id=1365 data-nosnippet>1365</a>                flow(PauliMap::empty(), b.clone(), <span class="prelude-val">Some</span>(<span class="number">1</span>)),
+<a href=#1366 id=1366 data-nosnippet>1366</a>            ];
+<a href=#1367 id=1367 data-nosnippet>1367</a>            <span class="kw">let </span>(first, second) = <span class="kw">if </span>equivalent { (<span class="kw-2">&amp;</span>a ^ <span class="kw-2">&amp;</span>b, a) } <span class="kw">else </span>{ (a, b) };
+<a href=#1368 id=1368 data-nosnippet>1368</a>            <span class="kw">let </span>consumers = [
+<a href=#1369 id=1369 data-nosnippet>1369</a>                flow(first, PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">2</span>)),
+<a href=#1370 id=1370 data-nosnippet>1370</a>                flow(second, PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">3</span>)),
+<a href=#1371 id=1371 data-nosnippet>1371</a>            ];
+<a href=#1372 id=1372 data-nosnippet>1372</a>            <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;u32&gt;::new();
+<a href=#1373 id=1373 data-nosnippet>1373</a>            engine
+<a href=#1374 id=1374 data-nosnippet>1374</a>                .append_group_allowing_dangling(
+<a href=#1375 id=1375 data-nosnippet>1375</a>                    <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>creators, IVec2::ZERO)],
+<a href=#1376 id=1376 data-nosnippet>1376</a>                    |<span class="kw">_</span>, <span class="kw-2">&amp;</span>measurement| measurement,
+<a href=#1377 id=1377 data-nosnippet>1377</a>                )
+<a href=#1378 id=1378 data-nosnippet>1378</a>                .expect(<span class="string">"open the original basis"</span>);
+<a href=#1379 id=1379 data-nosnippet>1379</a>            engine
+<a href=#1380 id=1380 data-nosnippet>1380</a>                .append_group_allowing_stabilizer_transition(
+<a href=#1381 id=1381 data-nosnippet>1381</a>                    <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>consumers, IVec2::ZERO)],
+<a href=#1382 id=1382 data-nosnippet>1382</a>                    |<span class="kw">_</span>, <span class="kw-2">&amp;</span>measurement| measurement,
+<a href=#1383 id=1383 data-nosnippet>1383</a>                )
+<a href=#1384 id=1384 data-nosnippet>1384</a>                .expect(<span class="string">"consume the basis"</span>);
+<a href=#1385 id=1385 data-nosnippet>1385</a>
+<a href=#1386 id=1386 data-nosnippet>1386</a>            <span class="kw">let </span><span class="kw-2">mut </span>completed = engine.finish().expect(<span class="string">"the seam closes"</span>);
+<a href=#1387 id=1387 data-nosnippet>1387</a>            <span class="kw">if </span>equivalent {
+<a href=#1388 id=1388 data-nosnippet>1388</a>                completed.sort_by_key(|flow| flow.measurements[<span class="number">0</span>]);
+<a href=#1389 id=1389 data-nosnippet>1389</a>                <span class="macro">assert_eq!</span>(completed[<span class="number">0</span>].measurements.as_slice(), [<span class="number">2</span>, <span class="number">0</span>, <span class="number">1</span>]);
+<a href=#1390 id=1390 data-nosnippet>1390</a>                <span class="macro">assert_eq!</span>(completed[<span class="number">1</span>].measurements.as_slice(), [<span class="number">3</span>, <span class="number">0</span>]);
+<a href=#1391 id=1391 data-nosnippet>1391</a>            } <span class="kw">else </span>{
+<a href=#1392 id=1392 data-nosnippet>1392</a>                <span class="macro">assert_eq!</span>(completed[<span class="number">0</span>].measurements.as_slice(), [<span class="number">2</span>, <span class="number">0</span>]);
+<a href=#1393 id=1393 data-nosnippet>1393</a>                <span class="macro">assert_eq!</span>(completed[<span class="number">1</span>].measurements.as_slice(), [<span class="number">3</span>, <span class="number">1</span>]);
+<a href=#1394 id=1394 data-nosnippet>1394</a>            }
+<a href=#1395 id=1395 data-nosnippet>1395</a>        }
+<a href=#1396 id=1396 data-nosnippet>1396</a>    }
+<a href=#1397 id=1397 data-nosnippet>1397</a>
+<a href=#1398 id=1398 data-nosnippet>1398</a>    <span class="attr">#[test]
+<a href=#1399 id=1399 data-nosnippet>1399</a>    </span><span class="kw">fn </span>indexed_pivots_match_eager_dependency_masks() {
+<a href=#1400 id=1400 data-nosnippet>1400</a>        <span class="kw">for </span>seed <span class="kw">in </span><span class="number">0</span>..<span class="number">64u32 </span>{
+<a href=#1401 id=1401 data-nosnippet>1401</a>            <span class="kw">let </span>generators = (<span class="number">0</span>..<span class="number">75u32</span>)
+<a href=#1402 id=1402 data-nosnippet>1402</a>                .map(|index| {
+<a href=#1403 id=1403 data-nosnippet>1403</a>                    <span class="kw">let </span>bits = seed
+<a href=#1404 id=1404 data-nosnippet>1404</a>                        .wrapping_mul(<span class="number">0x9e37_79b9</span>)
+<a href=#1405 id=1405 data-nosnippet>1405</a>                        .wrapping_add(index.wrapping_mul(<span class="number">0x85eb_ca6b</span>));
+<a href=#1406 id=1406 data-nosnippet>1406</a>                    pauli_map(
+<a href=#1407 id=1407 data-nosnippet>1407</a>                        [
+<a href=#1408 id=1408 data-nosnippet>1408</a>                            IVec2::new(i32::MIN, <span class="number">0</span>),
+<a href=#1409 id=1409 data-nosnippet>1409</a>                            IVec2::ZERO,
+<a href=#1410 id=1410 data-nosnippet>1410</a>                            IVec2::Y,
+<a href=#1411 id=1411 data-nosnippet>1411</a>                            IVec2::X,
+<a href=#1412 id=1412 data-nosnippet>1412</a>                            IVec2::new(i32::MAX, <span class="number">0</span>),
+<a href=#1413 id=1413 data-nosnippet>1413</a>                        ]
+<a href=#1414 id=1414 data-nosnippet>1414</a>                        .into_iter()
+<a href=#1415 id=1415 data-nosnippet>1415</a>                        .enumerate()
+<a href=#1416 id=1416 data-nosnippet>1416</a>                        .map(|(site, coord)| {
+<a href=#1417 id=1417 data-nosnippet>1417</a>                            (
+<a href=#1418 id=1418 data-nosnippet>1418</a>                                coord,
+<a href=#1419 id=1419 data-nosnippet>1419</a>                                [Pauli::I, Pauli::X, Pauli::Y, Pauli::Z]
+<a href=#1420 id=1420 data-nosnippet>1420</a>                                    [((bits &gt;&gt; (<span class="number">2 </span>* site)) &amp; <span class="number">3</span>) <span class="kw">as </span>usize],
+<a href=#1421 id=1421 data-nosnippet>1421</a>                            )
+<a href=#1422 id=1422 data-nosnippet>1422</a>                        }),
+<a href=#1423 id=1423 data-nosnippet>1423</a>                    )
+<a href=#1424 id=1424 data-nosnippet>1424</a>                })
+<a href=#1425 id=1425 data-nosnippet>1425</a>                .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+<a href=#1426 id=1426 data-nosnippet>1426</a>            <span class="kw">let </span>generators: Vec&lt;<span class="kw-2">&amp;</span>PauliMap&gt; = generators.iter().collect();
+<a href=#1427 id=1427 data-nosnippet>1427</a>            <span class="kw">let </span>actual = pauli_dependencies(<span class="kw-2">&amp;</span>generators)
+<a href=#1428 id=1428 data-nosnippet>1428</a>                .into_iter()
+<a href=#1429 id=1429 data-nosnippet>1429</a>                .map(|(index, mask)| {
+<a href=#1430 id=1430 data-nosnippet>1430</a>                    (
+<a href=#1431 id=1431 data-nosnippet>1431</a>                        index,
+<a href=#1432 id=1432 data-nosnippet>1432</a>                        (<span class="number">0</span>..generators.len())
+<a href=#1433 id=1433 data-nosnippet>1433</a>                            .map(|bit| mask[bit / <span class="number">64</span>] &amp; (<span class="number">1 </span>&lt;&lt; (bit % <span class="number">64</span>)) != <span class="number">0</span>)
+<a href=#1434 id=1434 data-nosnippet>1434</a>                            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
+<a href=#1435 id=1435 data-nosnippet>1435</a>                    )
+<a href=#1436 id=1436 data-nosnippet>1436</a>                })
+<a href=#1437 id=1437 data-nosnippet>1437</a>                .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+<a href=#1438 id=1438 data-nosnippet>1438</a>            <span class="macro">assert_eq!</span>(actual, eager_pauli_dependencies(<span class="kw-2">&amp;</span>generators), <span class="string">"seed {seed}"</span>);
+<a href=#1439 id=1439 data-nosnippet>1439</a>        }
+<a href=#1440 id=1440 data-nosnippet>1440</a>    }
+<a href=#1441 id=1441 data-nosnippet>1441</a>
+<a href=#1442 id=1442 data-nosnippet>1442</a>    <span class="attr">#[test]
+<a href=#1443 id=1443 data-nosnippet>1443</a>    </span><span class="kw">fn </span>sparse_commutation_matches_product_phase() {
+<a href=#1444 id=1444 data-nosnippet>1444</a>        <span class="kw">let </span>maps: Vec&lt;<span class="kw">_</span>&gt; = (<span class="number">0</span>..<span class="number">128</span>)
+<a href=#1445 id=1445 data-nosnippet>1445</a>            .map(|bits| {
+<a href=#1446 id=1446 data-nosnippet>1446</a>                pauli_map(
+<a href=#1447 id=1447 data-nosnippet>1447</a>                    [IVec2::new(-<span class="number">2</span>, <span class="number">1</span>), IVec2::ZERO, IVec2::new(<span class="number">5</span>, -<span class="number">1</span>)]
+<a href=#1448 id=1448 data-nosnippet>1448</a>                        .into_iter()
+<a href=#1449 id=1449 data-nosnippet>1449</a>                        .enumerate()
+<a href=#1450 id=1450 data-nosnippet>1450</a>                        .map(|(index, coord)| {
+<a href=#1451 id=1451 data-nosnippet>1451</a>                            (
+<a href=#1452 id=1452 data-nosnippet>1452</a>                                coord,
+<a href=#1453 id=1453 data-nosnippet>1453</a>                                [Pauli::I, Pauli::X, Pauli::Y, Pauli::Z][(bits &gt;&gt; (<span class="number">2 </span>* index)) &amp; <span class="number">3</span>],
+<a href=#1454 id=1454 data-nosnippet>1454</a>                            )
+<a href=#1455 id=1455 data-nosnippet>1455</a>                        }),
+<a href=#1456 id=1456 data-nosnippet>1456</a>                )
+<a href=#1457 id=1457 data-nosnippet>1457</a>            })
+<a href=#1458 id=1458 data-nosnippet>1458</a>            .collect();
+<a href=#1459 id=1459 data-nosnippet>1459</a>        <span class="kw">for </span>offset <span class="kw">in </span>[IVec2::ZERO, IVec2::X, IVec2::new(<span class="number">9</span>, <span class="number">0</span>)] {
+<a href=#1460 id=1460 data-nosnippet>1460</a>            <span class="comment">// Three Pauli sites give 64 unique columns; keep 128 rows to cover
+<a href=#1461 id=1461 data-nosnippet>1461</a>            // swap-removal across both packed words.
+<a href=#1462 id=1462 data-nosnippet>1462</a>            </span><span class="kw">let </span>measured = maps
+<a href=#1463 id=1463 data-nosnippet>1463</a>                .iter()
+<a href=#1464 id=1464 data-nosnippet>1464</a>                .take(<span class="number">64</span>)
+<a href=#1465 id=1465 data-nosnippet>1465</a>                .map(|map| map.translated(offset))
+<a href=#1466 id=1466 data-nosnippet>1466</a>                .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+<a href=#1467 id=1467 data-nosnippet>1467</a>            <span class="kw">let </span>columns = pauli_commutation_columns(maps.iter(), measured.iter());
+<a href=#1468 id=1468 data-nosnippet>1468</a>            <span class="kw">for </span>(row, a) <span class="kw">in </span>maps.iter().enumerate() {
+<a href=#1469 id=1469 data-nosnippet>1469</a>                <span class="kw">for </span>(column, b) <span class="kw">in </span>measured.iter().enumerate() {
+<a href=#1470 id=1470 data-nosnippet>1470</a>                    <span class="kw">let </span>expected = a.product_phase(b) % <span class="number">2 </span>== <span class="number">1</span>;
+<a href=#1471 id=1471 data-nosnippet>1471</a>                    <span class="macro">assert_eq!</span>(columns[column][row / <span class="number">64</span>] &amp; (<span class="number">1 </span>&lt;&lt; (row % <span class="number">64</span>)) != <span class="number">0</span>, expected);
+<a href=#1472 id=1472 data-nosnippet>1472</a>                }
+<a href=#1473 id=1473 data-nosnippet>1473</a>            }
+<a href=#1474 id=1474 data-nosnippet>1474</a>            <span class="kw">for </span>removed <span class="kw">in </span>[<span class="number">0</span>, <span class="number">63</span>, <span class="number">64</span>, <span class="number">127</span>] {
+<a href=#1475 id=1475 data-nosnippet>1475</a>                <span class="kw">let </span><span class="kw-2">mut </span>remaining = maps.clone();
+<a href=#1476 id=1476 data-nosnippet>1476</a>                remaining.swap_remove(removed);
+<a href=#1477 id=1477 data-nosnippet>1477</a>                <span class="kw">let </span><span class="kw-2">mut </span>shortened = columns.clone();
+<a href=#1478 id=1478 data-nosnippet>1478</a>                <span class="kw">for </span>column <span class="kw">in </span><span class="kw-2">&amp;mut </span>shortened {
+<a href=#1479 id=1479 data-nosnippet>1479</a>                    swap_remove_bit(column, removed, maps.len() - <span class="number">1</span>);
+<a href=#1480 id=1480 data-nosnippet>1480</a>                }
+<a href=#1481 id=1481 data-nosnippet>1481</a>                <span class="kw">let </span>expected = pauli_commutation_columns(remaining.iter(), measured.iter());
+<a href=#1482 id=1482 data-nosnippet>1482</a>                <span class="macro">assert_eq!</span>(shortened, expected);
+<a href=#1483 id=1483 data-nosnippet>1483</a>            }
+<a href=#1484 id=1484 data-nosnippet>1484</a>        }
+<a href=#1485 id=1485 data-nosnippet>1485</a>    }
+<a href=#1486 id=1486 data-nosnippet>1486</a>
+<a href=#1487 id=1487 data-nosnippet>1487</a>    <span class="attr">#[test]
+<a href=#1488 id=1488 data-nosnippet>1488</a>    </span><span class="kw">fn </span>borrowed_flow_keys_match_translated_maps_and_reject_overflow() {
+<a href=#1489 id=1489 data-nosnippet>1489</a>        <span class="kw">let </span>local = pauli_map([(IVec2::ZERO, Pauli::X), (IVec2::X, Pauli::Z)]);
+<a href=#1490 id=1490 data-nosnippet>1490</a>        <span class="kw">let </span>offset = IVec2::new(-<span class="number">7</span>, <span class="number">13</span>);
+<a href=#1491 id=1491 data-nosnippet>1491</a>        <span class="kw">let </span>translated = local.translated(offset);
+<a href=#1492 id=1492 data-nosnippet>1492</a>        <span class="kw">let </span>key = FlowKey::try_new(<span class="kw-2">&amp;</span>local, offset).unwrap();
+<a href=#1493 id=1493 data-nosnippet>1493</a>        <span class="kw">let </span>placed = FlowKey::try_new(<span class="kw-2">&amp;</span>translated, IVec2::ZERO).unwrap();
+<a href=#1494 id=1494 data-nosnippet>1494</a>        <span class="kw">let </span><span class="kw-2">mut </span>keys = FxHashMap::default();
+<a href=#1495 id=1495 data-nosnippet>1495</a>        keys.insert(key, <span class="number">42</span>);
+<a href=#1496 id=1496 data-nosnippet>1496</a>        <span class="macro">assert_eq!</span>(keys.get(<span class="kw-2">&amp;</span>placed), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="number">42</span>));
+<a href=#1497 id=1497 data-nosnippet>1497</a>        <span class="macro">assert_ne!</span>(key, FlowKey::try_new(<span class="kw-2">&amp;</span>local, IVec2::ZERO).unwrap());
+<a href=#1498 id=1498 data-nosnippet>1498</a>        FlowKey::try_new(<span class="kw-2">&amp;</span>local, IVec2::new(i32::MAX, <span class="number">0</span>)).unwrap_err();
+<a href=#1499 id=1499 data-nosnippet>1499</a>    }
+<a href=#1500 id=1500 data-nosnippet>1500</a>
+<a href=#1501 id=1501 data-nosnippet>1501</a>    <span class="attr">#[test]
+<a href=#1502 id=1502 data-nosnippet>1502</a>    </span><span class="kw">fn </span>stabilizer_products_keep_their_sign_through_basis_and_gauge_changes() {
+<a href=#1503 id=1503 data-nosnippet>1503</a>        <span class="kw">let </span>a = IVec2::ZERO;
+<a href=#1504 id=1504 data-nosnippet>1504</a>        <span class="kw">let </span>b = IVec2::X;
+<a href=#1505 id=1505 data-nosnippet>1505</a>        <span class="kw">let </span>pair = |pauli| pauli_map([(a, pauli), (b, pauli)]);
+<a href=#1506 id=1506 data-nosnippet>1506</a>        <span class="kw">let </span>creators = [
+<a href=#1507 id=1507 data-nosnippet>1507</a>            flow(PauliMap::empty(), pair(Pauli::X), <span class="prelude-val">Some</span>(<span class="number">0</span>)),
+<a href=#1508 id=1508 data-nosnippet>1508</a>            flow(PauliMap::empty(), pair(Pauli::Z), <span class="prelude-val">Some</span>(<span class="number">1</span>)),
+<a href=#1509 id=1509 data-nosnippet>1509</a>        ];
+<a href=#1510 id=1510 data-nosnippet>1510</a>        <span class="kw">let </span>measured = pauli_map([(a, Pauli::X), (b, Pauli::Z)]);
+<a href=#1511 id=1511 data-nosnippet>1511</a>        <span class="kw">let </span>gauge = [
+<a href=#1512 id=1512 data-nosnippet>1512</a>            flow(measured.clone(), PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">2</span>)),
+<a href=#1513 id=1513 data-nosnippet>1513</a>            flow(PauliMap::empty(), measured, <span class="prelude-val">Some</span>(<span class="number">2</span>)),
+<a href=#1514 id=1514 data-nosnippet>1514</a>        ];
+<a href=#1515 id=1515 data-nosnippet>1515</a>        <span class="kw">let </span>consumers = [flow(pair(Pauli::Y), PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">3</span>))];
+<a href=#1516 id=1516 data-nosnippet>1516</a>        <span class="kw">for </span>change_gauge <span class="kw">in </span>[<span class="bool-val">false</span>, <span class="bool-val">true</span>] {
+<a href=#1517 id=1517 data-nosnippet>1517</a>            <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;u32&gt;::new();
+<a href=#1518 id=1518 data-nosnippet>1518</a>            engine
+<a href=#1519 id=1519 data-nosnippet>1519</a>                .append_group_allowing_dangling(
+<a href=#1520 id=1520 data-nosnippet>1520</a>                    <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>creators, IVec2::ZERO)],
+<a href=#1521 id=1521 data-nosnippet>1521</a>                    |<span class="kw">_</span>, <span class="kw-2">&amp;</span>m| m,
+<a href=#1522 id=1522 data-nosnippet>1522</a>                )
+<a href=#1523 id=1523 data-nosnippet>1523</a>                .unwrap();
+<a href=#1524 id=1524 data-nosnippet>1524</a>            <span class="kw">if </span>change_gauge {
+<a href=#1525 id=1525 data-nosnippet>1525</a>                engine
+<a href=#1526 id=1526 data-nosnippet>1526</a>                    .append_group_allowing_stabilizer_transition(
+<a href=#1527 id=1527 data-nosnippet>1527</a>                        <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>gauge, IVec2::ZERO)],
+<a href=#1528 id=1528 data-nosnippet>1528</a>                        |<span class="kw">_</span>, <span class="kw-2">&amp;</span>m| m,
+<a href=#1529 id=1529 data-nosnippet>1529</a>                    )
+<a href=#1530 id=1530 data-nosnippet>1530</a>                    .unwrap();
+<a href=#1531 id=1531 data-nosnippet>1531</a>            }
+<a href=#1532 id=1532 data-nosnippet>1532</a>            engine
+<a href=#1533 id=1533 data-nosnippet>1533</a>                .append_group_allowing_stabilizer_transition(
+<a href=#1534 id=1534 data-nosnippet>1534</a>                    <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>consumers, IVec2::ZERO)],
+<a href=#1535 id=1535 data-nosnippet>1535</a>                    |<span class="kw">_</span>, <span class="kw-2">&amp;</span>m| m,
+<a href=#1536 id=1536 data-nosnippet>1536</a>                )
+<a href=#1537 id=1537 data-nosnippet>1537</a>                .unwrap();
+<a href=#1538 id=1538 data-nosnippet>1538</a>            <span class="kw">let </span>completed = engine.finish().unwrap();
+<a href=#1539 id=1539 data-nosnippet>1539</a>            <span class="macro">assert_eq!</span>(completed.len(), <span class="number">1</span>);
+<a href=#1540 id=1540 data-nosnippet>1540</a>            <span class="kw">let </span>parity =
+<a href=#1541 id=1541 data-nosnippet>1541</a>                DetectorParity::from_measurements(completed[<span class="number">0</span>].measurements.iter().copied())
+<a href=#1542 id=1542 data-nosnippet>1542</a>                    .with_sign(completed[<span class="number">0</span>].sign);
+<a href=#1543 id=1543 data-nosnippet>1543</a>            <span class="macro">assert_eq!</span>(
+<a href=#1544 id=1544 data-nosnippet>1544</a>                parity,
+<a href=#1545 id=1545 data-nosnippet>1545</a>                DetectorParity::from_measurements([<span class="number">0</span>, <span class="number">1</span>, <span class="number">3</span>]).with_sign(<span class="bool-val">true</span>),
+<a href=#1546 id=1546 data-nosnippet>1546</a>                <span class="string">"XX * ZZ = -YY, including when their product survives as a latent check"
+<a href=#1547 id=1547 data-nosnippet>1547</a>            </span>);
+<a href=#1548 id=1548 data-nosnippet>1548</a>        }
+<a href=#1549 id=1549 data-nosnippet>1549</a>    }
+<a href=#1550 id=1550 data-nosnippet>1550</a>
+<a href=#1551 id=1551 data-nosnippet>1551</a>    <span class="attr">#[test]
+<a href=#1552 id=1552 data-nosnippet>1552</a>    </span><span class="kw">fn </span>a_group_reads_only_boundaries_from_earlier_groups() {
+<a href=#1553 id=1553 data-nosnippet>1553</a>        <span class="kw">let </span>(a, b) = (x(IVec2::ZERO), x(IVec2::X));
+<a href=#1554 id=1554 data-nosnippet>1554</a>        <span class="kw">let </span>swap = [
+<a href=#1555 id=1555 data-nosnippet>1555</a>            flow(a.clone(), b.clone(), <span class="prelude-val">None</span>),
+<a href=#1556 id=1556 data-nosnippet>1556</a>            flow(b.clone(), a.clone(), <span class="prelude-val">None</span>),
+<a href=#1557 id=1557 data-nosnippet>1557</a>        ];
+<a href=#1558 id=1558 data-nosnippet>1558</a>        <span class="kw">let </span><span class="kw-2">mut </span>residual = FlowEngine::&lt;u32&gt;::new();
+<a href=#1559 id=1559 data-nosnippet>1559</a>        residual
+<a href=#1560 id=1560 data-nosnippet>1560</a>            .append_residual_group(<span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>swap, IVec2::ZERO)], |<span class="kw">_</span>, <span class="kw-2">&amp;</span>m| m)
+<a href=#1561 id=1561 data-nosnippet>1561</a>            .unwrap();
+<a href=#1562 id=1562 data-nosnippet>1562</a>        <span class="kw">let </span>residuals = residual.into_residual_flows();
+<a href=#1563 id=1563 data-nosnippet>1563</a>        <span class="macro">assert_eq!</span>(residuals.len(), <span class="number">2</span>);
+<a href=#1564 id=1564 data-nosnippet>1564</a>        <span class="macro">assert!</span>(residuals.iter().any(|f| f.start == a &amp;&amp; f.end == b));
+<a href=#1565 id=1565 data-nosnippet>1565</a>        <span class="macro">assert!</span>(residuals.iter().any(|f| f.start == b &amp;&amp; f.end == a));
+<a href=#1566 id=1566 data-nosnippet>1566</a>
+<a href=#1567 id=1567 data-nosnippet>1567</a>        <span class="kw">let </span>creators = [
+<a href=#1568 id=1568 data-nosnippet>1568</a>            flow(PauliMap::empty(), a.clone(), <span class="prelude-val">Some</span>(<span class="number">0</span>)),
+<a href=#1569 id=1569 data-nosnippet>1569</a>            flow(PauliMap::empty(), b.clone(), <span class="prelude-val">Some</span>(<span class="number">1</span>)),
+<a href=#1570 id=1570 data-nosnippet>1570</a>        ];
+<a href=#1571 id=1571 data-nosnippet>1571</a>        <span class="kw">let </span>consumers = [
+<a href=#1572 id=1572 data-nosnippet>1572</a>            flow(a, PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">2</span>)),
+<a href=#1573 id=1573 data-nosnippet>1573</a>            flow(b, PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">3</span>)),
+<a href=#1574 id=1574 data-nosnippet>1574</a>        ];
+<a href=#1575 id=1575 data-nosnippet>1575</a>        <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;u32&gt;::new();
+<a href=#1576 id=1576 data-nosnippet>1576</a>        <span class="kw">for </span>group <span class="kw">in </span>[<span class="kw-2">&amp;</span>creators, <span class="kw-2">&amp;</span>swap, <span class="kw-2">&amp;</span>consumers] {
+<a href=#1577 id=1577 data-nosnippet>1577</a>            engine
+<a href=#1578 id=1578 data-nosnippet>1578</a>                .append_group_allowing_dangling(<span class="kw-2">&amp;</span>[OffsetFlows::new(group, IVec2::ZERO)], |<span class="kw">_</span>, <span class="kw-2">&amp;</span>m| m)
+<a href=#1579 id=1579 data-nosnippet>1579</a>                .unwrap();
+<a href=#1580 id=1580 data-nosnippet>1580</a>        }
+<a href=#1581 id=1581 data-nosnippet>1581</a>        <span class="kw">let </span>completed = engine.finish().unwrap();
+<a href=#1582 id=1582 data-nosnippet>1582</a>        <span class="macro">assert_eq!</span>(completed[<span class="number">0</span>].measurements.as_slice(), [<span class="number">2</span>, <span class="number">1</span>]);
+<a href=#1583 id=1583 data-nosnippet>1583</a>        <span class="macro">assert_eq!</span>(completed[<span class="number">1</span>].measurements.as_slice(), [<span class="number">3</span>, <span class="number">0</span>]);
+<a href=#1584 id=1584 data-nosnippet>1584</a>    }
+<a href=#1585 id=1585 data-nosnippet>1585</a>
+<a href=#1586 id=1586 data-nosnippet>1586</a>    <span class="attr">#[test]
+<a href=#1587 id=1587 data-nosnippet>1587</a>    </span><span class="kw">fn </span>gauge_transition_carries_only_commuting_old_products() {
+<a href=#1588 id=1588 data-nosnippet>1588</a>        <span class="kw">let </span>z0 = z(IVec2::new(<span class="number">0</span>, <span class="number">0</span>));
+<a href=#1589 id=1589 data-nosnippet>1589</a>        <span class="kw">let </span>z1 = z(IVec2::new(<span class="number">1</span>, <span class="number">0</span>));
+<a href=#1590 id=1590 data-nosnippet>1590</a>        <span class="kw">let </span>joint_x = <span class="kw-2">&amp;</span>x(IVec2::new(<span class="number">0</span>, <span class="number">0</span>)) ^ <span class="kw-2">&amp;</span>x(IVec2::new(<span class="number">1</span>, <span class="number">0</span>));
+<a href=#1591 id=1591 data-nosnippet>1591</a>        <span class="kw">let </span>old_creators = [
+<a href=#1592 id=1592 data-nosnippet>1592</a>            flow(PauliMap::empty(), z0.clone(), <span class="prelude-val">Some</span>(<span class="number">0</span>)),
+<a href=#1593 id=1593 data-nosnippet>1593</a>            flow(PauliMap::empty(), z1.clone(), <span class="prelude-val">Some</span>(<span class="number">1</span>)),
+<a href=#1594 id=1594 data-nosnippet>1594</a>        ];
+<a href=#1595 id=1595 data-nosnippet>1595</a>        <span class="kw">let </span>merge = [
+<a href=#1596 id=1596 data-nosnippet>1596</a>            flow(joint_x.clone(), PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">2</span>)),
+<a href=#1597 id=1597 data-nosnippet>1597</a>            flow(PauliMap::empty(), joint_x, <span class="prelude-val">Some</span>(<span class="number">3</span>)),
+<a href=#1598 id=1598 data-nosnippet>1598</a>        ];
+<a href=#1599 id=1599 data-nosnippet>1599</a>        <span class="kw">let </span>split_left = [flow(z0, PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">4</span>))];
+<a href=#1600 id=1600 data-nosnippet>1600</a>        <span class="kw">let </span>split_right = [flow(z1, PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">5</span>))];
+<a href=#1601 id=1601 data-nosnippet>1601</a>
+<a href=#1602 id=1602 data-nosnippet>1602</a>        <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;u32&gt;::new();
+<a href=#1603 id=1603 data-nosnippet>1603</a>        engine
+<a href=#1604 id=1604 data-nosnippet>1604</a>            .append_group_allowing_dangling(
+<a href=#1605 id=1605 data-nosnippet>1605</a>                <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>old_creators, IVec2::ZERO)],
+<a href=#1606 id=1606 data-nosnippet>1606</a>                |<span class="kw">_</span>, <span class="kw-2">&amp;</span>measurement| measurement,
+<a href=#1607 id=1607 data-nosnippet>1607</a>            )
+<a href=#1608 id=1608 data-nosnippet>1608</a>            .expect(<span class="string">"open the old basis"</span>);
+<a href=#1609 id=1609 data-nosnippet>1609</a>        engine
+<a href=#1610 id=1610 data-nosnippet>1610</a>            .append_group_allowing_stabilizer_transition(
+<a href=#1611 id=1611 data-nosnippet>1611</a>                <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>merge, IVec2::ZERO)],
+<a href=#1612 id=1612 data-nosnippet>1612</a>                |<span class="kw">_</span>, <span class="kw-2">&amp;</span>measurement| measurement,
+<a href=#1613 id=1613 data-nosnippet>1613</a>            )
+<a href=#1614 id=1614 data-nosnippet>1614</a>            .expect(<span class="string">"measure the temporary gauge"</span>);
+<a href=#1615 id=1615 data-nosnippet>1615</a>        engine
+<a href=#1616 id=1616 data-nosnippet>1616</a>            .append_group_allowing_stabilizer_transition(
+<a href=#1617 id=1617 data-nosnippet>1617</a>                <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>split_left, IVec2::ZERO)],
+<a href=#1618 id=1618 data-nosnippet>1618</a>                |<span class="kw">_</span>, <span class="kw-2">&amp;</span>measurement| measurement,
+<a href=#1619 id=1619 data-nosnippet>1619</a>            )
+<a href=#1620 id=1620 data-nosnippet>1620</a>            .expect(<span class="string">"restore the left half of the old basis"</span>);
+<a href=#1621 id=1621 data-nosnippet>1621</a>        engine
+<a href=#1622 id=1622 data-nosnippet>1622</a>            .append_group_allowing_stabilizer_transition(
+<a href=#1623 id=1623 data-nosnippet>1623</a>                <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>split_right, IVec2::ZERO)],
+<a href=#1624 id=1624 data-nosnippet>1624</a>                |<span class="kw">_</span>, <span class="kw-2">&amp;</span>measurement| measurement,
+<a href=#1625 id=1625 data-nosnippet>1625</a>            )
+<a href=#1626 id=1626 data-nosnippet>1626</a>            .expect(<span class="string">"restore the right half of the old basis"</span>);
+<a href=#1627 id=1627 data-nosnippet>1627</a>
+<a href=#1628 id=1628 data-nosnippet>1628</a>        <span class="kw">let </span>completed = engine.finish().expect(<span class="string">"the restored basis closes"</span>);
+<a href=#1629 id=1629 data-nosnippet>1629</a>        <span class="macro">assert_eq!</span>(completed.len(), <span class="number">1</span>);
+<a href=#1630 id=1630 data-nosnippet>1630</a>        <span class="kw">let </span><span class="kw-2">mut </span>measurements = completed[<span class="number">0</span>].measurements.to_vec();
+<a href=#1631 id=1631 data-nosnippet>1631</a>        measurements.sort_unstable();
+<a href=#1632 id=1632 data-nosnippet>1632</a>        <span class="macro">assert_eq!</span>(measurements, [<span class="number">0</span>, <span class="number">1</span>, <span class="number">4</span>, <span class="number">5</span>]);
+<a href=#1633 id=1633 data-nosnippet>1633</a>    }
+<a href=#1634 id=1634 data-nosnippet>1634</a>
+<a href=#1635 id=1635 data-nosnippet>1635</a>    <span class="attr">#[test]
+<a href=#1636 id=1636 data-nosnippet>1636</a>    </span><span class="kw">fn </span>flow_marker_survives_fusion() {
+<a href=#1637 id=1637 data-nosnippet>1637</a>        <span class="kw">for </span>marker <span class="kw">in </span>[FlowMarker::Discard, FlowMarker::Restart] {
+<a href=#1638 id=1638 data-nosnippet>1638</a>            <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;u32&gt;::new();
+<a href=#1639 id=1639 data-nosnippet>1639</a>            <span class="kw">let </span><span class="kw-2">mut </span>offset = <span class="number">0u32</span>;
+<a href=#1640 id=1640 data-nosnippet>1640</a>            <span class="kw">let </span>boundary = x(IVec2::new(<span class="number">0</span>, <span class="number">0</span>));
+<a href=#1641 id=1641 data-nosnippet>1641</a>            <span class="kw">let </span>creator = [Flow::new(PauliMap::empty(), boundary.clone())
+<a href=#1642 id=1642 data-nosnippet>1642</a>                .with_measurements([<span class="number">0</span>])
+<a href=#1643 id=1643 data-nosnippet>1643</a>                .with_marker(marker)];
+<a href=#1644 id=1644 data-nosnippet>1644</a>            <span class="kw">let </span>consumer = [Flow::new(boundary, PauliMap::empty()).with_measurements([<span class="number">0</span>])];
+<a href=#1645 id=1645 data-nosnippet>1645</a>
+<a href=#1646 id=1646 data-nosnippet>1646</a>            append_flows(
+<a href=#1647 id=1647 data-nosnippet>1647</a>                <span class="kw-2">&amp;mut </span>engine,
+<a href=#1648 id=1648 data-nosnippet>1648</a>                <span class="kw-2">&amp;</span>creator,
+<a href=#1649 id=1649 data-nosnippet>1649</a>                measurement_to_sequential_mapper(<span class="kw-2">&amp;mut </span>offset),
+<a href=#1650 id=1650 data-nosnippet>1650</a>            )
+<a href=#1651 id=1651 data-nosnippet>1651</a>            .expect(<span class="string">"creator"</span>);
+<a href=#1652 id=1652 data-nosnippet>1652</a>            append_flows(
+<a href=#1653 id=1653 data-nosnippet>1653</a>                <span class="kw-2">&amp;mut </span>engine,
+<a href=#1654 id=1654 data-nosnippet>1654</a>                <span class="kw-2">&amp;</span>consumer,
+<a href=#1655 id=1655 data-nosnippet>1655</a>                measurement_to_sequential_mapper(<span class="kw-2">&amp;mut </span>offset),
+<a href=#1656 id=1656 data-nosnippet>1656</a>            )
+<a href=#1657 id=1657 data-nosnippet>1657</a>            .expect(<span class="string">"consumer"</span>);
 <a href=#1658 id=1658 data-nosnippet>1658</a>
-<a href=#1659 id=1659 data-nosnippet>1659</a>    <span class="attr">#[test]
-<a href=#1660 id=1660 data-nosnippet>1660</a>    </span><span class="kw">fn </span>flow_marker_survives_fusion() {
-<a href=#1661 id=1661 data-nosnippet>1661</a>        <span class="kw">for </span>marker <span class="kw">in </span>[FlowMarker::Discard, FlowMarker::Restart] {
-<a href=#1662 id=1662 data-nosnippet>1662</a>            <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;u32&gt;::new();
-<a href=#1663 id=1663 data-nosnippet>1663</a>            <span class="kw">let </span><span class="kw-2">mut </span>offset = <span class="number">0u32</span>;
-<a href=#1664 id=1664 data-nosnippet>1664</a>            <span class="kw">let </span>boundary = x(IVec2::new(<span class="number">0</span>, <span class="number">0</span>));
-<a href=#1665 id=1665 data-nosnippet>1665</a>            <span class="kw">let </span>creator = [Flow::new(PauliMap::empty(), boundary.clone())
-<a href=#1666 id=1666 data-nosnippet>1666</a>                .with_measurements([<span class="number">0</span>])
-<a href=#1667 id=1667 data-nosnippet>1667</a>                .with_marker(marker)];
-<a href=#1668 id=1668 data-nosnippet>1668</a>            <span class="kw">let </span>consumer = [Flow::new(boundary, PauliMap::empty()).with_measurements([<span class="number">0</span>])];
-<a href=#1669 id=1669 data-nosnippet>1669</a>
-<a href=#1670 id=1670 data-nosnippet>1670</a>            append_flows(
-<a href=#1671 id=1671 data-nosnippet>1671</a>                <span class="kw-2">&amp;mut </span>engine,
-<a href=#1672 id=1672 data-nosnippet>1672</a>                <span class="kw-2">&amp;</span>creator,
-<a href=#1673 id=1673 data-nosnippet>1673</a>                measurement_to_sequential_mapper(<span class="kw-2">&amp;mut </span>offset),
-<a href=#1674 id=1674 data-nosnippet>1674</a>            )
-<a href=#1675 id=1675 data-nosnippet>1675</a>            .expect(<span class="string">"creator"</span>);
-<a href=#1676 id=1676 data-nosnippet>1676</a>            append_flows(
-<a href=#1677 id=1677 data-nosnippet>1677</a>                <span class="kw-2">&amp;mut </span>engine,
-<a href=#1678 id=1678 data-nosnippet>1678</a>                <span class="kw-2">&amp;</span>consumer,
-<a href=#1679 id=1679 data-nosnippet>1679</a>                measurement_to_sequential_mapper(<span class="kw-2">&amp;mut </span>offset),
-<a href=#1680 id=1680 data-nosnippet>1680</a>            )
-<a href=#1681 id=1681 data-nosnippet>1681</a>            .expect(<span class="string">"consumer"</span>);
+<a href=#1659 id=1659 data-nosnippet>1659</a>            <span class="kw">let </span>completed = engine.finish().expect(<span class="string">"clean finish"</span>);
+<a href=#1660 id=1660 data-nosnippet>1660</a>            <span class="macro">assert_eq!</span>(completed.len(), <span class="number">1</span>);
+<a href=#1661 id=1661 data-nosnippet>1661</a>            <span class="macro">assert_eq!</span>(completed[<span class="number">0</span>].marker, marker);
+<a href=#1662 id=1662 data-nosnippet>1662</a>        }
+<a href=#1663 id=1663 data-nosnippet>1663</a>    }
+<a href=#1664 id=1664 data-nosnippet>1664</a>
+<a href=#1665 id=1665 data-nosnippet>1665</a>    <span class="doccomment">/// A restarting chain left open at the boundary keeps its marker on the
+<a href=#1666 id=1666 data-nosnippet>1666</a>    /// residual, so it lands on the template's `boundary_flows` and the
+<a href=#1667 id=1667 data-nosnippet>1667</a>    /// instance-seam pass can route the cross-template parity to a restart.
+<a href=#1668 id=1668 data-nosnippet>1668</a>    </span><span class="attr">#[test]
+<a href=#1669 id=1669 data-nosnippet>1669</a>    </span><span class="kw">fn </span>restart_marker_survives_residual_extraction() {
+<a href=#1670 id=1670 data-nosnippet>1670</a>        <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;u32&gt;::new();
+<a href=#1671 id=1671 data-nosnippet>1671</a>        <span class="kw">let </span>creator = [Flow::new(PauliMap::empty(), z(IVec2::new(<span class="number">0</span>, <span class="number">0</span>)))
+<a href=#1672 id=1672 data-nosnippet>1672</a>            .with_measurements([<span class="number">0</span>])
+<a href=#1673 id=1673 data-nosnippet>1673</a>            .with_marker(FlowMarker::Restart)];
+<a href=#1674 id=1674 data-nosnippet>1674</a>        engine
+<a href=#1675 id=1675 data-nosnippet>1675</a>            .append_residual_group(<span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>creator, IVec2::ZERO)], |<span class="kw">_</span>, <span class="kw-2">&amp;</span>m| m)
+<a href=#1676 id=1676 data-nosnippet>1676</a>            .expect(<span class="string">"creator"</span>);
+<a href=#1677 id=1677 data-nosnippet>1677</a>
+<a href=#1678 id=1678 data-nosnippet>1678</a>        <span class="kw">let </span>residual = engine.into_residual_flows();
+<a href=#1679 id=1679 data-nosnippet>1679</a>        <span class="macro">assert_eq!</span>(residual.len(), <span class="number">1</span>);
+<a href=#1680 id=1680 data-nosnippet>1680</a>        <span class="macro">assert_eq!</span>(residual[<span class="number">0</span>].marker, FlowMarker::Restart);
+<a href=#1681 id=1681 data-nosnippet>1681</a>    }
 <a href=#1682 id=1682 data-nosnippet>1682</a>
-<a href=#1683 id=1683 data-nosnippet>1683</a>            <span class="kw">let </span>completed = engine.finish().expect(<span class="string">"clean finish"</span>);
-<a href=#1684 id=1684 data-nosnippet>1684</a>            <span class="macro">assert_eq!</span>(completed.len(), <span class="number">1</span>);
-<a href=#1685 id=1685 data-nosnippet>1685</a>            <span class="macro">assert_eq!</span>(completed[<span class="number">0</span>].marker, marker);
-<a href=#1686 id=1686 data-nosnippet>1686</a>        }
-<a href=#1687 id=1687 data-nosnippet>1687</a>    }
-<a href=#1688 id=1688 data-nosnippet>1688</a>
-<a href=#1689 id=1689 data-nosnippet>1689</a>    <span class="doccomment">/// A restarting chain left open at the boundary keeps its marker on the
-<a href=#1690 id=1690 data-nosnippet>1690</a>    /// residual, so it lands on the template's `boundary_flows` and the
-<a href=#1691 id=1691 data-nosnippet>1691</a>    /// instance-seam pass can route the cross-template parity to a restart.
-<a href=#1692 id=1692 data-nosnippet>1692</a>    </span><span class="attr">#[test]
-<a href=#1693 id=1693 data-nosnippet>1693</a>    </span><span class="kw">fn </span>restart_marker_survives_residual_extraction() {
-<a href=#1694 id=1694 data-nosnippet>1694</a>        <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;u32&gt;::new();
-<a href=#1695 id=1695 data-nosnippet>1695</a>        <span class="kw">let </span>creator = [Flow::new(PauliMap::empty(), z(IVec2::new(<span class="number">0</span>, <span class="number">0</span>)))
-<a href=#1696 id=1696 data-nosnippet>1696</a>            .with_measurements([<span class="number">0</span>])
-<a href=#1697 id=1697 data-nosnippet>1697</a>            .with_marker(FlowMarker::Restart)];
-<a href=#1698 id=1698 data-nosnippet>1698</a>        engine
-<a href=#1699 id=1699 data-nosnippet>1699</a>            .append_residual_group(<span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>creator, IVec2::ZERO)], |<span class="kw">_</span>, <span class="kw-2">&amp;</span>m| m)
-<a href=#1700 id=1700 data-nosnippet>1700</a>            .expect(<span class="string">"creator"</span>);
+<a href=#1683 id=1683 data-nosnippet>1683</a>    <span class="attr">#[test]
+<a href=#1684 id=1684 data-nosnippet>1684</a>    </span><span class="kw">fn </span>consumer_before_creator_ordering() {
+<a href=#1685 id=1685 data-nosnippet>1685</a>        <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;u32&gt;::new();
+<a href=#1686 id=1686 data-nosnippet>1686</a>        <span class="kw">let </span><span class="kw-2">mut </span>offset = <span class="number">0u32</span>;
+<a href=#1687 id=1687 data-nosnippet>1687</a>
+<a href=#1688 id=1688 data-nosnippet>1688</a>        <span class="kw">let </span>shared_key = x(IVec2::new(<span class="number">0</span>, <span class="number">0</span>));
+<a href=#1689 id=1689 data-nosnippet>1689</a>        <span class="kw">let </span>predecessor = [flow(PauliMap::empty(), shared_key.clone(), <span class="prelude-val">Some</span>(<span class="number">0</span>))];
+<a href=#1690 id=1690 data-nosnippet>1690</a>        append_flows(
+<a href=#1691 id=1691 data-nosnippet>1691</a>            <span class="kw-2">&amp;mut </span>engine,
+<a href=#1692 id=1692 data-nosnippet>1692</a>            <span class="kw-2">&amp;</span>predecessor,
+<a href=#1693 id=1693 data-nosnippet>1693</a>            measurement_to_sequential_mapper(<span class="kw-2">&amp;mut </span>offset),
+<a href=#1694 id=1694 data-nosnippet>1694</a>        )
+<a href=#1695 id=1695 data-nosnippet>1695</a>        .expect(<span class="string">"predecessor"</span>);
+<a href=#1696 id=1696 data-nosnippet>1696</a>
+<a href=#1697 id=1697 data-nosnippet>1697</a>        <span class="kw">let </span>time_reversed_chunk = [
+<a href=#1698 id=1698 data-nosnippet>1698</a>            flow(PauliMap::empty(), shared_key.clone(), <span class="prelude-val">Some</span>(<span class="number">0</span>)),
+<a href=#1699 id=1699 data-nosnippet>1699</a>            flow(shared_key.clone(), PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">0</span>)),
+<a href=#1700 id=1700 data-nosnippet>1700</a>        ];
 <a href=#1701 id=1701 data-nosnippet>1701</a>
-<a href=#1702 id=1702 data-nosnippet>1702</a>        <span class="kw">let </span>residual = engine.into_residual_flows();
-<a href=#1703 id=1703 data-nosnippet>1703</a>        <span class="macro">assert_eq!</span>(residual.len(), <span class="number">1</span>);
-<a href=#1704 id=1704 data-nosnippet>1704</a>        <span class="macro">assert_eq!</span>(residual[<span class="number">0</span>].marker, FlowMarker::Restart);
-<a href=#1705 id=1705 data-nosnippet>1705</a>    }
-<a href=#1706 id=1706 data-nosnippet>1706</a>
-<a href=#1707 id=1707 data-nosnippet>1707</a>    <span class="attr">#[test]
-<a href=#1708 id=1708 data-nosnippet>1708</a>    </span><span class="kw">fn </span>consumer_before_creator_ordering() {
-<a href=#1709 id=1709 data-nosnippet>1709</a>        <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;u32&gt;::new();
-<a href=#1710 id=1710 data-nosnippet>1710</a>        <span class="kw">let </span><span class="kw-2">mut </span>offset = <span class="number">0u32</span>;
-<a href=#1711 id=1711 data-nosnippet>1711</a>
-<a href=#1712 id=1712 data-nosnippet>1712</a>        <span class="kw">let </span>shared_key = x(IVec2::new(<span class="number">0</span>, <span class="number">0</span>));
-<a href=#1713 id=1713 data-nosnippet>1713</a>        <span class="kw">let </span>predecessor = [flow(PauliMap::empty(), shared_key.clone(), <span class="prelude-val">Some</span>(<span class="number">0</span>))];
-<a href=#1714 id=1714 data-nosnippet>1714</a>        append_flows(
-<a href=#1715 id=1715 data-nosnippet>1715</a>            <span class="kw-2">&amp;mut </span>engine,
-<a href=#1716 id=1716 data-nosnippet>1716</a>            <span class="kw-2">&amp;</span>predecessor,
-<a href=#1717 id=1717 data-nosnippet>1717</a>            measurement_to_sequential_mapper(<span class="kw-2">&amp;mut </span>offset),
-<a href=#1718 id=1718 data-nosnippet>1718</a>        )
-<a href=#1719 id=1719 data-nosnippet>1719</a>        .expect(<span class="string">"predecessor"</span>);
-<a href=#1720 id=1720 data-nosnippet>1720</a>
-<a href=#1721 id=1721 data-nosnippet>1721</a>        <span class="kw">let </span>time_reversed_chunk = [
-<a href=#1722 id=1722 data-nosnippet>1722</a>            flow(PauliMap::empty(), shared_key.clone(), <span class="prelude-val">Some</span>(<span class="number">0</span>)),
-<a href=#1723 id=1723 data-nosnippet>1723</a>            flow(shared_key.clone(), PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">0</span>)),
-<a href=#1724 id=1724 data-nosnippet>1724</a>        ];
-<a href=#1725 id=1725 data-nosnippet>1725</a>
-<a href=#1726 id=1726 data-nosnippet>1726</a>        append_flows(
-<a href=#1727 id=1727 data-nosnippet>1727</a>            <span class="kw-2">&amp;mut </span>engine,
-<a href=#1728 id=1728 data-nosnippet>1728</a>            <span class="kw-2">&amp;</span>time_reversed_chunk,
-<a href=#1729 id=1729 data-nosnippet>1729</a>            measurement_to_sequential_mapper(<span class="kw-2">&amp;mut </span>offset),
-<a href=#1730 id=1730 data-nosnippet>1730</a>        )
-<a href=#1731 id=1731 data-nosnippet>1731</a>        .expect(<span class="string">"time-reversed chunk should succeed when consumers are processed first"</span>);
-<a href=#1732 id=1732 data-nosnippet>1732</a>
-<a href=#1733 id=1733 data-nosnippet>1733</a>        <span class="kw">let </span>keys: Vec&lt;<span class="kw">_</span>&gt; = engine.open_flows.keys().map(FlowKey::translated).collect();
-<a href=#1734 id=1734 data-nosnippet>1734</a>        <span class="macro">assert_eq!</span>(keys.len(), <span class="number">1</span>);
-<a href=#1735 id=1735 data-nosnippet>1735</a>        <span class="macro">assert_eq!</span>(keys[<span class="number">0</span>], shared_key);
-<a href=#1736 id=1736 data-nosnippet>1736</a>        <span class="macro">assert_eq!</span>(engine.drain_completed().len(), <span class="number">1</span>);
-<a href=#1737 id=1737 data-nosnippet>1737</a>    }
-<a href=#1738 id=1738 data-nosnippet>1738</a>
-<a href=#1739 id=1739 data-nosnippet>1739</a>    <span class="attr">#[test]
-<a href=#1740 id=1740 data-nosnippet>1740</a>    </span><span class="kw">fn </span>flow_errors_cover_unmatched_and_unterminated() {
-<a href=#1741 id=1741 data-nosnippet>1741</a>        <span class="kw">let </span><span class="kw-2">mut </span>offset = <span class="number">0u32</span>;
-<a href=#1742 id=1742 data-nosnippet>1742</a>
-<a href=#1743 id=1743 data-nosnippet>1743</a>        <span class="kw">let </span><span class="kw-2">mut </span>unmatched = FlowEngine::&lt;u32&gt;::new();
-<a href=#1744 id=1744 data-nosnippet>1744</a>        <span class="kw">let </span>orphan = [flow(x(IVec2::new(<span class="number">0</span>, <span class="number">0</span>)), PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">0</span>))];
-<a href=#1745 id=1745 data-nosnippet>1745</a>        <span class="kw">let </span>err = append_flows(
-<a href=#1746 id=1746 data-nosnippet>1746</a>            <span class="kw-2">&amp;mut </span>unmatched,
-<a href=#1747 id=1747 data-nosnippet>1747</a>            <span class="kw-2">&amp;</span>orphan,
-<a href=#1748 id=1748 data-nosnippet>1748</a>            measurement_to_sequential_mapper(<span class="kw-2">&amp;mut </span>offset),
-<a href=#1749 id=1749 data-nosnippet>1749</a>        )
-<a href=#1750 id=1750 data-nosnippet>1750</a>        .expect_err(<span class="string">"unmatched input"</span>);
-<a href=#1751 id=1751 data-nosnippet>1751</a>        <span class="macro">assert_eq!</span>(
-<a href=#1752 id=1752 data-nosnippet>1752</a>            err,
-<a href=#1753 id=1753 data-nosnippet>1753</a>            FlowError::Composition(<span class="macro">format!</span>(<span class="string">"unmatched flow input {}"</span>, orphan[<span class="number">0</span>].start))
-<a href=#1754 id=1754 data-nosnippet>1754</a>        );
+<a href=#1702 id=1702 data-nosnippet>1702</a>        append_flows(
+<a href=#1703 id=1703 data-nosnippet>1703</a>            <span class="kw-2">&amp;mut </span>engine,
+<a href=#1704 id=1704 data-nosnippet>1704</a>            <span class="kw-2">&amp;</span>time_reversed_chunk,
+<a href=#1705 id=1705 data-nosnippet>1705</a>            measurement_to_sequential_mapper(<span class="kw-2">&amp;mut </span>offset),
+<a href=#1706 id=1706 data-nosnippet>1706</a>        )
+<a href=#1707 id=1707 data-nosnippet>1707</a>        .expect(<span class="string">"time-reversed chunk should succeed when consumers are processed first"</span>);
+<a href=#1708 id=1708 data-nosnippet>1708</a>
+<a href=#1709 id=1709 data-nosnippet>1709</a>        <span class="kw">let </span>keys: Vec&lt;<span class="kw">_</span>&gt; = engine.open_flows.keys().map(FlowKey::translated).collect();
+<a href=#1710 id=1710 data-nosnippet>1710</a>        <span class="macro">assert_eq!</span>(keys.len(), <span class="number">1</span>);
+<a href=#1711 id=1711 data-nosnippet>1711</a>        <span class="macro">assert_eq!</span>(keys[<span class="number">0</span>], shared_key);
+<a href=#1712 id=1712 data-nosnippet>1712</a>        <span class="macro">assert_eq!</span>(engine.drain_completed().len(), <span class="number">1</span>);
+<a href=#1713 id=1713 data-nosnippet>1713</a>    }
+<a href=#1714 id=1714 data-nosnippet>1714</a>
+<a href=#1715 id=1715 data-nosnippet>1715</a>    <span class="attr">#[test]
+<a href=#1716 id=1716 data-nosnippet>1716</a>    </span><span class="kw">fn </span>flow_errors_cover_unmatched_and_unterminated() {
+<a href=#1717 id=1717 data-nosnippet>1717</a>        <span class="kw">let </span><span class="kw-2">mut </span>offset = <span class="number">0u32</span>;
+<a href=#1718 id=1718 data-nosnippet>1718</a>
+<a href=#1719 id=1719 data-nosnippet>1719</a>        <span class="kw">let </span><span class="kw-2">mut </span>unmatched = FlowEngine::&lt;u32&gt;::new();
+<a href=#1720 id=1720 data-nosnippet>1720</a>        <span class="kw">let </span>orphan = [flow(x(IVec2::new(<span class="number">0</span>, <span class="number">0</span>)), PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">0</span>))];
+<a href=#1721 id=1721 data-nosnippet>1721</a>        <span class="kw">let </span>err = append_flows(
+<a href=#1722 id=1722 data-nosnippet>1722</a>            <span class="kw-2">&amp;mut </span>unmatched,
+<a href=#1723 id=1723 data-nosnippet>1723</a>            <span class="kw-2">&amp;</span>orphan,
+<a href=#1724 id=1724 data-nosnippet>1724</a>            measurement_to_sequential_mapper(<span class="kw-2">&amp;mut </span>offset),
+<a href=#1725 id=1725 data-nosnippet>1725</a>        )
+<a href=#1726 id=1726 data-nosnippet>1726</a>        .expect_err(<span class="string">"unmatched input"</span>);
+<a href=#1727 id=1727 data-nosnippet>1727</a>        <span class="macro">assert_eq!</span>(
+<a href=#1728 id=1728 data-nosnippet>1728</a>            err,
+<a href=#1729 id=1729 data-nosnippet>1729</a>            FlowError::Composition(<span class="macro">format!</span>(<span class="string">"unmatched flow input {}"</span>, orphan[<span class="number">0</span>].start))
+<a href=#1730 id=1730 data-nosnippet>1730</a>        );
+<a href=#1731 id=1731 data-nosnippet>1731</a>
+<a href=#1732 id=1732 data-nosnippet>1732</a>        <span class="kw">let </span><span class="kw-2">mut </span>unterminated = FlowEngine::&lt;u32&gt;::new();
+<a href=#1733 id=1733 data-nosnippet>1733</a>        <span class="kw">let </span>open_ended = [flow(PauliMap::empty(), z(IVec2::new(<span class="number">2</span>, <span class="number">0</span>)), <span class="prelude-val">Some</span>(<span class="number">0</span>))];
+<a href=#1734 id=1734 data-nosnippet>1734</a>        append_flows(
+<a href=#1735 id=1735 data-nosnippet>1735</a>            <span class="kw-2">&amp;mut </span>unterminated,
+<a href=#1736 id=1736 data-nosnippet>1736</a>            <span class="kw-2">&amp;</span>open_ended,
+<a href=#1737 id=1737 data-nosnippet>1737</a>            measurement_to_sequential_mapper(<span class="kw-2">&amp;mut </span>offset),
+<a href=#1738 id=1738 data-nosnippet>1738</a>        )
+<a href=#1739 id=1739 data-nosnippet>1739</a>        .expect(<span class="string">"seed"</span>);
+<a href=#1740 id=1740 data-nosnippet>1740</a>        <span class="kw">let </span>err = unterminated.finish().expect_err(<span class="string">"unterminated flow"</span>);
+<a href=#1741 id=1741 data-nosnippet>1741</a>        <span class="macro">assert_eq!</span>(
+<a href=#1742 id=1742 data-nosnippet>1742</a>            err,
+<a href=#1743 id=1743 data-nosnippet>1743</a>            FlowError::Composition(<span class="macro">format!</span>(<span class="string">"unterminated flows: {}"</span>, open_ended[<span class="number">0</span>].end))
+<a href=#1744 id=1744 data-nosnippet>1744</a>        );
+<a href=#1745 id=1745 data-nosnippet>1745</a>    }
+<a href=#1746 id=1746 data-nosnippet>1746</a>
+<a href=#1747 id=1747 data-nosnippet>1747</a>    <span class="attr">#[test]
+<a href=#1748 id=1748 data-nosnippet>1748</a>    </span><span class="kw">fn </span>duplicate_creators_are_rejected_instead_of_overwriting_parity() {
+<a href=#1749 id=1749 data-nosnippet>1749</a>        <span class="kw">let </span>boundary = z(IVec2::new(<span class="number">2</span>, <span class="number">0</span>));
+<a href=#1750 id=1750 data-nosnippet>1750</a>        <span class="kw">let </span>creators = [
+<a href=#1751 id=1751 data-nosnippet>1751</a>            flow(PauliMap::empty(), boundary.clone(), <span class="prelude-val">Some</span>(<span class="number">0</span>)),
+<a href=#1752 id=1752 data-nosnippet>1752</a>            flow(PauliMap::empty(), boundary.clone(), <span class="prelude-val">Some</span>(<span class="number">1</span>)),
+<a href=#1753 id=1753 data-nosnippet>1753</a>        ];
+<a href=#1754 id=1754 data-nosnippet>1754</a>        <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;u32&gt;::new();
 <a href=#1755 id=1755 data-nosnippet>1755</a>
-<a href=#1756 id=1756 data-nosnippet>1756</a>        <span class="kw">let </span><span class="kw-2">mut </span>unterminated = FlowEngine::&lt;u32&gt;::new();
-<a href=#1757 id=1757 data-nosnippet>1757</a>        <span class="kw">let </span>open_ended = [flow(PauliMap::empty(), z(IVec2::new(<span class="number">2</span>, <span class="number">0</span>)), <span class="prelude-val">Some</span>(<span class="number">0</span>))];
-<a href=#1758 id=1758 data-nosnippet>1758</a>        append_flows(
-<a href=#1759 id=1759 data-nosnippet>1759</a>            <span class="kw-2">&amp;mut </span>unterminated,
-<a href=#1760 id=1760 data-nosnippet>1760</a>            <span class="kw-2">&amp;</span>open_ended,
-<a href=#1761 id=1761 data-nosnippet>1761</a>            measurement_to_sequential_mapper(<span class="kw-2">&amp;mut </span>offset),
-<a href=#1762 id=1762 data-nosnippet>1762</a>        )
-<a href=#1763 id=1763 data-nosnippet>1763</a>        .expect(<span class="string">"seed"</span>);
-<a href=#1764 id=1764 data-nosnippet>1764</a>        <span class="kw">let </span>err = unterminated.finish().expect_err(<span class="string">"unterminated flow"</span>);
-<a href=#1765 id=1765 data-nosnippet>1765</a>        <span class="macro">assert_eq!</span>(
-<a href=#1766 id=1766 data-nosnippet>1766</a>            err,
-<a href=#1767 id=1767 data-nosnippet>1767</a>            FlowError::Composition(<span class="macro">format!</span>(<span class="string">"unterminated flows: {}"</span>, open_ended[<span class="number">0</span>].end))
-<a href=#1768 id=1768 data-nosnippet>1768</a>        );
-<a href=#1769 id=1769 data-nosnippet>1769</a>    }
-<a href=#1770 id=1770 data-nosnippet>1770</a>
-<a href=#1771 id=1771 data-nosnippet>1771</a>    <span class="attr">#[test]
-<a href=#1772 id=1772 data-nosnippet>1772</a>    </span><span class="kw">fn </span>duplicate_creators_are_rejected_instead_of_overwriting_parity() {
-<a href=#1773 id=1773 data-nosnippet>1773</a>        <span class="kw">let </span>boundary = z(IVec2::new(<span class="number">2</span>, <span class="number">0</span>));
-<a href=#1774 id=1774 data-nosnippet>1774</a>        <span class="kw">let </span>creators = [
-<a href=#1775 id=1775 data-nosnippet>1775</a>            flow(PauliMap::empty(), boundary.clone(), <span class="prelude-val">Some</span>(<span class="number">0</span>)),
-<a href=#1776 id=1776 data-nosnippet>1776</a>            flow(PauliMap::empty(), boundary.clone(), <span class="prelude-val">Some</span>(<span class="number">1</span>)),
-<a href=#1777 id=1777 data-nosnippet>1777</a>        ];
-<a href=#1778 id=1778 data-nosnippet>1778</a>        <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;u32&gt;::new();
-<a href=#1779 id=1779 data-nosnippet>1779</a>
-<a href=#1780 id=1780 data-nosnippet>1780</a>        <span class="kw">let </span>error = append_flows(<span class="kw-2">&amp;mut </span>engine, <span class="kw-2">&amp;</span>creators, |measurement| <span class="kw-2">*</span>measurement)
-<a href=#1781 id=1781 data-nosnippet>1781</a>            .expect_err(<span class="string">"two creators of one boundary must collide"</span>);
-<a href=#1782 id=1782 data-nosnippet>1782</a>
-<a href=#1783 id=1783 data-nosnippet>1783</a>        <span class="macro">assert_eq!</span>(
-<a href=#1784 id=1784 data-nosnippet>1784</a>            error,
-<a href=#1785 id=1785 data-nosnippet>1785</a>            FlowError::Composition(<span class="macro">format!</span>(<span class="string">"multiple flows create boundary {boundary}"</span>))
-<a href=#1786 id=1786 data-nosnippet>1786</a>        );
-<a href=#1787 id=1787 data-nosnippet>1787</a>    }
-<a href=#1788 id=1788 data-nosnippet>1788</a>
-<a href=#1789 id=1789 data-nosnippet>1789</a>    <span class="attr">#[test]
-<a href=#1790 id=1790 data-nosnippet>1790</a>    </span><span class="kw">fn </span>loop_state_id_exhaustion_is_an_error() {
-<a href=#1791 id=1791 data-nosnippet>1791</a>        <span class="kw">let </span>boundaries = [x(IVec2::ZERO), x(IVec2::X)];
-<a href=#1792 id=1792 data-nosnippet>1792</a>        <span class="kw">let </span>creator = [
-<a href=#1793 id=1793 data-nosnippet>1793</a>            flow(PauliMap::empty(), boundaries[<span class="number">0</span>].clone(), <span class="prelude-val">Some</span>(<span class="number">7</span>)),
-<a href=#1794 id=1794 data-nosnippet>1794</a>            flow(PauliMap::empty(), boundaries[<span class="number">1</span>].clone(), <span class="prelude-val">Some</span>(<span class="number">8</span>)),
-<a href=#1795 id=1795 data-nosnippet>1795</a>        ];
-<a href=#1796 id=1796 data-nosnippet>1796</a>        <span class="kw">let </span>consumer = [
-<a href=#1797 id=1797 data-nosnippet>1797</a>            flow(boundaries[<span class="number">0</span>].clone(), PauliMap::empty(), <span class="prelude-val">None</span>),
-<a href=#1798 id=1798 data-nosnippet>1798</a>            flow(boundaries[<span class="number">1</span>].clone(), PauliMap::empty(), <span class="prelude-val">None</span>),
-<a href=#1799 id=1799 data-nosnippet>1799</a>        ];
-<a href=#1800 id=1800 data-nosnippet>1800</a>        <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;DetectorTerm&lt;u32&gt;&gt;::new();
-<a href=#1801 id=1801 data-nosnippet>1801</a>        engine
-<a href=#1802 id=1802 data-nosnippet>1802</a>            .append_group_allowing_dangling(
-<a href=#1803 id=1803 data-nosnippet>1803</a>                <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>creator, IVec2::ZERO)],
-<a href=#1804 id=1804 data-nosnippet>1804</a>                |<span class="kw">_</span>, <span class="kw-2">&amp;</span>measurement| DetectorTerm::Measurement(measurement),
-<a href=#1805 id=1805 data-nosnippet>1805</a>            )
-<a href=#1806 id=1806 data-nosnippet>1806</a>            .expect(<span class="string">"creator"</span>);
-<a href=#1807 id=1807 data-nosnippet>1807</a>        <span class="kw">let </span><span class="kw-2">mut </span>next_loop_state = u32::MAX - <span class="number">1</span>;
-<a href=#1808 id=1808 data-nosnippet>1808</a>
-<a href=#1809 id=1809 data-nosnippet>1809</a>        <span class="kw">let </span>error = engine
-<a href=#1810 id=1810 data-nosnippet>1810</a>            .start_loop_detector_states(
-<a href=#1811 id=1811 data-nosnippet>1811</a>                <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>consumer, IVec2::ZERO)],
-<a href=#1812 id=1812 data-nosnippet>1812</a>                <span class="kw-2">&amp;mut </span>next_loop_state,
-<a href=#1813 id=1813 data-nosnippet>1813</a>            )
-<a href=#1814 id=1814 data-nosnippet>1814</a>            .expect_err(<span class="string">"loop state id space is exhausted"</span>);
-<a href=#1815 id=1815 data-nosnippet>1815</a>
-<a href=#1816 id=1816 data-nosnippet>1816</a>        <span class="macro">assert_eq!</span>(
-<a href=#1817 id=1817 data-nosnippet>1817</a>            error,
-<a href=#1818 id=1818 data-nosnippet>1818</a>            FlowError::Composition(<span class="string">"loop detector state id space exhausted"</span>.into())
-<a href=#1819 id=1819 data-nosnippet>1819</a>        );
-<a href=#1820 id=1820 data-nosnippet>1820</a>        <span class="macro">assert_eq!</span>(next_loop_state, u32::MAX - <span class="number">1</span>);
-<a href=#1821 id=1821 data-nosnippet>1821</a>        <span class="macro">assert!</span>(engine.open_flows.values().all(|flow| {
-<a href=#1822 id=1822 data-nosnippet>1822</a>            <span class="macro">matches!</span>(
-<a href=#1823 id=1823 data-nosnippet>1823</a>                flow.measurements.as_slice(),
-<a href=#1824 id=1824 data-nosnippet>1824</a>                [DetectorTerm::Measurement(<span class="number">7 </span>| <span class="number">8</span>)]
-<a href=#1825 id=1825 data-nosnippet>1825</a>            )
-<a href=#1826 id=1826 data-nosnippet>1826</a>        }));
-<a href=#1827 id=1827 data-nosnippet>1827</a>    }
-<a href=#1828 id=1828 data-nosnippet>1828</a>
-<a href=#1829 id=1829 data-nosnippet>1829</a>    <span class="attr">#[test]
-<a href=#1830 id=1830 data-nosnippet>1830</a>    </span><span class="kw">fn </span>loop_state_start_rejects_coordinate_overflow_before_mutating() {
-<a href=#1831 id=1831 data-nosnippet>1831</a>        <span class="kw">let </span>coordinate = IVec2::new(i32::MAX, <span class="number">0</span>);
-<a href=#1832 id=1832 data-nosnippet>1832</a>        <span class="kw">let </span>offset = IVec2::X;
-<a href=#1833 id=1833 data-nosnippet>1833</a>        <span class="kw">let </span>creator = [flow(PauliMap::empty(), x(IVec2::new(i32::MIN, <span class="number">0</span>)), <span class="prelude-val">Some</span>(<span class="number">7</span>))];
-<a href=#1834 id=1834 data-nosnippet>1834</a>        <span class="kw">let </span>consumer = [flow(x(coordinate), PauliMap::empty(), <span class="prelude-val">None</span>)];
-<a href=#1835 id=1835 data-nosnippet>1835</a>        <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;DetectorTerm&lt;u32&gt;&gt;::new();
-<a href=#1836 id=1836 data-nosnippet>1836</a>        engine
-<a href=#1837 id=1837 data-nosnippet>1837</a>            .append_group_allowing_dangling(
-<a href=#1838 id=1838 data-nosnippet>1838</a>                <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>creator, IVec2::ZERO)],
-<a href=#1839 id=1839 data-nosnippet>1839</a>                |<span class="kw">_</span>, <span class="kw-2">&amp;</span>measurement| DetectorTerm::Measurement(measurement),
-<a href=#1840 id=1840 data-nosnippet>1840</a>            )
-<a href=#1841 id=1841 data-nosnippet>1841</a>            .expect(<span class="string">"creator"</span>);
-<a href=#1842 id=1842 data-nosnippet>1842</a>        <span class="kw">let </span><span class="kw-2">mut </span>next_loop_state = <span class="number">0</span>;
+<a href=#1756 id=1756 data-nosnippet>1756</a>        <span class="kw">let </span>error = append_flows(<span class="kw-2">&amp;mut </span>engine, <span class="kw-2">&amp;</span>creators, |measurement| <span class="kw-2">*</span>measurement)
+<a href=#1757 id=1757 data-nosnippet>1757</a>            .expect_err(<span class="string">"two creators of one boundary must collide"</span>);
+<a href=#1758 id=1758 data-nosnippet>1758</a>
+<a href=#1759 id=1759 data-nosnippet>1759</a>        <span class="macro">assert_eq!</span>(
+<a href=#1760 id=1760 data-nosnippet>1760</a>            error,
+<a href=#1761 id=1761 data-nosnippet>1761</a>            FlowError::Composition(<span class="macro">format!</span>(<span class="string">"multiple flows create boundary {boundary}"</span>))
+<a href=#1762 id=1762 data-nosnippet>1762</a>        );
+<a href=#1763 id=1763 data-nosnippet>1763</a>    }
+<a href=#1764 id=1764 data-nosnippet>1764</a>
+<a href=#1765 id=1765 data-nosnippet>1765</a>    <span class="attr">#[test]
+<a href=#1766 id=1766 data-nosnippet>1766</a>    </span><span class="kw">fn </span>loop_state_id_exhaustion_is_an_error() {
+<a href=#1767 id=1767 data-nosnippet>1767</a>        <span class="kw">let </span>boundaries = [x(IVec2::ZERO), x(IVec2::X)];
+<a href=#1768 id=1768 data-nosnippet>1768</a>        <span class="kw">let </span>creator = [
+<a href=#1769 id=1769 data-nosnippet>1769</a>            flow(PauliMap::empty(), boundaries[<span class="number">0</span>].clone(), <span class="prelude-val">Some</span>(<span class="number">7</span>)),
+<a href=#1770 id=1770 data-nosnippet>1770</a>            flow(PauliMap::empty(), boundaries[<span class="number">1</span>].clone(), <span class="prelude-val">Some</span>(<span class="number">8</span>)),
+<a href=#1771 id=1771 data-nosnippet>1771</a>        ];
+<a href=#1772 id=1772 data-nosnippet>1772</a>        <span class="kw">let </span>consumer = [
+<a href=#1773 id=1773 data-nosnippet>1773</a>            flow(boundaries[<span class="number">0</span>].clone(), PauliMap::empty(), <span class="prelude-val">None</span>),
+<a href=#1774 id=1774 data-nosnippet>1774</a>            flow(boundaries[<span class="number">1</span>].clone(), PauliMap::empty(), <span class="prelude-val">None</span>),
+<a href=#1775 id=1775 data-nosnippet>1775</a>        ];
+<a href=#1776 id=1776 data-nosnippet>1776</a>        <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;DetectorTerm&lt;u32&gt;&gt;::new();
+<a href=#1777 id=1777 data-nosnippet>1777</a>        engine
+<a href=#1778 id=1778 data-nosnippet>1778</a>            .append_group_allowing_dangling(
+<a href=#1779 id=1779 data-nosnippet>1779</a>                <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>creator, IVec2::ZERO)],
+<a href=#1780 id=1780 data-nosnippet>1780</a>                |<span class="kw">_</span>, <span class="kw-2">&amp;</span>measurement| DetectorTerm::Measurement(measurement),
+<a href=#1781 id=1781 data-nosnippet>1781</a>            )
+<a href=#1782 id=1782 data-nosnippet>1782</a>            .expect(<span class="string">"creator"</span>);
+<a href=#1783 id=1783 data-nosnippet>1783</a>        <span class="kw">let </span><span class="kw-2">mut </span>next_loop_state = u32::MAX - <span class="number">1</span>;
+<a href=#1784 id=1784 data-nosnippet>1784</a>
+<a href=#1785 id=1785 data-nosnippet>1785</a>        <span class="kw">let </span>error = engine
+<a href=#1786 id=1786 data-nosnippet>1786</a>            .start_loop_detector_states(
+<a href=#1787 id=1787 data-nosnippet>1787</a>                <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>consumer, IVec2::ZERO)],
+<a href=#1788 id=1788 data-nosnippet>1788</a>                <span class="kw-2">&amp;mut </span>next_loop_state,
+<a href=#1789 id=1789 data-nosnippet>1789</a>            )
+<a href=#1790 id=1790 data-nosnippet>1790</a>            .expect_err(<span class="string">"loop state id space is exhausted"</span>);
+<a href=#1791 id=1791 data-nosnippet>1791</a>
+<a href=#1792 id=1792 data-nosnippet>1792</a>        <span class="macro">assert_eq!</span>(
+<a href=#1793 id=1793 data-nosnippet>1793</a>            error,
+<a href=#1794 id=1794 data-nosnippet>1794</a>            FlowError::Composition(<span class="string">"loop detector state id space exhausted"</span>.into())
+<a href=#1795 id=1795 data-nosnippet>1795</a>        );
+<a href=#1796 id=1796 data-nosnippet>1796</a>        <span class="macro">assert_eq!</span>(next_loop_state, u32::MAX - <span class="number">1</span>);
+<a href=#1797 id=1797 data-nosnippet>1797</a>        <span class="macro">assert!</span>(engine.open_flows.values().all(|flow| {
+<a href=#1798 id=1798 data-nosnippet>1798</a>            <span class="macro">matches!</span>(
+<a href=#1799 id=1799 data-nosnippet>1799</a>                flow.measurements.as_slice(),
+<a href=#1800 id=1800 data-nosnippet>1800</a>                [DetectorTerm::Measurement(<span class="number">7 </span>| <span class="number">8</span>)]
+<a href=#1801 id=1801 data-nosnippet>1801</a>            )
+<a href=#1802 id=1802 data-nosnippet>1802</a>        }));
+<a href=#1803 id=1803 data-nosnippet>1803</a>    }
+<a href=#1804 id=1804 data-nosnippet>1804</a>
+<a href=#1805 id=1805 data-nosnippet>1805</a>    <span class="attr">#[test]
+<a href=#1806 id=1806 data-nosnippet>1806</a>    </span><span class="kw">fn </span>loop_state_start_rejects_coordinate_overflow_before_mutating() {
+<a href=#1807 id=1807 data-nosnippet>1807</a>        <span class="kw">let </span>coordinate = IVec2::new(i32::MAX, <span class="number">0</span>);
+<a href=#1808 id=1808 data-nosnippet>1808</a>        <span class="kw">let </span>offset = IVec2::X;
+<a href=#1809 id=1809 data-nosnippet>1809</a>        <span class="kw">let </span>creator = [flow(PauliMap::empty(), x(IVec2::new(i32::MIN, <span class="number">0</span>)), <span class="prelude-val">Some</span>(<span class="number">7</span>))];
+<a href=#1810 id=1810 data-nosnippet>1810</a>        <span class="kw">let </span>consumer = [flow(x(coordinate), PauliMap::empty(), <span class="prelude-val">None</span>)];
+<a href=#1811 id=1811 data-nosnippet>1811</a>        <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;DetectorTerm&lt;u32&gt;&gt;::new();
+<a href=#1812 id=1812 data-nosnippet>1812</a>        engine
+<a href=#1813 id=1813 data-nosnippet>1813</a>            .append_group_allowing_dangling(
+<a href=#1814 id=1814 data-nosnippet>1814</a>                <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>creator, IVec2::ZERO)],
+<a href=#1815 id=1815 data-nosnippet>1815</a>                |<span class="kw">_</span>, <span class="kw-2">&amp;</span>measurement| DetectorTerm::Measurement(measurement),
+<a href=#1816 id=1816 data-nosnippet>1816</a>            )
+<a href=#1817 id=1817 data-nosnippet>1817</a>            .expect(<span class="string">"creator"</span>);
+<a href=#1818 id=1818 data-nosnippet>1818</a>        <span class="kw">let </span><span class="kw-2">mut </span>next_loop_state = <span class="number">0</span>;
+<a href=#1819 id=1819 data-nosnippet>1819</a>
+<a href=#1820 id=1820 data-nosnippet>1820</a>        <span class="kw">let </span>error = engine
+<a href=#1821 id=1821 data-nosnippet>1821</a>            .start_loop_detector_states(
+<a href=#1822 id=1822 data-nosnippet>1822</a>                <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>consumer, offset)],
+<a href=#1823 id=1823 data-nosnippet>1823</a>                <span class="kw-2">&amp;mut </span>next_loop_state,
+<a href=#1824 id=1824 data-nosnippet>1824</a>            )
+<a href=#1825 id=1825 data-nosnippet>1825</a>            .expect_err(<span class="string">"overflowing loop boundary"</span>);
+<a href=#1826 id=1826 data-nosnippet>1826</a>
+<a href=#1827 id=1827 data-nosnippet>1827</a>        <span class="macro">assert_eq!</span>(
+<a href=#1828 id=1828 data-nosnippet>1828</a>            error,
+<a href=#1829 id=1829 data-nosnippet>1829</a>            FlowError::CoordinateOverflow(<span class="kw">crate</span>::CoordinateOverflowError { coordinate, offset })
+<a href=#1830 id=1830 data-nosnippet>1830</a>        );
+<a href=#1831 id=1831 data-nosnippet>1831</a>        <span class="macro">assert_eq!</span>(next_loop_state, <span class="number">0</span>);
+<a href=#1832 id=1832 data-nosnippet>1832</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+<a href=#1833 id=1833 data-nosnippet>1833</a>            engine
+<a href=#1834 id=1834 data-nosnippet>1834</a>                .open_flows
+<a href=#1835 id=1835 data-nosnippet>1835</a>                .values()
+<a href=#1836 id=1836 data-nosnippet>1836</a>                .next()
+<a href=#1837 id=1837 data-nosnippet>1837</a>                .unwrap()
+<a href=#1838 id=1838 data-nosnippet>1838</a>                .measurements
+<a href=#1839 id=1839 data-nosnippet>1839</a>                .as_slice(),
+<a href=#1840 id=1840 data-nosnippet>1840</a>            [DetectorTerm::Measurement(<span class="number">7</span>)]
+<a href=#1841 id=1841 data-nosnippet>1841</a>        ));
+<a href=#1842 id=1842 data-nosnippet>1842</a>    }
 <a href=#1843 id=1843 data-nosnippet>1843</a>
-<a href=#1844 id=1844 data-nosnippet>1844</a>        <span class="kw">let </span>error = engine
-<a href=#1845 id=1845 data-nosnippet>1845</a>            .start_loop_detector_states(
-<a href=#1846 id=1846 data-nosnippet>1846</a>                <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>consumer, offset)],
-<a href=#1847 id=1847 data-nosnippet>1847</a>                <span class="kw-2">&amp;mut </span>next_loop_state,
-<a href=#1848 id=1848 data-nosnippet>1848</a>            )
-<a href=#1849 id=1849 data-nosnippet>1849</a>            .expect_err(<span class="string">"overflowing loop boundary"</span>);
-<a href=#1850 id=1850 data-nosnippet>1850</a>
-<a href=#1851 id=1851 data-nosnippet>1851</a>        <span class="macro">assert_eq!</span>(
-<a href=#1852 id=1852 data-nosnippet>1852</a>            error,
-<a href=#1853 id=1853 data-nosnippet>1853</a>            FlowError::CoordinateOverflow(<span class="kw">crate</span>::CoordinateOverflowError { coordinate, offset })
-<a href=#1854 id=1854 data-nosnippet>1854</a>        );
-<a href=#1855 id=1855 data-nosnippet>1855</a>        <span class="macro">assert_eq!</span>(next_loop_state, <span class="number">0</span>);
-<a href=#1856 id=1856 data-nosnippet>1856</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-<a href=#1857 id=1857 data-nosnippet>1857</a>            engine
-<a href=#1858 id=1858 data-nosnippet>1858</a>                .open_flows
-<a href=#1859 id=1859 data-nosnippet>1859</a>                .values()
-<a href=#1860 id=1860 data-nosnippet>1860</a>                .next()
-<a href=#1861 id=1861 data-nosnippet>1861</a>                .unwrap()
-<a href=#1862 id=1862 data-nosnippet>1862</a>                .measurements
-<a href=#1863 id=1863 data-nosnippet>1863</a>                .as_slice(),
-<a href=#1864 id=1864 data-nosnippet>1864</a>            [DetectorTerm::Measurement(<span class="number">7</span>)]
-<a href=#1865 id=1865 data-nosnippet>1865</a>        ));
-<a href=#1866 id=1866 data-nosnippet>1866</a>    }
+<a href=#1844 id=1844 data-nosnippet>1844</a>    <span class="attr">#[test]
+<a href=#1845 id=1845 data-nosnippet>1845</a>    </span><span class="kw">fn </span>loop_state_preflight_counts_only_matching_flows() {
+<a href=#1846 id=1846 data-nosnippet>1846</a>        <span class="kw">let </span>boundary = x(IVec2::ZERO);
+<a href=#1847 id=1847 data-nosnippet>1847</a>        <span class="kw">let </span>creator = [flow(PauliMap::empty(), boundary.clone(), <span class="prelude-val">Some</span>(<span class="number">7</span>))];
+<a href=#1848 id=1848 data-nosnippet>1848</a>        <span class="kw">let </span>consumers = [
+<a href=#1849 id=1849 data-nosnippet>1849</a>            flow(x(IVec2::X), PauliMap::empty(), <span class="prelude-val">None</span>),
+<a href=#1850 id=1850 data-nosnippet>1850</a>            flow(boundary, PauliMap::empty(), <span class="prelude-val">None</span>),
+<a href=#1851 id=1851 data-nosnippet>1851</a>        ];
+<a href=#1852 id=1852 data-nosnippet>1852</a>        <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;DetectorTerm&lt;u32&gt;&gt;::new();
+<a href=#1853 id=1853 data-nosnippet>1853</a>        engine
+<a href=#1854 id=1854 data-nosnippet>1854</a>            .append_group_allowing_dangling(
+<a href=#1855 id=1855 data-nosnippet>1855</a>                <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>creator, IVec2::ZERO)],
+<a href=#1856 id=1856 data-nosnippet>1856</a>                |<span class="kw">_</span>, <span class="kw-2">&amp;</span>measurement| DetectorTerm::Measurement(measurement),
+<a href=#1857 id=1857 data-nosnippet>1857</a>            )
+<a href=#1858 id=1858 data-nosnippet>1858</a>            .expect(<span class="string">"creator"</span>);
+<a href=#1859 id=1859 data-nosnippet>1859</a>        <span class="kw">let </span><span class="kw-2">mut </span>next_loop_state = u32::MAX - <span class="number">1</span>;
+<a href=#1860 id=1860 data-nosnippet>1860</a>
+<a href=#1861 id=1861 data-nosnippet>1861</a>        <span class="kw">let </span>pending = engine
+<a href=#1862 id=1862 data-nosnippet>1862</a>            .start_loop_detector_states(
+<a href=#1863 id=1863 data-nosnippet>1863</a>                <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>consumers, IVec2::ZERO)],
+<a href=#1864 id=1864 data-nosnippet>1864</a>                <span class="kw-2">&amp;mut </span>next_loop_state,
+<a href=#1865 id=1865 data-nosnippet>1865</a>            )
+<a href=#1866 id=1866 data-nosnippet>1866</a>            .expect(<span class="string">"only the matching flow needs a state"</span>);
 <a href=#1867 id=1867 data-nosnippet>1867</a>
-<a href=#1868 id=1868 data-nosnippet>1868</a>    <span class="attr">#[test]
-<a href=#1869 id=1869 data-nosnippet>1869</a>    </span><span class="kw">fn </span>loop_state_preflight_counts_only_matching_flows() {
-<a href=#1870 id=1870 data-nosnippet>1870</a>        <span class="kw">let </span>boundary = x(IVec2::ZERO);
-<a href=#1871 id=1871 data-nosnippet>1871</a>        <span class="kw">let </span>creator = [flow(PauliMap::empty(), boundary.clone(), <span class="prelude-val">Some</span>(<span class="number">7</span>))];
-<a href=#1872 id=1872 data-nosnippet>1872</a>        <span class="kw">let </span>consumers = [
-<a href=#1873 id=1873 data-nosnippet>1873</a>            flow(x(IVec2::X), PauliMap::empty(), <span class="prelude-val">None</span>),
-<a href=#1874 id=1874 data-nosnippet>1874</a>            flow(boundary, PauliMap::empty(), <span class="prelude-val">None</span>),
-<a href=#1875 id=1875 data-nosnippet>1875</a>        ];
-<a href=#1876 id=1876 data-nosnippet>1876</a>        <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;DetectorTerm&lt;u32&gt;&gt;::new();
-<a href=#1877 id=1877 data-nosnippet>1877</a>        engine
-<a href=#1878 id=1878 data-nosnippet>1878</a>            .append_group_allowing_dangling(
-<a href=#1879 id=1879 data-nosnippet>1879</a>                <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>creator, IVec2::ZERO)],
-<a href=#1880 id=1880 data-nosnippet>1880</a>                |<span class="kw">_</span>, <span class="kw-2">&amp;</span>measurement| DetectorTerm::Measurement(measurement),
-<a href=#1881 id=1881 data-nosnippet>1881</a>            )
-<a href=#1882 id=1882 data-nosnippet>1882</a>            .expect(<span class="string">"creator"</span>);
-<a href=#1883 id=1883 data-nosnippet>1883</a>        <span class="kw">let </span><span class="kw-2">mut </span>next_loop_state = u32::MAX - <span class="number">1</span>;
-<a href=#1884 id=1884 data-nosnippet>1884</a>
-<a href=#1885 id=1885 data-nosnippet>1885</a>        <span class="kw">let </span>pending = engine
-<a href=#1886 id=1886 data-nosnippet>1886</a>            .start_loop_detector_states(
-<a href=#1887 id=1887 data-nosnippet>1887</a>                <span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>consumers, IVec2::ZERO)],
-<a href=#1888 id=1888 data-nosnippet>1888</a>                <span class="kw-2">&amp;mut </span>next_loop_state,
-<a href=#1889 id=1889 data-nosnippet>1889</a>            )
-<a href=#1890 id=1890 data-nosnippet>1890</a>            .expect(<span class="string">"only the matching flow needs a state"</span>);
+<a href=#1868 id=1868 data-nosnippet>1868</a>        <span class="macro">assert_eq!</span>(pending.loop_states.len(), <span class="number">1</span>);
+<a href=#1869 id=1869 data-nosnippet>1869</a>        <span class="macro">assert_eq!</span>(next_loop_state, u32::MAX);
+<a href=#1870 id=1870 data-nosnippet>1870</a>    }
+<a href=#1871 id=1871 data-nosnippet>1871</a>
+<a href=#1872 id=1872 data-nosnippet>1872</a>    <span class="attr">#[test]
+<a href=#1873 id=1873 data-nosnippet>1873</a>    </span><span class="kw">fn </span>drain_completed_allows_open_boundaries() {
+<a href=#1874 id=1874 data-nosnippet>1874</a>        <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;u32&gt;::new();
+<a href=#1875 id=1875 data-nosnippet>1875</a>        <span class="kw">let </span><span class="kw-2">mut </span>offset = <span class="number">0u32</span>;
+<a href=#1876 id=1876 data-nosnippet>1876</a>
+<a href=#1877 id=1877 data-nosnippet>1877</a>        <span class="kw">let </span>chunk = [
+<a href=#1878 id=1878 data-nosnippet>1878</a>            flow(PauliMap::empty(), PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">0</span>)),
+<a href=#1879 id=1879 data-nosnippet>1879</a>            flow(PauliMap::empty(), x(IVec2::new(<span class="number">0</span>, <span class="number">0</span>)), <span class="prelude-val">Some</span>(<span class="number">0</span>)),
+<a href=#1880 id=1880 data-nosnippet>1880</a>        ];
+<a href=#1881 id=1881 data-nosnippet>1881</a>
+<a href=#1882 id=1882 data-nosnippet>1882</a>        append_flows(
+<a href=#1883 id=1883 data-nosnippet>1883</a>            <span class="kw-2">&amp;mut </span>engine,
+<a href=#1884 id=1884 data-nosnippet>1884</a>            <span class="kw-2">&amp;</span>chunk,
+<a href=#1885 id=1885 data-nosnippet>1885</a>            measurement_to_sequential_mapper(<span class="kw-2">&amp;mut </span>offset),
+<a href=#1886 id=1886 data-nosnippet>1886</a>        )
+<a href=#1887 id=1887 data-nosnippet>1887</a>        .expect(<span class="string">"chunk"</span>);
+<a href=#1888 id=1888 data-nosnippet>1888</a>
+<a href=#1889 id=1889 data-nosnippet>1889</a>        <span class="macro">assert_eq!</span>(engine.drain_completed().len(), <span class="number">1</span>);
+<a href=#1890 id=1890 data-nosnippet>1890</a>    }
 <a href=#1891 id=1891 data-nosnippet>1891</a>
-<a href=#1892 id=1892 data-nosnippet>1892</a>        <span class="macro">assert_eq!</span>(pending.loop_states.len(), <span class="number">1</span>);
-<a href=#1893 id=1893 data-nosnippet>1893</a>        <span class="macro">assert_eq!</span>(next_loop_state, u32::MAX);
-<a href=#1894 id=1894 data-nosnippet>1894</a>    }
-<a href=#1895 id=1895 data-nosnippet>1895</a>
-<a href=#1896 id=1896 data-nosnippet>1896</a>    <span class="attr">#[test]
-<a href=#1897 id=1897 data-nosnippet>1897</a>    </span><span class="kw">fn </span>drain_completed_allows_open_boundaries() {
-<a href=#1898 id=1898 data-nosnippet>1898</a>        <span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;u32&gt;::new();
-<a href=#1899 id=1899 data-nosnippet>1899</a>        <span class="kw">let </span><span class="kw-2">mut </span>offset = <span class="number">0u32</span>;
-<a href=#1900 id=1900 data-nosnippet>1900</a>
-<a href=#1901 id=1901 data-nosnippet>1901</a>        <span class="kw">let </span>chunk = [
-<a href=#1902 id=1902 data-nosnippet>1902</a>            flow(PauliMap::empty(), PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">0</span>)),
-<a href=#1903 id=1903 data-nosnippet>1903</a>            flow(PauliMap::empty(), x(IVec2::new(<span class="number">0</span>, <span class="number">0</span>)), <span class="prelude-val">Some</span>(<span class="number">0</span>)),
-<a href=#1904 id=1904 data-nosnippet>1904</a>        ];
-<a href=#1905 id=1905 data-nosnippet>1905</a>
-<a href=#1906 id=1906 data-nosnippet>1906</a>        append_flows(
-<a href=#1907 id=1907 data-nosnippet>1907</a>            <span class="kw-2">&amp;mut </span>engine,
-<a href=#1908 id=1908 data-nosnippet>1908</a>            <span class="kw-2">&amp;</span>chunk,
-<a href=#1909 id=1909 data-nosnippet>1909</a>            measurement_to_sequential_mapper(<span class="kw-2">&amp;mut </span>offset),
-<a href=#1910 id=1910 data-nosnippet>1910</a>        )
-<a href=#1911 id=1911 data-nosnippet>1911</a>        .expect(<span class="string">"chunk"</span>);
-<a href=#1912 id=1912 data-nosnippet>1912</a>
-<a href=#1913 id=1913 data-nosnippet>1913</a>        <span class="macro">assert_eq!</span>(engine.drain_completed().len(), <span class="number">1</span>);
+<a href=#1892 id=1892 data-nosnippet>1892</a>    <span class="attr">#[test]
+<a href=#1893 id=1893 data-nosnippet>1893</a>    </span><span class="kw">fn </span>residual_extraction_fuses_a_chain_across_chunks() {
+<a href=#1894 id=1894 data-nosnippet>1894</a>        <span class="comment">// ∅→K (chunk 0) then K→L (chunk 1): residual mode threads the chain as
+<a href=#1895 id=1895 data-nosnippet>1895</a>        // it composes, so the residual is one fused ∅→L carrying both
+<a href=#1896 id=1896 data-nosnippet>1896</a>        // measurements.
+<a href=#1897 id=1897 data-nosnippet>1897</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;u32&gt;::new();
+<a href=#1898 id=1898 data-nosnippet>1898</a>        <span class="kw">let </span>creator = [flow(PauliMap::empty(), z(IVec2::new(<span class="number">0</span>, <span class="number">0</span>)), <span class="prelude-val">Some</span>(<span class="number">0</span>))];
+<a href=#1899 id=1899 data-nosnippet>1899</a>        <span class="kw">let </span>mover = [flow(z(IVec2::new(<span class="number">0</span>, <span class="number">0</span>)), z(IVec2::new(<span class="number">1</span>, <span class="number">0</span>)), <span class="prelude-val">Some</span>(<span class="number">1</span>))];
+<a href=#1900 id=1900 data-nosnippet>1900</a>        engine
+<a href=#1901 id=1901 data-nosnippet>1901</a>            .append_residual_group(<span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>creator, IVec2::ZERO)], |<span class="kw">_</span>, <span class="kw-2">&amp;</span>m| m)
+<a href=#1902 id=1902 data-nosnippet>1902</a>            .expect(<span class="string">"creator"</span>);
+<a href=#1903 id=1903 data-nosnippet>1903</a>        engine
+<a href=#1904 id=1904 data-nosnippet>1904</a>            .append_residual_group(<span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>mover, IVec2::ZERO)], |<span class="kw">_</span>, <span class="kw-2">&amp;</span>m| m)
+<a href=#1905 id=1905 data-nosnippet>1905</a>            .expect(<span class="string">"mover"</span>);
+<a href=#1906 id=1906 data-nosnippet>1906</a>
+<a href=#1907 id=1907 data-nosnippet>1907</a>        <span class="kw">let </span>residual = engine.into_residual_flows();
+<a href=#1908 id=1908 data-nosnippet>1908</a>        <span class="macro">assert_eq!</span>(residual.len(), <span class="number">1</span>, <span class="string">"the chain fuses to a single flow"</span>);
+<a href=#1909 id=1909 data-nosnippet>1909</a>        <span class="macro">assert!</span>(residual[<span class="number">0</span>].start.is_empty());
+<a href=#1910 id=1910 data-nosnippet>1910</a>        <span class="macro">assert_eq!</span>(residual[<span class="number">0</span>].end, z(IVec2::new(<span class="number">1</span>, <span class="number">0</span>)));
+<a href=#1911 id=1911 data-nosnippet>1911</a>        <span class="kw">let </span><span class="kw-2">mut </span>measurements = residual[<span class="number">0</span>].measurements.to_vec();
+<a href=#1912 id=1912 data-nosnippet>1912</a>        measurements.sort_unstable();
+<a href=#1913 id=1913 data-nosnippet>1913</a>        <span class="macro">assert_eq!</span>(measurements, [<span class="number">0</span>, <span class="number">1</span>]);
 <a href=#1914 id=1914 data-nosnippet>1914</a>    }
 <a href=#1915 id=1915 data-nosnippet>1915</a>
 <a href=#1916 id=1916 data-nosnippet>1916</a>    <span class="attr">#[test]
-<a href=#1917 id=1917 data-nosnippet>1917</a>    </span><span class="kw">fn </span>residual_extraction_fuses_a_chain_across_chunks() {
-<a href=#1918 id=1918 data-nosnippet>1918</a>        <span class="comment">// ∅→K (chunk 0) then K→L (chunk 1): residual mode threads the chain as
-<a href=#1919 id=1919 data-nosnippet>1919</a>        // it composes, so the residual is one fused ∅→L carrying both
-<a href=#1920 id=1920 data-nosnippet>1920</a>        // measurements.
-<a href=#1921 id=1921 data-nosnippet>1921</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;u32&gt;::new();
-<a href=#1922 id=1922 data-nosnippet>1922</a>        <span class="kw">let </span>creator = [flow(PauliMap::empty(), z(IVec2::new(<span class="number">0</span>, <span class="number">0</span>)), <span class="prelude-val">Some</span>(<span class="number">0</span>))];
-<a href=#1923 id=1923 data-nosnippet>1923</a>        <span class="kw">let </span>mover = [flow(z(IVec2::new(<span class="number">0</span>, <span class="number">0</span>)), z(IVec2::new(<span class="number">1</span>, <span class="number">0</span>)), <span class="prelude-val">Some</span>(<span class="number">1</span>))];
-<a href=#1924 id=1924 data-nosnippet>1924</a>        engine
-<a href=#1925 id=1925 data-nosnippet>1925</a>            .append_residual_group(<span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>creator, IVec2::ZERO)], |<span class="kw">_</span>, <span class="kw-2">&amp;</span>m| m)
-<a href=#1926 id=1926 data-nosnippet>1926</a>            .expect(<span class="string">"creator"</span>);
+<a href=#1917 id=1917 data-nosnippet>1917</a>    </span><span class="kw">fn </span>residual_extraction_keeps_opposite_boundary_faces_separate() {
+<a href=#1918 id=1918 data-nosnippet>1918</a>        <span class="comment">// One chunk with a bottom consumer K→∅ and a top creator ∅→K. They share
+<a href=#1919 id=1919 data-nosnippet>1919</a>        // the key K but face opposite neighbors; consumers are matched before
+<a href=#1920 id=1920 data-nosnippet>1920</a>        // creators, so the consumer never matches this chunk's own creator and
+<a href=#1921 id=1921 data-nosnippet>1921</a>        // the two stay distinct residual flows.
+<a href=#1922 id=1922 data-nosnippet>1922</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;u32&gt;::new();
+<a href=#1923 id=1923 data-nosnippet>1923</a>        <span class="kw">let </span>faces = [
+<a href=#1924 id=1924 data-nosnippet>1924</a>            flow(z(IVec2::new(<span class="number">0</span>, <span class="number">0</span>)), PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">0</span>)),
+<a href=#1925 id=1925 data-nosnippet>1925</a>            flow(PauliMap::empty(), z(IVec2::new(<span class="number">0</span>, <span class="number">0</span>)), <span class="prelude-val">Some</span>(<span class="number">1</span>)),
+<a href=#1926 id=1926 data-nosnippet>1926</a>        ];
 <a href=#1927 id=1927 data-nosnippet>1927</a>        engine
-<a href=#1928 id=1928 data-nosnippet>1928</a>            .append_residual_group(<span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>mover, IVec2::ZERO)], |<span class="kw">_</span>, <span class="kw-2">&amp;</span>m| m)
-<a href=#1929 id=1929 data-nosnippet>1929</a>            .expect(<span class="string">"mover"</span>);
+<a href=#1928 id=1928 data-nosnippet>1928</a>            .append_residual_group(<span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>faces, IVec2::ZERO)], |<span class="kw">_</span>, <span class="kw-2">&amp;</span>m| m)
+<a href=#1929 id=1929 data-nosnippet>1929</a>            .expect(<span class="string">"faces"</span>);
 <a href=#1930 id=1930 data-nosnippet>1930</a>
-<a href=#1931 id=1931 data-nosnippet>1931</a>        <span class="kw">let </span>residual = engine.into_residual_flows();
-<a href=#1932 id=1932 data-nosnippet>1932</a>        <span class="macro">assert_eq!</span>(residual.len(), <span class="number">1</span>, <span class="string">"the chain fuses to a single flow"</span>);
-<a href=#1933 id=1933 data-nosnippet>1933</a>        <span class="macro">assert!</span>(residual[<span class="number">0</span>].start.is_empty());
-<a href=#1934 id=1934 data-nosnippet>1934</a>        <span class="macro">assert_eq!</span>(residual[<span class="number">0</span>].end, z(IVec2::new(<span class="number">1</span>, <span class="number">0</span>)));
-<a href=#1935 id=1935 data-nosnippet>1935</a>        <span class="kw">let </span><span class="kw-2">mut </span>measurements = residual[<span class="number">0</span>].measurements.to_vec();
-<a href=#1936 id=1936 data-nosnippet>1936</a>        measurements.sort_unstable();
-<a href=#1937 id=1937 data-nosnippet>1937</a>        <span class="macro">assert_eq!</span>(measurements, [<span class="number">0</span>, <span class="number">1</span>]);
-<a href=#1938 id=1938 data-nosnippet>1938</a>    }
-<a href=#1939 id=1939 data-nosnippet>1939</a>
-<a href=#1940 id=1940 data-nosnippet>1940</a>    <span class="attr">#[test]
-<a href=#1941 id=1941 data-nosnippet>1941</a>    </span><span class="kw">fn </span>residual_extraction_keeps_opposite_boundary_faces_separate() {
-<a href=#1942 id=1942 data-nosnippet>1942</a>        <span class="comment">// One chunk with a bottom consumer K→∅ and a top creator ∅→K. They share
-<a href=#1943 id=1943 data-nosnippet>1943</a>        // the key K but face opposite neighbors; consumers are matched before
-<a href=#1944 id=1944 data-nosnippet>1944</a>        // creators, so the consumer never matches this chunk's own creator and
-<a href=#1945 id=1945 data-nosnippet>1945</a>        // the two stay distinct residual flows.
-<a href=#1946 id=1946 data-nosnippet>1946</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>engine = FlowEngine::&lt;u32&gt;::new();
-<a href=#1947 id=1947 data-nosnippet>1947</a>        <span class="kw">let </span>faces = [
-<a href=#1948 id=1948 data-nosnippet>1948</a>            flow(z(IVec2::new(<span class="number">0</span>, <span class="number">0</span>)), PauliMap::empty(), <span class="prelude-val">Some</span>(<span class="number">0</span>)),
-<a href=#1949 id=1949 data-nosnippet>1949</a>            flow(PauliMap::empty(), z(IVec2::new(<span class="number">0</span>, <span class="number">0</span>)), <span class="prelude-val">Some</span>(<span class="number">1</span>)),
-<a href=#1950 id=1950 data-nosnippet>1950</a>        ];
-<a href=#1951 id=1951 data-nosnippet>1951</a>        engine
-<a href=#1952 id=1952 data-nosnippet>1952</a>            .append_residual_group(<span class="kw-2">&amp;</span>[OffsetFlows::new(<span class="kw-2">&amp;</span>faces, IVec2::ZERO)], |<span class="kw">_</span>, <span class="kw-2">&amp;</span>m| m)
-<a href=#1953 id=1953 data-nosnippet>1953</a>            .expect(<span class="string">"faces"</span>);
-<a href=#1954 id=1954 data-nosnippet>1954</a>
-<a href=#1955 id=1955 data-nosnippet>1955</a>        <span class="kw">let </span><span class="kw-2">mut </span>residual = engine.into_residual_flows();
-<a href=#1956 id=1956 data-nosnippet>1956</a>        residual.sort_by_key(|flow| flow.measurements.first().copied());
-<a href=#1957 id=1957 data-nosnippet>1957</a>        <span class="macro">assert_eq!</span>(residual.len(), <span class="number">2</span>, <span class="string">"opposite faces are not fused"</span>);
-<a href=#1958 id=1958 data-nosnippet>1958</a>        <span class="comment">// Bottom consumer K→∅ closed against a boundary input below.
-<a href=#1959 id=1959 data-nosnippet>1959</a>        </span><span class="macro">assert_eq!</span>(residual[<span class="number">0</span>].start, z(IVec2::new(<span class="number">0</span>, <span class="number">0</span>)));
-<a href=#1960 id=1960 data-nosnippet>1960</a>        <span class="macro">assert!</span>(residual[<span class="number">0</span>].end.is_empty());
-<a href=#1961 id=1961 data-nosnippet>1961</a>        <span class="comment">// Top creator ∅→K stays open for the neighbor above.
-<a href=#1962 id=1962 data-nosnippet>1962</a>        </span><span class="macro">assert!</span>(residual[<span class="number">1</span>].start.is_empty());
-<a href=#1963 id=1963 data-nosnippet>1963</a>        <span class="macro">assert_eq!</span>(residual[<span class="number">1</span>].end, z(IVec2::new(<span class="number">0</span>, <span class="number">0</span>)));
-<a href=#1964 id=1964 data-nosnippet>1964</a>    }
-<a href=#1965 id=1965 data-nosnippet>1965</a>}
+<a href=#1931 id=1931 data-nosnippet>1931</a>        <span class="kw">let </span><span class="kw-2">mut </span>residual = engine.into_residual_flows();
+<a href=#1932 id=1932 data-nosnippet>1932</a>        residual.sort_by_key(|flow| flow.measurements.first().copied());
+<a href=#1933 id=1933 data-nosnippet>1933</a>        <span class="macro">assert_eq!</span>(residual.len(), <span class="number">2</span>, <span class="string">"opposite faces are not fused"</span>);
+<a href=#1934 id=1934 data-nosnippet>1934</a>        <span class="comment">// Bottom consumer K→∅ closed against a boundary input below.
+<a href=#1935 id=1935 data-nosnippet>1935</a>        </span><span class="macro">assert_eq!</span>(residual[<span class="number">0</span>].start, z(IVec2::new(<span class="number">0</span>, <span class="number">0</span>)));
+<a href=#1936 id=1936 data-nosnippet>1936</a>        <span class="macro">assert!</span>(residual[<span class="number">0</span>].end.is_empty());
+<a href=#1937 id=1937 data-nosnippet>1937</a>        <span class="comment">// Top creator ∅→K stays open for the neighbor above.
+<a href=#1938 id=1938 data-nosnippet>1938</a>        </span><span class="macro">assert!</span>(residual[<span class="number">1</span>].start.is_empty());
+<a href=#1939 id=1939 data-nosnippet>1939</a>        <span class="macro">assert_eq!</span>(residual[<span class="number">1</span>].end, z(IVec2::new(<span class="number">0</span>, <span class="number">0</span>)));
+<a href=#1940 id=1940 data-nosnippet>1940</a>    }
+<a href=#1941 id=1941 data-nosnippet>1941</a>}
 </code></pre></div></section></main></body></html>

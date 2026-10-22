@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `bloq_compile/src/block/fixed_bulk/rotation.rs`."><title>rotation.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-0c87338a.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="bloq_compile" data-themes="" data-resource-suffix="" data-rustdoc-version="1.99.1 (58cf8f9c3 2026-10-13)" data-channel="1.99.1" data-search-js="search-cf4fc35e.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../../static.files/src-script-813739b1.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">bloq_compile/block/fixed_bulk/</div>rotation.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Fixed-bulk-convention patch rotation patch construction.
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `bloq_compile/src/block/fixed_bulk/rotation.rs`."><title>rotation.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-0c87338a.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="bloq_compile" data-themes="" data-resource-suffix="" data-rustdoc-version="1.99.1 (58cf8f9c3 2026-10-13)" data-channel="1.99.1" data-search-js="search-cf4fc35e.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../../static.files/src-script-813739b1.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">bloq_compile/block/fixed_bulk/</div>rotation.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Fixed-bulk-convention patch rotation patch construction.
 <a href=#2 id=2 data-nosnippet>2</a>//!
 <a href=#3 id=3 data-nosnippet>3</a>//! This module constructs the intermediate patch-rotation geometries directly
 <a href=#4 id=4 data-nosnippet>4</a>//! on the fixed-bulk surface code lattice. Measure qubits stay on even
@@ -300,7 +300,7 @@
 <a href=#300 id=300 data-nosnippet>300</a>    patches: <span class="kw-2">&amp;</span>RotationPatches,
 <a href=#301 id=301 data-nosnippet>301</a>) -&gt; Vec&lt;SelectedChunkMeasurements&gt; {
 <a href=#302 id=302 data-nosnippet>302</a>    <span class="kw">let </span>g = layout.geometry;
-<a href=#303 id=303 data-nosnippet>303</a>    <span class="kw">let </span>mixed_right = VariantSpec::for_layout(layout).mixed_side.is_right();
+<a href=#303 id=303 data-nosnippet>303</a>    <span class="kw">let </span>mixed_right = MixedSide::for_layout(layout).is_right();
 <a href=#304 id=304 data-nosnippet>304</a>    <span class="kw">let </span>middle_line_end = <span class="kw">if </span>g.width % <span class="number">4 </span>== <span class="number">1 </span>{
 <a href=#305 id=305 data-nosnippet>305</a>        g.width / <span class="number">2 </span>+ <span class="number">1
 <a href=#306 id=306 data-nosnippet>306</a>    </span>} <span class="kw">else </span>{
@@ -341,7 +341,7 @@
 <a href=#341 id=341 data-nosnippet>341</a>    patches: <span class="kw-2">&amp;</span>RotationPatches,
 <a href=#342 id=342 data-nosnippet>342</a>) -&gt; Vec&lt;SelectedChunkMeasurements&gt; {
 <a href=#343 id=343 data-nosnippet>343</a>    <span class="kw">let </span>g = layout.geometry;
-<a href=#344 id=344 data-nosnippet>344</a>    <span class="kw">let </span>mixed_right = VariantSpec::for_layout(layout).mixed_side.is_right();
+<a href=#344 id=344 data-nosnippet>344</a>    <span class="kw">let </span>mixed_right = MixedSide::for_layout(layout).is_right();
 <a href=#345 id=345 data-nosnippet>345</a>
 <a href=#346 id=346 data-nosnippet>346</a>    <span class="macro">vec!</span>[SelectedChunkMeasurements {
 <a href=#347 id=347 data-nosnippet>347</a>        chunk_index: ROTATED_INIT_CHUNK,
@@ -464,255 +464,255 @@
 <a href=#464 id=464 data-nosnippet>464</a>    .expect(<span class="string">"rectangular lattice has corners"</span>)
 <a href=#465 id=465 data-nosnippet>465</a>}
 <a href=#466 id=466 data-nosnippet>466</a>
-<a href=#467 id=467 data-nosnippet>467</a><span class="kw">fn </span>canonical_stage_patch(layout: RotationLayout, stage: RotationStage, offset: IVec2) -&gt; Patch {
-<a href=#468 id=468 data-nosnippet>468</a>    <span class="kw">let </span>spec = VariantSpec::for_layout(layout);
-<a href=#469 id=469 data-nosnippet>469</a>    make_patch(stage, layout, offset, spec)
-<a href=#470 id=470 data-nosnippet>470</a>}
-<a href=#471 id=471 data-nosnippet>471</a>
-<a href=#472 id=472 data-nosnippet>472</a><span class="attr">#[derive(Debug, Clone)]
-<a href=#473 id=473 data-nosnippet>473</a></span><span class="kw">struct </span>RotationPatches {
-<a href=#474 id=474 data-nosnippet>474</a>    input: Patch,
-<a href=#475 id=475 data-nosnippet>475</a>    grown: Patch,
-<a href=#476 id=476 data-nosnippet>476</a>    rotated: Patch,
-<a href=#477 id=477 data-nosnippet>477</a>    output: Patch,
-<a href=#478 id=478 data-nosnippet>478</a>}
-<a href=#479 id=479 data-nosnippet>479</a>
-<a href=#480 id=480 data-nosnippet>480</a><span class="kw">impl </span>RotationPatches {
-<a href=#481 id=481 data-nosnippet>481</a>    <span class="kw">fn </span>new(layout: RotationLayout, offset: IVec2) -&gt; <span class="self">Self </span>{
-<a href=#482 id=482 data-nosnippet>482</a>        <span class="kw">let </span>geometry = layout.geometry;
-<a href=#483 id=483 data-nosnippet>483</a>        <span class="self">Self </span>{
-<a href=#484 id=484 data-nosnippet>484</a>            input: make_standard_patch(layout, offset, <span class="number">0</span>, layout.input_x_basis),
-<a href=#485 id=485 data-nosnippet>485</a>            grown: canonical_stage_patch(layout, RotationStage::Grown, offset),
-<a href=#486 id=486 data-nosnippet>486</a>            rotated: canonical_stage_patch(layout, RotationStage::Rotated, offset),
-<a href=#487 id=487 data-nosnippet>487</a>            output: make_standard_patch(
-<a href=#488 id=488 data-nosnippet>488</a>                layout,
-<a href=#489 id=489 data-nosnippet>489</a>                offset,
-<a href=#490 id=490 data-nosnippet>490</a>                geometry.split_y + <span class="number">1</span>,
-<a href=#491 id=491 data-nosnippet>491</a>                layout.input_x_basis.flip(),
-<a href=#492 id=492 data-nosnippet>492</a>            ),
-<a href=#493 id=493 data-nosnippet>493</a>        }
-<a href=#494 id=494 data-nosnippet>494</a>    }
-<a href=#495 id=495 data-nosnippet>495</a>}
-<a href=#496 id=496 data-nosnippet>496</a>
-<a href=#497 id=497 data-nosnippet>497</a><span class="attr">#[cfg(test)]
-<a href=#498 id=498 data-nosnippet>498</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>paper_rotation_patches(kind: PatchRotationKind, distance: u32) -&gt; [Patch; <span class="number">4</span>] {
-<a href=#499 id=499 data-nosnippet>499</a>    <span class="kw">let </span>layout = RotationLayout::new(kind, distance);
-<a href=#500 id=500 data-nosnippet>500</a>    <span class="kw">let </span>patches = RotationPatches::new(layout, patch_rotation_offset(layout));
-<a href=#501 id=501 data-nosnippet>501</a>    [
-<a href=#502 id=502 data-nosnippet>502</a>        patches.input,
-<a href=#503 id=503 data-nosnippet>503</a>        patches.grown,
-<a href=#504 id=504 data-nosnippet>504</a>        patches.rotated,
-<a href=#505 id=505 data-nosnippet>505</a>        patches.output,
-<a href=#506 id=506 data-nosnippet>506</a>    ]
-<a href=#507 id=507 data-nosnippet>507</a>}
-<a href=#508 id=508 data-nosnippet>508</a>
-<a href=#509 id=509 data-nosnippet>509</a><span class="attr">#[derive(Debug, Clone, Copy)]
-<a href=#510 id=510 data-nosnippet>510</a></span><span class="kw">struct </span>BoundaryPolicy {
-<a href=#511 id=511 data-nosnippet>511</a>    bottom: Basis,
-<a href=#512 id=512 data-nosnippet>512</a>    top: Basis,
-<a href=#513 id=513 data-nosnippet>513</a>    left_bottom: Basis,
-<a href=#514 id=514 data-nosnippet>514</a>    left_top: Basis,
-<a href=#515 id=515 data-nosnippet>515</a>    right_bottom: Basis,
-<a href=#516 id=516 data-nosnippet>516</a>    right_top: Basis,
-<a href=#517 id=517 data-nosnippet>517</a>    split_y: i32,
-<a href=#518 id=518 data-nosnippet>518</a>}
-<a href=#519 id=519 data-nosnippet>519</a>
-<a href=#520 id=520 data-nosnippet>520</a><span class="kw">impl </span>BoundaryPolicy {
-<a href=#521 id=521 data-nosnippet>521</a>    <span class="doccomment">/// The split-edge counterpart of [`EdgeBases::demanded`]: `None` when `m`
-<a href=#522 id=522 data-nosnippet>522</a>    /// is interior or two edges demand different bases.
-<a href=#523 id=523 data-nosnippet>523</a>    </span><span class="kw">fn </span>demanded(<span class="self">self</span>, m: IVec2, rect: Rect) -&gt; <span class="prelude-ty">Option</span>&lt;Basis&gt; {
-<a href=#524 id=524 data-nosnippet>524</a>        <span class="kw">let </span>side = |bottom, top| {
-<a href=#525 id=525 data-nosnippet>525</a>            <span class="kw">if </span>is_below_split_midline(m.y, <span class="self">self</span>.split_y) {
-<a href=#526 id=526 data-nosnippet>526</a>                bottom
-<a href=#527 id=527 data-nosnippet>527</a>            } <span class="kw">else </span>{
-<a href=#528 id=528 data-nosnippet>528</a>                top
-<a href=#529 id=529 data-nosnippet>529</a>            }
-<a href=#530 id=530 data-nosnippet>530</a>        };
-<a href=#531 id=531 data-nosnippet>531</a>        <span class="kw">let </span><span class="kw-2">mut </span>basis = <span class="prelude-val">None</span>;
-<a href=#532 id=532 data-nosnippet>532</a>        <span class="kw">for </span>edge_basis <span class="kw">in </span>[
-<a href=#533 id=533 data-nosnippet>533</a>            (m.y == <span class="number">0</span>).then_some(<span class="self">self</span>.bottom),
-<a href=#534 id=534 data-nosnippet>534</a>            (m.y == <span class="number">2 </span>* rect.height).then_some(<span class="self">self</span>.top),
-<a href=#535 id=535 data-nosnippet>535</a>            (m.x == <span class="number">0</span>).then_some(side(<span class="self">self</span>.left_bottom, <span class="self">self</span>.left_top)),
-<a href=#536 id=536 data-nosnippet>536</a>            (m.x == <span class="number">2 </span>* rect.width).then_some(side(<span class="self">self</span>.right_bottom, <span class="self">self</span>.right_top)),
-<a href=#537 id=537 data-nosnippet>537</a>        ]
-<a href=#538 id=538 data-nosnippet>538</a>        .into_iter()
-<a href=#539 id=539 data-nosnippet>539</a>        .flatten()
-<a href=#540 id=540 data-nosnippet>540</a>        {
-<a href=#541 id=541 data-nosnippet>541</a>            <span class="kw">if </span>basis.is_some_and(|basis| basis != edge_basis) {
-<a href=#542 id=542 data-nosnippet>542</a>                <span class="kw">return </span><span class="prelude-val">None</span>;
-<a href=#543 id=543 data-nosnippet>543</a>            }
-<a href=#544 id=544 data-nosnippet>544</a>            basis = <span class="prelude-val">Some</span>(edge_basis);
-<a href=#545 id=545 data-nosnippet>545</a>        }
-<a href=#546 id=546 data-nosnippet>546</a>        basis
-<a href=#547 id=547 data-nosnippet>547</a>    }
-<a href=#548 id=548 data-nosnippet>548</a>
-<a href=#549 id=549 data-nosnippet>549</a>    <span class="kw">fn </span>keeps(<span class="self">self</span>, m: IVec2, rect: Rect, basis: Basis) -&gt; bool {
-<a href=#550 id=550 data-nosnippet>550</a>        <span class="kw">match </span><span class="self">self</span>.demanded(m, rect) {
-<a href=#551 id=551 data-nosnippet>551</a>            <span class="prelude-val">Some</span>(demanded) =&gt; basis == demanded,
-<a href=#552 id=552 data-nosnippet>552</a>            <span class="prelude-val">None </span>=&gt; !rect.on_edge(m),
-<a href=#553 id=553 data-nosnippet>553</a>        }
-<a href=#554 id=554 data-nosnippet>554</a>    }
-<a href=#555 id=555 data-nosnippet>555</a>}
-<a href=#556 id=556 data-nosnippet>556</a>
-<a href=#557 id=557 data-nosnippet>557</a><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-<a href=#558 id=558 data-nosnippet>558</a></span><span class="kw">struct </span>VariantSpec {
-<a href=#559 id=559 data-nosnippet>559</a>    mixed_side: MixedSide,
-<a href=#560 id=560 data-nosnippet>560</a>}
-<a href=#561 id=561 data-nosnippet>561</a>
-<a href=#562 id=562 data-nosnippet>562</a><span class="kw">impl </span>VariantSpec {
-<a href=#563 id=563 data-nosnippet>563</a>    <span class="kw">fn </span>for_layout(layout: RotationLayout) -&gt; <span class="self">Self </span>{
-<a href=#564 id=564 data-nosnippet>564</a>        <span class="comment">// Canonical construction table before applying the movement transform.
-<a href=#565 id=565 data-nosnippet>565</a>        //
-<a href=#566 id=566 data-nosnippet>566</a>        // input X basis | movement | mixed side | grown extension | rotated extension
-<a href=#567 id=567 data-nosnippet>567</a>        // X             | -X       | right      | left            | left
-<a href=#568 id=568 data-nosnippet>568</a>        // X             | other    | left       | right           | right
-<a href=#569 id=569 data-nosnippet>569</a>        // Z             | -X       | left       | right           | right
-<a href=#570 id=570 data-nosnippet>570</a>        // Z             | other    | right      | left            | left
-<a href=#571 id=571 data-nosnippet>571</a>        </span><span class="kw">let </span>mixed_side = <span class="kw">match </span>(layout.input_x_basis, layout.movement.to_array()) {
-<a href=#572 id=572 data-nosnippet>572</a>            (Basis::X, [-<span class="number">1</span>, <span class="number">0</span>]) =&gt; MixedSide::Right,
-<a href=#573 id=573 data-nosnippet>573</a>            (Basis::X, <span class="kw">_</span>) | (Basis::Z, [-<span class="number">1</span>, <span class="number">0</span>]) =&gt; MixedSide::Left,
-<a href=#574 id=574 data-nosnippet>574</a>            (Basis::Z, <span class="kw">_</span>) =&gt; MixedSide::Right,
-<a href=#575 id=575 data-nosnippet>575</a>        };
-<a href=#576 id=576 data-nosnippet>576</a>        <span class="self">Self </span>{ mixed_side }
-<a href=#577 id=577 data-nosnippet>577</a>    }
-<a href=#578 id=578 data-nosnippet>578</a>
-<a href=#579 id=579 data-nosnippet>579</a>    <span class="kw">fn </span>boundaries(
-<a href=#580 id=580 data-nosnippet>580</a>        <span class="self">self</span>,
-<a href=#581 id=581 data-nosnippet>581</a>        input_x_basis: Basis,
-<a href=#582 id=582 data-nosnippet>582</a>        stage: RotationStage,
-<a href=#583 id=583 data-nosnippet>583</a>        geometry: RotationGeometry,
-<a href=#584 id=584 data-nosnippet>584</a>    ) -&gt; BoundaryPolicy {
-<a href=#585 id=585 data-nosnippet>585</a>        <span class="kw">let </span>opposite = input_x_basis.flip();
-<a href=#586 id=586 data-nosnippet>586</a>        <span class="kw">let </span>extended_basis = <span class="kw">match </span>stage {
-<a href=#587 id=587 data-nosnippet>587</a>            RotationStage::Grown =&gt; input_x_basis,
-<a href=#588 id=588 data-nosnippet>588</a>            RotationStage::Rotated =&gt; opposite,
-<a href=#589 id=589 data-nosnippet>589</a>        };
-<a href=#590 id=590 data-nosnippet>590</a>        <span class="kw">match </span><span class="self">self</span>.mixed_side {
-<a href=#591 id=591 data-nosnippet>591</a>            MixedSide::Left =&gt; BoundaryPolicy {
-<a href=#592 id=592 data-nosnippet>592</a>                bottom: opposite,
-<a href=#593 id=593 data-nosnippet>593</a>                top: input_x_basis,
-<a href=#594 id=594 data-nosnippet>594</a>                left_bottom: input_x_basis,
-<a href=#595 id=595 data-nosnippet>595</a>                left_top: opposite,
-<a href=#596 id=596 data-nosnippet>596</a>                right_bottom: extended_basis,
-<a href=#597 id=597 data-nosnippet>597</a>                right_top: extended_basis,
-<a href=#598 id=598 data-nosnippet>598</a>                split_y: geometry.split_y,
-<a href=#599 id=599 data-nosnippet>599</a>            },
-<a href=#600 id=600 data-nosnippet>600</a>            MixedSide::Right =&gt; BoundaryPolicy {
-<a href=#601 id=601 data-nosnippet>601</a>                bottom: opposite,
-<a href=#602 id=602 data-nosnippet>602</a>                top: input_x_basis,
-<a href=#603 id=603 data-nosnippet>603</a>                left_bottom: extended_basis,
-<a href=#604 id=604 data-nosnippet>604</a>                left_top: extended_basis,
-<a href=#605 id=605 data-nosnippet>605</a>                right_bottom: input_x_basis,
-<a href=#606 id=606 data-nosnippet>606</a>                right_top: opposite,
-<a href=#607 id=607 data-nosnippet>607</a>                split_y: geometry.split_y,
-<a href=#608 id=608 data-nosnippet>608</a>            },
-<a href=#609 id=609 data-nosnippet>609</a>        }
-<a href=#610 id=610 data-nosnippet>610</a>    }
-<a href=#611 id=611 data-nosnippet>611</a>
-<a href=#612 id=612 data-nosnippet>612</a>    <span class="kw">fn </span>schedule_rule(<span class="self">self</span>, stage: RotationStage, geometry: RotationGeometry) -&gt; ScheduleRule {
-<a href=#613 id=613 data-nosnippet>613</a>        <span class="kw">match </span>(<span class="self">self</span>.mixed_side, stage) {
-<a href=#614 id=614 data-nosnippet>614</a>            (MixedSide::Left, RotationStage::Grown) =&gt; ScheduleRule::new(<span class="number">1</span>, geometry.split_y),
-<a href=#615 id=615 data-nosnippet>615</a>            (MixedSide::Left, RotationStage::Rotated) =&gt; ScheduleRule::new(-<span class="number">1</span>, geometry.split_y),
-<a href=#616 id=616 data-nosnippet>616</a>            (MixedSide::Right, RotationStage::Grown) =&gt; {
-<a href=#617 id=617 data-nosnippet>617</a>                ScheduleRule::new(-<span class="number">1</span>, geometry.split_y + geometry.width)
-<a href=#618 id=618 data-nosnippet>618</a>            }
-<a href=#619 id=619 data-nosnippet>619</a>            (MixedSide::Right, RotationStage::Rotated) =&gt; {
-<a href=#620 id=620 data-nosnippet>620</a>                ScheduleRule::new(<span class="number">1</span>, geometry.split_y - geometry.width)
-<a href=#621 id=621 data-nosnippet>621</a>            }
-<a href=#622 id=622 data-nosnippet>622</a>        }
-<a href=#623 id=623 data-nosnippet>623</a>    }
-<a href=#624 id=624 data-nosnippet>624</a>
-<a href=#625 id=625 data-nosnippet>625</a>    <span class="kw">fn </span>cx_order(<span class="self">self</span>, stage: RotationStage, schedule: CXSchedule) -&gt; [Corner; <span class="number">4</span>] {
-<a href=#626 id=626 data-nosnippet>626</a>        <span class="kw">match </span>(<span class="self">self</span>.mixed_side, stage, schedule) {
-<a href=#627 id=627 data-nosnippet>627</a>            (MixedSide::Left, RotationStage::Grown, CXSchedule::Horizontal)
-<a href=#628 id=628 data-nosnippet>628</a>            | (MixedSide::Right, RotationStage::Rotated, CXSchedule::Horizontal) =&gt; {
-<a href=#629 id=629 data-nosnippet>629</a>                [Corner::BR, Corner::BL, Corner::TR, Corner::TL]
+<a href=#467 id=467 data-nosnippet>467</a><span class="attr">#[derive(Debug, Clone)]
+<a href=#468 id=468 data-nosnippet>468</a></span><span class="kw">struct </span>RotationPatches {
+<a href=#469 id=469 data-nosnippet>469</a>    input: Patch,
+<a href=#470 id=470 data-nosnippet>470</a>    grown: Patch,
+<a href=#471 id=471 data-nosnippet>471</a>    rotated: Patch,
+<a href=#472 id=472 data-nosnippet>472</a>    output: Patch,
+<a href=#473 id=473 data-nosnippet>473</a>}
+<a href=#474 id=474 data-nosnippet>474</a>
+<a href=#475 id=475 data-nosnippet>475</a><span class="kw">impl </span>RotationPatches {
+<a href=#476 id=476 data-nosnippet>476</a>    <span class="kw">fn </span>new(layout: RotationLayout, offset: IVec2) -&gt; <span class="self">Self </span>{
+<a href=#477 id=477 data-nosnippet>477</a>        <span class="kw">let </span>geometry = layout.geometry;
+<a href=#478 id=478 data-nosnippet>478</a>        <span class="self">Self </span>{
+<a href=#479 id=479 data-nosnippet>479</a>            input: make_standard_patch(layout, offset, <span class="number">0</span>, layout.input_x_basis),
+<a href=#480 id=480 data-nosnippet>480</a>            grown: make_patch(RotationStage::Grown, layout, offset),
+<a href=#481 id=481 data-nosnippet>481</a>            rotated: make_patch(RotationStage::Rotated, layout, offset),
+<a href=#482 id=482 data-nosnippet>482</a>            output: make_standard_patch(
+<a href=#483 id=483 data-nosnippet>483</a>                layout,
+<a href=#484 id=484 data-nosnippet>484</a>                offset,
+<a href=#485 id=485 data-nosnippet>485</a>                geometry.split_y + <span class="number">1</span>,
+<a href=#486 id=486 data-nosnippet>486</a>                layout.input_x_basis.flip(),
+<a href=#487 id=487 data-nosnippet>487</a>            ),
+<a href=#488 id=488 data-nosnippet>488</a>        }
+<a href=#489 id=489 data-nosnippet>489</a>    }
+<a href=#490 id=490 data-nosnippet>490</a>}
+<a href=#491 id=491 data-nosnippet>491</a>
+<a href=#492 id=492 data-nosnippet>492</a><span class="attr">#[cfg(test)]
+<a href=#493 id=493 data-nosnippet>493</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>paper_rotation_patches(kind: PatchRotationKind, distance: u32) -&gt; [Patch; <span class="number">4</span>] {
+<a href=#494 id=494 data-nosnippet>494</a>    <span class="kw">let </span>layout = RotationLayout::new(kind, distance);
+<a href=#495 id=495 data-nosnippet>495</a>    <span class="kw">let </span>patches = RotationPatches::new(layout, patch_rotation_offset(layout));
+<a href=#496 id=496 data-nosnippet>496</a>    [
+<a href=#497 id=497 data-nosnippet>497</a>        patches.input,
+<a href=#498 id=498 data-nosnippet>498</a>        patches.grown,
+<a href=#499 id=499 data-nosnippet>499</a>        patches.rotated,
+<a href=#500 id=500 data-nosnippet>500</a>        patches.output,
+<a href=#501 id=501 data-nosnippet>501</a>    ]
+<a href=#502 id=502 data-nosnippet>502</a>}
+<a href=#503 id=503 data-nosnippet>503</a>
+<a href=#504 id=504 data-nosnippet>504</a><span class="attr">#[derive(Debug, Clone, Copy)]
+<a href=#505 id=505 data-nosnippet>505</a></span><span class="kw">struct </span>BoundaryPolicy {
+<a href=#506 id=506 data-nosnippet>506</a>    bottom: Basis,
+<a href=#507 id=507 data-nosnippet>507</a>    top: Basis,
+<a href=#508 id=508 data-nosnippet>508</a>    left_bottom: Basis,
+<a href=#509 id=509 data-nosnippet>509</a>    left_top: Basis,
+<a href=#510 id=510 data-nosnippet>510</a>    right_bottom: Basis,
+<a href=#511 id=511 data-nosnippet>511</a>    right_top: Basis,
+<a href=#512 id=512 data-nosnippet>512</a>    split_y: i32,
+<a href=#513 id=513 data-nosnippet>513</a>}
+<a href=#514 id=514 data-nosnippet>514</a>
+<a href=#515 id=515 data-nosnippet>515</a><span class="kw">impl </span>BoundaryPolicy {
+<a href=#516 id=516 data-nosnippet>516</a>    <span class="doccomment">/// The split-edge counterpart of [`EdgeBases::demanded`]: `None` when `m`
+<a href=#517 id=517 data-nosnippet>517</a>    /// is interior or two edges demand different bases.
+<a href=#518 id=518 data-nosnippet>518</a>    </span><span class="kw">fn </span>demanded(<span class="self">self</span>, m: IVec2, rect: Rect) -&gt; <span class="prelude-ty">Option</span>&lt;Basis&gt; {
+<a href=#519 id=519 data-nosnippet>519</a>        <span class="kw">let </span>side = |bottom, top| {
+<a href=#520 id=520 data-nosnippet>520</a>            <span class="kw">if </span>is_below_split_midline(m.y, <span class="self">self</span>.split_y) {
+<a href=#521 id=521 data-nosnippet>521</a>                bottom
+<a href=#522 id=522 data-nosnippet>522</a>            } <span class="kw">else </span>{
+<a href=#523 id=523 data-nosnippet>523</a>                top
+<a href=#524 id=524 data-nosnippet>524</a>            }
+<a href=#525 id=525 data-nosnippet>525</a>        };
+<a href=#526 id=526 data-nosnippet>526</a>        <span class="kw">let </span><span class="kw-2">mut </span>basis = <span class="prelude-val">None</span>;
+<a href=#527 id=527 data-nosnippet>527</a>        <span class="kw">for </span>edge_basis <span class="kw">in </span>[
+<a href=#528 id=528 data-nosnippet>528</a>            (m.y == <span class="number">0</span>).then_some(<span class="self">self</span>.bottom),
+<a href=#529 id=529 data-nosnippet>529</a>            (m.y == <span class="number">2 </span>* rect.height).then_some(<span class="self">self</span>.top),
+<a href=#530 id=530 data-nosnippet>530</a>            (m.x == <span class="number">0</span>).then_some(side(<span class="self">self</span>.left_bottom, <span class="self">self</span>.left_top)),
+<a href=#531 id=531 data-nosnippet>531</a>            (m.x == <span class="number">2 </span>* rect.width).then_some(side(<span class="self">self</span>.right_bottom, <span class="self">self</span>.right_top)),
+<a href=#532 id=532 data-nosnippet>532</a>        ]
+<a href=#533 id=533 data-nosnippet>533</a>        .into_iter()
+<a href=#534 id=534 data-nosnippet>534</a>        .flatten()
+<a href=#535 id=535 data-nosnippet>535</a>        {
+<a href=#536 id=536 data-nosnippet>536</a>            <span class="kw">if </span>basis.is_some_and(|basis| basis != edge_basis) {
+<a href=#537 id=537 data-nosnippet>537</a>                <span class="kw">return </span><span class="prelude-val">None</span>;
+<a href=#538 id=538 data-nosnippet>538</a>            }
+<a href=#539 id=539 data-nosnippet>539</a>            basis = <span class="prelude-val">Some</span>(edge_basis);
+<a href=#540 id=540 data-nosnippet>540</a>        }
+<a href=#541 id=541 data-nosnippet>541</a>        basis
+<a href=#542 id=542 data-nosnippet>542</a>    }
+<a href=#543 id=543 data-nosnippet>543</a>
+<a href=#544 id=544 data-nosnippet>544</a>    <span class="kw">fn </span>keeps(<span class="self">self</span>, m: IVec2, rect: Rect, basis: Basis) -&gt; bool {
+<a href=#545 id=545 data-nosnippet>545</a>        <span class="kw">match </span><span class="self">self</span>.demanded(m, rect) {
+<a href=#546 id=546 data-nosnippet>546</a>            <span class="prelude-val">Some</span>(demanded) =&gt; basis == demanded,
+<a href=#547 id=547 data-nosnippet>547</a>            <span class="prelude-val">None </span>=&gt; !rect.on_edge(m),
+<a href=#548 id=548 data-nosnippet>548</a>        }
+<a href=#549 id=549 data-nosnippet>549</a>    }
+<a href=#550 id=550 data-nosnippet>550</a>}
+<a href=#551 id=551 data-nosnippet>551</a>
+<a href=#552 id=552 data-nosnippet>552</a><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+<a href=#553 id=553 data-nosnippet>553</a></span><span class="kw">enum </span>MixedSide {
+<a href=#554 id=554 data-nosnippet>554</a>    Left,
+<a href=#555 id=555 data-nosnippet>555</a>    Right,
+<a href=#556 id=556 data-nosnippet>556</a>}
+<a href=#557 id=557 data-nosnippet>557</a>
+<a href=#558 id=558 data-nosnippet>558</a><span class="kw">impl </span>MixedSide {
+<a href=#559 id=559 data-nosnippet>559</a>    <span class="kw">fn </span>for_layout(layout: RotationLayout) -&gt; <span class="self">Self </span>{
+<a href=#560 id=560 data-nosnippet>560</a>        <span class="kw">match </span>(layout.input_x_basis, layout.movement.to_array()) {
+<a href=#561 id=561 data-nosnippet>561</a>            (Basis::X, [-<span class="number">1</span>, <span class="number">0</span>]) =&gt; <span class="self">Self</span>::Right,
+<a href=#562 id=562 data-nosnippet>562</a>            (Basis::X, <span class="kw">_</span>) | (Basis::Z, [-<span class="number">1</span>, <span class="number">0</span>]) =&gt; <span class="self">Self</span>::Left,
+<a href=#563 id=563 data-nosnippet>563</a>            (Basis::Z, <span class="kw">_</span>) =&gt; <span class="self">Self</span>::Right,
+<a href=#564 id=564 data-nosnippet>564</a>        }
+<a href=#565 id=565 data-nosnippet>565</a>    }
+<a href=#566 id=566 data-nosnippet>566</a>
+<a href=#567 id=567 data-nosnippet>567</a>    <span class="kw">fn </span>is_right(<span class="self">self</span>) -&gt; bool {
+<a href=#568 id=568 data-nosnippet>568</a>        <span class="self">self </span>== <span class="self">Self</span>::Right
+<a href=#569 id=569 data-nosnippet>569</a>    }
+<a href=#570 id=570 data-nosnippet>570</a>
+<a href=#571 id=571 data-nosnippet>571</a>    <span class="kw">fn </span>boundaries(
+<a href=#572 id=572 data-nosnippet>572</a>        <span class="self">self</span>,
+<a href=#573 id=573 data-nosnippet>573</a>        input_x_basis: Basis,
+<a href=#574 id=574 data-nosnippet>574</a>        stage: RotationStage,
+<a href=#575 id=575 data-nosnippet>575</a>        geometry: RotationGeometry,
+<a href=#576 id=576 data-nosnippet>576</a>    ) -&gt; BoundaryPolicy {
+<a href=#577 id=577 data-nosnippet>577</a>        <span class="kw">let </span>opposite = input_x_basis.flip();
+<a href=#578 id=578 data-nosnippet>578</a>        <span class="kw">let </span>extended_basis = <span class="kw">match </span>stage {
+<a href=#579 id=579 data-nosnippet>579</a>            RotationStage::Grown =&gt; input_x_basis,
+<a href=#580 id=580 data-nosnippet>580</a>            RotationStage::Rotated =&gt; opposite,
+<a href=#581 id=581 data-nosnippet>581</a>        };
+<a href=#582 id=582 data-nosnippet>582</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#583 id=583 data-nosnippet>583</a>            MixedSide::Left =&gt; BoundaryPolicy {
+<a href=#584 id=584 data-nosnippet>584</a>                bottom: opposite,
+<a href=#585 id=585 data-nosnippet>585</a>                top: input_x_basis,
+<a href=#586 id=586 data-nosnippet>586</a>                left_bottom: input_x_basis,
+<a href=#587 id=587 data-nosnippet>587</a>                left_top: opposite,
+<a href=#588 id=588 data-nosnippet>588</a>                right_bottom: extended_basis,
+<a href=#589 id=589 data-nosnippet>589</a>                right_top: extended_basis,
+<a href=#590 id=590 data-nosnippet>590</a>                split_y: geometry.split_y,
+<a href=#591 id=591 data-nosnippet>591</a>            },
+<a href=#592 id=592 data-nosnippet>592</a>            MixedSide::Right =&gt; BoundaryPolicy {
+<a href=#593 id=593 data-nosnippet>593</a>                bottom: opposite,
+<a href=#594 id=594 data-nosnippet>594</a>                top: input_x_basis,
+<a href=#595 id=595 data-nosnippet>595</a>                left_bottom: extended_basis,
+<a href=#596 id=596 data-nosnippet>596</a>                left_top: extended_basis,
+<a href=#597 id=597 data-nosnippet>597</a>                right_bottom: input_x_basis,
+<a href=#598 id=598 data-nosnippet>598</a>                right_top: opposite,
+<a href=#599 id=599 data-nosnippet>599</a>                split_y: geometry.split_y,
+<a href=#600 id=600 data-nosnippet>600</a>            },
+<a href=#601 id=601 data-nosnippet>601</a>        }
+<a href=#602 id=602 data-nosnippet>602</a>    }
+<a href=#603 id=603 data-nosnippet>603</a>
+<a href=#604 id=604 data-nosnippet>604</a>    <span class="kw">fn </span>schedule_rule(<span class="self">self</span>, stage: RotationStage, geometry: RotationGeometry) -&gt; ScheduleRule {
+<a href=#605 id=605 data-nosnippet>605</a>        <span class="kw">match </span>(<span class="self">self</span>, stage) {
+<a href=#606 id=606 data-nosnippet>606</a>            (MixedSide::Left, RotationStage::Grown) =&gt; ScheduleRule::new(<span class="number">1</span>, geometry.split_y),
+<a href=#607 id=607 data-nosnippet>607</a>            (MixedSide::Left, RotationStage::Rotated) =&gt; ScheduleRule::new(-<span class="number">1</span>, geometry.split_y),
+<a href=#608 id=608 data-nosnippet>608</a>            (MixedSide::Right, RotationStage::Grown) =&gt; {
+<a href=#609 id=609 data-nosnippet>609</a>                ScheduleRule::new(-<span class="number">1</span>, geometry.split_y + geometry.width)
+<a href=#610 id=610 data-nosnippet>610</a>            }
+<a href=#611 id=611 data-nosnippet>611</a>            (MixedSide::Right, RotationStage::Rotated) =&gt; {
+<a href=#612 id=612 data-nosnippet>612</a>                ScheduleRule::new(<span class="number">1</span>, geometry.split_y - geometry.width)
+<a href=#613 id=613 data-nosnippet>613</a>            }
+<a href=#614 id=614 data-nosnippet>614</a>        }
+<a href=#615 id=615 data-nosnippet>615</a>    }
+<a href=#616 id=616 data-nosnippet>616</a>
+<a href=#617 id=617 data-nosnippet>617</a>    <span class="kw">fn </span>cx_order(<span class="self">self</span>, stage: RotationStage, schedule: CXSchedule) -&gt; [Corner; <span class="number">4</span>] {
+<a href=#618 id=618 data-nosnippet>618</a>        <span class="kw">match </span>(<span class="self">self</span>, stage, schedule) {
+<a href=#619 id=619 data-nosnippet>619</a>            (MixedSide::Left, RotationStage::Grown, CXSchedule::Horizontal)
+<a href=#620 id=620 data-nosnippet>620</a>            | (MixedSide::Right, RotationStage::Rotated, CXSchedule::Horizontal) =&gt; {
+<a href=#621 id=621 data-nosnippet>621</a>                [Corner::BR, Corner::BL, Corner::TR, Corner::TL]
+<a href=#622 id=622 data-nosnippet>622</a>            }
+<a href=#623 id=623 data-nosnippet>623</a>            (MixedSide::Left, RotationStage::Grown, CXSchedule::Vertical)
+<a href=#624 id=624 data-nosnippet>624</a>            | (MixedSide::Right, RotationStage::Rotated, CXSchedule::Vertical) =&gt; {
+<a href=#625 id=625 data-nosnippet>625</a>                [Corner::BR, Corner::TR, Corner::BL, Corner::TL]
+<a href=#626 id=626 data-nosnippet>626</a>            }
+<a href=#627 id=627 data-nosnippet>627</a>            (MixedSide::Left, RotationStage::Rotated, CXSchedule::Horizontal)
+<a href=#628 id=628 data-nosnippet>628</a>            | (MixedSide::Right, RotationStage::Grown, CXSchedule::Horizontal) =&gt; {
+<a href=#629 id=629 data-nosnippet>629</a>                [Corner::BL, Corner::BR, Corner::TL, Corner::TR]
 <a href=#630 id=630 data-nosnippet>630</a>            }
-<a href=#631 id=631 data-nosnippet>631</a>            (MixedSide::Left, RotationStage::Grown, CXSchedule::Vertical)
-<a href=#632 id=632 data-nosnippet>632</a>            | (MixedSide::Right, RotationStage::Rotated, CXSchedule::Vertical) =&gt; {
-<a href=#633 id=633 data-nosnippet>633</a>                [Corner::BR, Corner::TR, Corner::BL, Corner::TL]
+<a href=#631 id=631 data-nosnippet>631</a>            (MixedSide::Left, RotationStage::Rotated, CXSchedule::Vertical)
+<a href=#632 id=632 data-nosnippet>632</a>            | (MixedSide::Right, RotationStage::Grown, CXSchedule::Vertical) =&gt; {
+<a href=#633 id=633 data-nosnippet>633</a>                [Corner::BL, Corner::TL, Corner::BR, Corner::TR]
 <a href=#634 id=634 data-nosnippet>634</a>            }
-<a href=#635 id=635 data-nosnippet>635</a>            (MixedSide::Left, RotationStage::Rotated, CXSchedule::Horizontal)
-<a href=#636 id=636 data-nosnippet>636</a>            | (MixedSide::Right, RotationStage::Grown, CXSchedule::Horizontal) =&gt; {
-<a href=#637 id=637 data-nosnippet>637</a>                [Corner::BL, Corner::BR, Corner::TL, Corner::TR]
-<a href=#638 id=638 data-nosnippet>638</a>            }
-<a href=#639 id=639 data-nosnippet>639</a>            (MixedSide::Left, RotationStage::Rotated, CXSchedule::Vertical)
-<a href=#640 id=640 data-nosnippet>640</a>            | (MixedSide::Right, RotationStage::Grown, CXSchedule::Vertical) =&gt; {
-<a href=#641 id=641 data-nosnippet>641</a>                [Corner::BL, Corner::TL, Corner::BR, Corner::TR]
-<a href=#642 id=642 data-nosnippet>642</a>            }
-<a href=#643 id=643 data-nosnippet>643</a>        }
-<a href=#644 id=644 data-nosnippet>644</a>    }
-<a href=#645 id=645 data-nosnippet>645</a>}
-<a href=#646 id=646 data-nosnippet>646</a>
-<a href=#647 id=647 data-nosnippet>647</a><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-<a href=#648 id=648 data-nosnippet>648</a></span><span class="kw">enum </span>MixedSide {
-<a href=#649 id=649 data-nosnippet>649</a>    Left,
-<a href=#650 id=650 data-nosnippet>650</a>    Right,
-<a href=#651 id=651 data-nosnippet>651</a>}
+<a href=#635 id=635 data-nosnippet>635</a>        }
+<a href=#636 id=636 data-nosnippet>636</a>    }
+<a href=#637 id=637 data-nosnippet>637</a>}
+<a href=#638 id=638 data-nosnippet>638</a>
+<a href=#639 id=639 data-nosnippet>639</a><span class="attr">#[derive(Debug, Clone, Copy)]
+<a href=#640 id=640 data-nosnippet>640</a></span><span class="kw">struct </span>ScheduleRule {
+<a href=#641 id=641 data-nosnippet>641</a>    diagonal_sign: i32,
+<a href=#642 id=642 data-nosnippet>642</a>    line_intercept: i32,
+<a href=#643 id=643 data-nosnippet>643</a>}
+<a href=#644 id=644 data-nosnippet>644</a>
+<a href=#645 id=645 data-nosnippet>645</a><span class="kw">impl </span>ScheduleRule {
+<a href=#646 id=646 data-nosnippet>646</a>    <span class="kw">const fn </span>new(diagonal_sign: i32, line_intercept: i32) -&gt; <span class="self">Self </span>{
+<a href=#647 id=647 data-nosnippet>647</a>        <span class="self">Self </span>{
+<a href=#648 id=648 data-nosnippet>648</a>            diagonal_sign,
+<a href=#649 id=649 data-nosnippet>649</a>            line_intercept,
+<a href=#650 id=650 data-nosnippet>650</a>        }
+<a href=#651 id=651 data-nosnippet>651</a>    }
 <a href=#652 id=652 data-nosnippet>652</a>
-<a href=#653 id=653 data-nosnippet>653</a><span class="kw">impl </span>MixedSide {
-<a href=#654 id=654 data-nosnippet>654</a>    <span class="kw">fn </span>is_right(<span class="self">self</span>) -&gt; bool {
-<a href=#655 id=655 data-nosnippet>655</a>        <span class="self">self </span>== <span class="self">Self</span>::Right
-<a href=#656 id=656 data-nosnippet>656</a>    }
-<a href=#657 id=657 data-nosnippet>657</a>}
-<a href=#658 id=658 data-nosnippet>658</a>
-<a href=#659 id=659 data-nosnippet>659</a><span class="attr">#[derive(Debug, Clone, Copy)]
-<a href=#660 id=660 data-nosnippet>660</a></span><span class="kw">struct </span>ScheduleRule {
-<a href=#661 id=661 data-nosnippet>661</a>    diagonal_sign: i32,
-<a href=#662 id=662 data-nosnippet>662</a>    line_intercept: i32,
-<a href=#663 id=663 data-nosnippet>663</a>}
-<a href=#664 id=664 data-nosnippet>664</a>
-<a href=#665 id=665 data-nosnippet>665</a><span class="kw">impl </span>ScheduleRule {
-<a href=#666 id=666 data-nosnippet>666</a>    <span class="kw">const fn </span>new(diagonal_sign: i32, line_intercept: i32) -&gt; <span class="self">Self </span>{
-<a href=#667 id=667 data-nosnippet>667</a>        <span class="self">Self </span>{
-<a href=#668 id=668 data-nosnippet>668</a>            diagonal_sign,
-<a href=#669 id=669 data-nosnippet>669</a>            line_intercept,
-<a href=#670 id=670 data-nosnippet>670</a>        }
+<a href=#653 id=653 data-nosnippet>653</a>    <span class="kw">fn </span>schedule(<span class="self">self</span>, basis: Basis, m: IVec2, horizontal_hook_basis: Basis) -&gt; CXSchedule {
+<a href=#654 id=654 data-nosnippet>654</a>        <span class="kw">let </span>standard = tile_cx_schedule(basis, horizontal_hook_basis);
+<a href=#655 id=655 data-nosnippet>655</a>        <span class="kw">if </span><span class="self">self</span>.uses_original_schedule(m) {
+<a href=#656 id=656 data-nosnippet>656</a>            standard
+<a href=#657 id=657 data-nosnippet>657</a>        } <span class="kw">else </span>{
+<a href=#658 id=658 data-nosnippet>658</a>            opposite_schedule(standard)
+<a href=#659 id=659 data-nosnippet>659</a>        }
+<a href=#660 id=660 data-nosnippet>660</a>    }
+<a href=#661 id=661 data-nosnippet>661</a>
+<a href=#662 id=662 data-nosnippet>662</a>    <span class="kw">fn </span>uses_original_schedule(<span class="self">self</span>, m: IVec2) -&gt; bool {
+<a href=#663 id=663 data-nosnippet>663</a>        m.y / <span class="number">2 </span>&lt;= <span class="self">self</span>.diagonal_sign * (m.x / <span class="number">2</span>) + <span class="self">self</span>.line_intercept
+<a href=#664 id=664 data-nosnippet>664</a>    }
+<a href=#665 id=665 data-nosnippet>665</a>}
+<a href=#666 id=666 data-nosnippet>666</a>
+<a href=#667 id=667 data-nosnippet>667</a><span class="kw">fn </span>opposite_schedule(schedule: CXSchedule) -&gt; CXSchedule {
+<a href=#668 id=668 data-nosnippet>668</a>    <span class="kw">match </span>schedule {
+<a href=#669 id=669 data-nosnippet>669</a>        CXSchedule::Horizontal =&gt; CXSchedule::Vertical,
+<a href=#670 id=670 data-nosnippet>670</a>        CXSchedule::Vertical =&gt; CXSchedule::Horizontal,
 <a href=#671 id=671 data-nosnippet>671</a>    }
-<a href=#672 id=672 data-nosnippet>672</a>
-<a href=#673 id=673 data-nosnippet>673</a>    <span class="kw">fn </span>schedule(<span class="self">self</span>, basis: Basis, m: IVec2, horizontal_hook_basis: Basis) -&gt; CXSchedule {
-<a href=#674 id=674 data-nosnippet>674</a>        <span class="kw">let </span>standard = tile_cx_schedule(basis, horizontal_hook_basis);
-<a href=#675 id=675 data-nosnippet>675</a>        <span class="kw">if </span><span class="self">self</span>.uses_original_schedule(m) {
-<a href=#676 id=676 data-nosnippet>676</a>            standard
-<a href=#677 id=677 data-nosnippet>677</a>        } <span class="kw">else </span>{
-<a href=#678 id=678 data-nosnippet>678</a>            opposite_schedule(standard)
-<a href=#679 id=679 data-nosnippet>679</a>        }
-<a href=#680 id=680 data-nosnippet>680</a>    }
-<a href=#681 id=681 data-nosnippet>681</a>
-<a href=#682 id=682 data-nosnippet>682</a>    <span class="kw">fn </span>uses_original_schedule(<span class="self">self</span>, m: IVec2) -&gt; bool {
-<a href=#683 id=683 data-nosnippet>683</a>        data_y(m.y) &lt;= <span class="self">self</span>.diagonal_sign * data_x(m.x) + <span class="self">self</span>.line_intercept
-<a href=#684 id=684 data-nosnippet>684</a>    }
-<a href=#685 id=685 data-nosnippet>685</a>}
-<a href=#686 id=686 data-nosnippet>686</a>
-<a href=#687 id=687 data-nosnippet>687</a><span class="kw">fn </span>opposite_schedule(schedule: CXSchedule) -&gt; CXSchedule {
-<a href=#688 id=688 data-nosnippet>688</a>    <span class="kw">match </span>schedule {
-<a href=#689 id=689 data-nosnippet>689</a>        CXSchedule::Horizontal =&gt; CXSchedule::Vertical,
-<a href=#690 id=690 data-nosnippet>690</a>        CXSchedule::Vertical =&gt; CXSchedule::Horizontal,
-<a href=#691 id=691 data-nosnippet>691</a>    }
-<a href=#692 id=692 data-nosnippet>692</a>}
-<a href=#693 id=693 data-nosnippet>693</a>
-<a href=#694 id=694 data-nosnippet>694</a><span class="kw">fn </span>data_x(measure_x: i32) -&gt; i32 {
-<a href=#695 id=695 data-nosnippet>695</a>    measure_x / <span class="number">2
-<a href=#696 id=696 data-nosnippet>696</a></span>}
-<a href=#697 id=697 data-nosnippet>697</a>
-<a href=#698 id=698 data-nosnippet>698</a><span class="kw">fn </span>data_y(measure_y: i32) -&gt; i32 {
-<a href=#699 id=699 data-nosnippet>699</a>    measure_y / <span class="number">2
-<a href=#700 id=700 data-nosnippet>700</a></span>}
-<a href=#701 id=701 data-nosnippet>701</a>
-<a href=#702 id=702 data-nosnippet>702</a><span class="kw">fn </span>is_below_split_midline(measure_y: i32, split_y: i32) -&gt; bool {
-<a href=#703 id=703 data-nosnippet>703</a>    measure_y &lt; <span class="number">2 </span>* split_y + <span class="number">1
-<a href=#704 id=704 data-nosnippet>704</a></span>}
-<a href=#705 id=705 data-nosnippet>705</a>
-<a href=#706 id=706 data-nosnippet>706</a><span class="kw">fn </span>make_patch(
-<a href=#707 id=707 data-nosnippet>707</a>    stage: RotationStage,
-<a href=#708 id=708 data-nosnippet>708</a>    layout: RotationLayout,
-<a href=#709 id=709 data-nosnippet>709</a>    offset: IVec2,
-<a href=#710 id=710 data-nosnippet>710</a>    spec: VariantSpec,
-<a href=#711 id=711 data-nosnippet>711</a>) -&gt; Patch {
-<a href=#712 id=712 data-nosnippet>712</a>    <span class="kw">let </span>geometry = layout.geometry;
-<a href=#713 id=713 data-nosnippet>713</a>    <span class="kw">let </span>rect = Rect::new(geometry.width, geometry.height);
-<a href=#714 id=714 data-nosnippet>714</a>    <span class="kw">let </span>boundaries = spec.boundaries(layout.input_x_basis, stage, geometry);
-<a href=#715 id=715 data-nosnippet>715</a>    <span class="kw">let </span>schedule_rule = spec.schedule_rule(stage, geometry);
+<a href=#672 id=672 data-nosnippet>672</a>}
+<a href=#673 id=673 data-nosnippet>673</a>
+<a href=#674 id=674 data-nosnippet>674</a><span class="kw">fn </span>is_below_split_midline(measure_y: i32, split_y: i32) -&gt; bool {
+<a href=#675 id=675 data-nosnippet>675</a>    measure_y &lt; <span class="number">2 </span>* split_y + <span class="number">1
+<a href=#676 id=676 data-nosnippet>676</a></span>}
+<a href=#677 id=677 data-nosnippet>677</a>
+<a href=#678 id=678 data-nosnippet>678</a><span class="kw">fn </span>make_patch(stage: RotationStage, layout: RotationLayout, offset: IVec2) -&gt; Patch {
+<a href=#679 id=679 data-nosnippet>679</a>    <span class="kw">let </span>geometry = layout.geometry;
+<a href=#680 id=680 data-nosnippet>680</a>    <span class="kw">let </span>rect = Rect::new(geometry.width, geometry.height);
+<a href=#681 id=681 data-nosnippet>681</a>    <span class="kw">let </span>mixed_side = MixedSide::for_layout(layout);
+<a href=#682 id=682 data-nosnippet>682</a>    <span class="kw">let </span>boundaries = mixed_side.boundaries(layout.input_x_basis, stage, geometry);
+<a href=#683 id=683 data-nosnippet>683</a>    <span class="kw">let </span>schedule_rule = mixed_side.schedule_rule(stage, geometry);
+<a href=#684 id=684 data-nosnippet>684</a>
+<a href=#685 id=685 data-nosnippet>685</a>    carve_patch(
+<a href=#686 id=686 data-nosnippet>686</a>        rect.data_qubits(),
+<a href=#687 id=687 data-nosnippet>687</a>        |m| {
+<a href=#688 id=688 data-nosnippet>688</a>            boundaries.keeps(
+<a href=#689 id=689 data-nosnippet>689</a>                m,
+<a href=#690 id=690 data-nosnippet>690</a>                rect,
+<a href=#691 id=691 data-nosnippet>691</a>                checkerboard_basis(layout.local_to_global(m, offset)),
+<a href=#692 id=692 data-nosnippet>692</a>            )
+<a href=#693 id=693 data-nosnippet>693</a>        },
+<a href=#694 id=694 data-nosnippet>694</a>        |m| layout.local_to_global(m, offset),
+<a href=#695 id=695 data-nosnippet>695</a>        |m, data| {
+<a href=#696 id=696 data-nosnippet>696</a>            <span class="kw">let </span>global_m = layout.local_to_global(m, offset);
+<a href=#697 id=697 data-nosnippet>697</a>            <span class="kw">let </span>basis = checkerboard_basis(global_m);
+<a href=#698 id=698 data-nosnippet>698</a>            <span class="kw">let </span>schedule = schedule_rule.schedule(basis, m, layout.input_x_basis.flip());
+<a href=#699 id=699 data-nosnippet>699</a>            <span class="kw">let </span>slots = mixed_side
+<a href=#700 id=700 data-nosnippet>700</a>                .cx_order(stage, schedule)
+<a href=#701 id=701 data-nosnippet>701</a>                .into_iter()
+<a href=#702 id=702 data-nosnippet>702</a>                .map(|corner| {
+<a href=#703 id=703 data-nosnippet>703</a>                    <span class="kw">let </span>dq = m + corner.to_ivec2();
+<a href=#704 id=704 data-nosnippet>704</a>                    data.contains(<span class="kw-2">&amp;</span>dq)
+<a href=#705 id=705 data-nosnippet>705</a>                        .then_some(layout.local_to_global(dq, offset))
+<a href=#706 id=706 data-nosnippet>706</a>                });
+<a href=#707 id=707 data-nosnippet>707</a>            Tile::new(basis, global_m, slots)
+<a href=#708 id=708 data-nosnippet>708</a>        },
+<a href=#709 id=709 data-nosnippet>709</a>    )
+<a href=#710 id=710 data-nosnippet>710</a>}
+<a href=#711 id=711 data-nosnippet>711</a>
+<a href=#712 id=712 data-nosnippet>712</a><span class="kw">fn </span>make_standard_patch(layout: RotationLayout, offset: IVec2, y0: i32, x_basis: Basis) -&gt; Patch {
+<a href=#713 id=713 data-nosnippet>713</a>    <span class="kw">let </span>width = layout.geometry.width;
+<a href=#714 id=714 data-nosnippet>714</a>    <span class="kw">let </span>rect = Rect::rooted(width, y0, width);
+<a href=#715 id=715 data-nosnippet>715</a>    <span class="kw">let </span>boundaries = EdgeBases::standard(x_basis);
 <a href=#716 id=716 data-nosnippet>716</a>
 <a href=#717 id=717 data-nosnippet>717</a>    carve_patch(
 <a href=#718 id=718 data-nosnippet>718</a>        rect.data_qubits(),
@@ -727,275 +727,246 @@
 <a href=#727 id=727 data-nosnippet>727</a>        |m, data| {
 <a href=#728 id=728 data-nosnippet>728</a>            <span class="kw">let </span>global_m = layout.local_to_global(m, offset);
 <a href=#729 id=729 data-nosnippet>729</a>            <span class="kw">let </span>basis = checkerboard_basis(global_m);
-<a href=#730 id=730 data-nosnippet>730</a>            <span class="kw">let </span>schedule = schedule_rule.schedule(basis, m, layout.input_x_basis.flip());
-<a href=#731 id=731 data-nosnippet>731</a>            <span class="kw">let </span>slots = spec.cx_order(stage, schedule).into_iter().map(|corner| {
-<a href=#732 id=732 data-nosnippet>732</a>                <span class="kw">let </span>dq = m + corner.to_ivec2();
-<a href=#733 id=733 data-nosnippet>733</a>                data.contains(<span class="kw-2">&amp;</span>dq)
-<a href=#734 id=734 data-nosnippet>734</a>                    .then_some(layout.local_to_global(dq, offset))
-<a href=#735 id=735 data-nosnippet>735</a>            });
-<a href=#736 id=736 data-nosnippet>736</a>            Tile::new(basis, global_m, slots)
-<a href=#737 id=737 data-nosnippet>737</a>        },
-<a href=#738 id=738 data-nosnippet>738</a>    )
-<a href=#739 id=739 data-nosnippet>739</a>}
-<a href=#740 id=740 data-nosnippet>740</a>
-<a href=#741 id=741 data-nosnippet>741</a><span class="kw">fn </span>make_standard_patch(layout: RotationLayout, offset: IVec2, y0: i32, x_basis: Basis) -&gt; Patch {
-<a href=#742 id=742 data-nosnippet>742</a>    <span class="kw">let </span>width = layout.geometry.width;
-<a href=#743 id=743 data-nosnippet>743</a>    <span class="kw">let </span>rect = Rect::rooted(width, y0, width);
-<a href=#744 id=744 data-nosnippet>744</a>    <span class="kw">let </span>boundaries = EdgeBases::standard(x_basis);
-<a href=#745 id=745 data-nosnippet>745</a>
-<a href=#746 id=746 data-nosnippet>746</a>    carve_patch(
-<a href=#747 id=747 data-nosnippet>747</a>        rect.data_qubits(),
-<a href=#748 id=748 data-nosnippet>748</a>        |m| {
-<a href=#749 id=749 data-nosnippet>749</a>            boundaries.keeps(
-<a href=#750 id=750 data-nosnippet>750</a>                m,
-<a href=#751 id=751 data-nosnippet>751</a>                rect,
-<a href=#752 id=752 data-nosnippet>752</a>                checkerboard_basis(layout.local_to_global(m, offset)),
-<a href=#753 id=753 data-nosnippet>753</a>            )
-<a href=#754 id=754 data-nosnippet>754</a>        },
-<a href=#755 id=755 data-nosnippet>755</a>        |m| layout.local_to_global(m, offset),
-<a href=#756 id=756 data-nosnippet>756</a>        |m, data| {
-<a href=#757 id=757 data-nosnippet>757</a>            <span class="kw">let </span>global_m = layout.local_to_global(m, offset);
-<a href=#758 id=758 data-nosnippet>758</a>            <span class="kw">let </span>basis = checkerboard_basis(global_m);
-<a href=#759 id=759 data-nosnippet>759</a>            <span class="kw">let </span>slots = tile_cx_schedule(basis, x_basis.flip())
-<a href=#760 id=760 data-nosnippet>760</a>                .compact()
-<a href=#761 id=761 data-nosnippet>761</a>                .into_iter()
-<a href=#762 id=762 data-nosnippet>762</a>                .map(|corner| {
-<a href=#763 id=763 data-nosnippet>763</a>                    <span class="kw">let </span>dq = m + corner.to_ivec2();
-<a href=#764 id=764 data-nosnippet>764</a>                    data.contains(<span class="kw-2">&amp;</span>dq)
-<a href=#765 id=765 data-nosnippet>765</a>                        .then_some(layout.local_to_global(dq, offset))
-<a href=#766 id=766 data-nosnippet>766</a>                });
-<a href=#767 id=767 data-nosnippet>767</a>            Tile::new(basis, global_m, slots)
-<a href=#768 id=768 data-nosnippet>768</a>        },
-<a href=#769 id=769 data-nosnippet>769</a>    )
-<a href=#770 id=770 data-nosnippet>770</a>}
-<a href=#771 id=771 data-nosnippet>771</a>
-<a href=#772 id=772 data-nosnippet>772</a><span class="kw">fn </span>data_qubit(x: i32, y: i32) -&gt; IVec2 {
-<a href=#773 id=773 data-nosnippet>773</a>    IVec2::new(<span class="number">2 </span>* x + <span class="number">1</span>, <span class="number">2 </span>* y + <span class="number">1</span>)
-<a href=#774 id=774 data-nosnippet>774</a>}
-<a href=#775 id=775 data-nosnippet>775</a>
-<a href=#776 id=776 data-nosnippet>776</a><span class="kw">fn </span>local_data_region(
-<a href=#777 id=777 data-nosnippet>777</a>    layout: RotationLayout,
-<a href=#778 id=778 data-nosnippet>778</a>    offset: IVec2,
-<a href=#779 id=779 data-nosnippet>779</a>    xs: <span class="kw">impl </span>Iterator&lt;Item = i32&gt; + Clone,
-<a href=#780 id=780 data-nosnippet>780</a>    ys: <span class="kw">impl </span>Iterator&lt;Item = i32&gt;,
-<a href=#781 id=781 data-nosnippet>781</a>) -&gt; FxSet&lt;IVec2&gt; {
-<a href=#782 id=782 data-nosnippet>782</a>    ys.flat_map(|y| {
-<a href=#783 id=783 data-nosnippet>783</a>        xs.clone()
-<a href=#784 id=784 data-nosnippet>784</a>            .map(<span class="kw">move </span>|x| layout.local_to_global(data_qubit(x, y), offset))
-<a href=#785 id=785 data-nosnippet>785</a>    })
-<a href=#786 id=786 data-nosnippet>786</a>    .collect()
-<a href=#787 id=787 data-nosnippet>787</a>}
-<a href=#788 id=788 data-nosnippet>788</a>
-<a href=#789 id=789 data-nosnippet>789</a><span class="kw">fn </span>selected_tile_measure_qubits_by_local_measure_coord(
-<a href=#790 id=790 data-nosnippet>790</a>    patch: <span class="kw-2">&amp;</span>Patch,
-<a href=#791 id=791 data-nosnippet>791</a>    layout: RotationLayout,
-<a href=#792 id=792 data-nosnippet>792</a>    offset: IVec2,
-<a href=#793 id=793 data-nosnippet>793</a>    basis: Basis,
-<a href=#794 id=794 data-nosnippet>794</a>    keep_local_measure: <span class="kw">impl </span>Fn(IVec2) -&gt; bool,
-<a href=#795 id=795 data-nosnippet>795</a>) -&gt; Vec&lt;IVec2&gt; {
-<a href=#796 id=796 data-nosnippet>796</a>    patch
-<a href=#797 id=797 data-nosnippet>797</a>        .tiles()
-<a href=#798 id=798 data-nosnippet>798</a>        .iter()
-<a href=#799 id=799 data-nosnippet>799</a>        .filter(|tile| tile.basis() == basis)
-<a href=#800 id=800 data-nosnippet>800</a>        .filter(|tile| {
-<a href=#801 id=801 data-nosnippet>801</a>            <span class="kw">let </span>m = global_to_local(layout, offset, tile.measure_qubit());
-<a href=#802 id=802 data-nosnippet>802</a>            <span class="macro">debug_assert_eq!</span>(m.x % <span class="number">2</span>, <span class="number">0</span>);
-<a href=#803 id=803 data-nosnippet>803</a>            <span class="macro">debug_assert_eq!</span>(m.y % <span class="number">2</span>, <span class="number">0</span>);
-<a href=#804 id=804 data-nosnippet>804</a>            keep_local_measure(m / <span class="number">2</span>)
-<a href=#805 id=805 data-nosnippet>805</a>        })
-<a href=#806 id=806 data-nosnippet>806</a>        .map(Tile::measure_qubit)
-<a href=#807 id=807 data-nosnippet>807</a>        .collect()
-<a href=#808 id=808 data-nosnippet>808</a>}
-<a href=#809 id=809 data-nosnippet>809</a>
-<a href=#810 id=810 data-nosnippet>810</a><span class="kw">fn </span>global_to_local(layout: RotationLayout, offset: IVec2, p: IVec2) -&gt; IVec2 {
-<a href=#811 id=811 data-nosnippet>811</a>    <span class="kw">let </span>q = p - offset;
-<a href=#812 id=812 data-nosnippet>812</a>    <span class="kw">match </span>layout.movement.to_array() {
-<a href=#813 id=813 data-nosnippet>813</a>        [<span class="number">0</span>, <span class="number">1</span>] =&gt; q,
-<a href=#814 id=814 data-nosnippet>814</a>        [<span class="number">0</span>, -<span class="number">1</span>] =&gt; -q,
-<a href=#815 id=815 data-nosnippet>815</a>        [<span class="number">1</span>, <span class="number">0</span>] =&gt; IVec2::new(q.y, q.x),
-<a href=#816 id=816 data-nosnippet>816</a>        [-<span class="number">1</span>, <span class="number">0</span>] =&gt; IVec2::new(q.y, -q.x),
-<a href=#817 id=817 data-nosnippet>817</a>        <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(<span class="string">"PatchRotationKind rejects non-cardinal movement"</span>),
-<a href=#818 id=818 data-nosnippet>818</a>    }
-<a href=#819 id=819 data-nosnippet>819</a>}
-<a href=#820 id=820 data-nosnippet>820</a>
-<a href=#821 id=821 data-nosnippet>821</a><span class="kw">fn </span>make_patch_rotation_round_with_flow_boundaries(
-<a href=#822 id=822 data-nosnippet>822</a>    patch: <span class="kw-2">&amp;</span>Patch,
-<a href=#823 id=823 data-nosnippet>823</a>    previous_patch: <span class="kw-2">&amp;</span>Patch,
-<a href=#824 id=824 data-nosnippet>824</a>    next_patch: <span class="kw-2">&amp;</span>Patch,
-<a href=#825 id=825 data-nosnippet>825</a>    init_data: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>FxMap&lt;IVec2, Basis&gt;&gt;,
-<a href=#826 id=826 data-nosnippet>826</a>    meas_data: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>FxMap&lt;IVec2, Basis&gt;&gt;,
-<a href=#827 id=827 data-nosnippet>827</a>    flow_boundaries: FlowBoundaryData&lt;<span class="lifetime">'_</span>&gt;,
-<a href=#828 id=828 data-nosnippet>828</a>) -&gt; <span class="prelude-ty">Result</span>&lt;Chunk, CompileError&gt; {
-<a href=#829 id=829 data-nosnippet>829</a>    <span class="kw">let </span>round = emit_syndrome_round(
-<a href=#830 id=830 data-nosnippet>830</a>        patch,
-<a href=#831 id=831 data-nosnippet>831</a>        <span class="kw-2">&amp;</span>sorted_batches(init_data, [Basis::Z, Basis::X]),
-<a href=#832 id=832 data-nosnippet>832</a>        <span class="kw-2">&amp;</span>sorted_batches(meas_data, [Basis::Z, Basis::X]),
-<a href=#833 id=833 data-nosnippet>833</a>    )<span class="question-mark">?</span>;
-<a href=#834 id=834 data-nosnippet>834</a>    <span class="comment">// Precompute the neighbouring patches' boundary keys once so each tile
-<a href=#835 id=835 data-nosnippet>835</a>    // below does a hash lookup instead of rescanning every neighbour tile.
-<a href=#836 id=836 data-nosnippet>836</a>    </span><span class="kw">let </span>previous_outputs =
-<a href=#837 id=837 data-nosnippet>837</a>        PatchBoundarySets::collapsed_boundaries(previous_patch, flow_boundaries.previous_meas_data);
-<a href=#838 id=838 data-nosnippet>838</a>    <span class="kw">let </span>next_inputs =
-<a href=#839 id=839 data-nosnippet>839</a>        PatchBoundarySets::collapsed_boundaries(next_patch, flow_boundaries.next_init_data);
-<a href=#840 id=840 data-nosnippet>840</a>    <span class="kw">let </span>flow_context = ExactRoundFlowContext {
-<a href=#841 id=841 data-nosnippet>841</a>        previous_outputs,
-<a href=#842 id=842 data-nosnippet>842</a>        next_inputs,
-<a href=#843 id=843 data-nosnippet>843</a>        init_data,
-<a href=#844 id=844 data-nosnippet>844</a>        meas_data,
-<a href=#845 id=845 data-nosnippet>845</a>        measurement_ids: <span class="kw-2">&amp;</span>round.measurements,
-<a href=#846 id=846 data-nosnippet>846</a>    };
-<a href=#847 id=847 data-nosnippet>847</a>    <span class="kw">let </span><span class="kw-2">mut </span>flows = Vec::new();
-<a href=#848 id=848 data-nosnippet>848</a>    <span class="kw">for </span>tile <span class="kw">in </span>patch.tiles() {
-<a href=#849 id=849 data-nosnippet>849</a>        flows.extend(tile_flows_with_exact_boundaries(tile, <span class="kw-2">&amp;</span>flow_context)<span class="question-mark">?</span>);
-<a href=#850 id=850 data-nosnippet>850</a>    }
-<a href=#851 id=851 data-nosnippet>851</a>
-<a href=#852 id=852 data-nosnippet>852</a>    <span class="prelude-val">Ok</span>(Chunk {
-<a href=#853 id=853 data-nosnippet>853</a>        circuit: round.circuit,
-<a href=#854 id=854 data-nosnippet>854</a>        flows,
-<a href=#855 id=855 data-nosnippet>855</a>    })
-<a href=#856 id=856 data-nosnippet>856</a>}
-<a href=#857 id=857 data-nosnippet>857</a>
-<a href=#858 id=858 data-nosnippet>858</a><span class="attr">#[derive(Debug, Clone, Copy, Default)]
-<a href=#859 id=859 data-nosnippet>859</a></span><span class="kw">struct </span>FlowBoundaryData&lt;<span class="lifetime">'a</span>&gt; {
-<a href=#860 id=860 data-nosnippet>860</a>    previous_meas_data: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>FxMap&lt;IVec2, Basis&gt;&gt;,
-<a href=#861 id=861 data-nosnippet>861</a>    next_init_data: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>FxMap&lt;IVec2, Basis&gt;&gt;,
-<a href=#862 id=862 data-nosnippet>862</a>}
-<a href=#863 id=863 data-nosnippet>863</a>
-<a href=#864 id=864 data-nosnippet>864</a><span class="kw">struct </span>ExactRoundFlowContext&lt;<span class="lifetime">'a</span>&gt; {
-<a href=#865 id=865 data-nosnippet>865</a>    previous_outputs: PatchBoundarySets,
-<a href=#866 id=866 data-nosnippet>866</a>    next_inputs: PatchBoundarySets,
-<a href=#867 id=867 data-nosnippet>867</a>    init_data: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>FxMap&lt;IVec2, Basis&gt;&gt;,
-<a href=#868 id=868 data-nosnippet>868</a>    meas_data: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>FxMap&lt;IVec2, Basis&gt;&gt;,
-<a href=#869 id=869 data-nosnippet>869</a>    measurement_ids: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>MeasurementIndex,
-<a href=#870 id=870 data-nosnippet>870</a>}
-<a href=#871 id=871 data-nosnippet>871</a>
-<a href=#872 id=872 data-nosnippet>872</a><span class="doccomment">/// Per-basis boundary keys exposed by a neighbouring patch.
-<a href=#873 id=873 data-nosnippet>873</a></span><span class="attr">#[derive(Debug, Default)]
-<a href=#874 id=874 data-nosnippet>874</a></span><span class="kw">struct </span>PatchBoundarySets {
-<a href=#875 id=875 data-nosnippet>875</a>    z: FxSet&lt;PauliMap&gt;,
-<a href=#876 id=876 data-nosnippet>876</a>    x: FxSet&lt;PauliMap&gt;,
-<a href=#877 id=877 data-nosnippet>877</a>}
-<a href=#878 id=878 data-nosnippet>878</a>
-<a href=#879 id=879 data-nosnippet>879</a><span class="kw">impl </span>PatchBoundarySets {
-<a href=#880 id=880 data-nosnippet>880</a>    <span class="doccomment">/// Boundary keys the patch's tiles carry once `collapsed_data` is
-<a href=#881 id=881 data-nosnippet>881</a>    /// measured/initialized away: the outputs a previous round still presents,
-<a href=#882 id=882 data-nosnippet>882</a>    /// or equivalently the inputs a next round expects — the continuing
-<a href=#883 id=883 data-nosnippet>883</a>    /// supports of the shared collapse rule either way.
-<a href=#884 id=884 data-nosnippet>884</a>    </span><span class="kw">fn </span>collapsed_boundaries(patch: <span class="kw-2">&amp;</span>Patch, collapsed_data: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>FxMap&lt;IVec2, Basis&gt;&gt;) -&gt; <span class="self">Self </span>{
-<a href=#885 id=885 data-nosnippet>885</a>        <span class="kw">let </span><span class="kw-2">mut </span>sets = <span class="self">Self</span>::default();
-<a href=#886 id=886 data-nosnippet>886</a>        <span class="kw">for </span>tile <span class="kw">in </span>patch.tiles() {
-<a href=#887 id=887 data-nosnippet>887</a>            <span class="kw">let </span>basis = tile.basis();
-<a href=#888 id=888 data-nosnippet>888</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>((key, <span class="kw">_</span>)) = collapse_matching_data_boundary(
-<a href=#889 id=889 data-nosnippet>889</a>                <span class="kw-2">&amp;</span>tile.active_data_qubits(),
-<a href=#890 id=890 data-nosnippet>890</a>                basis,
-<a href=#891 id=891 data-nosnippet>891</a>                Pauli::from(basis),
-<a href=#892 id=892 data-nosnippet>892</a>                collapsed_data,
-<a href=#893 id=893 data-nosnippet>893</a>            ) {
-<a href=#894 id=894 data-nosnippet>894</a>                sets.for_basis_mut(basis).insert(key);
-<a href=#895 id=895 data-nosnippet>895</a>            }
-<a href=#896 id=896 data-nosnippet>896</a>        }
-<a href=#897 id=897 data-nosnippet>897</a>        sets
-<a href=#898 id=898 data-nosnippet>898</a>    }
-<a href=#899 id=899 data-nosnippet>899</a>
-<a href=#900 id=900 data-nosnippet>900</a>    <span class="kw">fn </span>contains(<span class="kw-2">&amp;</span><span class="self">self</span>, basis: Basis, key: <span class="kw-2">&amp;</span>PauliMap) -&gt; bool {
-<a href=#901 id=901 data-nosnippet>901</a>        <span class="kw">match </span>basis {
-<a href=#902 id=902 data-nosnippet>902</a>            Basis::Z =&gt; <span class="self">self</span>.z.contains(key),
-<a href=#903 id=903 data-nosnippet>903</a>            Basis::X =&gt; <span class="self">self</span>.x.contains(key),
-<a href=#904 id=904 data-nosnippet>904</a>        }
-<a href=#905 id=905 data-nosnippet>905</a>    }
-<a href=#906 id=906 data-nosnippet>906</a>
-<a href=#907 id=907 data-nosnippet>907</a>    <span class="kw">fn </span>for_basis_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>, basis: Basis) -&gt; <span class="kw-2">&amp;mut </span>FxSet&lt;PauliMap&gt; {
-<a href=#908 id=908 data-nosnippet>908</a>        <span class="kw">match </span>basis {
-<a href=#909 id=909 data-nosnippet>909</a>            Basis::Z =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.z,
-<a href=#910 id=910 data-nosnippet>910</a>            Basis::X =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.x,
-<a href=#911 id=911 data-nosnippet>911</a>        }
-<a href=#912 id=912 data-nosnippet>912</a>    }
-<a href=#913 id=913 data-nosnippet>913</a>}
-<a href=#914 id=914 data-nosnippet>914</a>
-<a href=#915 id=915 data-nosnippet>915</a><span class="kw">fn </span>tile_flows_with_exact_boundaries(
-<a href=#916 id=916 data-nosnippet>916</a>    tile: <span class="kw-2">&amp;</span>Tile,
-<a href=#917 id=917 data-nosnippet>917</a>    context: <span class="kw-2">&amp;</span>ExactRoundFlowContext&lt;<span class="lifetime">'_</span>&gt;,
-<a href=#918 id=918 data-nosnippet>918</a>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Flow&gt;, CompileError&gt; {
-<a href=#919 id=919 data-nosnippet>919</a>    <span class="kw">let </span><span class="kw-2">mut </span>flows = Vec::with_capacity(<span class="number">2</span>);
-<a href=#920 id=920 data-nosnippet>920</a>    <span class="kw">let </span>active_data = tile.active_data_qubits();
-<a href=#921 id=921 data-nosnippet>921</a>    <span class="kw">let </span>basis = tile.basis();
-<a href=#922 id=922 data-nosnippet>922</a>    <span class="kw">let </span>pauli = Pauli::from(basis);
-<a href=#923 id=923 data-nosnippet>923</a>    <span class="kw">let </span>own_measurement = measurement_id(context.measurement_ids, tile.measure_qubit())<span class="question-mark">?</span>;
-<a href=#924 id=924 data-nosnippet>924</a>
-<a href=#925 id=925 data-nosnippet>925</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>((start, <span class="kw">_</span>)) =
-<a href=#926 id=926 data-nosnippet>926</a>        collapse_matching_data_boundary(<span class="kw-2">&amp;</span>active_data, basis, pauli, context.init_data)
-<a href=#927 id=927 data-nosnippet>927</a>    {
-<a href=#928 id=928 data-nosnippet>928</a>        <span class="kw">let </span>compared_to_previous = context.previous_outputs.contains(basis, <span class="kw-2">&amp;</span>start);
-<a href=#929 id=929 data-nosnippet>929</a>        <span class="kw">let </span>initialized = start.is_empty();
-<a href=#930 id=930 data-nosnippet>930</a>        <span class="kw">if </span>initialized || compared_to_previous {
-<a href=#931 id=931 data-nosnippet>931</a>            flows.push(
-<a href=#932 id=932 data-nosnippet>932</a>                Flow::new(start, PauliMap::empty())
-<a href=#933 id=933 data-nosnippet>933</a>                    .with_measurements([own_measurement])
-<a href=#934 id=934 data-nosnippet>934</a>                    .with_center(tile.measure_qubit()),
-<a href=#935 id=935 data-nosnippet>935</a>            );
-<a href=#936 id=936 data-nosnippet>936</a>        }
-<a href=#937 id=937 data-nosnippet>937</a>    }
-<a href=#938 id=938 data-nosnippet>938</a>
-<a href=#939 id=939 data-nosnippet>939</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>((end, <span class="kw-2">mut </span>measured_data)) =
-<a href=#940 id=940 data-nosnippet>940</a>        collapse_matching_data_boundary(<span class="kw-2">&amp;</span>active_data, basis, pauli, context.meas_data)
-<a href=#941 id=941 data-nosnippet>941</a>    {
-<a href=#942 id=942 data-nosnippet>942</a>        <span class="kw">let </span>continues_to_next = context.next_inputs.contains(basis, <span class="kw-2">&amp;</span>end);
-<a href=#943 id=943 data-nosnippet>943</a>        <span class="kw">let </span>finalized = end.is_empty();
-<a href=#944 id=944 data-nosnippet>944</a>        <span class="kw">if </span>finalized || continues_to_next {
-<a href=#945 id=945 data-nosnippet>945</a>            measured_data.sort_unstable_by_key(|q| (q.y, q.x));
-<a href=#946 id=946 data-nosnippet>946</a>            <span class="kw">let </span><span class="kw-2">mut </span>measurements = FlowMeasurements::with_capacity(measured_data.len() + <span class="number">1</span>);
-<a href=#947 id=947 data-nosnippet>947</a>            <span class="kw">for </span>q <span class="kw">in </span>measured_data {
-<a href=#948 id=948 data-nosnippet>948</a>                measurements.push(measurement_id(context.measurement_ids, q)<span class="question-mark">?</span>);
-<a href=#949 id=949 data-nosnippet>949</a>            }
-<a href=#950 id=950 data-nosnippet>950</a>            measurements.push(own_measurement);
-<a href=#951 id=951 data-nosnippet>951</a>            flows.push(
-<a href=#952 id=952 data-nosnippet>952</a>                Flow {
-<a href=#953 id=953 data-nosnippet>953</a>                    measurements,
-<a href=#954 id=954 data-nosnippet>954</a>                    ..Flow::new(PauliMap::empty(), end)
-<a href=#955 id=955 data-nosnippet>955</a>                }
-<a href=#956 id=956 data-nosnippet>956</a>                .with_center(tile.measure_qubit()),
-<a href=#957 id=957 data-nosnippet>957</a>            );
-<a href=#958 id=958 data-nosnippet>958</a>        }
-<a href=#959 id=959 data-nosnippet>959</a>    }
-<a href=#960 id=960 data-nosnippet>960</a>
-<a href=#961 id=961 data-nosnippet>961</a>    <span class="prelude-val">Ok</span>(flows)
-<a href=#962 id=962 data-nosnippet>962</a>}
-<a href=#963 id=963 data-nosnippet>963</a>
-<a href=#964 id=964 data-nosnippet>964</a><span class="kw">fn </span>measurement_id(measurement_ids: <span class="kw-2">&amp;</span>MeasurementIndex, q: IVec2) -&gt; <span class="prelude-ty">Result</span>&lt;u32, CompileError&gt; {
-<a href=#965 id=965 data-nosnippet>965</a>    measurement_ids
-<a href=#966 id=966 data-nosnippet>966</a>        .get(q)
-<a href=#967 id=967 data-nosnippet>967</a>        .ok_or_else(|| CompileError::PatchRotationConstructionFailed {
-<a href=#968 id=968 data-nosnippet>968</a>            reason: <span class="macro">format!</span>(<span class="string">"flow references unmeasured qubit {q:?}"</span>),
-<a href=#969 id=969 data-nosnippet>969</a>        })
-<a href=#970 id=970 data-nosnippet>970</a>}
-<a href=#971 id=971 data-nosnippet>971</a>
-<a href=#972 id=972 data-nosnippet>972</a><span class="attr">#[cfg(test)]
-<a href=#973 id=973 data-nosnippet>973</a></span><span class="kw">mod </span>tests {
-<a href=#974 id=974 data-nosnippet>974</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#975 id=975 data-nosnippet>975</a>
-<a href=#976 id=976 data-nosnippet>976</a>    <span class="attr">#[test]
-<a href=#977 id=977 data-nosnippet>977</a>    </span><span class="kw">fn </span>patch_rotation_endpoint_schedules_are_compact() {
-<a href=#978 id=978 data-nosnippet>978</a>        <span class="kw">let </span>kind = PatchRotationKind::new(Basis::Z, IVec2::X).expect(<span class="string">"cardinal movement"</span>);
-<a href=#979 id=979 data-nosnippet>979</a>        <span class="kw">let </span>[input, <span class="kw">_</span>, <span class="kw">_</span>, output] = paper_rotation_patches(kind, <span class="number">3</span>);
-<a href=#980 id=980 data-nosnippet>980</a>        <span class="macro">assert!</span>(
-<a href=#981 id=981 data-nosnippet>981</a>            [input, output]
-<a href=#982 id=982 data-nosnippet>982</a>                .iter()
-<a href=#983 id=983 data-nosnippet>983</a>                .flat_map(Patch::tiles)
-<a href=#984 id=984 data-nosnippet>984</a>                .all(|tile| tile.data_slots().len() == <span class="number">4</span>)
-<a href=#985 id=985 data-nosnippet>985</a>        );
-<a href=#986 id=986 data-nosnippet>986</a>    }
-<a href=#987 id=987 data-nosnippet>987</a>
-<a href=#988 id=988 data-nosnippet>988</a>    <span class="attr">#[test]
-<a href=#989 id=989 data-nosnippet>989</a>    </span><span class="kw">fn </span>patch_rotation_d3_circuit_snapshot() {
-<a href=#990 id=990 data-nosnippet>990</a>        <span class="comment">// Pins the six-stage rotation circuit byte-for-byte so round-emitter
-<a href=#991 id=991 data-nosnippet>991</a>        // refactors stay behavior-identical.
-<a href=#992 id=992 data-nosnippet>992</a>        </span><span class="kw">let </span>kind = PatchRotationKind::new(Basis::X, IVec2::new(<span class="number">1</span>, <span class="number">0</span>)).expect(<span class="string">"cardinal movement"</span>);
-<a href=#993 id=993 data-nosnippet>993</a>        <span class="kw">let </span>template =
-<a href=#994 id=994 data-nosnippet>994</a>            compile_patch_rotation(kind, Connectivity::ISOLATED, <span class="number">3</span>).expect(<span class="string">"rotation compiles"</span>);
-<a href=#995 id=995 data-nosnippet>995</a>        <span class="macro">insta::assert_snapshot!</span>(
-<a href=#996 id=996 data-nosnippet>996</a>            <span class="string">"patch_rotation_d3_circuit"</span>,
-<a href=#997 id=997 data-nosnippet>997</a>            template.program_template.circuit.to_string()
-<a href=#998 id=998 data-nosnippet>998</a>        );
-<a href=#999 id=999 data-nosnippet>999</a>    }
-<a href=#1000 id=1000 data-nosnippet>1000</a>}
+<a href=#730 id=730 data-nosnippet>730</a>            <span class="kw">let </span>slots = tile_cx_schedule(basis, x_basis.flip())
+<a href=#731 id=731 data-nosnippet>731</a>                .compact()
+<a href=#732 id=732 data-nosnippet>732</a>                .into_iter()
+<a href=#733 id=733 data-nosnippet>733</a>                .map(|corner| {
+<a href=#734 id=734 data-nosnippet>734</a>                    <span class="kw">let </span>dq = m + corner.to_ivec2();
+<a href=#735 id=735 data-nosnippet>735</a>                    data.contains(<span class="kw-2">&amp;</span>dq)
+<a href=#736 id=736 data-nosnippet>736</a>                        .then_some(layout.local_to_global(dq, offset))
+<a href=#737 id=737 data-nosnippet>737</a>                });
+<a href=#738 id=738 data-nosnippet>738</a>            Tile::new(basis, global_m, slots)
+<a href=#739 id=739 data-nosnippet>739</a>        },
+<a href=#740 id=740 data-nosnippet>740</a>    )
+<a href=#741 id=741 data-nosnippet>741</a>}
+<a href=#742 id=742 data-nosnippet>742</a>
+<a href=#743 id=743 data-nosnippet>743</a><span class="kw">fn </span>data_qubit(x: i32, y: i32) -&gt; IVec2 {
+<a href=#744 id=744 data-nosnippet>744</a>    IVec2::new(<span class="number">2 </span>* x + <span class="number">1</span>, <span class="number">2 </span>* y + <span class="number">1</span>)
+<a href=#745 id=745 data-nosnippet>745</a>}
+<a href=#746 id=746 data-nosnippet>746</a>
+<a href=#747 id=747 data-nosnippet>747</a><span class="kw">fn </span>local_data_region(
+<a href=#748 id=748 data-nosnippet>748</a>    layout: RotationLayout,
+<a href=#749 id=749 data-nosnippet>749</a>    offset: IVec2,
+<a href=#750 id=750 data-nosnippet>750</a>    xs: <span class="kw">impl </span>Iterator&lt;Item = i32&gt; + Clone,
+<a href=#751 id=751 data-nosnippet>751</a>    ys: <span class="kw">impl </span>Iterator&lt;Item = i32&gt;,
+<a href=#752 id=752 data-nosnippet>752</a>) -&gt; FxSet&lt;IVec2&gt; {
+<a href=#753 id=753 data-nosnippet>753</a>    ys.flat_map(|y| {
+<a href=#754 id=754 data-nosnippet>754</a>        xs.clone()
+<a href=#755 id=755 data-nosnippet>755</a>            .map(<span class="kw">move </span>|x| layout.local_to_global(data_qubit(x, y), offset))
+<a href=#756 id=756 data-nosnippet>756</a>    })
+<a href=#757 id=757 data-nosnippet>757</a>    .collect()
+<a href=#758 id=758 data-nosnippet>758</a>}
+<a href=#759 id=759 data-nosnippet>759</a>
+<a href=#760 id=760 data-nosnippet>760</a><span class="kw">fn </span>selected_tile_measure_qubits_by_local_measure_coord(
+<a href=#761 id=761 data-nosnippet>761</a>    patch: <span class="kw-2">&amp;</span>Patch,
+<a href=#762 id=762 data-nosnippet>762</a>    layout: RotationLayout,
+<a href=#763 id=763 data-nosnippet>763</a>    offset: IVec2,
+<a href=#764 id=764 data-nosnippet>764</a>    basis: Basis,
+<a href=#765 id=765 data-nosnippet>765</a>    keep_local_measure: <span class="kw">impl </span>Fn(IVec2) -&gt; bool,
+<a href=#766 id=766 data-nosnippet>766</a>) -&gt; Vec&lt;IVec2&gt; {
+<a href=#767 id=767 data-nosnippet>767</a>    patch
+<a href=#768 id=768 data-nosnippet>768</a>        .tiles()
+<a href=#769 id=769 data-nosnippet>769</a>        .iter()
+<a href=#770 id=770 data-nosnippet>770</a>        .filter(|tile| tile.basis() == basis)
+<a href=#771 id=771 data-nosnippet>771</a>        .filter(|tile| {
+<a href=#772 id=772 data-nosnippet>772</a>            <span class="kw">let </span>m = global_to_local(layout, offset, tile.measure_qubit());
+<a href=#773 id=773 data-nosnippet>773</a>            <span class="macro">debug_assert_eq!</span>(m.x % <span class="number">2</span>, <span class="number">0</span>);
+<a href=#774 id=774 data-nosnippet>774</a>            <span class="macro">debug_assert_eq!</span>(m.y % <span class="number">2</span>, <span class="number">0</span>);
+<a href=#775 id=775 data-nosnippet>775</a>            keep_local_measure(m / <span class="number">2</span>)
+<a href=#776 id=776 data-nosnippet>776</a>        })
+<a href=#777 id=777 data-nosnippet>777</a>        .map(Tile::measure_qubit)
+<a href=#778 id=778 data-nosnippet>778</a>        .collect()
+<a href=#779 id=779 data-nosnippet>779</a>}
+<a href=#780 id=780 data-nosnippet>780</a>
+<a href=#781 id=781 data-nosnippet>781</a><span class="kw">fn </span>global_to_local(layout: RotationLayout, offset: IVec2, p: IVec2) -&gt; IVec2 {
+<a href=#782 id=782 data-nosnippet>782</a>    <span class="kw">let </span>q = p - offset;
+<a href=#783 id=783 data-nosnippet>783</a>    <span class="kw">match </span>layout.movement.to_array() {
+<a href=#784 id=784 data-nosnippet>784</a>        [<span class="number">0</span>, <span class="number">1</span>] =&gt; q,
+<a href=#785 id=785 data-nosnippet>785</a>        [<span class="number">0</span>, -<span class="number">1</span>] =&gt; -q,
+<a href=#786 id=786 data-nosnippet>786</a>        [<span class="number">1</span>, <span class="number">0</span>] =&gt; IVec2::new(q.y, q.x),
+<a href=#787 id=787 data-nosnippet>787</a>        [-<span class="number">1</span>, <span class="number">0</span>] =&gt; IVec2::new(q.y, -q.x),
+<a href=#788 id=788 data-nosnippet>788</a>        <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(<span class="string">"PatchRotationKind rejects non-cardinal movement"</span>),
+<a href=#789 id=789 data-nosnippet>789</a>    }
+<a href=#790 id=790 data-nosnippet>790</a>}
+<a href=#791 id=791 data-nosnippet>791</a>
+<a href=#792 id=792 data-nosnippet>792</a><span class="kw">fn </span>make_patch_rotation_round_with_flow_boundaries(
+<a href=#793 id=793 data-nosnippet>793</a>    patch: <span class="kw-2">&amp;</span>Patch,
+<a href=#794 id=794 data-nosnippet>794</a>    previous_patch: <span class="kw-2">&amp;</span>Patch,
+<a href=#795 id=795 data-nosnippet>795</a>    next_patch: <span class="kw-2">&amp;</span>Patch,
+<a href=#796 id=796 data-nosnippet>796</a>    init_data: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>FxMap&lt;IVec2, Basis&gt;&gt;,
+<a href=#797 id=797 data-nosnippet>797</a>    meas_data: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>FxMap&lt;IVec2, Basis&gt;&gt;,
+<a href=#798 id=798 data-nosnippet>798</a>    flow_boundaries: FlowBoundaryData&lt;<span class="lifetime">'_</span>&gt;,
+<a href=#799 id=799 data-nosnippet>799</a>) -&gt; <span class="prelude-ty">Result</span>&lt;Chunk, CompileError&gt; {
+<a href=#800 id=800 data-nosnippet>800</a>    <span class="kw">let </span>round = emit_syndrome_round(
+<a href=#801 id=801 data-nosnippet>801</a>        patch,
+<a href=#802 id=802 data-nosnippet>802</a>        <span class="kw-2">&amp;</span>sorted_batches(init_data, [Basis::Z, Basis::X]),
+<a href=#803 id=803 data-nosnippet>803</a>        <span class="kw-2">&amp;</span>sorted_batches(meas_data, [Basis::Z, Basis::X]),
+<a href=#804 id=804 data-nosnippet>804</a>    )<span class="question-mark">?</span>;
+<a href=#805 id=805 data-nosnippet>805</a>    <span class="comment">// Precompute the neighbouring patches' boundary keys once so each tile
+<a href=#806 id=806 data-nosnippet>806</a>    // below does a hash lookup instead of rescanning every neighbour tile.
+<a href=#807 id=807 data-nosnippet>807</a>    </span><span class="kw">let </span>previous_outputs =
+<a href=#808 id=808 data-nosnippet>808</a>        PatchBoundarySets::collapsed_boundaries(previous_patch, flow_boundaries.previous_meas_data);
+<a href=#809 id=809 data-nosnippet>809</a>    <span class="kw">let </span>next_inputs =
+<a href=#810 id=810 data-nosnippet>810</a>        PatchBoundarySets::collapsed_boundaries(next_patch, flow_boundaries.next_init_data);
+<a href=#811 id=811 data-nosnippet>811</a>    <span class="kw">let </span>flow_context = ExactRoundFlowContext {
+<a href=#812 id=812 data-nosnippet>812</a>        previous_outputs,
+<a href=#813 id=813 data-nosnippet>813</a>        next_inputs,
+<a href=#814 id=814 data-nosnippet>814</a>        init_data,
+<a href=#815 id=815 data-nosnippet>815</a>        meas_data,
+<a href=#816 id=816 data-nosnippet>816</a>        measurement_ids: <span class="kw-2">&amp;</span>round.measurements,
+<a href=#817 id=817 data-nosnippet>817</a>    };
+<a href=#818 id=818 data-nosnippet>818</a>    <span class="kw">let </span><span class="kw-2">mut </span>flows = Vec::new();
+<a href=#819 id=819 data-nosnippet>819</a>    <span class="kw">for </span>tile <span class="kw">in </span>patch.tiles() {
+<a href=#820 id=820 data-nosnippet>820</a>        flows.extend(tile_flows_with_exact_boundaries(tile, <span class="kw-2">&amp;</span>flow_context)<span class="question-mark">?</span>);
+<a href=#821 id=821 data-nosnippet>821</a>    }
+<a href=#822 id=822 data-nosnippet>822</a>
+<a href=#823 id=823 data-nosnippet>823</a>    <span class="prelude-val">Ok</span>(Chunk {
+<a href=#824 id=824 data-nosnippet>824</a>        circuit: round.circuit,
+<a href=#825 id=825 data-nosnippet>825</a>        flows,
+<a href=#826 id=826 data-nosnippet>826</a>    })
+<a href=#827 id=827 data-nosnippet>827</a>}
+<a href=#828 id=828 data-nosnippet>828</a>
+<a href=#829 id=829 data-nosnippet>829</a><span class="attr">#[derive(Debug, Clone, Copy, Default)]
+<a href=#830 id=830 data-nosnippet>830</a></span><span class="kw">struct </span>FlowBoundaryData&lt;<span class="lifetime">'a</span>&gt; {
+<a href=#831 id=831 data-nosnippet>831</a>    previous_meas_data: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>FxMap&lt;IVec2, Basis&gt;&gt;,
+<a href=#832 id=832 data-nosnippet>832</a>    next_init_data: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>FxMap&lt;IVec2, Basis&gt;&gt;,
+<a href=#833 id=833 data-nosnippet>833</a>}
+<a href=#834 id=834 data-nosnippet>834</a>
+<a href=#835 id=835 data-nosnippet>835</a><span class="kw">struct </span>ExactRoundFlowContext&lt;<span class="lifetime">'a</span>&gt; {
+<a href=#836 id=836 data-nosnippet>836</a>    previous_outputs: PatchBoundarySets,
+<a href=#837 id=837 data-nosnippet>837</a>    next_inputs: PatchBoundarySets,
+<a href=#838 id=838 data-nosnippet>838</a>    init_data: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>FxMap&lt;IVec2, Basis&gt;&gt;,
+<a href=#839 id=839 data-nosnippet>839</a>    meas_data: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>FxMap&lt;IVec2, Basis&gt;&gt;,
+<a href=#840 id=840 data-nosnippet>840</a>    measurement_ids: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>MeasurementIndex,
+<a href=#841 id=841 data-nosnippet>841</a>}
+<a href=#842 id=842 data-nosnippet>842</a>
+<a href=#843 id=843 data-nosnippet>843</a><span class="doccomment">/// Per-basis boundary keys exposed by a neighbouring patch.
+<a href=#844 id=844 data-nosnippet>844</a></span><span class="attr">#[derive(Debug, Default)]
+<a href=#845 id=845 data-nosnippet>845</a></span><span class="kw">struct </span>PatchBoundarySets {
+<a href=#846 id=846 data-nosnippet>846</a>    z: FxSet&lt;PauliMap&gt;,
+<a href=#847 id=847 data-nosnippet>847</a>    x: FxSet&lt;PauliMap&gt;,
+<a href=#848 id=848 data-nosnippet>848</a>}
+<a href=#849 id=849 data-nosnippet>849</a>
+<a href=#850 id=850 data-nosnippet>850</a><span class="kw">impl </span>PatchBoundarySets {
+<a href=#851 id=851 data-nosnippet>851</a>    <span class="doccomment">/// Boundary keys the patch's tiles carry once `collapsed_data` is
+<a href=#852 id=852 data-nosnippet>852</a>    /// measured/initialized away: the outputs a previous round still presents,
+<a href=#853 id=853 data-nosnippet>853</a>    /// or equivalently the inputs a next round expects — the continuing
+<a href=#854 id=854 data-nosnippet>854</a>    /// supports of the shared collapse rule either way.
+<a href=#855 id=855 data-nosnippet>855</a>    </span><span class="kw">fn </span>collapsed_boundaries(patch: <span class="kw-2">&amp;</span>Patch, collapsed_data: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>FxMap&lt;IVec2, Basis&gt;&gt;) -&gt; <span class="self">Self </span>{
+<a href=#856 id=856 data-nosnippet>856</a>        <span class="kw">let </span><span class="kw-2">mut </span>sets = <span class="self">Self</span>::default();
+<a href=#857 id=857 data-nosnippet>857</a>        <span class="kw">for </span>tile <span class="kw">in </span>patch.tiles() {
+<a href=#858 id=858 data-nosnippet>858</a>            <span class="kw">let </span>basis = tile.basis();
+<a href=#859 id=859 data-nosnippet>859</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>((key, <span class="kw">_</span>)) = collapse_matching_data_boundary(
+<a href=#860 id=860 data-nosnippet>860</a>                <span class="kw-2">&amp;</span>tile.active_data_qubits(),
+<a href=#861 id=861 data-nosnippet>861</a>                basis,
+<a href=#862 id=862 data-nosnippet>862</a>                Pauli::from(basis),
+<a href=#863 id=863 data-nosnippet>863</a>                collapsed_data,
+<a href=#864 id=864 data-nosnippet>864</a>            ) {
+<a href=#865 id=865 data-nosnippet>865</a>                sets.for_basis_mut(basis).insert(key);
+<a href=#866 id=866 data-nosnippet>866</a>            }
+<a href=#867 id=867 data-nosnippet>867</a>        }
+<a href=#868 id=868 data-nosnippet>868</a>        sets
+<a href=#869 id=869 data-nosnippet>869</a>    }
+<a href=#870 id=870 data-nosnippet>870</a>
+<a href=#871 id=871 data-nosnippet>871</a>    <span class="kw">fn </span>contains(<span class="kw-2">&amp;</span><span class="self">self</span>, basis: Basis, key: <span class="kw-2">&amp;</span>PauliMap) -&gt; bool {
+<a href=#872 id=872 data-nosnippet>872</a>        <span class="kw">match </span>basis {
+<a href=#873 id=873 data-nosnippet>873</a>            Basis::Z =&gt; <span class="self">self</span>.z.contains(key),
+<a href=#874 id=874 data-nosnippet>874</a>            Basis::X =&gt; <span class="self">self</span>.x.contains(key),
+<a href=#875 id=875 data-nosnippet>875</a>        }
+<a href=#876 id=876 data-nosnippet>876</a>    }
+<a href=#877 id=877 data-nosnippet>877</a>
+<a href=#878 id=878 data-nosnippet>878</a>    <span class="kw">fn </span>for_basis_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>, basis: Basis) -&gt; <span class="kw-2">&amp;mut </span>FxSet&lt;PauliMap&gt; {
+<a href=#879 id=879 data-nosnippet>879</a>        <span class="kw">match </span>basis {
+<a href=#880 id=880 data-nosnippet>880</a>            Basis::Z =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.z,
+<a href=#881 id=881 data-nosnippet>881</a>            Basis::X =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.x,
+<a href=#882 id=882 data-nosnippet>882</a>        }
+<a href=#883 id=883 data-nosnippet>883</a>    }
+<a href=#884 id=884 data-nosnippet>884</a>}
+<a href=#885 id=885 data-nosnippet>885</a>
+<a href=#886 id=886 data-nosnippet>886</a><span class="kw">fn </span>tile_flows_with_exact_boundaries(
+<a href=#887 id=887 data-nosnippet>887</a>    tile: <span class="kw-2">&amp;</span>Tile,
+<a href=#888 id=888 data-nosnippet>888</a>    context: <span class="kw-2">&amp;</span>ExactRoundFlowContext&lt;<span class="lifetime">'_</span>&gt;,
+<a href=#889 id=889 data-nosnippet>889</a>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Flow&gt;, CompileError&gt; {
+<a href=#890 id=890 data-nosnippet>890</a>    <span class="kw">let </span><span class="kw-2">mut </span>flows = Vec::with_capacity(<span class="number">2</span>);
+<a href=#891 id=891 data-nosnippet>891</a>    <span class="kw">let </span>active_data = tile.active_data_qubits();
+<a href=#892 id=892 data-nosnippet>892</a>    <span class="kw">let </span>basis = tile.basis();
+<a href=#893 id=893 data-nosnippet>893</a>    <span class="kw">let </span>pauli = Pauli::from(basis);
+<a href=#894 id=894 data-nosnippet>894</a>    <span class="kw">let </span>own_measurement = measurement_id(context.measurement_ids, tile.measure_qubit())<span class="question-mark">?</span>;
+<a href=#895 id=895 data-nosnippet>895</a>
+<a href=#896 id=896 data-nosnippet>896</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>((start, <span class="kw">_</span>)) =
+<a href=#897 id=897 data-nosnippet>897</a>        collapse_matching_data_boundary(<span class="kw-2">&amp;</span>active_data, basis, pauli, context.init_data)
+<a href=#898 id=898 data-nosnippet>898</a>    {
+<a href=#899 id=899 data-nosnippet>899</a>        <span class="kw">let </span>compared_to_previous = context.previous_outputs.contains(basis, <span class="kw-2">&amp;</span>start);
+<a href=#900 id=900 data-nosnippet>900</a>        <span class="kw">let </span>initialized = start.is_empty();
+<a href=#901 id=901 data-nosnippet>901</a>        <span class="kw">if </span>initialized || compared_to_previous {
+<a href=#902 id=902 data-nosnippet>902</a>            flows.push(
+<a href=#903 id=903 data-nosnippet>903</a>                Flow::new(start, PauliMap::empty())
+<a href=#904 id=904 data-nosnippet>904</a>                    .with_measurements([own_measurement])
+<a href=#905 id=905 data-nosnippet>905</a>                    .with_center(tile.measure_qubit()),
+<a href=#906 id=906 data-nosnippet>906</a>            );
+<a href=#907 id=907 data-nosnippet>907</a>        }
+<a href=#908 id=908 data-nosnippet>908</a>    }
+<a href=#909 id=909 data-nosnippet>909</a>
+<a href=#910 id=910 data-nosnippet>910</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>((end, <span class="kw-2">mut </span>measured_data)) =
+<a href=#911 id=911 data-nosnippet>911</a>        collapse_matching_data_boundary(<span class="kw-2">&amp;</span>active_data, basis, pauli, context.meas_data)
+<a href=#912 id=912 data-nosnippet>912</a>    {
+<a href=#913 id=913 data-nosnippet>913</a>        <span class="kw">let </span>continues_to_next = context.next_inputs.contains(basis, <span class="kw-2">&amp;</span>end);
+<a href=#914 id=914 data-nosnippet>914</a>        <span class="kw">let </span>finalized = end.is_empty();
+<a href=#915 id=915 data-nosnippet>915</a>        <span class="kw">if </span>finalized || continues_to_next {
+<a href=#916 id=916 data-nosnippet>916</a>            measured_data.sort_unstable_by_key(|q| (q.y, q.x));
+<a href=#917 id=917 data-nosnippet>917</a>            <span class="kw">let </span><span class="kw-2">mut </span>measurements = FlowMeasurements::with_capacity(measured_data.len() + <span class="number">1</span>);
+<a href=#918 id=918 data-nosnippet>918</a>            <span class="kw">for </span>q <span class="kw">in </span>measured_data {
+<a href=#919 id=919 data-nosnippet>919</a>                measurements.push(measurement_id(context.measurement_ids, q)<span class="question-mark">?</span>);
+<a href=#920 id=920 data-nosnippet>920</a>            }
+<a href=#921 id=921 data-nosnippet>921</a>            measurements.push(own_measurement);
+<a href=#922 id=922 data-nosnippet>922</a>            flows.push(
+<a href=#923 id=923 data-nosnippet>923</a>                Flow {
+<a href=#924 id=924 data-nosnippet>924</a>                    measurements,
+<a href=#925 id=925 data-nosnippet>925</a>                    ..Flow::new(PauliMap::empty(), end)
+<a href=#926 id=926 data-nosnippet>926</a>                }
+<a href=#927 id=927 data-nosnippet>927</a>                .with_center(tile.measure_qubit()),
+<a href=#928 id=928 data-nosnippet>928</a>            );
+<a href=#929 id=929 data-nosnippet>929</a>        }
+<a href=#930 id=930 data-nosnippet>930</a>    }
+<a href=#931 id=931 data-nosnippet>931</a>
+<a href=#932 id=932 data-nosnippet>932</a>    <span class="prelude-val">Ok</span>(flows)
+<a href=#933 id=933 data-nosnippet>933</a>}
+<a href=#934 id=934 data-nosnippet>934</a>
+<a href=#935 id=935 data-nosnippet>935</a><span class="kw">fn </span>measurement_id(measurement_ids: <span class="kw-2">&amp;</span>MeasurementIndex, q: IVec2) -&gt; <span class="prelude-ty">Result</span>&lt;u32, CompileError&gt; {
+<a href=#936 id=936 data-nosnippet>936</a>    measurement_ids
+<a href=#937 id=937 data-nosnippet>937</a>        .get(q)
+<a href=#938 id=938 data-nosnippet>938</a>        .ok_or_else(|| CompileError::PatchRotationConstructionFailed {
+<a href=#939 id=939 data-nosnippet>939</a>            reason: <span class="macro">format!</span>(<span class="string">"flow references unmeasured qubit {q:?}"</span>),
+<a href=#940 id=940 data-nosnippet>940</a>        })
+<a href=#941 id=941 data-nosnippet>941</a>}
+<a href=#942 id=942 data-nosnippet>942</a>
+<a href=#943 id=943 data-nosnippet>943</a><span class="attr">#[cfg(test)]
+<a href=#944 id=944 data-nosnippet>944</a></span><span class="kw">mod </span>tests {
+<a href=#945 id=945 data-nosnippet>945</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#946 id=946 data-nosnippet>946</a>
+<a href=#947 id=947 data-nosnippet>947</a>    <span class="attr">#[test]
+<a href=#948 id=948 data-nosnippet>948</a>    </span><span class="kw">fn </span>patch_rotation_endpoint_schedules_are_compact() {
+<a href=#949 id=949 data-nosnippet>949</a>        <span class="kw">let </span>kind = PatchRotationKind::new(Basis::Z, IVec2::X).expect(<span class="string">"cardinal movement"</span>);
+<a href=#950 id=950 data-nosnippet>950</a>        <span class="kw">let </span>[input, <span class="kw">_</span>, <span class="kw">_</span>, output] = paper_rotation_patches(kind, <span class="number">3</span>);
+<a href=#951 id=951 data-nosnippet>951</a>        <span class="macro">assert!</span>(
+<a href=#952 id=952 data-nosnippet>952</a>            [input, output]
+<a href=#953 id=953 data-nosnippet>953</a>                .iter()
+<a href=#954 id=954 data-nosnippet>954</a>                .flat_map(Patch::tiles)
+<a href=#955 id=955 data-nosnippet>955</a>                .all(|tile| tile.data_slots().len() == <span class="number">4</span>)
+<a href=#956 id=956 data-nosnippet>956</a>        );
+<a href=#957 id=957 data-nosnippet>957</a>    }
+<a href=#958 id=958 data-nosnippet>958</a>
+<a href=#959 id=959 data-nosnippet>959</a>    <span class="attr">#[test]
+<a href=#960 id=960 data-nosnippet>960</a>    </span><span class="kw">fn </span>patch_rotation_d3_circuit_snapshot() {
+<a href=#961 id=961 data-nosnippet>961</a>        <span class="comment">// Pins the six-stage rotation circuit byte-for-byte so round-emitter
+<a href=#962 id=962 data-nosnippet>962</a>        // refactors stay behavior-identical.
+<a href=#963 id=963 data-nosnippet>963</a>        </span><span class="kw">let </span>kind = PatchRotationKind::new(Basis::X, IVec2::new(<span class="number">1</span>, <span class="number">0</span>)).expect(<span class="string">"cardinal movement"</span>);
+<a href=#964 id=964 data-nosnippet>964</a>        <span class="kw">let </span>template =
+<a href=#965 id=965 data-nosnippet>965</a>            compile_patch_rotation(kind, Connectivity::ISOLATED, <span class="number">3</span>).expect(<span class="string">"rotation compiles"</span>);
+<a href=#966 id=966 data-nosnippet>966</a>        <span class="macro">insta::assert_snapshot!</span>(
+<a href=#967 id=967 data-nosnippet>967</a>            <span class="string">"patch_rotation_d3_circuit"</span>,
+<a href=#968 id=968 data-nosnippet>968</a>            template.program_template.circuit.to_string()
+<a href=#969 id=969 data-nosnippet>969</a>        );
+<a href=#970 id=970 data-nosnippet>970</a>    }
+<a href=#971 id=971 data-nosnippet>971</a>}
 </code></pre></div></section></main></body></html>

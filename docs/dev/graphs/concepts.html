@@ -2660,11 +2660,11 @@ determine which interface it exposes.</p>
 </thead>
 <tbody>
 <tr class="row-even"><td><p>Input</p></td>
-<td><p>Temporal <code class="docutils literal notranslate"><span class="pre">+Z</span></code>, or spatial with <code class="docutils literal notranslate"><span class="pre">role=input</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">role=input</span></code>, or temporal <code class="docutils literal notranslate"><span class="pre">+Z</span></code> with <code class="docutils literal notranslate"><span class="pre">role=auto</span></code></p></td>
 <td><p>Supply an incoming logical state</p></td>
 </tr>
 <tr class="row-odd"><td><p>Output</p></td>
-<td><p>Temporal <code class="docutils literal notranslate"><span class="pre">-Z</span></code>, or spatial with <code class="docutils literal notranslate"><span class="pre">role=output</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">role=output</span></code>, or temporal <code class="docutils literal notranslate"><span class="pre">-Z</span></code> with <code class="docutils literal notranslate"><span class="pre">role=auto</span></code></p></td>
 <td><p>Export the outgoing logical state</p></td>
 </tr>
 <tr class="row-even"><td><p>Spatial</p></td>
@@ -2677,9 +2677,11 @@ determine which interface it exposes.</p>
 </tr>
 </tbody>
 </table>
-<p>Temporal Ports infer their role with <code class="docutils literal notranslate"><span class="pre">role=auto</span></code>; explicit temporal roles must
-agree with the pipe direction. Suitable input and output Ports can be filled
-with preparation and measurement boundaries for a closed experiment.</p>
+<p>Temporal Ports infer their role with <code class="docutils literal notranslate"><span class="pre">role=auto</span></code>; explicit <code class="docutils literal notranslate"><span class="pre">role=input</span></code> and
+<code class="docutils literal notranslate"><span class="pre">role=output</span></code> apply independently of the pipe direction. Reversed temporal
+boundaries use ideal Bell adapters in simulation. Suitable input and output
+Ports can be filled with preparation and measurement boundaries for a closed
+experiment.</p>
 <p>A <strong>multiplex Port</strong> combines an input and its continuing output at one spatial
 boundary. It follows the <strong>Z-port</strong> calling convention: Z-split the incoming
 qubit, connect one branch to the computation by a Z merge, and keep the other
@@ -2832,7 +2834,7 @@ control to extend a block graph beyond its geometry.</p>
   
     Created using
     <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
-    9.1.0.
+    8.2.3.
      and
     <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
   

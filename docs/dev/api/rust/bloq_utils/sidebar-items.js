@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Basis","Direction","DirectionParseError","Pauli","PauliBasis","PauliError","PortRole","UDirection"],"mod":["boolean","graph_layout","qasm"],"struct":["PauliString","PhasedPauliString","RGBA"]};
+window.SIDEBAR_ITEMS = {"enum":["Basis","Direction","DirectionParseError","Pauli","PauliBasis","PauliError","PortRole","UDirection"],"mod":["boolean","graph_layout"],"struct":["PauliString","PhasedPauliString","RGBA"]};

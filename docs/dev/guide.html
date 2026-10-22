@@ -2509,7 +2509,7 @@ API; enabling one does not make compilation run extra verification automatically
 <td><p>Export source geometry as glTF or an HTML viewer through <code class="docutils literal notranslate"><span class="pre">bloq::graph</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">graph-verify</span></code></p></td>
-<td><p>Verify source logical maps and infer feedback using QuiZX, without native Stim bindings</p></td>
+<td><p>Verify source logical maps using QuiZX, without native Stim bindings</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">verify</span></code></p></td>
 <td><p>Verify physical Clifford flows through <code class="docutils literal notranslate"><span class="pre">bloq::stim</span></code>; adds the native Stim dependency</p></td>
@@ -2531,7 +2531,8 @@ specialized workflows. The <a class="reference internal" href="api/rust.html"><s
 and links to generated item documentation.</p>
 <h2 id="select-the-verification-layer">Select the verification layer<a class="headerlink" href="#select-the-verification-layer" title="Link to this heading">¶</a></h2>
 <p>Choose <code class="docutils literal notranslate"><span class="pre">graph-verify</span></code> when comparing an authored graph with an expected logical
-map before physical compilation. Choose <code class="docutils literal notranslate"><span class="pre">verify</span></code> when checking Clifford flows in
+map, given as a QuiZX graph to <code class="docutils literal notranslate"><span class="pre">LogicalVerifier</span></code> or <code class="docutils literal notranslate"><span class="pre">verify_logical</span></code>, before
+physical compilation. Choose <code class="docutils literal notranslate"><span class="pre">verify</span></code> when checking Clifford flows in
 physical circuits with native Stim. Choose <code class="docutils literal notranslate"><span class="pre">vm</span></code> when measurement-dependent
 execution, retries, or corrected non-Clifford output states are the question.
 These layers check different properties; none alone establishes noisy decoding
@@ -2599,7 +2600,7 @@ measurements and profiling with perf or samply.</p>
   
     Created using
     <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
-    9.1.0.
+    8.2.3.
      and
     <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
   

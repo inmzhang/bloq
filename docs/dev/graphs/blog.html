@@ -2807,9 +2807,11 @@ runs <span class="math notranslate nohighlight">\(\lceil kd\rceil+n\)</span> syn
 occupancy. Spatially connected cubes share a height; contradictory declarations
 fail. See <a class="reference internal" href="concepts.html"><span class="std std-doc">Blocks and Pipes</span></a> for connection rules.</p>
 <p>Port colors are six hexadecimal RGB digits without <code class="docutils literal notranslate"><span class="pre">#</span></code> and affect only the
-rendering. Temporal roles must agree with pipe geometry; spatial roles are
-explicit. Tags are nonempty and contain no whitespace, controls, <code class="docutils literal notranslate"><span class="pre">&lt;</span></code>, or <code class="docutils literal notranslate"><span class="pre">&gt;</span></code>;
-other Unicode characters are allowed. For example:</p>
+rendering. Temporal Ports infer their role from pipe geometry with <code class="docutils literal notranslate"><span class="pre">role=auto</span></code>;
+explicit input/output roles can reverse it. Spatial roles are explicit, and
+<code class="docutils literal notranslate"><span class="pre">role=multiplex</span></code> requires a spatial pipe. Tags are nonempty and contain no
+whitespace, controls, <code class="docutils literal notranslate"><span class="pre">&lt;</span></code>, or <code class="docutils literal notranslate"><span class="pre">&gt;</span></code>; other Unicode characters are allowed.
+For example:</p>
 <div class="highlight-blog notranslate"><div class="highlight"><pre><span></span><code><span class="m">0</span><span class="p">:</span> <span class="kt">Port</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="m">0</span><span class="p">]</span> <span class="na">role</span><span class="o">=</span><span class="nb">input</span> <span class="na">color</span><span class="o">=</span><span class="mh">7396ff</span> <span class="sx">&lt;control_in&gt;</span>
 <span class="m">1</span><span class="p">:</span> <span class="kt">ZXZ</span> <span class="p">[</span><span class="m">0</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="m">1</span><span class="p">]</span> <span class="na">height</span><span class="o">=</span><span class="m">2d</span>
 <span class="m">0</span> <span class="o">-&gt;</span> <span class="no">+Z</span> <span class="sx">&lt;input_wire&gt;</span>
@@ -2974,7 +2976,7 @@ how Bloq derives logical readouts and output corrections from these sources.</p>
   
     Created using
     <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
-    9.1.0.
+    8.2.3.
      and
     <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
   

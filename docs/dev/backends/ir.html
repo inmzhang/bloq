@@ -2974,6 +2974,11 @@ everything derived from it once:</p>
 </table>
 <p>An <strong>instance</strong> places a template at a qubit offset and records its source
 block. Instances share circuit data and own separate measurement records.</p>
+<p>Reversed temporal Ports carry <code class="docutils literal notranslate"><span class="pre">InstanceProvenance::IdealPortAdapter</span></code>, marking
+their Bell preparation or measurement as an ideal simulation boundary. Their
+logical interface binds the private physical qubit. Bell measurement outcomes
+enter signed readout and frame parities; only explicit <code class="docutils literal notranslate"><span class="pre">Discard</span></code> nodes request
+postselection.</p>
 <table class="docutils data align-default">
 <thead>
 <tr class="row-odd"><th class="head"><p>Record address</p></th>
@@ -3681,7 +3686,7 @@ and <a class="reference internal" href="../api/rust.html"><span class="std std-d
   
     Created using
     <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
-    9.1.0.
+    8.2.3.
      and
     <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
   

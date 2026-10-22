@@ -3188,17 +3188,23 @@ Cross</label></div>
 <iframe class="bloq-block-view" src="_static/block-graphs/spatial-zzx-cross.html" title="Interactive spatial-zzx-cross block graph" loading="lazy" allowfullscreen></iframe><div class="bloq-ir-graph" role="region" aria-label="spatial zzx cross detector slices"><img loading="lazy" src="_static/constructions/spatial-zzx-cross.svg" alt="spatial zzx cross: representative detector-slice moments" /></div><p><a href="_static/constructions/spatial-zzx-cross.blog">BLOG source</a> · <a href="_static/constructions/spatial-zzx-cross.stim">Complete Stim circuit</a></p></div>
 </div>
 </div><h2 id="port">Port<a class="headerlink" href="#port" title="Link to this heading">¶</a></h2>
-<p>A Port exposes an encoded input or output. Its simulator boundary measures
-patch stabilizers with ideal <code class="docutils literal notranslate"><span class="pre">MPP</span></code> operations while leaving the logical state
-open. Each Port has one pipe; it does not prepare the resource named by its
-interface.</p>
+<p>A Port exposes a logical input or output through an ideal simulator boundary.
+Each Port has one pipe; it does not prepare the resource named by its interface.</p>
 <h3 id="temporal-port">Temporal Port<a class="headerlink" href="#temporal-port" title="Link to this heading">¶</a></h3>
-<p>A <code class="docutils literal notranslate"><span class="pre">+Z</span></code> pipe from the Port supplies an input to the next block; a <code class="docutils literal notranslate"><span class="pre">−Z</span></code> pipe
-receives the preceding block’s output. In both cases, the compiler measures
-patch stabilizers in one ideal MPP moment. This establishes or closes the
-syndrome boundary while preserving the encoded state.
+<p>A <code class="docutils literal notranslate"><span class="pre">role=auto</span></code> Port supplies an input through a <code class="docutils literal notranslate"><span class="pre">+Z</span></code> pipe and receives an output
+through a <code class="docutils literal notranslate"><span class="pre">−Z</span></code> pipe. Explicit input/output roles may reverse this convention.
+For ordinary orientations, the compiler measures patch stabilizers in one
+ideal MPP moment. This establishes or closes the syndrome boundary while
+preserving the encoded state.
 The stabilizer outcomes form boundary detectors; logical X and Z pass through
 without additional measurement terms.</p>
+<p>Reversed temporal roles use ideal simulation boundaries: a future-connected
+output prepares a Bell pair between the patch and a private output qubit;
+a past-connected input measures the patch and a private input qubit in the
+Bell basis. Both XX/ZZ outcome signs enter correlation readouts and Pauli
+frames, including the Y transpose sign. All outcomes are retained; intentional
+postselection requires an explicit discard. The private output remains live
+when later operations reuse the patch.</p>
 <h3 id="spatial-port">Spatial Port<a class="headerlink" href="#spatial-port" title="Link to this heading">¶</a></h3>
 <p>The compiler places a compatible regular cube at the Port’s position,
 inheriting its neighbor’s height and joining it through lattice surgery.
@@ -3559,7 +3565,7 @@ unchanged.</p>
   
     Created using
     <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
-    9.1.0.
+    8.2.3.
      and
     <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
   

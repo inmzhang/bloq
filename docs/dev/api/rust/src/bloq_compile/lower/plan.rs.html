@@ -9,7 +9,7 @@
 <a href=#9 id=9 data-nosnippet>9</a>
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>bloq_ir::{NodeProvenance, SourceBlockRef, TemporalPipeRef};
 <a href=#11 id=11 data-nosnippet>11</a>
-<a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span><span class="kw">crate</span>::spatial_port::{SpatialPortExpansion, SpatialPortExpansionMap};
+<a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span><span class="kw">crate</span>::port::{PortExpansion, PortExpansionMap};
 <a href=#13 id=13 data-nosnippet>13</a>
 <a href=#14 id=14 data-nosnippet>14</a><span class="attr">#[derive(Debug, Clone, Default)]
 <a href=#15 id=15 data-nosnippet>15</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>LowerPlan {
@@ -27,7 +27,7 @@
 <a href=#27 id=27 data-nosnippet>27</a>    blocks: Vec&lt;IVec3&gt;,
 <a href=#28 id=28 data-nosnippet>28</a>    walking: <span class="kw">crate</span>::FxMap&lt;IVec3, WalkingKind&gt;,
 <a href=#29 id=29 data-nosnippet>29</a>    pipes: Vec&lt;LinkedPipePlan&gt;,
-<a href=#30 id=30 data-nosnippet>30</a>    spatial_ports: Vec&lt;SpatialPortExpansion&gt;,
+<a href=#30 id=30 data-nosnippet>30</a>    ports: Vec&lt;PortExpansion&gt;,
 <a href=#31 id=31 data-nosnippet>31</a>}
 <a href=#32 id=32 data-nosnippet>32</a>
 <a href=#33 id=33 data-nosnippet>33</a><span class="attr">#[derive(Debug, Clone)]
@@ -100,7 +100,7 @@
 <a href=#100 id=100 data-nosnippet>100</a><span class="attr">#[derive(Debug, Clone)]
 <a href=#101 id=101 data-nosnippet>101</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>EdgePlan {
 <a href=#102 id=102 data-nosnippet>102</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) pipes: Vec&lt;TemporalPipeRef&gt;,
-<a href=#103 id=103 data-nosnippet>103</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) spatial_ports: Vec&lt;SpatialPortExpansion&gt;,
+<a href=#103 id=103 data-nosnippet>103</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) ports: Vec&lt;PortExpansion&gt;,
 <a href=#104 id=104 data-nosnippet>104</a>}
 <a href=#105 id=105 data-nosnippet>105</a>
 <a href=#106 id=106 data-nosnippet>106</a><span class="kw">impl </span>EdgePlan {
@@ -108,7 +108,7 @@
 <a href=#108 id=108 data-nosnippet>108</a>        <span class="self">self</span>.pipes
 <a href=#109 id=109 data-nosnippet>109</a>            .iter()
 <a href=#110 id=110 data-nosnippet>110</a>            .copied()
-<a href=#111 id=111 data-nosnippet>111</a>            .chain(<span class="self">self</span>.spatial_ports.iter().map(|port| TemporalPipeRef {
+<a href=#111 id=111 data-nosnippet>111</a>            .chain(<span class="self">self</span>.ports.iter().map(|port| TemporalPipeRef {
 <a href=#112 id=112 data-nosnippet>112</a>                <span class="comment">// Both virtual halves share the authored spatial Port.
 <a href=#113 id=113 data-nosnippet>113</a>                </span>src: port.source,
 <a href=#114 id=114 data-nosnippet>114</a>                dst: port.source,
@@ -120,7 +120,7 @@
 <a href=#120 id=120 data-nosnippet>120</a><span class="kw">impl </span>LinkedPlanInput {
 <a href=#121 id=121 data-nosnippet>121</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>from_module_graph(
 <a href=#122 id=122 data-nosnippet>122</a>        source: <span class="kw-2">&amp;</span>BlockGraph,
-<a href=#123 id=123 data-nosnippet>123</a>        spatial_ports: <span class="kw-2">&amp;</span>SpatialPortExpansionMap,
+<a href=#123 id=123 data-nosnippet>123</a>        ports: <span class="kw-2">&amp;</span>PortExpansionMap,
 <a href=#124 id=124 data-nosnippet>124</a>        linked_positions: <span class="kw">impl </span>IntoIterator&lt;Item = IVec3&gt;,
 <a href=#125 id=125 data-nosnippet>125</a>    ) -&gt; <span class="self">Self </span>{
 <a href=#126 id=126 data-nosnippet>126</a>        <span class="kw">let </span>linked_positions = linked_positions.into_iter().collect::&lt;<span class="kw">crate</span>::FxSet&lt;<span class="kw">_</span>&gt;&gt;();
@@ -172,12 +172,12 @@
 <a href=#172 id=172 data-nosnippet>172</a>            };
 <a href=#173 id=173 data-nosnippet>173</a>            (left.to_array(), right.to_array(), record.pipe.is_hadamard())
 <a href=#174 id=174 data-nosnippet>174</a>        });
-<a href=#175 id=175 data-nosnippet>175</a>        <span class="kw">let </span><span class="kw-2">mut </span>spatial_ports = spatial_ports
+<a href=#175 id=175 data-nosnippet>175</a>        <span class="kw">let </span><span class="kw-2">mut </span>ports = ports
 <a href=#176 id=176 data-nosnippet>176</a>            .values()
-<a href=#177 id=177 data-nosnippet>177</a>            .filter(|port| linked_positions.contains(<span class="kw-2">&amp;</span>port.source))
+<a href=#177 id=177 data-nosnippet>177</a>            .filter(|port| port.is_spatial() &amp;&amp; linked_positions.contains(<span class="kw-2">&amp;</span>port.source))
 <a href=#178 id=178 data-nosnippet>178</a>            .copied()
 <a href=#179 id=179 data-nosnippet>179</a>            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-<a href=#180 id=180 data-nosnippet>180</a>        spatial_ports.sort_unstable_by_key(|port| port.source.to_array());
+<a href=#180 id=180 data-nosnippet>180</a>        ports.sort_unstable_by_key(|port| port.source.to_array());
 <a href=#181 id=181 data-nosnippet>181</a>        <span class="kw">let </span><span class="kw-2">mut </span>blocks = linked_positions.into_iter().collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 <a href=#182 id=182 data-nosnippet>182</a>        blocks.sort_unstable_by_key(glam::IVec3::to_array);
 <a href=#183 id=183 data-nosnippet>183</a>        <span class="kw">let </span>walking = blocks
@@ -191,7 +191,7 @@
 <a href=#191 id=191 data-nosnippet>191</a>            blocks,
 <a href=#192 id=192 data-nosnippet>192</a>            walking,
 <a href=#193 id=193 data-nosnippet>193</a>            pipes,
-<a href=#194 id=194 data-nosnippet>194</a>            spatial_ports,
+<a href=#194 id=194 data-nosnippet>194</a>            ports,
 <a href=#195 id=195 data-nosnippet>195</a>        }
 <a href=#196 id=196 data-nosnippet>196</a>    }
 <a href=#197 id=197 data-nosnippet>197</a>
@@ -215,7 +215,7 @@
 <a href=#215 id=215 data-nosnippet>215</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>from_block_graph(source: <span class="kw-2">&amp;</span>BlockGraph) -&gt; <span class="self">Self </span>{
 <a href=#216 id=216 data-nosnippet>216</a>        <span class="kw">let </span>input = LinkedPlanInput::from_module_graph(
 <a href=#217 id=217 data-nosnippet>217</a>            source,
-<a href=#218 id=218 data-nosnippet>218</a>            <span class="kw-2">&amp;</span>SpatialPortExpansionMap::default(),
+<a href=#218 id=218 data-nosnippet>218</a>            <span class="kw-2">&amp;</span>PortExpansionMap::default(),
 <a href=#219 id=219 data-nosnippet>219</a>            source.blocks().map(bloq_graph::Block::pos),
 <a href=#220 id=220 data-nosnippet>220</a>        );
 <a href=#221 id=221 data-nosnippet>221</a>        <span class="self">Self</span>::from_linked_input(<span class="kw-2">&amp;</span>input)
@@ -313,7 +313,7 @@
 <a href=#313 id=313 data-nosnippet>313</a>                    pipe_node,
 <a href=#314 id=314 data-nosnippet>314</a>                    EdgePlan {
 <a href=#315 id=315 data-nosnippet>315</a>                        pipes: <span class="macro">vec!</span>[pipe_ref],
-<a href=#316 id=316 data-nosnippet>316</a>                        spatial_ports: Vec::new(),
+<a href=#316 id=316 data-nosnippet>316</a>                        ports: Vec::new(),
 <a href=#317 id=317 data-nosnippet>317</a>                    },
 <a href=#318 id=318 data-nosnippet>318</a>                );
 <a href=#319 id=319 data-nosnippet>319</a>                graph.add_edge(
@@ -321,7 +321,7 @@
 <a href=#321 id=321 data-nosnippet>321</a>                    plan_target,
 <a href=#322 id=322 data-nosnippet>322</a>                    EdgePlan {
 <a href=#323 id=323 data-nosnippet>323</a>                        pipes: <span class="macro">vec!</span>[pipe_ref],
-<a href=#324 id=324 data-nosnippet>324</a>                        spatial_ports: Vec::new(),
+<a href=#324 id=324 data-nosnippet>324</a>                        ports: Vec::new(),
 <a href=#325 id=325 data-nosnippet>325</a>                    },
 <a href=#326 id=326 data-nosnippet>326</a>                );
 <a href=#327 id=327 data-nosnippet>327</a>                <span class="kw">continue</span>;
@@ -339,17 +339,17 @@
 <a href=#339 id=339 data-nosnippet>339</a>                    plan_target,
 <a href=#340 id=340 data-nosnippet>340</a>                    EdgePlan {
 <a href=#341 id=341 data-nosnippet>341</a>                        pipes: <span class="macro">vec!</span>[pipe_ref],
-<a href=#342 id=342 data-nosnippet>342</a>                        spatial_ports: Vec::new(),
+<a href=#342 id=342 data-nosnippet>342</a>                        ports: Vec::new(),
 <a href=#343 id=343 data-nosnippet>343</a>                    },
 <a href=#344 id=344 data-nosnippet>344</a>                );
 <a href=#345 id=345 data-nosnippet>345</a>                edge_by_endpoints.insert((plan_source, plan_target), edge);
 <a href=#346 id=346 data-nosnippet>346</a>            }
 <a href=#347 id=347 data-nosnippet>347</a>        }
 <a href=#348 id=348 data-nosnippet>348</a>
-<a href=#349 id=349 data-nosnippet>349</a>        <span class="kw">for </span><span class="kw-2">&amp;</span>port <span class="kw">in </span><span class="kw-2">&amp;</span>source.spatial_ports {
+<a href=#349 id=349 data-nosnippet>349</a>        <span class="kw">for </span><span class="kw-2">&amp;</span>port <span class="kw">in </span><span class="kw-2">&amp;</span>source.ports {
 <a href=#350 id=350 data-nosnippet>350</a>            <span class="kw">let </span>cube = node_by_block[<span class="kw-2">&amp;</span>port.source];
 <a href=#351 id=351 data-nosnippet>351</a>            <span class="kw">let </span>virtual_port = graph.add_node(NodePlan {
-<a href=#352 id=352 data-nosnippet>352</a>                layer: <span class="number">2 </span>* i64::from(port.source.z) + <span class="kw">if </span>port.is_input() { -<span class="number">1 </span>} <span class="kw">else </span>{ <span class="number">1 </span>},
+<a href=#352 id=352 data-nosnippet>352</a>                layer: <span class="number">2 </span>* i64::from(port.source.z) + <span class="kw">if </span>port.has_future_pipe() { -<span class="number">1 </span>} <span class="kw">else </span>{ <span class="number">1 </span>},
 <a href=#353 id=353 data-nosnippet>353</a>                incoming_cut: <span class="bool-val">false</span>,
 <a href=#354 id=354 data-nosnippet>354</a>                provenance: NodeProvenance::SpatialPortSubstitution {
 <a href=#355 id=355 data-nosnippet>355</a>                    source: port.source,
@@ -359,7 +359,7 @@
 <a href=#359 id=359 data-nosnippet>359</a>                walls: Vec::new(),
 <a href=#360 id=360 data-nosnippet>360</a>            });
 <a href=#361 id=361 data-nosnippet>361</a>            node_by_spatial_port.insert(port.source, virtual_port);
-<a href=#362 id=362 data-nosnippet>362</a>            <span class="kw">let </span>(source, target) = <span class="kw">if </span>port.is_input() {
+<a href=#362 id=362 data-nosnippet>362</a>            <span class="kw">let </span>(source, target) = <span class="kw">if </span>port.has_future_pipe() {
 <a href=#363 id=363 data-nosnippet>363</a>                (virtual_port, cube)
 <a href=#364 id=364 data-nosnippet>364</a>            } <span class="kw">else </span>{
 <a href=#365 id=365 data-nosnippet>365</a>                (cube, virtual_port)
@@ -369,7 +369,7 @@
 <a href=#369 id=369 data-nosnippet>369</a>                target,
 <a href=#370 id=370 data-nosnippet>370</a>                EdgePlan {
 <a href=#371 id=371 data-nosnippet>371</a>                    pipes: Vec::new(),
-<a href=#372 id=372 data-nosnippet>372</a>                    spatial_ports: <span class="macro">vec!</span>[port],
+<a href=#372 id=372 data-nosnippet>372</a>                    ports: <span class="macro">vec!</span>[port],
 <a href=#373 id=373 data-nosnippet>373</a>                },
 <a href=#374 id=374 data-nosnippet>374</a>            );
 <a href=#375 id=375 data-nosnippet>375</a>        }
@@ -605,7 +605,7 @@
 <a href=#605 id=605 data-nosnippet>605</a>
 <a href=#606 id=606 data-nosnippet>606</a>        <span class="kw">let </span>input = LinkedPlanInput::from_module_graph(
 <a href=#607 id=607 data-nosnippet>607</a>            <span class="kw-2">&amp;</span>graph,
-<a href=#608 id=608 data-nosnippet>608</a>            <span class="kw-2">&amp;</span>SpatialPortExpansionMap::default(),
+<a href=#608 id=608 data-nosnippet>608</a>            <span class="kw-2">&amp;</span>PortExpansionMap::default(),
 <a href=#609 id=609 data-nosnippet>609</a>            [kept, upper, kept],
 <a href=#610 id=610 data-nosnippet>610</a>        );
 <a href=#611 id=611 data-nosnippet>611</a>        <span class="macro">assert_eq!</span>(input.pipes.len(), <span class="number">1</span>);
@@ -673,7 +673,7 @@
 <a href=#673 id=673 data-nosnippet>673</a>                h(<span class="number">1</span>, (ivec3(<span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>), ivec3(<span class="number">2</span>, <span class="number">0</span>, <span class="number">0</span>))),
 <a href=#674 id=674 data-nosnippet>674</a>                h(<span class="number">0</span>, (ivec3(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>), ivec3(<span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>))),
 <a href=#675 id=675 data-nosnippet>675</a>            ],
-<a href=#676 id=676 data-nosnippet>676</a>            spatial_ports: Vec::new(),
+<a href=#676 id=676 data-nosnippet>676</a>            ports: Vec::new(),
 <a href=#677 id=677 data-nosnippet>677</a>        };
 <a href=#678 id=678 data-nosnippet>678</a>        <span class="kw">let </span>plan = LowerPlan::from_linked_input(<span class="kw-2">&amp;</span>input);
 <a href=#679 id=679 data-nosnippet>679</a>        <span class="kw">let </span>first = plan.node_by_block()[<span class="kw-2">&amp;</span>ivec3(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>)];

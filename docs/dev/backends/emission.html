@@ -2539,6 +2539,9 @@ timing.</p>
 <p>Stim emits static Clifford block-graph compilations and selected Clifford
 proxies of non-Clifford graphs. It supports linear measurement parities and
 record-controlled Pauli corrections.</p>
+<p>Reversed temporal Ports use ideal Bell preparation or measurement with
+record-controlled Pauli corrections. Static Stim export rejects explicit
+<code class="docutils literal notranslate"><span class="pre">Discard</span></code> effects; use the <a class="reference internal" href="vm.html"><span class="std std-doc">VM</span></a> for intentional postselection.</p>
 <p>Compile and emit a gallery CNOT:</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:3">
 <input checked type="radio" id="__tabbed_1_1" name="__tabbed_1"><input type="radio" id="__tabbed_1_2" name="__tabbed_1"><input type="radio" id="__tabbed_1_3" name="__tabbed_1"><div class="tabbed-labels docutils">
@@ -2780,7 +2783,7 @@ They are not hardware-controller instructions.</p>
   
     Created using
     <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
-    9.1.0.
+    8.2.3.
      and
     <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
   

@@ -2761,10 +2761,11 @@ or leave a definition:</p>
 </tr>
 </tbody>
 </table>
-<p>The Port’s role and connection determine which spacetime boundary it exposes.
-Temporal Ports expose the past or future boundary of a patch. Spatial Ports
-expose a side boundary. A multiplex Port also retains the stationary output
-described in <a class="reference internal" href="../graphs/concepts.html"><span class="std std-doc">Blocks and Pipes</span></a>.</p>
+<p>The connection determines the patch face; the Port’s role determines whether
+the interface is an input or output. Explicit temporal roles are independent
+of the past or future connection; <code class="docutils literal notranslate"><span class="pre">role=auto</span></code> infers the role from time.
+Spatial Ports require an explicit role. A multiplex Port also retains the
+stationary output described in <a class="reference internal" href="../graphs/concepts.html"><span class="std std-doc">Blocks and Pipes</span></a>.</p>
 <p>The parent must connect <strong>every quantum port of each child instance exactly
 once</strong>. To expose a child port at the parent’s interface, connect it to a parent
 Port at the same position after rotation and translation, with the same input
@@ -3136,7 +3137,7 @@ module hierarchies as source files.</p>
   
     Created using
     <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
-    9.1.0.
+    8.2.3.
      and
     <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
   
