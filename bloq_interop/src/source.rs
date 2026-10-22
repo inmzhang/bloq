@@ -26,17 +26,15 @@ fn has_conditional(text: &str) -> bool {
     while let Some(c) = chars.next() {
         match c {
             '"' => {
-                while let Some(c) = chars.next() {
-                    if c == '\\' {
-                        chars.next();
-                    } else if c == '"' {
+                for c in chars.by_ref() {
+                    if c == '"' {
                         break;
                     }
                 }
             }
             '/' if chars.peek() == Some(&'/') => {
                 for c in chars.by_ref() {
-                    if c == '\n' {
+                    if matches!(c, '\n' | '\r') {
                         break;
                     }
                 }
@@ -151,6 +149,8 @@ mod tests {
             "reset q[0];",
             "if(c==1) x q[0];",
             "include \"ignored//path\"; if(c==1) x q[0];",
+            "include \"ignored\\\"; if(c==1) x q[0];",
+            "// comment\r if(c==1) x q[0];",
             "rz(0.00000001) q[0];",
             "cx q[0],q[0];",
         ] {
