@@ -378,13 +378,10 @@ def _t_phase(phase):
     return phase
 
 
-def _attach_t_resource(nodes, edges, node, phase, name, placement, *, edge_index=None):
+def _attach_t_resource(nodes, edges, node, phase, name, placement, *, edge_index):
     dagger = phase in (Fraction(3, 4), Fraction(7, 4))
-    if edge_index is None:
-        neighbor = next(b if a == node else a for a, b in edges if node in (a, b))
-    else:
-        a, b = edges[edge_index]
-        neighbor = b if a == node else a
+    a, b = edges[edge_index]
+    neighbor = b if a == node else a
     frame = nodes[neighbor]['tqec']
     distance, end, terminal, additions, _ = placement
     if any(f'{name}_{suffix}' in nodes for suffix in additions):
@@ -396,13 +393,9 @@ def _attach_t_resource(nodes, edges, node, phase, name, placement, *, edge_index
     arms = [f'{name}_arm_{i}' for i in range(distance)]
     if arms:
         path = [neighbor, *arms, node]
-        if edge_index is None:
-            edges.remove((neighbor, node) if (neighbor, node) in edges else (node, neighbor))
-            edges.extend(zip(path, path[1:]))
-        else:
-            # Replacing in place keeps the other original seam indices valid.
-            edges[edge_index] = (path[0], path[1])
-            edges.extend(zip(path[1:], path[2:]))
+        # Replacing in place keeps the other original seam indices valid.
+        edges[edge_index] = (path[0], path[1])
+        edges.extend(zip(path[1:], path[2:]))
     if frame[2] == 'Z':
         turn_id, center_id = f'{name}_turn', f'{name}_center'
         edges.extend([(node, turn_id), (turn_id, center_id)])
