@@ -36,7 +36,9 @@ a QuiZX `Circuit`. Neither entry point synthesizes approximate rotations.
 
 `Strategy::SpiderLs` uses full ZX reduction with a recorded flow-preserving
 fallback. `Strategy::TopoLs` uses bounded fusion and breadth-first topology
-placement. Both use a causal XY-gflow scheduler and direct Bloq constructions.
+placement. It compares single-pass and fixed-point fusion before compilation,
+choosing fewer blocks, then smaller footprint and temporal extent on ties.
+Both use a causal XY-gflow scheduler and direct Bloq constructions.
 These are native strategies inspired by the two compilers, with a shared
 deterministic router; they do not reproduce upstream stochastic placement or
 CZ-star grouping. Layouts retain source-ordered inputs and outputs, signed

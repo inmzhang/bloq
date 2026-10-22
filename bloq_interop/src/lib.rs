@@ -82,7 +82,7 @@ pub struct Layout {
     pub input_ports: Vec<IVec3>,
     /// Output positions in source qubit order.
     pub output_ports: Vec<IVec3>,
-    /// ZX reduction actually used: `bounded`, `full`, or `flow`.
+    /// ZX reduction actually used, including the chosen bounded-fusion candidate.
     pub reduction: &'static str,
     /// Why full reduction was replaced by causal-flow-preserving reduction.
     pub reduction_fallback: Option<String>,
@@ -126,39 +126,69 @@ fn layout_normalized(circuit: &Circuit, options: &LayoutOptions) -> Result<Layou
         return Err(Error::Layout("max_blocks must be positive".into()));
     }
     let mut graph: Graph = circuit.to_graph();
-    let (plan, reduction, reduction_fallback) = match options.strategy {
-        Strategy::TopoLs => (
-            topols::plan(graph).map_err(Error::Planning)?,
-            "bounded",
-            None,
-        ),
+    let build = |plan, reduction, reduction_fallback| {
+        let (graph, input_ports, output_ports) =
+            embed::embed(&plan, options.max_blocks).map_err(Error::Layout)?;
+        Ok(Layout {
+            graph,
+            input_ports,
+            output_ports,
+            reduction,
+            reduction_fallback,
+        })
+    };
+    let layout = match options.strategy {
+        Strategy::TopoLs => {
+            let mut best: Option<Layout> = None;
+            let mut failure = None;
+            for (reduction, plan) in topols::candidates(graph) {
+                match plan
+                    .map_err(Error::Planning)
+                    .and_then(|plan| build(plan, reduction, None))
+                {
+                    Ok(candidate) => {
+                        if best
+                            .as_ref()
+                            .is_none_or(|current| layout_cost(&candidate) < layout_cost(current))
+                        {
+                            best = Some(candidate);
+                        }
+                    }
+                    Err(error) => failure = Some(error),
+                }
+            }
+            best.ok_or_else(|| failure.expect("both bounded candidates were attempted"))?
+        }
         Strategy::SpiderLs => {
             quizx::simplify::full_simp(&mut graph);
             match spider::plan(&graph) {
-                Ok(plan) => (plan, "full", None),
+                Ok(plan) => build(plan, "full", None)?,
                 Err(reason) => {
                     // Full reduction may introduce phase gadgets without XY
                     // gflow. Replan the same exact source with causal reduction.
                     let mut conservative: Graph = circuit.to_graph();
                     quizx::simplify::flow_simp(&mut conservative);
                     let plan = spider::plan(&conservative).map_err(Error::Planning)?;
-                    (plan, "flow", Some(reason))
+                    build(plan, "flow", Some(reason))?
                 }
             }
         }
     };
-    let (graph, input_ports, output_ports) =
-        embed::embed(&plan, options.max_blocks).map_err(Error::Layout)?;
-    if input_ports.len() != circuit.num_qubits() || output_ports.len() != circuit.num_qubits() {
+    if layout.input_ports.len() != circuit.num_qubits()
+        || layout.output_ports.len() != circuit.num_qubits()
+    {
         return Err(Error::Layout(
             "generated interface does not match the source width".into(),
         ));
     }
-    Ok(Layout {
-        graph,
-        input_ports,
-        output_ports,
-        reduction,
-        reduction_fallback,
-    })
+    Ok(layout)
+}
+
+fn layout_cost(layout: &Layout) -> (usize, i64, i64) {
+    let (x, y, z) = layout
+        .graph
+        .spans()
+        .expect("a layout has source boundaries");
+    let [x, y, z] = [x, y, z].map(|s| i64::from(*s.end()) - i64::from(*s.start()) + 1);
+    (layout.graph.block_count(), x * y, z)
 }

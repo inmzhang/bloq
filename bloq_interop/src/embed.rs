@@ -1,6 +1,6 @@
 //! Direct surgery construction with explicit patch frames and disjoint lifetimes.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use bloq_graph::{
     Action, Basis, Block, BlockGraph, BlockKind, CubeKind, Direction, Expr, FeedbackTarget,
@@ -13,6 +13,8 @@ use crate::spider::{Instruction, Plan};
 #[derive(Clone, Copy)]
 struct Patch {
     end: IVec3,
+    // A resource cap can finish one layer after the last data cube.
+    ready: i32,
     rotated: bool,
 }
 
@@ -34,6 +36,7 @@ struct Builder {
     corridor_ready: Vec<i32>,
     available: Vec<i32>,
     release_times: BTreeMap<usize, i32>,
+    occupied_until: HashMap<IVec2, i32>,
     max_blocks: usize,
 }
 
@@ -42,9 +45,16 @@ impl Builder {
         if self.graph.block_count() >= self.max_blocks {
             return Err(format!("block budget {} exhausted", self.max_blocks));
         }
-        self.graph
-            .try_add_block(Block::new(pos, kind))
-            .map_err(|e| e.to_string())?;
+        let block = Block::new(pos, kind);
+        let offsets = block.reserved_offsets();
+        self.graph.try_add_block(block).map_err(|e| e.to_string())?;
+        for offset in offsets {
+            let cell = pos + offset;
+            self.occupied_until
+                .entry(cell.truncate())
+                .and_modify(|last| *last = (*last).max(cell.z))
+                .or_insert(cell.z);
+        }
         Ok(())
     }
 
@@ -83,6 +93,7 @@ impl Builder {
             self.pipe(patch.end, next, false)?;
             patch.end = next;
         }
+        patch.ready = patch.ready.max(patch.end.z);
         self.live[id] = Some(patch);
         Ok(patch)
     }
@@ -96,7 +107,7 @@ impl Builder {
         if self.patch(id)?.rotated == rotated {
             return Ok(());
         }
-        let mut patch = self.patch(id)?;
+        let mut patch = self.advance(id, self.patch(id)?.ready)?;
         let time = Self::after(patch.end.z, 3)?;
         let start = patch.end + IVec3::Z;
         let movement = IVec2::new(0, if patch.end.y == 0 { 1 } else { -1 });
@@ -107,6 +118,7 @@ impl Builder {
         self.pipe(patch.end, start, false)?;
         let end = rotation.end_position(start);
         patch.end = end + IVec3::Z;
+        patch.ready = patch.end.z;
         patch.rotated = rotated;
         self.cube(patch.end, patch.memory())?;
         self.pipe(end, patch.end, false)?;
@@ -119,6 +131,7 @@ impl Builder {
         let mut patch = self.patch(id)?;
         let previous = patch.end;
         patch.end.z = Self::after(patch.end.z, 1)?;
+        patch.ready = patch.end.z;
         patch.rotated = !patch.rotated;
         self.cube(patch.end, patch.memory())?;
         self.pipe(previous, patch.end, true)?;
@@ -144,9 +157,8 @@ impl Builder {
             .unwrap_or_default();
         let z = Self::after(
             self.patch(control)?
-                .end
-                .z
-                .max(self.patch(target)?.end.z)
+                .ready
+                .max(self.patch(target)?.ready)
                 .max(corridor_ready),
             1,
         )?;
@@ -158,6 +170,7 @@ impl Builder {
         self.cube(target_junction, CubeKind::XZZ)?;
         self.pipe(target_patch.end, target_junction, true)?;
         target_patch.end = target_junction + IVec3::Z;
+        target_patch.ready = target_patch.end.z;
         self.cube(target_patch.end, target_patch.memory())?;
         self.pipe(target_junction, target_patch.end, true)?;
         self.live[target] = Some(target_patch);
@@ -238,7 +251,7 @@ impl Builder {
         // Bloq owns raw internal outcomes and their Pauli frames. Named readouts
         // are already corrected parities; only the causal dependency belongs here.
         for &id in x_targets.iter().chain(z_targets) {
-            let patch = self.advance(id, time)?;
+            let patch = self.advance(id, time.max(self.patch(id)?.ready))?;
             self.time = self.time.max(patch.end.z);
         }
         Ok(())
@@ -261,15 +274,20 @@ impl Builder {
     }
 
     fn resource(&mut self, id: usize, t: bool, dagger: bool) -> Result<(), String> {
-        // Each source starts after the preceding resource cap, with no connecting pipe.
-        let z = Self::after(self.patch(id)?.end.z, 2)?;
-        Self::after(z, 1)?;
-        let patch = self.advance(id, z)?;
+        let patch = self.patch(id)?;
         let direction = if patch.rotated {
             Direction::YPLUS
         } else {
             Direction::XPLUS
         };
+        let column = (patch.end + direction.to_ivec3()).truncate();
+        // Reserve the whole resource after prior geometry, including rotation footprints.
+        let z = match self.occupied_until.get(&column) {
+            Some(&last) => patch.ready.max(Self::after(last, if t { 2 } else { 1 })?),
+            None => patch.ready,
+        };
+        Self::after(z, 1)?;
+        let mut patch = self.advance(id, z)?;
         let resource = patch.end + direction.to_ivec3();
         self.cube(resource, patch.memory())?;
         self.pipe(patch.end, resource, false)?;
@@ -302,7 +320,8 @@ impl Builder {
             }
         }
         self.pipe(resource, cap, false)?;
-        self.advance(id, z + 1)?;
+        patch.ready = z + 1;
+        self.live[id] = Some(patch);
         self.time = self.time.max(z + 1);
         Ok(())
     }
@@ -325,6 +344,7 @@ pub(crate) fn embed(
         ],
         available: vec![0; plan.peak_patches],
         release_times: BTreeMap::new(),
+        occupied_until: HashMap::default(),
         max_blocks,
     };
     let mut inputs = Vec::new();
@@ -351,6 +371,7 @@ pub(crate) fn embed(
                 }
                 b.live[patch] = Some(Patch {
                     end,
+                    ready: end.z,
                     rotated: false,
                 });
                 b.time = b.time.max(end.z);
@@ -367,8 +388,9 @@ pub(crate) fn embed(
             }
             Instruction::Hadamard { patch } => b.hadamard(patch)?,
             Instruction::Release { patch, vertex } => {
+                let live = b.patch(patch)?;
                 let end = b
-                    .advance(patch, Builder::after(b.patch(patch)?.end.z, 1)?)?
+                    .advance(patch, Builder::after(live.end.z, 1)?.max(live.ready))?
                     .end;
                 b.release_times.insert(vertex, end.z);
                 b.live[patch] = None;
@@ -382,9 +404,13 @@ pub(crate) fn embed(
             } => b.feedback(measurement, x_targets, z_targets)?,
         }
     }
+    let mut output_time = b.time;
+    for &(_, id) in &plan.outputs {
+        output_time = output_time.max(Builder::after(b.patch(id)?.end.z, 1)?);
+    }
     for &(output, id) in &plan.outputs {
-        let patch = b.advance(id, b.time)?;
-        let port = IVec3::new(patch.end.x, patch.end.y, Builder::after(patch.end.z, 1)?);
+        let patch = b.advance(id, output_time - 1)?;
+        let port = IVec3::new(patch.end.x, patch.end.y, output_time);
         b.port(port, PortRole::Output)?;
         b.pipe(patch.end, port, false)?;
         outputs.push((output, port));
@@ -428,6 +454,48 @@ mod tests {
     use bloq_graph::verify::{BoundaryOrder, LogicalVerifier, QuizxGraph};
     use quizx::circuit::Circuit;
     use quizx::vec_graph::Graph;
+
+    #[test]
+    fn free_resource_outlets_reuse_data_endpoints_in_both_frames() {
+        for (count, blocks, output_time) in [(1, 6, 2), (2, 10, 3), (3, 15, 5)] {
+            let mut plan = Plan {
+                peak_patches: 1,
+                outputs: vec![(0, 0)],
+                instructions: vec![Instruction::Prepare {
+                    patch: 0,
+                    vertex: 0,
+                    input: Some(0),
+                }],
+                ..Plan::default()
+            };
+            let mut expected = Circuit::new(1);
+            for index in 0..count {
+                plan.instructions.push(Instruction::Phase {
+                    patch: 0,
+                    vertex: index,
+                    phase: (1, 4).into(),
+                });
+                expected.add_gate("t", vec![0]);
+                if index + 1 < count {
+                    plan.instructions.push(Instruction::Hadamard { patch: 0 });
+                    expected.add_gate("h", vec![0]);
+                }
+            }
+            let (graph, inputs, outputs) = embed(&plan, 1000).unwrap();
+            assert_eq!(graph.block_count(), blocks);
+            assert_eq!(outputs[0].z, output_time);
+            LogicalVerifier::with_boundaries_and_internal_measurements(
+                &graph,
+                BoundaryOrder::new(inputs, outputs),
+            )
+            .unwrap()
+            .verify(&expected.to_graph(), 8, 29)
+            .unwrap();
+            bloq_compile::CompileContext::new(bloq_compile::CompileConfig::new(3))
+                .compile_and_validate(&graph)
+                .unwrap();
+        }
+    }
 
     #[test]
     fn disjoint_cz_routes_overlap_but_crossing_or_shared_patch_routes_wait() {
@@ -552,7 +620,8 @@ mod tests {
             .filter(|b| b.kind() == BlockKind::T)
             .map(Block::pos)
             .collect();
-        assert_eq!(first_sources.iter().filter(|p| p.z == 2).count(), 2);
+        let earliest = first_sources.iter().map(|p| p.z).min().unwrap();
+        assert_eq!(first_sources.iter().filter(|p| p.z == earliest).count(), 2);
         assert!(
             embed(&plan, graph.block_count() - 1)
                 .unwrap_err()
@@ -588,6 +657,9 @@ mod tests {
             (1, "sdg q[0];"),
             (1, "z q[0];"),
             (2, "cz q[0],q[1];"),
+            (2, "t q[0]; cz q[0],q[1];"),
+            (2, "t q[1]; cz q[0],q[1];"),
+            (2, "h q[0]; t q[0]; cz q[0],q[1]; tdg q[1];"),
             (2, "swap q[0],q[1]; h q[0];"),
             (2, "h q[0]; cx q[0],q[1]; h q[1]; cx q[1],q[0];"),
             (

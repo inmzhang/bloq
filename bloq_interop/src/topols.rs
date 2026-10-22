@@ -5,12 +5,28 @@
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use quizx::basic_rules::spider_fusion;
+use quizx::basic_rules::{remove_id, spider_fusion};
 use quizx::graph::{EType, GraphLike, V, VType};
 use quizx::phase::Phase;
 use quizx::vec_graph::Graph;
 
 use crate::spider::{Plan, causal_plan, interface};
+
+#[derive(Clone, Copy)]
+enum Fusion {
+    SinglePass,
+    FixedPoint,
+}
+
+pub(crate) fn candidates(graph: Graph) -> [(&'static str, Result<Plan, String>); 2] {
+    [
+        (
+            "bounded_single_pass",
+            plan(graph.clone(), Fusion::SinglePass),
+        ),
+        ("bounded_fixed_point", plan(graph, Fusion::FixedPoint)),
+    ]
+}
 
 fn vertex_order(graph: &Graph, a: V, b: V) -> std::cmp::Ordering {
     graph
@@ -20,7 +36,8 @@ fn vertex_order(graph: &Graph, a: V, b: V) -> std::cmp::Ordering {
         .then(a.cmp(&b))
 }
 
-fn prepare(mut graph: Graph) -> Result<Graph, String> {
+fn prepare(mut graph: Graph, fusion: Fusion) -> Result<Graph, String> {
+    let fixed_point = matches!(fusion, Fusion::FixedPoint);
     for v in graph.vertices() {
         if !matches!(graph.vertex_type(v), VType::B | VType::X | VType::Z)
             || graph.vars(v) != Default::default()
@@ -57,35 +74,54 @@ fn prepare(mut graph: Graph) -> Result<Graph, String> {
     let outputs: BTreeSet<_> = graph.outputs().iter().copied().collect();
     let mut vertices: Vec<_> = graph.vertices().collect();
     vertices.sort_by(|&a, &b| vertex_order(&graph, a, b));
-    for u in vertices {
-        if graph.vertex_data_opt(u).is_none() || graph.degree(u) >= 4 {
-            continue;
+    loop {
+        let before = graph.num_vertices();
+        for &u in &vertices {
+            if graph.vertex_data_opt(u).is_none() {
+                continue;
+            }
+            loop {
+                let mut neighbors: Vec<_> = graph.neighbors(u).collect();
+                neighbors.sort_by(|&a, &b| vertex_order(&graph, a, b));
+                let fused = neighbors.into_iter().any(|v| {
+                    if graph.degree(u) + graph.degree(v) > 6 || blocks[&u] != blocks[&v] {
+                        return false;
+                    }
+                    if !fixed_point {
+                        let zero = Phase::from(0);
+                        let phases_fit = (graph.phase(u) == zero && graph.phase(v) == zero)
+                            || (graph.phase(u) == zero && graph.degree(v) == 2)
+                            || (graph.phase(v) == zero && graph.degree(u) == 2);
+                        if graph.degree(u) >= 4 || graph.degree(v) >= 4 || !phases_fit {
+                            return false;
+                        }
+                    }
+                    // Fusing source interfaces would turn distinct qubits into one patch.
+                    let interfaces_fit = [&inputs, &outputs].into_iter().all(|boundaries| {
+                        graph
+                            .neighbors(u)
+                            .chain(graph.neighbors(v))
+                            .filter(|w| boundaries.contains(w))
+                            .count()
+                            <= 1
+                    });
+                    interfaces_fit && spider_fusion(&mut graph, u, v)
+                });
+                if !fused || !fixed_point {
+                    break;
+                }
+            }
         }
-        let mut neighbors: Vec<_> = graph.neighbors(u).collect();
-        neighbors.sort_by(|&a, &b| vertex_order(&graph, a, b));
-        for v in neighbors {
-            if graph.degree(v) >= 4 || blocks[&u] != blocks[&v] {
-                continue;
-            }
-            let zero = Phase::from(0);
-            let phases_fit = (graph.phase(u) == zero && graph.phase(v) == zero)
-                || (graph.phase(u) == zero && graph.degree(v) == 2)
-                || (graph.phase(v) == zero && graph.degree(u) == 2);
-            if !phases_fit {
-                continue;
-            }
-            // Fusing source interfaces would turn distinct qubits into one patch.
-            let interfaces_fit = [&inputs, &outputs].into_iter().all(|boundaries| {
-                graph
-                    .neighbors(u)
-                    .chain(graph.neighbors(v))
-                    .filter(|w| boundaries.contains(w))
-                    .count()
-                    <= 1
-            });
-            if interfaces_fit && spider_fusion(&mut graph, u, v) {
-                break;
-            }
+        if !fixed_point {
+            break;
+        }
+        // Exact phase sums can expose identity wires and further local fusions.
+        for v in graph.vertex_vec() {
+            // Keep vertex IDs stable so partition and boundary identities survive.
+            remove_id(&mut graph, v);
+        }
+        if graph.num_vertices() == before {
+            break;
         }
     }
     graph.x_to_z();
@@ -107,8 +143,8 @@ fn prepare(mut graph: Graph) -> Result<Graph, String> {
     Ok(graph)
 }
 
-pub(crate) fn plan(graph: Graph) -> Result<Plan, String> {
-    let graph = prepare(graph)?;
+fn plan(graph: Graph, fusion: Fusion) -> Result<Plan, String> {
+    let graph = prepare(graph, fusion)?;
     let interface = interface(&graph)?;
     let inputs: BTreeMap<_, _> = interface
         .inputs
@@ -177,17 +213,19 @@ mod tests {
             ))
             .unwrap();
             let graph: Graph = circuit.to_graph();
-            let prepared = prepare(graph.clone()).unwrap();
-            assert!(
-                TensorF::scalar_compare(&circuit, &prepared),
-                "graph: {gates}"
-            );
-            let p = plan(graph.clone()).unwrap();
-            assert_eq!(p, plan(graph).unwrap());
-            assert!(
-                TensorF::scalar_compare(&circuit, &execution_graph(&p, 3)),
-                "plan: {gates}"
-            );
+            for fusion in [Fusion::SinglePass, Fusion::FixedPoint] {
+                let prepared = prepare(graph.clone(), fusion).unwrap();
+                assert!(
+                    TensorF::scalar_compare(&circuit, &prepared),
+                    "graph: {gates}"
+                );
+                let p = plan(graph.clone(), fusion).unwrap();
+                assert_eq!(p, plan(graph.clone(), fusion).unwrap());
+                assert!(
+                    TensorF::scalar_compare(&circuit, &execution_graph(&p, 3)),
+                    "plan: {gates}"
+                );
+            }
         }
     }
 
@@ -200,7 +238,9 @@ mod tests {
         g.add_edge(a, v);
         g.add_edge(b, v);
         g.set_inputs(vec![a, b]);
-        assert!(plan(g).unwrap_err().contains("two inputs"));
+        for (_, p) in candidates(g) {
+            assert!(p.unwrap_err().contains("two inputs"));
+        }
     }
 
     #[test]
@@ -208,7 +248,30 @@ mod tests {
         let circuit = Circuit::from_qasm(
             "OPENQASM 2.0; include \"qelib1.inc\"; qreg q[2]; h q[0]; cx q[0],q[1]; t q[1]; h q[1];"
         ).unwrap();
-        let p = plan(circuit.to_graph()).unwrap();
+        for (_, p) in candidates(circuit.to_graph()) {
+            crate::spider::tests::verify_branches(&p.unwrap(), &circuit);
+        }
+    }
+
+    #[test]
+    fn exact_phase_cancellation_needs_no_resources() {
+        let circuit = Circuit::from_qasm(
+            "OPENQASM 2.0; include \"qelib1.inc\"; qreg q[1]; t q[0]; t q[0]; sdg q[0];",
+        )
+        .unwrap();
+        let p = plan(circuit.to_graph(), Fusion::FixedPoint).unwrap();
+        assert!(p.instructions.is_empty());
+        assert_eq!(p.direct_wires.len(), 1);
         crate::spider::tests::verify_branches(&p, &circuit);
+        let layout = crate::layout(
+            &circuit,
+            &crate::LayoutOptions {
+                strategy: crate::Strategy::TopoLs,
+                max_blocks: 3,
+            },
+        )
+        .unwrap();
+        assert_eq!(layout.graph.block_count(), 3);
+        assert_eq!(layout.reduction, "bounded_fixed_point");
     }
 }

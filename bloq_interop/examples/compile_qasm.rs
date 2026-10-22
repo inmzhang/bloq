@@ -27,7 +27,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     fs::create_dir(output)?;
     let started = Instant::now();
     let mut result = json!({
-        "compiler": args[1], "status": "failed", "distance": distance,
+        "compiler": args[1], "status": "running", "distance": distance,
         "t_preparation": "ideal_t_proxy", "execution_verified": false,
         "max_blocks": LayoutOptions::default().max_blocks,
     });
@@ -52,18 +52,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         let columns: BTreeSet<_> = layout
             .graph
-            .blocks()
-            .flat_map(|block| {
-                block.reserved_offsets().into_iter().map(move |offset| {
-                    let p = block.pos() + offset;
-                    (p.x, p.y)
-                })
-            })
+            .occupied_positions()
+            .map(|p| (p.x, p.y))
             .collect();
         let (xs, ys, zs) = layout.graph.spans().ok_or("empty generated graph")?;
         let extents =
             [xs, ys, zs].map(|span| i64::from(*span.end()) - i64::from(*span.start()) + 1);
         result["blocks"] = layout.graph.block_count().into();
+        result["occupied_cells"] = layout.graph.occupied_positions().count().into();
         result["occupied_columns"] = columns.len().into();
         result["anchor_columns"] = layout
             .graph
@@ -90,6 +86,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .collect::<Vec<_>>()
         );
         result["failed_stage"] = "ir".into();
+        fs::write(
+            output.join("result.json"),
+            serde_json::to_string_pretty(&result)?,
+        )?;
         let native_started = Instant::now();
         let artifacts = layout.compile(config)?;
         result["native_seconds"] = native_started.elapsed().as_secs_f64().into();
@@ -130,6 +130,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     })();
     result["pipeline_seconds"] = started.elapsed().as_secs_f64().into();
     if let Err(error) = &outcome {
+        result["status"] = "failed".into();
         result["error"] = error.to_string().into();
     }
     fs::write(

@@ -54,6 +54,52 @@ pub(crate) struct Plan {
     pub peak_patches: usize,
 }
 
+impl Plan {
+    fn cancel_hadamards(&mut self) {
+        fn flush(patch: usize, pending: &mut BTreeSet<usize>, instructions: &mut Vec<Instruction>) {
+            if pending.remove(&patch) {
+                instructions.push(Instruction::Hadamard { patch });
+            }
+        }
+        let mut pending = BTreeSet::new();
+        for instruction in std::mem::take(&mut self.instructions) {
+            match &instruction {
+                Instruction::Hadamard { patch } => {
+                    if !pending.insert(*patch) {
+                        pending.remove(patch);
+                    }
+                    continue;
+                }
+                Instruction::Prepare { patch, .. }
+                | Instruction::Phase { patch, .. }
+                | Instruction::Release { patch, .. } => {
+                    flush(*patch, &mut pending, &mut self.instructions)
+                }
+                Instruction::Cz { patches, .. } => {
+                    for &patch in patches {
+                        flush(patch, &mut pending, &mut self.instructions);
+                    }
+                }
+                Instruction::Feedback {
+                    x_targets,
+                    z_targets,
+                    ..
+                } => {
+                    for &patch in x_targets.iter().chain(z_targets) {
+                        flush(patch, &mut pending, &mut self.instructions);
+                    }
+                }
+            }
+            self.instructions.push(instruction);
+        }
+        self.instructions.extend(
+            pending
+                .into_iter()
+                .map(|patch| Instruction::Hadamard { patch }),
+        );
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct Interface {
     pub inputs: Vec<(usize, V, bool)>,
@@ -378,6 +424,7 @@ pub(crate) fn causal_plan(graph: &Graph, order: &[V]) -> Result<Plan, String> {
         }
         f.plan.outputs.push((output, patch));
     }
+    f.plan.cancel_hadamards();
     Ok(f.plan)
 }
 
@@ -562,7 +609,7 @@ pub(crate) mod tests {
         .unwrap();
         let mut graph: Graph = circuit.to_graph();
         quizx::simplify::flow_simp(&mut graph);
-        let expanded = Plan {
+        let mut expanded = Plan {
             instructions: vec![
                 Instruction::Prepare {
                     patch: 0,
@@ -587,11 +634,13 @@ pub(crate) mod tests {
                     patch: 0,
                     vertex: 0,
                 },
+                Instruction::Hadamard { patch: 1 },
                 Instruction::Feedback {
                     measurement: 0,
-                    x_targets: vec![1],
-                    z_targets: vec![],
+                    x_targets: vec![],
+                    z_targets: vec![1],
                 },
+                Instruction::Hadamard { patch: 1 },
                 Instruction::Phase {
                     patch: 1,
                     vertex: 1,
@@ -611,7 +660,42 @@ pub(crate) mod tests {
                 .any(|i| matches!(i, Instruction::Release { .. }))
         );
         verify_branches(&expanded, &circuit);
+        expanded.cancel_hadamards();
+        verify_branches(&expanded, &circuit);
         verify_branches(&contracted, &circuit);
+    }
+
+    #[test]
+    fn independent_patch_operations_do_not_obstruct_h_cancellation() {
+        let circuit =
+            Circuit::from_qasm("OPENQASM 2.0; include \"qelib1.inc\"; qreg q[2]; z q[1];").unwrap();
+        let mut p = Plan {
+            instructions: vec![
+                Instruction::Prepare {
+                    patch: 0,
+                    vertex: 0,
+                    input: Some(0),
+                },
+                Instruction::Prepare {
+                    patch: 1,
+                    vertex: 1,
+                    input: Some(1),
+                },
+                Instruction::Hadamard { patch: 0 },
+                Instruction::Phase {
+                    patch: 1,
+                    vertex: 1,
+                    phase: 1.into(),
+                },
+                Instruction::Hadamard { patch: 0 },
+            ],
+            outputs: vec![(0, 0), (1, 1)],
+            peak_patches: 2,
+            ..Plan::default()
+        };
+        p.cancel_hadamards();
+        assert_eq!(p.instructions.len(), 3);
+        verify_branches(&p, &circuit);
     }
 
     #[test]
