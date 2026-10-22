@@ -1,5 +1,8 @@
 # MQT Bench compilation catalog — 2026-10-21
 
+**Private experiment evidence:** the supporting bundles are retained locally and
+are not publicly hosted.
+
 This historical catalog contains 65 accepted compiler–circuit pairs at requested
 distance 25 across 31 cases and 24 families: SpiderLS 31, TopoLS 26, Topologiq 8.
 It retains 26 sampled QuiZX + distance-3 VM checks and 3 additional VM passes

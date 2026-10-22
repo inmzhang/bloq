@@ -1,5 +1,8 @@
 # MQT Bench compilation recovery catalog — 2026-10-22
 
+**Private experiment evidence:** the supporting bundles are retained locally and
+are not publicly hosted.
+
 This catalog contains 71 validated compiler–circuit pairs across 35 cases and
 24 families: SpiderLS 35, TopoLS 28, Topologiq 8. Programs compile at requested
 d=25 with ideal T-source proxies, native validation and binary round trip.
