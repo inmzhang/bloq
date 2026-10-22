@@ -1,6 +1,7 @@
 use bloq_ir::{Bloq, BloqEdge, BloqNode};
 use smallvec::SmallVec;
 use std::collections::{BTreeMap, hash_map::Entry};
+use std::sync::Arc;
 
 use super::qubit_layout::{QubitRun, template_qubit_runs};
 
@@ -116,6 +117,14 @@ struct LiveQubitUses {
     uses: QubitGuards,
 }
 
+type GuardedPlacement = (bloq_ir::TemplateId, glam::IVec2, Option<bloq_ir::ValueRef>);
+
+#[derive(Default)]
+struct LiveSupportCache {
+    nodes: crate::FxMap<bloq_ir::BloqNodeId, Arc<LiveQubitUses>>,
+    placements: crate::FxMap<Vec<GuardedPlacement>, Arc<LiveQubitUses>>,
+}
+
 struct EraNeighbors {
     predecessors: crate::FxMap<bloq_ir::BloqNodeId, Vec<bloq_ir::BloqNodeId>>,
     successors: crate::FxMap<bloq_ir::BloqNodeId, Vec<bloq_ir::BloqNodeId>>,
@@ -170,13 +179,52 @@ impl LiveDirection {
 /// Memoized live boundary support of a top-level node.
 fn cache_live_uses(
     bloq: &Bloq,
-    supports: &mut crate::FxMap<bloq_ir::BloqNodeId, LiveQubitUses>,
+    supports: &mut LiveSupportCache,
     id: bloq_ir::BloqNodeId,
 ) -> Result<(), crate::CompileError> {
-    if let Entry::Vacant(entry) = supports.entry(id) {
-        entry.insert(live_qubit_uses_in_level(bloq, bloq.top(), id, id)?);
+    if let Entry::Vacant(entry) = supports.nodes.entry(id) {
+        let support = if let Some(quantum) = bloq[id].try_quantum() {
+            let guards = instance_guards(bloq.top(), id);
+            let key = quantum
+                .instances
+                .iter()
+                .map(|instance| {
+                    (
+                        instance.template_id,
+                        instance.offset,
+                        guards.get(&instance.id).copied(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            // Time and instance IDs do not change a quantum node's physical support.
+            match supports.placements.entry(key) {
+                Entry::Occupied(entry) => Arc::clone(entry.get()),
+                Entry::Vacant(entry) => Arc::clone(entry.insert(Arc::new(
+                    live_qubit_uses_in_level(bloq, bloq.top(), id, id)?,
+                ))),
+            }
+        } else {
+            Arc::new(live_qubit_uses_in_level(bloq, bloq.top(), id, id)?)
+        };
+        entry.insert(support);
     }
     Ok(())
+}
+
+fn instance_guards(
+    level: &bloq_ir::SubGraph,
+    id: bloq_ir::BloqNodeId,
+) -> crate::FxMap<bloq_ir::lowering::TemplateInstanceId, bloq_ir::ValueRef> {
+    let mut guards = crate::FxMap::default();
+    for guard in &level[id].expect_quantum().guards {
+        let value = level
+            .value_inputs(id)
+            .find(|input| input.slot == guard.input)
+            .and_then(bloq_ir::ValueInput::value_ref)
+            .expect("compiled membership input exists");
+        guards.extend(guard.instances.iter().map(|&instance| (instance, value)));
+    }
+    guards
 }
 
 fn live_qubit_uses_in_level(
@@ -236,15 +284,7 @@ fn live_qubit_uses_in_level(
     let Some(quantum) = level[id].try_quantum() else {
         return Ok(result);
     };
-    let mut guards = crate::FxMap::default();
-    for guard in &quantum.guards {
-        let value = level
-            .value_inputs(id)
-            .find(|input| input.slot == guard.input)
-            .and_then(bloq_ir::ValueInput::value_ref)
-            .expect("compiled membership input exists");
-        guards.extend(guard.instances.iter().map(|&instance| (instance, value)));
-    }
+    let guards = instance_guards(level, id);
     for instance in &quantum.instances {
         let guard = guards.get(&instance.id).copied();
         let template = &bloq.templates()[instance.template_id];
@@ -276,7 +316,7 @@ fn guarded_era_boundary(
     right: bloq_ir::BloqNodeId,
     qubit: glam::IVec2,
     neighbors: &EraNeighbors,
-    supports: &mut crate::FxMap<bloq_ir::BloqNodeId, LiveQubitUses>,
+    supports: &mut LiveSupportCache,
     predicates: &mut bloq_ir::lowering::PredicateAnalysis<'_>,
 ) -> Result<bool, crate::CompileError> {
     let outgoing = &neighbors.successors[&left];
@@ -292,11 +332,11 @@ fn guarded_era_boundary(
         (left, outgoing, LiveDirection::AfterOutputs),
         (right, incoming, LiveDirection::BeforeInputs),
     ] {
-        let Some(face) = direction.entry(&supports[&endpoint]).get(&qubit) else {
+        let Some(face) = direction.entry(&supports.nodes[&endpoint]).get(&qubit) else {
             continue;
         };
         for next in adjacent {
-            if let Some(other) = direction.exit(&supports[next]).get(&qubit) {
+            if let Some(other) = direction.exit(&supports.nodes[next]).get(&qubit) {
                 for first in face {
                     for second in other {
                         continuing.push(first.iter().chain(second).copied().collect::<Vec<_>>());
@@ -305,10 +345,10 @@ fn guarded_era_boundary(
             }
         }
     }
-    let Some(left_guards) = supports[&left].uses.get(&qubit) else {
+    let Some(left_guards) = supports.nodes[&left].uses.get(&qubit) else {
         return Ok(false);
     };
-    let Some(right_guards) = supports[&right].uses.get(&qubit) else {
+    let Some(right_guards) = supports.nodes[&right].uses.get(&qubit) else {
         return Ok(false);
     };
     for left_guard in left_guards {
@@ -344,7 +384,7 @@ fn plan_live_era_reordering(
     reuser: bloq_ir::BloqNodeId,
     neighbors: &crate::FxMap<bloq_ir::BloqNodeId, Vec<bloq_ir::BloqNodeId>>,
     direction: LiveDirection,
-    supports: &mut crate::FxMap<bloq_ir::BloqNodeId, LiveQubitUses>,
+    supports: &mut LiveSupportCache,
     scratch: &mut bloq_ir::PathScratch,
 ) -> Result<Vec<(bloq_ir::BloqNodeId, bloq_ir::BloqNodeId)>, crate::CompileError> {
     use bloq_utils::boolean::BooleanDecisionDiagram;
@@ -353,9 +393,9 @@ fn plan_live_era_reordering(
         cache_live_uses(bloq, supports, id)?;
     }
     let mut qubits = direction
-        .entry(&supports[&endpoint])
+        .entry(&supports.nodes[&endpoint])
         .keys()
-        .filter(|qubit| supports[&reuser].uses.contains_key(qubit))
+        .filter(|qubit| supports.nodes[&reuser].uses.contains_key(qubit))
         .copied()
         .collect::<Vec<_>>();
     qubits.sort_unstable_by_key(glam::IVec2::to_array);
@@ -370,8 +410,8 @@ fn plan_live_era_reordering(
     };
     for qubit in qubits {
         let mut pending = Vec::new();
-        for input in &direction.entry(&supports[&endpoint])[&qubit] {
-            for usage in &supports[&reuser].uses[&qubit] {
+        for input in &direction.entry(&supports.nodes[&endpoint])[&qubit] {
+            for usage in &supports.nodes[&reuser].uses[&qubit] {
                 pending.push((
                     endpoint,
                     input.iter().chain(usage).copied().collect::<Vec<_>>(),
@@ -401,7 +441,7 @@ fn plan_live_era_reordering(
             }
             for &next in neighbors.get(&current).into_iter().flatten() {
                 cache_live_uses(bloq, supports, next)?;
-                let Some(outputs) = direction.exit(&supports[&next]).get(&qubit) else {
+                let Some(outputs) = direction.exit(&supports.nodes[&next]).get(&qubit) else {
                     continue;
                 };
                 for output in outputs {
@@ -427,7 +467,7 @@ fn plan_live_era_reordering(
                     if !has_path(from, to) {
                         ordering.insert((from, to));
                     }
-                    if let Some(inputs) = direction.entry(&supports[&next]).get(&qubit) {
+                    if let Some(inputs) = direction.entry(&supports.nodes[&next]).get(&qubit) {
                         for input in inputs {
                             let mut guards = path_guards.clone();
                             guards.extend(input);
@@ -771,7 +811,7 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
             && !worldline_continues(lower as usize, users, user_slots, Dir::Outgoing)
             && !worldline_continues(upper as usize, users, user_slots, Dir::Incoming)
     });
-    let mut live_supports = crate::FxMap::default();
+    let mut live_supports = LiveSupportCache::default();
     let mut predicates = bloq_ir::lowering::PredicateAnalysis::new(bloq.top());
     for (lower, upper, span) in conditional_checks {
         if candidate_slots.contains(&(lower, upper)) {
@@ -840,7 +880,7 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
             && (bloq[from].try_region().is_some() || bloq[to].try_region().is_some() || {
                 cache_live_uses(bloq, &mut live_supports, from)?;
                 cache_live_uses(bloq, &mut live_supports, to)?;
-                let (a, b) = (&live_supports[&from], &live_supports[&to]);
+                let (a, b) = (&live_supports.nodes[&from], &live_supports.nodes[&to]);
                 let carries = |a: &LiveQubitUses, b: &LiveQubitUses| {
                     a.inputs
                         .keys()
@@ -1000,6 +1040,62 @@ mod tests {
         }));
         bloq.add_edge(bit, inverse, BloqEdge::value(0));
         (bit, inverse)
+    }
+
+    #[test]
+    fn shared_live_supports_match_uncached_templates_offsets_and_guards() {
+        let mut bloq = Bloq::new();
+        let live = add_live_node(&mut bloq, 0, true, true);
+        let reset = add_block_node(&mut bloq, ivec3(0, 0, 1), ivec2(0, 0));
+        let a = bloq[live].expect_quantum().instances[0].template_id;
+        let b = bloq[reset].expect_quantum().instances[0].template_id;
+        let selector = bloq.add_node(BloqNode::classical(ClassicalNode::observable(0)));
+        let (_, other) = opposite_selectors(&mut bloq);
+        let mut supports = LiveSupportCache::default();
+        for templates in [vec![a], vec![b], vec![a, b], vec![b, a]] {
+            for offset in [ivec2(0, 0), ivec2(-3, 5)] {
+                for guard in [
+                    None,
+                    Some((selector, BloqEdge::value(0))),
+                    Some((selector, BloqEdge::flip(0))),
+                    Some((other, BloqEdge::value(0))),
+                ] {
+                    for z in [2, 3] {
+                        let mut node = BloqNode::from_members(vec![SourceBlockRef {
+                            pos: ivec3(0, 0, z),
+                        }]);
+                        node.expect_quantum_mut().instances.extend(
+                            templates.iter().enumerate().map(|(index, &template)| {
+                                TemplateInstance::new(
+                                    TemplateInstanceId((2 * bloq.node_count() + index) as u32),
+                                    template,
+                                    offset,
+                                )
+                            }),
+                        );
+                        if guard.is_some() {
+                            let quantum = node.expect_quantum_mut();
+                            quantum.guards.push(QuantumGuard {
+                                input: 0,
+                                instances: vec![quantum.instances[0].id],
+                                ..Default::default()
+                            });
+                        }
+                        let id = bloq.add_node(node);
+                        if let Some((source, edge)) = &guard {
+                            bloq.add_edge(*source, id, edge.clone());
+                        }
+                        let expected = live_qubit_uses_in_level(&bloq, bloq.top(), id, id).unwrap();
+                        cache_live_uses(&bloq, &mut supports, id).unwrap();
+                        let actual = &supports.nodes[&id];
+                        assert_eq!(
+                            (&actual.inputs, &actual.outputs, &actual.uses),
+                            (&expected.inputs, &expected.outputs, &expected.uses),
+                        );
+                    }
+                }
+            }
+        }
     }
 
     #[test]
