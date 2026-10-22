@@ -8,6 +8,7 @@ members = [
   "bloq_utils",
   "bloq_circuit",
   "bloq_ir",
+  "bloq_interop",
   "bloq_compile",
   "bloq_vm",
   "bloq_stim",
@@ -43,6 +44,7 @@ bloq_circuit = { path = "bloq_circuit", version = "=0.1.2-dev" }
 bloq_compile = { path = "bloq_compile", version = "=0.1.2-dev" }
 bloq_graph = { path = "bloq_graph", version = "=0.1.2-dev" }
 bloq_ir = { path = "bloq_ir", version = "=0.1.2-dev" }
+bloq_interop = { package = "bloq-interop", path = "bloq_interop", version = "=0.1.2-dev" }
 bloq_stim = { path = "bloq_stim", version = "=0.1.2-dev" }
 bloq_vm = { path = "bloq_vm", version = "=0.1.2-dev" }
 # Deliberately version-less: bloq_test is dev-only and unpublished; cargo

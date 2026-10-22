@@ -20,6 +20,7 @@ thiserror.workspace = true
 ticit.workspace = true
 
 [dev-dependencies]
+bloq_interop.workspace = true
 bloq_compile.workspace = true
 bloq_graph = { workspace = true, features = ["verify"] }
 bloq_stim = { path = "../bloq_stim", features = ["verify"] }

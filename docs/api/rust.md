@@ -27,6 +27,41 @@ The [feature reference](../guide.md#cargo-feature-flags) lists the optional
 capabilities. Ordinary graph authoring, compilation, IR access, and Stim text
 emission require no features.
 
+## Native circuit layouts
+
+The separate `bloq-interop` crate (Rust import `bloq_interop`) constructs block
+graphs from static Clifford+T circuits using QuiZX. `layout_qasm` accepts discrete
+OpenQASM 2 gates; `layout` also accepts exact rational quarter-turn rotations in
+a QuiZX `Circuit`. Neither entry point synthesizes approximate rotations.
+
+`Strategy::SpiderLs` uses full ZX reduction with a recorded flow-preserving
+fallback. `Strategy::TopoLs` uses bounded fusion and breadth-first topology
+placement. Both use a causal XY-gflow scheduler and direct Bloq constructions.
+These are native strategies inspired by the two compilers, with a shared
+deterministic router; they do not reproduce upstream stochastic placement or
+CZ-star grouping. Layouts retain source-ordered inputs and outputs, signed
+phases, adaptive T measurements, and resource lifetime reservations.
+
+`Layout::compile` takes the normal `CompileConfig` and always performs the full
+IR audit. Layout construction, successful compilation, logical branch checks,
+and physical execution are separate claims. Small VM regressions use ideal
+T-source proxies. Unsupported causal flows and exhausted budgets are errors.
+
+To reproduce compilation measurements from a frozen synthesized circuit:
+
+```sh
+cargo build --release -p bloq-interop --example compile_qasm --locked
+target/release/examples/compile_qasm circuit.qasm spiderls new-result-directory 25
+```
+
+The output includes BLOG, validated binary IR, persisted-file round-trip
+checks, compilation times, separate block/column/footprint/time metrics, and
+the reduction actually selected. The result directory must not already exist.
+Measure process wall time and peak RSS with an external isolated runner under
+the same CPU, memory, and timeout limits for both implementations. Column and
+footprint comparisons must consistently include extended blocks' reserved cells;
+`anchor_columns` separately supports comparisons with older anchor-only reports.
+
 ## Local API documentation
 
 From a Cargo project that depends on `bloq`, build its enabled API with:
