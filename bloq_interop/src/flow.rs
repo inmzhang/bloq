@@ -89,6 +89,10 @@ pub(crate) fn xy_gflow(graph: &Graph) -> Result<Flow, String> {
                 remaining.len()
             ));
         }
+        // A nonempty subset preserves gflow and can expose single-target corrections next.
+        if layer.iter().any(|correction| correction.x.len() == 1) {
+            layer.retain(|correction| correction.x.len() == 1);
+        }
         for correction in &layer {
             remaining.remove(&correction.vertex);
             if !inputs.contains(&correction.vertex) {
@@ -182,6 +186,41 @@ mod tests {
                     "{gates}, outcomes={outcomes:b}"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn deferring_multi_target_corrections_preserves_every_branch() {
+        let mut graph = Graph::new();
+        let inputs: Vec<_> = (0..2).map(|_| graph.add_vertex(VType::B)).collect();
+        let v = graph.add_vertex_with_phase(VType::Z, (1, 4));
+        let w = graph.add_vertex_with_phase(VType::Z, (-1, 4));
+        let a = graph.add_vertex(VType::Z);
+        let b = graph.add_vertex(VType::Z);
+        let outputs: Vec<_> = (0..2).map(|_| graph.add_vertex(VType::B)).collect();
+        for (input, vertex) in inputs.iter().zip([v, w]) {
+            graph.add_edge(*input, vertex);
+        }
+        for (vertex, output) in [a, b].into_iter().zip(&outputs) {
+            graph.add_edge(vertex, *output);
+        }
+        for (source, target) in [(v, a), (v, b), (w, b)] {
+            graph.add_edge_with_type(source, target, EType::H);
+        }
+        graph.set_inputs(inputs);
+        graph.set_outputs(outputs);
+        // The maximal first backward layer has g(v)={a}, g(w)={a,b}.
+        let flow = xy_gflow(&graph).unwrap();
+        assert_eq!(flow.layers.len(), 2);
+        for layer in &flow.layers {
+            assert_eq!(layer.len(), 1);
+            assert_eq!(layer[0].x.len(), 1);
+        }
+        for outcomes in 0..4 {
+            assert!(
+                TensorF::scalar_compare(&graph, &branch(&graph, &flow, outcomes)),
+                "outcomes={outcomes:b}"
+            );
         }
     }
 
