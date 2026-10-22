@@ -144,6 +144,12 @@ impl Builder {
         if control == target {
             return Err("CZ requires distinct live patches".into());
         }
+        // CZ is symmetric; reuse opposite frames instead of rotating both patches.
+        let (control, target) = if self.patch(control)?.rotated && !self.patch(target)?.rotated {
+            (target, control)
+        } else {
+            (control, target)
+        };
         self.orient(control, false)?;
         self.orient(target, true)?;
         let [start, end] = [self.patch(control)?.end.x + 1, self.patch(target)?.end.x]
@@ -499,11 +505,12 @@ mod tests {
 
     #[test]
     fn disjoint_cz_routes_overlap_but_crossing_or_shared_patch_routes_wait() {
-        for (pairs, route_layers) in [
-            ([[0, 1], [2, 3]], 1),
-            ([[1, 0], [3, 2]], 1),
-            ([[0, 2], [1, 3]], 2),
-            ([[0, 1], [1, 2]], 2),
+        for (pairs, route_layers, hadamard) in [
+            ([[0, 1], [2, 3]], 1, None),
+            ([[1, 0], [3, 2]], 1, None),
+            ([[0, 2], [1, 3]], 2, None),
+            ([[0, 1], [1, 2]], 2, None),
+            ([[0, 1], [0, 1]], 2, Some(0)),
         ] {
             let mut plan = Plan {
                 peak_patches: 4,
@@ -518,6 +525,10 @@ mod tests {
                 ..Plan::default()
             };
             let mut expected = Circuit::new(4);
+            if let Some(patch) = hadamard {
+                plan.instructions.push(Instruction::Hadamard { patch });
+                expected.add_gate("h", vec![patch]);
+            }
             for patches in pairs {
                 plan.instructions.push(Instruction::Cz {
                     patches,
@@ -526,6 +537,13 @@ mod tests {
                 expected.add_gate("cz", patches.to_vec());
             }
             let (graph, inputs, outputs) = embed(&plan, 1000).unwrap();
+            if hadamard.is_some() {
+                assert!(
+                    graph
+                        .blocks()
+                        .all(|b| !matches!(b.kind(), BlockKind::PatchRotation(_)))
+                );
+            }
             let occupied_layers: std::collections::BTreeSet<_> = graph
                 .pipes()
                 .filter(|p| p.src().y == -1 && p.dst().y == -1)
