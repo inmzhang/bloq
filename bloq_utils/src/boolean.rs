@@ -1868,7 +1868,7 @@ impl BooleanRow {
 #[derive(Debug, Default)]
 pub struct BooleanRowSpace {
     rows: Vec<Option<BooleanRow>>,
-    columns: FxHashMap<usize, BTreeSet<usize>>,
+    columns: FxHashMap<usize, FxHashSet<usize>>,
     live: usize,
 }
 
@@ -1944,11 +1944,15 @@ impl BooleanRowSpace {
 
     /// Stable IDs whose active support may contain `column`, in source order.
     pub fn row_ids_with_column(&self, column: usize) -> impl Iterator<Item = usize> + '_ {
-        self.columns
+        let mut ids = self
+            .columns
             .get(&column)
             .into_iter()
             .flat_map(|rows| rows.iter())
             .copied()
+            .collect::<Vec<_>>();
+        ids.sort_unstable();
+        ids.into_iter()
     }
 
     /// Append a row after all existing rows in the pivot priority order.
@@ -2066,14 +2070,16 @@ impl BooleanRowSpace {
             return Ok(());
         };
         diagram.charge(indices.len())?;
-        let work = indices.iter().try_fold(0usize, |work, &index| {
-            let row = self.rows[index].as_ref().expect("indexed row exists");
-            let search = row.bits.len().ilog2() as usize + 1;
-            diagram.charge(search)?;
-            let suffix =
-                row.bits.len() - row.bits.partition_point(|&(current, _)| current < column);
-            Ok::<_, BooleanResourceError>(work.saturating_add(search).saturating_add(suffix))
-        })?;
+        let work = self
+            .row_ids_with_column(column)
+            .try_fold(0usize, |work, index| {
+                let row = self.rows[index].as_ref().expect("indexed row exists");
+                let search = row.bits.len().ilog2() as usize + 1;
+                diagram.charge(search)?;
+                let suffix =
+                    row.bits.len() - row.bits.partition_point(|&(current, _)| current < column);
+                Ok::<_, BooleanResourceError>(work.saturating_add(search).saturating_add(suffix))
+            })?;
         // Removing a sorted coefficient can shift its suffix. Charge all rows
         // before changing any of them or taking ownership of the postings.
         diagram.charge(work)?;
@@ -2109,7 +2115,7 @@ impl BooleanRowSpace {
             return Ok(Vec::new());
         };
         diagram.charge(indices.len())?;
-        Ok(indices.iter().copied().collect())
+        Ok(self.row_ids_with_column(column).collect())
     }
 
     fn remove_column_row(&mut self, column: usize, index: usize) {
