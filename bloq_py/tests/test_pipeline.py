@@ -404,6 +404,14 @@ def test_exception_hierarchy():
     assert issubclass(bloq.BloqError, Exception)
 
 
+def test_compile_error_has_optional_layout_conflict():
+    error = bloq.CompileError("user-created error")
+    assert error.layout_conflict is None
+    error.layout_conflict = {"kind": "test"}
+    assert error.layout_conflict == {"kind": "test"}
+    assert bloq.CompileError("another error").layout_conflict is None
+
+
 @pytest.mark.parametrize("defer_analysis", [False, True])
 def test_compile_lifetime_conflict_exposes_source_positions(defer_analysis):
     source = Path(__file__).resolve().parents[2] / "bloq_compile/tests/data/late_control_t.blog"

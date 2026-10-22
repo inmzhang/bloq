@@ -72,6 +72,47 @@ def test_unrelated_native_failure_is_propagated_without_retry(two_resources, nat
     assert len(compilation.attempts) == 1
 
 
+def test_resource_ownership_includes_routed_arms_after_time_compaction(
+        two_resources, native_error, monkeypatch):
+    from bloq.interop import _compile
+
+    build = _compile.build_graph
+    mapped = {}
+
+    def capture(nodes, *args, **options):
+        result = build(nodes, *args, **options)
+        mapped.update({name: options['position_map'][tuple(data['position'])]
+                       for name, data in nodes.items()
+                       if tuple(data['position']) in options['position_map']})
+        return result
+
+    monkeypatch.setattr(_compile, 'build_graph', capture)
+    compilation = _Compilation(3, True, None, 2)
+    native, calls = compilation.context, []
+
+    class ArmConflict:
+        def compile(self, graph, **options):
+            calls.append(graph.to_text())
+            if len(calls) == 1:
+                # This arm lies outside the source/center/cap column. A native
+                # witness there must still trigger resource placement refinement.
+                arm = next(p for name, p in mapped.items() if str(name).startswith('t0_arm_'))
+                assert arm[:2] != mapped['t0_source'][:2]
+                native_error.layout_conflict = {
+                    'kind': 'live_qubit_reuse', 'qubit': (0, 0),
+                    'producer': {'id': 0, 'blocks': [arm]},
+                    'consumer': {'id': 1, 'blocks': []},
+                    'reuser': {'id': 2, 'blocks': [mapped['t1_source']]},
+                }
+                raise native_error
+            return native.compile(graph, **options)
+
+    compilation.context = ArmConflict()
+    compilation.build(*two_resources)
+    assert [attempt['status'] for attempt in compilation.attempts] == ['rejected', 'accepted']
+    assert len(calls) == 2
+
+
 @pytest.mark.parametrize('budget,routing_failure,indirect',
                          [(1, False, False), (2, False, False), (2, True, False), (2, False, True)])
 def test_structured_conflict_refines_placement_or_preserves_native_cause(
@@ -126,15 +167,16 @@ def test_structured_conflict_refines_placement_or_preserves_native_cause(
         assert len({p[:2] for p in calls[1]}) == 2
 
 
+@pytest.mark.parametrize('budget', [1, 2])
 @pytest.mark.parametrize("resource_count", [1, 2])
 def test_unactionable_owned_conflict_tries_cached_alternative(
-        two_resources, native_error, resource_count):
+        two_resources, native_error, resource_count, budget):
     args = list(two_resources)
     if resource_count == 1:
         args[0].pop('r1')
         args[1].remove(('w5', 'r1'))
         args[4] = args[4][:1]
-    compilation = _Compilation(3, True, None, 2)
+    compilation = _Compilation(3, True, None, budget)
     native, calls = compilation.context, []
 
     class RejectFirstCandidate:
@@ -152,13 +194,20 @@ def test_unactionable_owned_conflict_tries_cached_alternative(
             return native.compile(graph, **options)
 
     compilation.context = RejectFirstCandidate()
+    if budget == 1:
+        with pytest.raises(GeometryError) as caught:
+            compilation.build(*args)
+        assert caught.value.code == 'resource_placement_limit'
+        assert caught.value.__cause__ is native_error
+        assert compilation.program is None
+        return
     compilation.build(*args)
     assert len(calls) == 2 and calls[0] != calls[1]
     strategies = [attempt['strategy'] for attempt in compilation.attempts]
     assert strategies == (['short_arm', 'reuse'] if resource_count == 1 else ['reuse', 'short_arm'])
 
 
-@pytest.mark.parametrize('budget,stall', [(2, None), (3, 'routing'), (3, 'aliases'), (2, 'native')])
+@pytest.mark.parametrize('budget,stall', [(2, None), (3, 'routing'), (3, 'aliases'), (2, 'native'), (8, 'native')])
 def test_owned_conflict_can_fall_back_to_native_validated_private_columns(
         two_resources, native_error, budget, stall, monkeypatch):
     from bloq.interop import _compile
@@ -200,19 +249,22 @@ def test_owned_conflict_can_fall_back_to_native_validated_private_columns(
 
     compilation.context = RejectReusedColumns()
     if stall == 'native':
-        with pytest.raises(bloq.CompileError) as caught:
+        with pytest.raises(GeometryError) as caught:
             compilation.build(*two_resources)
-        assert caught.value is native_error
+        assert caught.value.code == 'resource_placement_limit'
+        assert caught.value.__cause__ is native_error
         assert compilation.program is None
+        if budget == 8:
+            assert len(calls) < budget
     else:
         compilation.build(*two_resources)
         assert compilation.attempts[-1]['status'] == 'accepted'
         assert compilation.program is not None
-    assert compilation.attempts[-1]['strategy'] == 'private'
-    assert compilation.attempts[-1]['layout_seconds'] == 10
-    assert compilation.attempts[-1]['seconds'] == 11
-    assert compilation.attempts[-1]['native_seconds'] == 1
-    assert routes[-1] is None
+    private = next(attempt for attempt in compilation.attempts if attempt['strategy'] == 'private')
+    assert private['layout_seconds'] == 10
+    assert private['seconds'] == 11
+    assert private['native_seconds'] == 1
+    assert None in routes
     assert len(calls) <= budget
     assert len({p[:2] for p in calls[-1]}) == 2
 
@@ -241,8 +293,8 @@ def test_persistent_waiter_gets_an_exclusive_outlet_while_other_factories_share(
 
     class PersistentWait:
         def compile(self, graph, **options):
-            owners = _compile._resource_owners(graph, resources)
-            sources.append({owners[b.pos]: b.pos for b in graph.flatten().blocks() if b.kind.is_t})
+            current_sources = sorted((b.pos for b in graph.flatten().blocks() if b.kind.is_t), key=lambda p: p[2])
+            sources.append({node: p for (node, _, _), p in zip(resources, current_sources)})
             if len(sources) <= 2:
                 current, other = sources[-1], f'r{len(sources)}'
                 assert current['r0'][:2] == current[other][:2]

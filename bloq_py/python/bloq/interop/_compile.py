@@ -25,22 +25,13 @@ class InteropCompilation:
     placement_attempts: tuple[dict[str, Any], ...]
 
 
-def _resource_owners(graph, resources):
-    names = {name: node for node, _, name in resources}
-    owners = {}
-    for action in graph.flatten().actions():
-        if action.resolve_target is None:
-            continue
-        pending, variables = [action.condition], set()
-        while pending:
-            expression = pending.pop()
-            if expression.name is not None:
-                variables.add(expression.name)
-            pending.extend(expression.operands())
-        if len(variables) == 1 and (name := next(iter(variables))) in names:
-            x, y, z = action.resolve_target
-            for dz in (0, -1, -2):
-                owners[x, y, z + dz] = names[name]
+def _resource_owners(nodes, resources, placements, position_map):
+    owners: dict[Any, Any] = {}
+    for i, (node, _, name) in enumerate(resources):
+        footprint = set(placements[i][-1])
+        if (elbow := nodes.get(f'{name}_temporal_elbow')) is not None:
+            footprint.add(_position(elbow['position']))
+        owners.update((position_map[p], node) for p in footprint if p in position_map)
     return owners
 
 
@@ -161,7 +152,9 @@ class _Compilation:
             staged_actions = [*actions, *staged_actions]
             centers = {node: placements[i][3]['source'][0][:2] for i, (node, _, _) in enumerate(resources)}
             columns = {node: {p[:2] for p in placements[i][-1]} for i, (node, _, _) in enumerate(resources)}
-            graph, inputs, outputs = build_graph(staged, pipes, qubits, staged_actions, defer_analysis=True)
+            position_map: dict[tuple[int, int, int], tuple[int, int, int]] = {}
+            graph, inputs, outputs = build_graph(staged, pipes, qubits, staged_actions,
+                                                 defer_analysis=True, position_map=position_map)
             points = graph.flatten().positions()
             extents = [max(p[i] for p in points) - min(p[i] for p in points) + 1 for i in range(3)]
             record = dict(attempt=attempt + 1, strategy=strategy, factory_columns=len(set(centers.values())), extents=extents,
@@ -178,7 +171,7 @@ class _Compilation:
                 conflict = getattr(error, 'layout_conflict', None)
                 pairs = set()
                 if conflict is not None:
-                    owners = _resource_owners(graph, resources)
+                    owners = _resource_owners(staged, resources, placements, position_map)
                     for witness in [conflict, *conflict.get('related', ())]:
                         pairs.update(_conflicting_resources(witness, owners, centers, columns))
                     waiting = {owners[tuple(p)]
@@ -201,23 +194,24 @@ class _Compilation:
                     for role in ('producer', 'consumer', 'reuser', 'first', 'second')
                     for position in witness.get(role, {}).get('blocks', ())))
                 owned_failure |= involved
+                if involved and attempt + 1 == self.max_attempts:
+                    raise GeometryError('resource_placement_limit',
+                                        f'Native-certified T placement exhausted {self.max_attempts} attempts') from error
                 new_pairs = [pair for pair in pairs if any(b not in conflicts[a] for a in pair for b in pair if a != b)]
                 if not new_pairs and not new_exclusive:
-                    if not involved or attempt + 1 == self.max_attempts:
+                    if not involved:
                         raise
                     if alternate is not None:
                         pending, alternate, greedy = alternate, None, None
                     elif not private_tried:
                         private_requested = True
                     else:
-                        raise
+                        raise GeometryError('resource_placement_limit',
+                                            f'Native-certified T placement stalled after {attempt + 1} attempts') from error
                 for pair in new_pairs:
                     a, b = pair
                     conflicts[a].add(b)
                     conflicts[b].add(a)
-                if attempt + 1 == self.max_attempts:
-                    raise GeometryError('resource_placement_limit',
-                                        f'Native-certified T placement exhausted {self.max_attempts} attempts') from error
                 continue
             if bloq.Bloq.from_binary(program.to_binary()).to_binary() != program.to_binary():
                 raise RuntimeError('Validated interop IR failed its binary round trip')

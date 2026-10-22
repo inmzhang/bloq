@@ -3071,7 +3071,10 @@ class CompileError(BloqError):
     ``related`` contains additional reuse witnesses from the same frozen failed
     scheduling state. This bounded diagnostic list may be partial or empty.
     """
-    ...
+    @property
+    def layout_conflict(self) -> typing.Optional[builtins.dict[builtins.str, typing.Any]]: ...
+    @layout_conflict.setter
+    def layout_conflict(self, value: typing.Optional[builtins.dict[builtins.str, typing.Any]]) -> None: ...
 
 class CompileWarning(builtins.UserWarning):
     r"""

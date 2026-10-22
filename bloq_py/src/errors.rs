@@ -31,24 +31,41 @@ pub(crate) fn io_error(path: PathBuf, source: &std::io::Error) -> PyErr {
 
 /// Declares the whole exception hierarchy AND generates `register()` from the
 /// same list, so adding an exception is a single edit — a declaration that is
-/// missing its registration cannot happen by construction.
+/// missing its registration cannot happen by construction. Optional fields
+/// default to None and share their declaration with the generated stubs.
 ///
 /// Per item this works like `pyo3_stub_gen::create_exception!`, but references
 /// the exception by its unqualified name in stubs. The upstream macro uses
 /// `TypeInfo::builtin`, which renders subclass bases as e.g.
 /// `builtins.BloqError` — an invalid annotation for a locally defined class.
 macro_rules! bloq_exceptions {
-    ($($name:ident : $base:ty => $doc:expr;)+) => {
-        $(bloq_exceptions!(@one $name, $base, $doc);)+
+    ($($name:ident : $base:ty $( { $($field:ident : $field_type:ty),+ $(,)? } )? => $doc:expr;)+) => {
+        $(bloq_exceptions!(@one $name, $base, $doc, [$($($field : $field_type),+)?]);)+
 
         pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
             let py = m.py();
-            $(m.add(stringify!($name), py.get_type::<$name>())?;)+
+            $(
+                let exception = py.get_type::<$name>();
+                $($(exception.setattr(stringify!($field), py.None())?;)+)?
+                m.add(stringify!($name), exception)?;
+            )+
             Ok(())
         }
     };
-    (@one $name:ident, $base:ty, $doc:expr) => {
+    (@one $name:ident, $base:ty, $doc:expr, [$($field:ident : $field_type:ty),*]) => {
         pyo3::create_exception!(bloq._core, $name, $base, $doc);
+
+        impl $name {
+            const FIELDS: &'static [pyo3_stub_gen::type_info::MemberInfo] = &[$(
+                pyo3_stub_gen::type_info::MemberInfo {
+                    name: stringify!($field),
+                    r#type: <$field_type as pyo3_stub_gen::PyStubType>::type_output,
+                    doc: "",
+                    default: None,
+                    deprecated: None,
+                },
+            )*];
+        }
 
         impl pyo3_stub_gen::PyStubType for $name {
             fn type_output() -> pyo3_stub_gen::TypeInfo {
@@ -62,8 +79,8 @@ macro_rules! bloq_exceptions {
             pyo3_stub_gen::type_info::PyClassInfo {
                 pyclass_name: stringify!($name),
                 struct_id: std::any::TypeId::of::<$name>,
-                getters: &[],
-                setters: &[],
+                getters: $name::FIELDS,
+                setters: $name::FIELDS,
                 module: Some("bloq._core"),
                 doc: $doc,
                 bases: &[|| <$base as pyo3_stub_gen::PyStubType>::type_output()],
@@ -98,7 +115,9 @@ Examples:
         "A `.blog` source failed to parse (message carries the rendered diagnostic).";
     BlockGraphError: BloqError =>
         "A block-graph operation or validation failed.";
-    CompileError: BloqError =>
+    CompileError: BloqError {
+        layout_conflict: Option<std::collections::HashMap<String, Py<PyAny>>>
+    } =>
 "Lowering a block graph to Bloq IR failed.
 
 The ``layout_conflict`` attribute is None except for physical ownership
