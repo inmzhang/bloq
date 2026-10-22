@@ -43,6 +43,10 @@ These are native strategies inspired by the two compilers, with a shared
 deterministic router; they do not reproduce upstream stochastic placement or
 CZ-star grouping. Layouts retain source-ordered inputs and outputs, signed
 phases, adaptive T measurements, and resource lifetime reservations.
+Idle spans use native tall-memory blocks: this reduces graph nodes while
+preserving occupied cells and syndrome rounds. The block budget and candidate
+cost count graph nodes; occupied cells, footprint, and temporal extent remain
+separate layout metrics.
 
 `Layout::compile` takes the normal `CompileConfig` and always performs the full
 IR audit. Layout construction, successful compilation, logical branch checks,

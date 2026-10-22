@@ -3,8 +3,9 @@
 use std::collections::{BTreeMap, HashMap};
 
 use bloq_graph::{
-    Action, Basis, Block, BlockGraph, BlockKind, CubeKind, Direction, Expr, FeedbackTarget,
-    MeasureTarget, PatchRotationKind, PauliBasis, Pipe, PortRole, SelectiveKind,
+    Action, Basis, Block, BlockGraph, BlockKind, CubeHeight, CubeKind, Direction, Expr,
+    FeedbackTarget, MAX_CUBE_HEIGHT_CELLS, MeasureTarget, PatchRotationKind, PauliBasis, Pipe,
+    PortRole, SelectiveKind,
 };
 use glam::{IVec2, IVec3};
 
@@ -41,11 +42,11 @@ struct Builder {
 }
 
 impl Builder {
-    fn block(&mut self, pos: IVec3, kind: BlockKind) -> Result<(), String> {
+    fn block(&mut self, block: Block) -> Result<(), String> {
         if self.graph.block_count() >= self.max_blocks {
             return Err(format!("block budget {} exhausted", self.max_blocks));
         }
-        let block = Block::new(pos, kind);
+        let pos = block.pos();
         let offsets = block.reserved_offsets();
         self.graph.try_add_block(block).map_err(|e| e.to_string())?;
         for offset in offsets {
@@ -59,7 +60,7 @@ impl Builder {
     }
 
     fn cube(&mut self, pos: IVec3, kind: CubeKind) -> Result<(), String> {
-        self.block(pos, BlockKind::Cube(kind))
+        self.block(Block::new(pos, BlockKind::Cube(kind)))
     }
 
     fn pipe(&mut self, from: IVec3, to: IVec3, hadamard: bool) -> Result<(), String> {
@@ -71,7 +72,7 @@ impl Builder {
     }
 
     fn port(&mut self, pos: IVec3, role: PortRole) -> Result<(), String> {
-        self.block(pos, BlockKind::Port)?;
+        self.block(Block::new(pos, BlockKind::Port))?;
         self.graph
             .set_port_role(pos, role)
             .map_err(|e| e.to_string())
@@ -89,9 +90,16 @@ impl Builder {
         let mut patch = self.patch(id)?;
         while patch.end.z < time {
             let next = patch.end + IVec3::Z;
-            self.cube(next, patch.memory())?;
+            // Keep a unit endpoint for future junctions; tall memory preserves every cell and round.
+            let cells = ((time - patch.end.z - 1).max(1) as u32).min(MAX_CUBE_HEIGHT_CELLS);
+            let height = CubeHeight::new(cells, 1, 0).map_err(|e| e.to_string())?;
+            self.block(
+                Block::new(next, BlockKind::Cube(patch.memory()))
+                    .with_height(height)
+                    .map_err(|e| e.to_string())?,
+            )?;
             self.pipe(patch.end, next, false)?;
-            patch.end = next;
+            patch.end.z += cells as i32;
         }
         patch.ready = patch.ready.max(patch.end.z);
         self.live[id] = Some(patch);
@@ -114,7 +122,7 @@ impl Builder {
         let rotation =
             PatchRotationKind::new(if patch.rotated { Basis::Z } else { Basis::X }, movement)
                 .map_err(|e| e.to_string())?;
-        self.block(start, BlockKind::PatchRotation(rotation))?;
+        self.block(Block::new(start, BlockKind::PatchRotation(rotation)))?;
         self.pipe(patch.end, start, false)?;
         let end = rotation.end_position(start);
         patch.end = end + IVec3::Z;
@@ -300,9 +308,9 @@ impl Builder {
         let cap = resource + IVec3::Z;
         if t {
             let source = resource - IVec3::Z;
-            self.block(source, BlockKind::T)?;
+            self.block(Block::new(source, BlockKind::T))?;
             self.pipe(source, resource, false)?;
-            self.block(cap, BlockKind::Selective(SelectiveKind::XY))?;
+            self.block(Block::new(cap, BlockKind::Selective(SelectiveKind::XY)))?;
             let name = format!("t{}", self.actions.len());
             self.actions.push(Action::Measure {
                 target: MeasureTarget::Edge {
@@ -320,7 +328,7 @@ impl Builder {
                 },
             });
         } else {
-            self.block(cap, BlockKind::Y)?;
+            self.block(Block::new(cap, BlockKind::Y))?;
             if !dagger {
                 self.z_feedback(patch.end);
             }
@@ -460,6 +468,80 @@ mod tests {
     use bloq_graph::verify::{BoundaryOrder, LogicalVerifier, QuizxGraph};
     use quizx::circuit::Circuit;
     use quizx::vec_graph::Graph;
+
+    #[test]
+    fn tall_idle_memory_preserves_occupied_cells_and_physical_rounds() {
+        for rotated in [false, true] {
+            let mut plan = Plan {
+                peak_patches: 2,
+                outputs: vec![(0, 0), (1, 1)],
+                ..Plan::default()
+            };
+            for patch in 0..2 {
+                plan.instructions.push(Instruction::Prepare {
+                    patch,
+                    vertex: patch,
+                    input: Some(patch),
+                });
+            }
+            if rotated {
+                plan.instructions.push(Instruction::Hadamard { patch: 1 });
+            }
+            plan.instructions
+                .extend((0..7).map(|_| Instruction::Hadamard { patch: 0 }));
+            let (graph, inputs, outputs) = embed(&plan, 100).unwrap();
+            assert_eq!(graph.occupied_positions().count(), 20);
+            assert!(graph.block_count() < 20);
+            assert_eq!(outputs.iter().map(|p| p.z).collect::<Vec<_>>(), [9, 9]);
+            embed(&plan, graph.block_count() - 1).unwrap_err();
+
+            // Expand only idle memory to the previous unit-cube construction.
+            let mut reference = BlockGraph::new();
+            for block in graph.blocks() {
+                for z in 0..block.height_cells() as i32 {
+                    let pos = block.pos() + IVec3::Z * z;
+                    reference
+                        .try_add_block(Block::new(pos, block.kind()))
+                        .unwrap();
+                    if z != 0 {
+                        reference
+                            .try_add_pipe(Pipe::new(pos - IVec3::Z, Direction::ZPLUS))
+                            .unwrap();
+                    }
+                }
+            }
+            for pipe in graph.pipes() {
+                reference.try_add_pipe(pipe.clone()).unwrap();
+            }
+            let mut expected = Circuit::new(2);
+            expected.add_gate("h", vec![0]);
+            if rotated {
+                expected.add_gate("h", vec![1]);
+            }
+            LogicalVerifier::with_boundaries_and_internal_measurements(
+                &graph,
+                BoundaryOrder::new(inputs, outputs),
+            )
+            .unwrap()
+            .verify(&expected.to_graph(), 8, 41)
+            .unwrap();
+            for distance in [3, 5, 25] {
+                let compile = |source| {
+                    let mut program = bloq_compile::CompileContext::new(
+                        bloq_compile::CompileConfig::new(distance),
+                    )
+                    .compile_and_validate(source)
+                    .unwrap()
+                    .bloq;
+                    program.flatten().unwrap();
+                    program
+                };
+                let (actual, unit) = (compile(&graph), compile(&reference));
+                assert_eq!(actual.qubit_count().unwrap(), unit.qubit_count().unwrap());
+                assert_eq!(actual.measurement_count(), unit.measurement_count());
+            }
+        }
+    }
 
     #[test]
     fn free_resource_outlets_reuse_data_endpoints_in_both_frames() {

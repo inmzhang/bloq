@@ -44,6 +44,7 @@ pub struct LayoutOptions {
     /// Graph planning strategy.
     pub strategy: Strategy,
     /// Maximum number of emitted blocks, including resources and idle memory.
+    /// A tall idle block occupies multiple cells but counts as one graph node.
     pub max_blocks: usize,
 }
 
