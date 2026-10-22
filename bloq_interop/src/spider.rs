@@ -205,6 +205,47 @@ impl Frontier<'_> {
         }
     }
 
+    fn transfer(&mut self, vertex: V, x: &[V], z: &[V]) -> Result<bool, String> {
+        let [target] = x else {
+            return Ok(false);
+        };
+        if self.live.contains_key(target)
+            || self.measured.contains(target)
+            || self.remaining[&vertex].len() != 1
+            || !self.remaining[&vertex].contains(target)
+        {
+            return Ok(false);
+        }
+        let neighbors: BTreeSet<_> = self.remaining[target]
+            .iter()
+            .copied()
+            .filter(|&v| v != vertex)
+            .collect();
+        if neighbors != z.iter().copied().collect() {
+            return Ok(false);
+        }
+        self.prepare(vertex, None)?;
+        self.phase(vertex);
+        let patch = self
+            .live
+            .remove(&vertex)
+            .expect("transfer source was prepared");
+        self.live.insert(*target, patch);
+        self.remaining
+            .get_mut(&vertex)
+            .expect("transfer source exists")
+            .remove(target);
+        self.remaining
+            .get_mut(target)
+            .expect("transfer target exists")
+            .remove(&vertex);
+        self.measured.insert(vertex);
+        // Corrected one-edge teleportation is H; delaying the target's other CZs
+        // absorbs their Z byproducts without introducing a measurement outcome.
+        self.plan.instructions.push(Instruction::Hadamard { patch });
+        Ok(true)
+    }
+
     fn entangle(&mut self, targets: &BTreeSet<V>, corrections: &BTreeSet<V>) -> Result<(), String> {
         let mut needed = corrections.clone();
         needed.extend(targets);
@@ -276,9 +317,15 @@ pub(crate) fn causal_plan(graph: &Graph, order: &[V]) -> Result<Plan, String> {
         }
     }
     for layer in flow.layers {
+        let mut measurements = Vec::with_capacity(layer.len());
+        for correction in layer {
+            if !f.transfer(correction.vertex, &correction.x, &correction.z)? {
+                measurements.push(correction);
+            }
+        }
         let mut entangle = BTreeSet::new();
         let mut corrections = BTreeSet::new();
-        for correction in &layer {
+        for correction in &measurements {
             entangle.insert(correction.vertex);
             entangle.extend(&correction.x);
             corrections.extend(&correction.z);
@@ -286,7 +333,7 @@ pub(crate) fn causal_plan(graph: &Graph, order: &[V]) -> Result<Plan, String> {
         // Later CZs commute with every correction: X targets have no edges left,
         // and Z corrections commute with CZ without extra byproducts.
         f.entangle(&entangle, &corrections)?;
-        for correction in layer {
+        for correction in measurements {
             let v = correction.vertex;
             f.phase(v);
             let patch = f
@@ -505,6 +552,66 @@ pub(crate) mod tests {
             ]
         );
         assert!(p.instructions.is_empty());
+    }
+
+    #[test]
+    fn causal_h_transfer_matches_both_explicit_teleportation_outcomes() {
+        let circuit = Circuit::from_qasm(
+            "OPENQASM 2.0; include \"qelib1.inc\"; qreg q[1]; t q[0]; h q[0]; tdg q[0];",
+        )
+        .unwrap();
+        let mut graph: Graph = circuit.to_graph();
+        quizx::simplify::flow_simp(&mut graph);
+        let expanded = Plan {
+            instructions: vec![
+                Instruction::Prepare {
+                    patch: 0,
+                    vertex: 0,
+                    input: Some(0),
+                },
+                Instruction::Prepare {
+                    patch: 1,
+                    vertex: 1,
+                    input: None,
+                },
+                Instruction::Cz {
+                    patches: [0, 1],
+                    vertices: [0, 1],
+                },
+                Instruction::Phase {
+                    patch: 0,
+                    vertex: 0,
+                    phase: (1, 4).into(),
+                },
+                Instruction::Release {
+                    patch: 0,
+                    vertex: 0,
+                },
+                Instruction::Feedback {
+                    measurement: 0,
+                    x_targets: vec![1],
+                    z_targets: vec![],
+                },
+                Instruction::Phase {
+                    patch: 1,
+                    vertex: 1,
+                    phase: (-1, 4).into(),
+                },
+            ],
+            outputs: vec![(0, 1)],
+            peak_patches: 2,
+            ..Plan::default()
+        };
+        let contracted = plan(&graph).unwrap();
+        assert_eq!(contracted.peak_patches, 1);
+        assert!(
+            !contracted
+                .instructions
+                .iter()
+                .any(|i| matches!(i, Instruction::Release { .. }))
+        );
+        verify_branches(&expanded, &circuit);
+        verify_branches(&contracted, &circuit);
     }
 
     #[test]

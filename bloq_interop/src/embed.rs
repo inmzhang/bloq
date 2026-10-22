@@ -31,7 +31,7 @@ struct Builder {
     live: Vec<Option<Patch>>,
     actions: Vec<Action>,
     time: i32,
-    corridor_ready: i32,
+    corridor_ready: Vec<i32>,
     available: Vec<i32>,
     release_times: BTreeMap<usize, i32>,
     max_blocks: usize,
@@ -133,12 +133,21 @@ impl Builder {
         }
         self.orient(control, false)?;
         self.orient(target, true)?;
+        let [start, end] = [self.patch(control)?.end.x + 1, self.patch(target)?.end.x]
+            .map(|x| usize::try_from(x).expect("patch columns are non-negative"));
+        let columns = start.min(end)..=start.max(end);
+        // The corridor includes both vertical spokes; patch times reserve data endpoints.
+        let corridor_ready = self.corridor_ready[columns.clone()]
+            .iter()
+            .copied()
+            .max()
+            .unwrap_or_default();
         let z = Self::after(
             self.patch(control)?
                 .end
                 .z
                 .max(self.patch(target)?.end.z)
-                .max(self.corridor_ready),
+                .max(corridor_ready),
             1,
         )?;
         Self::after(z, 2)?;
@@ -197,7 +206,7 @@ impl Builder {
             cursor = next;
         }
         self.advance(control_id, target_patch.end.z)?;
-        self.corridor_ready = target_patch.end.z;
+        self.corridor_ready[columns].fill(target_patch.end.z);
         self.time = self.time.max(target_patch.end.z);
         Ok(())
     }
@@ -241,22 +250,17 @@ impl Builder {
             return Ok(());
         }
         if quarters % 2 == 1 {
-            self.resource(id, true, false)?;
+            self.resource(id, true, quarters % 4 == 3)?;
+        } else if quarters % 4 == 2 {
+            self.resource(id, false, quarters == 6)?;
         }
-        match quarters / 2 {
-            1 => self.resource(id, false, true)?,
-            2 => {
-                let patch = self.advance(id, Self::after(self.patch(id)?.end.z, 1)?)?;
-                self.z_feedback(patch.end);
-                self.time = self.time.max(patch.end.z);
-            }
-            3 => self.resource(id, false, false)?,
-            _ => {}
+        if matches!(quarters, 3..=5) {
+            self.z_feedback(self.patch(id)?.end);
         }
         Ok(())
     }
 
-    fn resource(&mut self, id: usize, t: bool, positive_s: bool) -> Result<(), String> {
+    fn resource(&mut self, id: usize, t: bool, dagger: bool) -> Result<(), String> {
         // Each source starts after the preceding resource cap, with no connecting pipe.
         let z = Self::after(self.patch(id)?.end.z, 2)?;
         Self::after(z, 1)?;
@@ -285,11 +289,15 @@ impl Builder {
             });
             self.actions.push(Action::Resolve {
                 target: cap,
-                condition: Expr::Not(Box::new(Expr::Var(name))),
+                condition: if dagger {
+                    Expr::Var(name)
+                } else {
+                    Expr::Not(Box::new(Expr::Var(name)))
+                },
             });
         } else {
             self.block(cap, BlockKind::Y)?;
-            if positive_s {
+            if !dagger {
                 self.z_feedback(patch.end);
             }
         }
@@ -309,7 +317,12 @@ pub(crate) fn embed(
         live: vec![None; plan.peak_patches],
         actions: Vec::new(),
         time: 0,
-        corridor_ready: 0,
+        corridor_ready: vec![
+            0;
+            plan.peak_patches
+                .checked_mul(2)
+                .ok_or("spatial coordinate overflow")?
+        ],
         available: vec![0; plan.peak_patches],
         release_times: BTreeMap::new(),
         max_blocks,
@@ -415,6 +428,54 @@ mod tests {
     use bloq_graph::verify::{BoundaryOrder, LogicalVerifier, QuizxGraph};
     use quizx::circuit::Circuit;
     use quizx::vec_graph::Graph;
+
+    #[test]
+    fn disjoint_cz_routes_overlap_but_crossing_or_shared_patch_routes_wait() {
+        for (pairs, route_layers) in [
+            ([[0, 1], [2, 3]], 1),
+            ([[1, 0], [3, 2]], 1),
+            ([[0, 2], [1, 3]], 2),
+            ([[0, 1], [1, 2]], 2),
+        ] {
+            let mut plan = Plan {
+                peak_patches: 4,
+                outputs: (0..4).map(|i| (i, i)).collect(),
+                instructions: (0..4)
+                    .map(|patch| Instruction::Prepare {
+                        patch,
+                        vertex: patch,
+                        input: Some(patch),
+                    })
+                    .collect(),
+                ..Plan::default()
+            };
+            let mut expected = Circuit::new(4);
+            for patches in pairs {
+                plan.instructions.push(Instruction::Cz {
+                    patches,
+                    vertices: patches,
+                });
+                expected.add_gate("cz", patches.to_vec());
+            }
+            let (graph, inputs, outputs) = embed(&plan, 1000).unwrap();
+            let occupied_layers: std::collections::BTreeSet<_> = graph
+                .pipes()
+                .filter(|p| p.src().y == -1 && p.dst().y == -1)
+                .map(|p| p.src().z)
+                .collect();
+            assert_eq!(occupied_layers.len(), route_layers, "{pairs:?}");
+            LogicalVerifier::with_boundaries_and_internal_measurements(
+                &graph,
+                BoundaryOrder::new(inputs, outputs),
+            )
+            .unwrap()
+            .verify(&expected.to_graph(), 8, 23)
+            .unwrap();
+            bloq_compile::CompileContext::new(bloq_compile::CompileConfig::new(3))
+                .compile_and_validate(&graph)
+                .unwrap();
+        }
+    }
 
     #[test]
     fn teleportation_uses_native_output_frames() {

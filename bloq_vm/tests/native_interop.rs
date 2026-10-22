@@ -55,5 +55,27 @@ fn native_channels(
         }
         Ok(())
     });
-    channel.run(&compiled.bloq, 8, 0x1A7E, |_, _| Ok(()));
+    let report = channel.run(&compiled.bloq, 8, 0x1A7E, |_, _| Ok(()));
+    if let Some(root) = std::env::var_os("BLOQ_INTEROP_EVIDENCE_DIR") {
+        let root = std::path::PathBuf::from(root);
+        std::fs::create_dir_all(&root).expect("create evidence root");
+        let directory = root.join(format!("{strategy:?}-q{qubits}"));
+        std::fs::create_dir(&directory).expect("evidence directory must be new");
+        for (name, bytes) in [
+            ("source.qasm", source.into_bytes()),
+            ("layout.blog", layout.graph.to_blog_text().into_bytes()),
+            ("program_d3.bloq", compiled.bloq.to_binary()),
+            ("execution.json", serde_json::to_vec_pretty(&serde_json::json!({
+                "verification": "sampled exact normalized Choi channel",
+                "distance": 3, "t_preparation": "ideal_t_proxy",
+                "shots": report.shots, "seed": 0x1A7E,
+                "discarded": report.discarded, "execution_verified": true,
+                "all_detectors_constant": report.all_detectors_constant(),
+                "input_ports": layout.input_ports.iter().map(glam::IVec3::to_array).collect::<Vec<_>>(),
+                "output_ports": layout.output_ports.iter().map(glam::IVec3::to_array).collect::<Vec<_>>(),
+            })).expect("serialize execution evidence")),
+        ] {
+            std::fs::write(directory.join(name), bytes).expect("save exact executed artifacts");
+        }
+    }
 }
