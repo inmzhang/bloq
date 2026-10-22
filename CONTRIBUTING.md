@@ -133,6 +133,8 @@ Python stubs are generated from Rust annotations with `just py-stub`; do not
 edit them by hand. Build the Python reference with `just py-docs`.
 Ruff and mypy use locked dependencies managed by uv. Ruff runs without building
 the Python extension.
+`just py-test` installs the interop group and requires Python 3.11–3.14 for the
+full suite, matching CI. The bindings themselves support Python 3.10+.
 
 ## Extending Bloq
 

@@ -148,7 +148,7 @@ Required development tools:
 | --- | --- |
 | Git | Repository checkout |
 | [rustup](https://rustup.rs/) | Pinned Rust toolchain, Cargo, rustfmt, and Clippy |
-| Python 3.10+ | Python bindings and tests; 3.11+ for documentation tooling |
+| Python 3.10+ | Python bindings; 3.11–3.14 for the full test suite; 3.11+ for documentation tooling |
 | [uv](https://docs.astral.sh/uv/getting-started/installation/) | Python environments and dependencies |
 | [just](https://just.systems/man/en/) | Workspace command recipes |
 | [cargo-nextest](https://github.com/nextest-rs/nextest) | Rust test runner |

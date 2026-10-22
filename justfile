@@ -174,8 +174,7 @@ ci-site: py-docs
 
 # Tests and docs share one editable extension build and Python environment.
 [group('python')]
-ci-python: py-lint py-typecheck py-docs
-    uv run --project bloq_py --no-sync pytest bloq_py/tests
+ci-python: py-lint py-typecheck py-test py-docs
 
 # release build for the full matrix, including slow Stim distance searches
 [group('development')]
@@ -234,7 +233,8 @@ py-stub:
     find bloq_py/python/bloq -name '*.pyi' -exec perl -pi -e 's/[ \t]+$//' {} +
 
 [group('python')]
-py-test: py-develop
+py-test:
+    uv sync --project bloq_py --group dev --group interop --locked
     uv run --project bloq_py --no-sync pytest bloq_py/tests
 
 # build the Python API reference: reread autodoc after rebuilding Rust docstrings
