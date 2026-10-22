@@ -214,7 +214,9 @@ impl<'a> PredicateAnalysis<'a> {
         if let Some(&result) = self.implications.get(&(left, right)) {
             return Ok(result);
         }
-        if self.proves_conjunct(left.as_slice(), right)? {
+        if self.proves_conjunct(left.as_slice(), right)?
+            || self.proves_cofactor(left.as_slice(), right)?
+        {
             self.implications.insert((left, right), true);
             return Ok(true);
         }
@@ -235,7 +237,7 @@ impl<'a> PredicateAnalysis<'a> {
             return self.implies_values(left.first().copied(), right);
         }
         self.charge(left.len())?;
-        if self.proves_conjunct(left, right)? {
+        if self.proves_conjunct(left, right)? || self.proves_cofactor(left, right)? {
             return Ok(true);
         }
         let source = self.conjunction(left)?;
@@ -388,6 +390,137 @@ impl<'a> PredicateAnalysis<'a> {
                     return Ok(true);
                 }
                 Part::Expr(_, _, _) => {}
+            }
+        }
+        Ok(false)
+    }
+
+    // Boolean implication only: unknown means either truth value, not runtime
+    // unavailability. Full validation still checks every operand's dataflow.
+    fn proves_cofactor(&mut self, roots: &[ValueRef], target: ValueRef) -> Result<bool, Error> {
+        enum Task<'a> {
+            Node(ValueRef),
+            Store(ValueRef),
+            Expr(BloqNodeId, &'a ClassicalExpr),
+            Reduce(&'a ClassicalExpr),
+            Activate,
+        }
+        if roots.is_empty() {
+            return Ok(false);
+        }
+        let (target, positive) = self.normalize_alias(target)?;
+        let mut known = FxMap::from_iter([(target, Some(!positive))]);
+        let mut visiting = crate::FxSet::default();
+        let graph = self.graph;
+        for &root in roots {
+            let mut pending = vec![Task::Node(root)];
+            let mut values = Vec::new();
+            while let Some(task) = pending.pop() {
+                self.charge(1)?;
+                match task {
+                    Task::Node(value) => {
+                        if let Some(&bit) = known.get(&value) {
+                            values.push(bit);
+                            continue;
+                        }
+                        if !visiting.insert(value) {
+                            return Err(Error::InvalidMembership(
+                                "cyclic predicate ancestry".into(),
+                            ));
+                        }
+                        let node = graph.node(value.node).ok_or_else(|| {
+                            Error::InvalidMembership(format!("unknown predicate {value:?}"))
+                        })?;
+                        pending.push(Task::Store(value));
+                        if let Some(slot) = node.activation {
+                            pending.push(Task::Activate);
+                            pending.push(Task::Node(self.input(value.node, slot)?));
+                        }
+                        if value.output == ObservableOutput::Corrected
+                            && let Some(ClassicalNode::Compute { expr }) = node.try_classical()
+                        {
+                            pending.push(Task::Expr(value.node, expr));
+                        } else {
+                            values.push(None);
+                        }
+                    }
+                    Task::Store(value) => {
+                        known.insert(value, *values.last().expect("evaluated cofactor"));
+                        visiting.remove(&value);
+                    }
+                    Task::Expr(node, expr) => match expr {
+                        ClassicalExpr::Const(bit) => values.push(Some(*bit)),
+                        ClassicalExpr::In(slot) => {
+                            pending.push(Task::Node(self.input(node, *slot)?));
+                        }
+                        ClassicalExpr::Parity { inputs, .. } => {
+                            self.charge(inputs.len())?;
+                            pending.push(Task::Reduce(expr));
+                            for &slot in inputs.iter().rev() {
+                                pending.push(Task::Node(self.input(node, slot)?));
+                            }
+                        }
+                        _ => {
+                            self.charge(expr.operands().len())?;
+                            pending.push(Task::Reduce(expr));
+                            pending
+                                .extend(expr.operands().iter().rev().map(|e| Task::Expr(node, e)));
+                        }
+                    },
+                    Task::Reduce(expr) => {
+                        let count = match expr {
+                            ClassicalExpr::Parity { inputs, .. } => inputs.len(),
+                            _ => expr.operands().len(),
+                        };
+                        let start = values.len() - count;
+                        let operands = &values[start..];
+                        let bit = match expr {
+                            ClassicalExpr::Not(_) => operands[0].map(|bit| !bit),
+                            ClassicalExpr::And(_) => {
+                                if operands.contains(&Some(false)) {
+                                    Some(false)
+                                } else {
+                                    (!operands.contains(&None)).then_some(true)
+                                }
+                            }
+                            ClassicalExpr::Or(_) => {
+                                if operands.contains(&Some(true)) {
+                                    Some(true)
+                                } else {
+                                    (!operands.contains(&None)).then_some(false)
+                                }
+                            }
+                            ClassicalExpr::Xor(_) | ClassicalExpr::Parity { .. } => {
+                                let initial =
+                                    matches!(expr, ClassicalExpr::Parity { constant: true, .. });
+                                operands
+                                    .iter()
+                                    .copied()
+                                    .try_fold(initial, |a, b| Some(a ^ b?))
+                            }
+                            ClassicalExpr::Select(_) => match operands[0] {
+                                Some(condition) => operands[1 + usize::from(condition)],
+                                None if operands[1] == operands[2] => operands[1],
+                                None => None,
+                            },
+                            _ => unreachable!("leaf cofactors need no reduction"),
+                        };
+                        values.truncate(start);
+                        values.push(bit);
+                    }
+                    Task::Activate => {
+                        let active = values.pop().expect("activation cofactor");
+                        let payload = values.pop().expect("payload cofactor");
+                        values.push(if active == Some(false) || payload == Some(false) {
+                            Some(false)
+                        } else {
+                            active.and(payload)
+                        });
+                    }
+                }
+            }
+            if values.pop().expect("source cofactor") == Some(false) {
+                return Ok(true);
             }
         }
         Ok(false)
@@ -1055,6 +1188,15 @@ mod tests {
                 ClassicalExpr::Const(true),
                 ClassicalExpr::In(1),
             ])))),
+            ClassicalExpr::Select(Box::new([
+                ClassicalExpr::In(1),
+                ClassicalExpr::And(Box::new([ClassicalExpr::In(0), ClassicalExpr::In(2)])),
+                ClassicalExpr::Select(Box::new([
+                    ClassicalExpr::In(0),
+                    ClassicalExpr::Const(false),
+                    ClassicalExpr::In(2),
+                ])),
+            ])),
             ClassicalExpr::Const(false),
             ClassicalExpr::Const(true),
             ClassicalExpr::Select(Box::new([
@@ -1121,6 +1263,13 @@ mod tests {
                     actual, exhaustive,
                     "finite valuations: {source:?} implies {target:?}"
                 );
+                assert!(
+                    !analysis
+                        .proves_cofactor(&[source.into()], target.into())
+                        .unwrap()
+                        || exhaustive,
+                    "cofactor proof: {source:?} implies {target:?}"
+                );
             }
         }
         assert!(
@@ -1142,6 +1291,60 @@ mod tests {
                 if error.resource == "Boolean nodes")
             );
         }
+    }
+
+    #[test]
+    fn select_cofactor_proves_shared_guard_without_expanding_boolean_functions() {
+        let mut graph = SubGraph::new();
+        let a = graph.add_node(BloqNode::classical(ClassicalNode::observable(0)));
+        let b = input_node(&mut graph);
+        let negative = compute_node(&mut graph, ClassicalExpr::parity([0], true), &[a]);
+        let source = compute_node(
+            &mut graph,
+            ClassicalExpr::Select(Box::new([
+                ClassicalExpr::In(1),
+                ClassicalExpr::And(Box::new([ClassicalExpr::In(0), ClassicalExpr::In(1)])),
+                ClassicalExpr::Select(Box::new([
+                    ClassicalExpr::In(0),
+                    ClassicalExpr::Const(false),
+                    ClassicalExpr::In(1),
+                ])),
+            ])),
+            &[negative, b],
+        );
+        let mut analysis = PredicateAnalysis::with_limits(
+            &graph,
+            BooleanLimits {
+                max_nodes: 0,
+                max_steps: 1_000,
+            },
+        );
+        assert!(analysis.implies(Some(source), negative).unwrap());
+        let flip = ValueRef {
+            node: a,
+            output: ObservableOutput::Flip,
+        };
+        assert!(!analysis.proves_cofactor(&[source.into()], flip).unwrap());
+        assert!(
+            !analysis
+                .proves_cofactor(&[a.into()], negative.into())
+                .unwrap()
+        );
+        assert!(matches!(
+            analysis.implies(Some(a), negative),
+            Err(Error::BooleanResource(_))
+        ));
+        let mut limited = PredicateAnalysis::with_limits(
+            &graph,
+            BooleanLimits {
+                max_nodes: 0,
+                max_steps: 1,
+            },
+        );
+        assert!(matches!(
+            limited.implies(Some(source), negative),
+            Err(Error::BooleanResource(_))
+        ));
     }
 
     #[test]
@@ -1332,7 +1535,15 @@ mod tests {
         let b = input_node(bloq.top_mut());
         let condition = compute_node(
             bloq.top_mut(),
-            ClassicalExpr::And(Box::new([ClassicalExpr::In(0), ClassicalExpr::In(1)])),
+            ClassicalExpr::Select(Box::new([
+                ClassicalExpr::In(1),
+                ClassicalExpr::And(Box::new([ClassicalExpr::In(0), ClassicalExpr::In(1)])),
+                ClassicalExpr::Select(Box::new([
+                    ClassicalExpr::In(0),
+                    ClassicalExpr::Const(false),
+                    ClassicalExpr::In(1),
+                ])),
+            ])),
             &[a, b],
         );
         let mut circuit = CoordCircuit::new();
@@ -1523,6 +1734,15 @@ mod tests {
         let mut analysis = PredicateAnalysis::new(&graph);
         assert!(analysis.overlap(Some(raw), Some(tail)).unwrap());
         assert!(!analysis.overlap(None, Some(different)).unwrap());
+        // This zero parity needs the cofactor path to walk the shared ancestry.
+        let mut cofactor = PredicateAnalysis::with_limits(
+            &graph,
+            BooleanLimits {
+                max_nodes: 0,
+                max_steps: 200_000,
+            },
+        );
+        assert!(cofactor.implies(Some(different), raw).unwrap());
         assert_eq!(
             analysis.values_up_to(&[raw, tail, different], 3).unwrap(),
             [vec![false, false, false], vec![true, true, false]]
