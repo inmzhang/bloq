@@ -1,14 +1,5 @@
-# Linked evidence is retained in artifacts.tar.zst; extraction stays local.
+# PDFs, archives and extracted evidence are supplied locally.
 *
 !.gitignore
 !README.md
-!report.pdf
-!artifacts.tar.zst
-!compact-placement/
-compact-placement/*
-!compact-placement/report.pdf
-!compact-artifacts.tar.zst
-!native-reuse/
-native-reuse/*
-!native-reuse/comparison.pdf
-!native-reuse-artifacts*.tar.zst
+!SHA256SUMS

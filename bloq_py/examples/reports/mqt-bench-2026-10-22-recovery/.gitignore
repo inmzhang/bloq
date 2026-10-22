@@ -1,5 +1,5 @@
+# PDFs, archives and extracted evidence are supplied locally.
 *
 !.gitignore
 !README.md
-!report.pdf
-!artifacts*.tar.zst
+!SHA256SUMS

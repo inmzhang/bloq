@@ -1,54 +1,48 @@
 # MQT Bench compilation catalog — 2026-10-21
 
-[Read the accepted catalog](report.pdf). It selects 65 successful
-compilations at requested distance 25 across 31 circuit cases and
-24 algorithm families: SpiderLS 31,
-TopoLS 26, and Topologiq 8.
-26 selected runs also have sampled QuiZX and distance-3 VM checks
-with ideal T sources. Compilation, synthesis approximation, partial or inconclusive
-checks, and sampled execution remain separate claims.
-Another 3 selected runs pass VM checks
-while their bounded logical checks remain inconclusive; they carry no logical-channel proof.
-Requested distances are nominal: retained spatial-Hadamard warnings can indicate
-lower effective circuit distance. No measured-distance guarantee is claimed.
+This historical catalog contains 65 accepted compiler–circuit pairs at requested
+distance 25 across 31 cases and 24 families: SpiderLS 31, TopoLS 26, Topologiq 8.
+It retains 26 sampled QuiZX + distance-3 VM checks and 3 additional VM passes
+with inconclusive logical checks. Checks use ideal T sources; compilation and
+sampled execution remain separate claims. Spatial-Hadamard warnings can indicate
+lower effective distance than requested.
 
-The [native T-patch reuse comparison](native-reuse/comparison.pdf) records
-26 strict footprint improvements and 2 new compiler–circuit
-pairs. Equal or worse footprints and unsuccessful replays retain accepted baseline
-artifacts. Replacements increase none of bounding XY area, occupied columns, blocks,
-or temporal extent. All 65 replay outcomes and every historical result remain in
-their original ledgers. New layouts receive semantic evidence only through exact
-BLOG, lowered-QASM, and program hashes.
+The PDFs and five evidence archives are local-only and supplied separately.
+Git retains this README, `.gitignore`, and [SHA256SUMS](SHA256SUMS).
+The machine-local backup inventory records where the supplied bundles are stored.
 
-The [earlier compact-placement addendum](compact-placement/report.pdf) and the
-historical catalog retained in the archives document the prior private-factory-column
-experiments. Current reuse candidates instead pass native lifetime and dependency
-validation. These results do not claim optimal packing or large-circuit execution.
+The main PDF is `report.pdf`; `native-reuse/comparison.pdf` records the reuse
+comparison, and `compact-placement/report.pdf` retains the earlier addendum.
+The bundle includes raw/lowered QASM, BLOG, d=25 IR, viewers, logs and provenance.
+Its `report-summary.json` and `artifacts.json` are available after extraction.
 
-The PDFs are available directly. Extract all evidence layers below to enable their
-relative links to QASM, BLOG, distance-25 IR, previews, viewers, logs, and provenance.
-The two historical archives remain byte-for-byte unchanged; the native-reuse layer
-adds the reviewed selection and retains older evidence. Unpacked files are ignored
-by Git.
+## Verify and restore the local evidence
 
-Run from the repository root, with `tar` and `zstd` installed:
+From the repository root, set the supplied bundle location and verify every
+checksum before extraction:
 
 ```sh
-rtk proxy tar --zstd -xf bloq_py/examples/reports/mqt-bench-2026-10-21/artifacts.tar.zst \
-    -C bloq_py/examples/reports/mqt-bench-2026-10-21
-rtk proxy tar --zstd -xf bloq_py/examples/reports/mqt-bench-2026-10-21/compact-artifacts.tar.zst \
-    -C bloq_py/examples/reports/mqt-bench-2026-10-21
-rtk proxy tar --zstd -xf bloq_py/examples/reports/mqt-bench-2026-10-21/native-reuse-artifacts-01.tar.zst \
-    -C bloq_py/examples/reports/mqt-bench-2026-10-21
-rtk proxy tar --zstd -xf bloq_py/examples/reports/mqt-bench-2026-10-21/native-reuse-artifacts-02.tar.zst \
-    -C bloq_py/examples/reports/mqt-bench-2026-10-21
-rtk proxy tar --zstd -xf bloq_py/examples/reports/mqt-bench-2026-10-21/native-reuse-artifacts-03.tar.zst \
-    -C bloq_py/examples/reports/mqt-bench-2026-10-21
-rtk proxy python3 bloq_py/examples/mqt_bench_report.py \
-    bloq_py/examples/reports/mqt-bench-2026-10-21 --verify
+report_checksums="$PWD/bloq_py/examples/reports/mqt-bench-2026-10-21/SHA256SUMS"
+report_bundle="/path/to/supplied/mqt-bench-2026-10-21"
+(cd "$report_bundle" && sha256sum -c "$report_checksums")
 ```
 
-Verification checks retained artifact hashes and local links. The manifests record
-source revisions, patches, exact inputs, seeds, and source snapshots; later cleanup
-commits do not change that evidence. For new runs, follow the
-[MQT Bench tutorial](../../../../docs/tutorials/mqt-bench.md).
+Extract into a separate, empty evidence directory, in the order below. Its
+original packaged README belongs to the frozen `artifacts.json` hash set and
+must remain unchanged; this repository README is a local-bundle index.
+
+```sh
+report_evidence="/path/to/separate/mqt-bench-2026-10-21"
+mkdir -p "$report_evidence"
+for report_archive in artifacts.tar.zst compact-artifacts.tar.zst \
+    native-reuse-artifacts-01.tar.zst native-reuse-artifacts-02.tar.zst \
+    native-reuse-artifacts-03.tar.zst; do
+    tar --zstd -xf "$report_bundle/$report_archive" -C "$report_evidence"
+done
+python3 bloq_py/examples/mqt_bench_report.py "$report_evidence" --verify
+```
+
+Open `report.pdf` inside the extracted evidence directory so its relative
+QASM, BLOG, IR and viewer links resolve. Verification checks packaged hashes
+and paths; it does not add algorithm-equivalence evidence. For new experiments,
+see the [MQT Bench tutorial](../../../../docs/tutorials/mqt-bench.md).
