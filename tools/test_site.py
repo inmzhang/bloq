@@ -50,14 +50,26 @@ class SiteAssemblyTest(unittest.TestCase):
                 self.assertEqual(site.HtmlReferences((output / "pydoc" / page).read_text()).redirect, "../docs/dev/api/python.html")
             self.assertIn("<title>bloq</title>", (output / "index.html").read_text())
             rustdoc = Path(temporary) / "rustdoc"
-            caller = rustdoc / "bloq_compile" / "index.html"
-            target = rustdoc / "bloq_graph" / "struct.BlockGraph.html"
+            caller = rustdoc / "consumer" / "nested" / "index.html"
             caller.parent.mkdir(parents=True)
-            target.parent.mkdir()
-            caller.write_text('<a href="bloq_graph::BlockGraph">BlockGraph</a>')
-            target.write_text('<h1>BlockGraph</h1>')
+            caller.write_text(
+                '<a href="provider_lib::config::Limits">Limits</a>'
+                '<a href="provider_lib::config::Limits::bounded">Constructor</a>'
+                '<a href="provider_lib::config::Action::Decode">Variant</a>'
+            )
+            for filename, anchor in (
+                ("struct.Limits.html", "method.bounded"),
+                ("enum.Action.html", "variant.Decode"),
+            ):
+                target = rustdoc / "provider_lib" / "config" / filename
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(f'<h1 id="{anchor}">API</h1>')
             site.fix_rustdoc_links(site.ROOT, rustdoc)
             site.check_links_and_privacy(rustdoc)
+            caller.write_text('<a href="provider_lib::config::Missing">Missing</a>')
+            site.fix_rustdoc_links(site.ROOT, rustdoc)
+            with self.assertRaisesRegex(ValueError, "missing local target"):
+                site.check_links_and_privacy(rustdoc)
             (output / "index.html").write_text('<a href="target.html#example">Example</a>')
             (output / "target.html").write_text('<h1 id="example">Example</h1>')
             site.check_links_and_privacy(output)

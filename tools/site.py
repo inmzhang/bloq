@@ -194,21 +194,31 @@ def redirect(path, target, title="Python API"):
 def fix_rustdoc_links(root, rustdoc):
     """Resolve literal destinations in generated rustdoc output."""
     versions = {package["name"]: package["version"] for package in tomllib.loads((root / "Cargo.lock").read_text())["package"]}
-    qualified = {
-        "bloq_graph::BlockGraph": "bloq_graph/struct.BlockGraph.html",
-        "bloq_ir::Bloq": "bloq_ir/struct.Bloq.html",
-        "bloq_ir::ClassicalNode::Decode": "bloq_ir/enum.ClassicalNode.html#variant.Decode",
-        "bloq_ir::circuit::CoordCircuit": "bloq_ir/circuit/struct.CoordCircuit.html",
-        "bloq_ir::circuit::CoordCircuit::flatten": "bloq_ir/circuit/struct.CoordCircuit.html#method.flatten",
-        "bloq_ir::circuit::Op": "bloq_ir/circuit/enum.Op.html",
-        "bloq_compile::CompileConfig": "bloq_compile/struct.CompileConfig.html",
-        "bloq_compile::CompileContext": "bloq_compile/struct.CompileContext.html",
-    }
+    # Cold --no-deps builds may leave cross-crate links as literal Rust paths.
+    qualified = {}
+    for path in rustdoc.rglob("*.html"):
+        _, separator, name = path.stem.partition(".")
+        if not separator:
+            continue
+        relative = path.relative_to(rustdoc)
+        symbol = "::".join((*relative.parts[:-1], name))
+        destination = relative.as_posix()
+        qualified.setdefault(symbol, set()).add(destination)
+        for anchor in HtmlReferences(path.read_text()).ids:
+            if anchor.startswith(("method.", "variant.")):
+                member = f"{symbol}::{anchor.split('.', 1)[1]}"
+                qualified.setdefault(member, set()).add(f"{destination}#{anchor}")
     for path in rustdoc.rglob("*.html"):
         original = path.read_text()
-        fixed = original
-        for name, destination in qualified.items():
-            fixed = fixed.replace(f'href="{name}"', f'href="{os.path.relpath(rustdoc / destination, path.parent)}"')
+
+        def replace(match):
+            targets = qualified.get(match[1], ())
+            if len(targets) != 1:
+                return match[0]
+            target = rustdoc / next(iter(targets))
+            return f'href="{os.path.relpath(target, path.parent)}"'
+
+        fixed = re.sub(r'href="([^"\n]*::[^"\n]*)"', replace, original)
         if 'href="crate#per-style"' in fixed:
             fixed = fixed.replace('href="crate#per-style"', f'href="https://docs.rs/yansi/{versions["yansi"]}/yansi/#per-style"')
         if path.relative_to(rustdoc).as_posix() == "bloq_vm/struct.Simulator.html":
