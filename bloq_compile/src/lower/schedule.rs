@@ -869,7 +869,16 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
     let mut scratch = bloq.path_scratch();
     let mut failure = None;
     let mut conflicts = crate::FxSet::default();
+    let mut diagnostic_pairs = 0;
     'pairs: for (_, backward, from, to) in pairs {
+        if failure.is_some() {
+            // Diagnostics are partial: bound unsuccessful probes as well as
+            // witnesses so failed layouts do not scan every remaining era.
+            if diagnostic_pairs == MAX_REUSE_CONFLICTS {
+                break;
+            }
+            diagnostic_pairs += 1;
+        }
         if has_edge(bloq, from, to) {
             continue;
         }
@@ -1105,8 +1114,12 @@ mod tests {
     }
 
     #[test]
-    fn live_reuse_diagnostics_batch_independent_conflicts_without_changing_the_failed_ir() {
-        for count in [2, MAX_REUSE_CONFLICTS as i32 + 6] {
+    fn live_reuse_diagnostics_bound_witnesses_and_probes_without_changing_the_failed_ir() {
+        for (count, sparse_conflicts) in [
+            (2, false),
+            (MAX_REUSE_CONFLICTS as i32 + 6, false),
+            (MAX_REUSE_CONFLICTS as i32 + 6, true),
+        ] {
             let mut bloq = Bloq::new();
             let mut expected = Vec::new();
             for x in 0..count {
@@ -1123,9 +1136,11 @@ mod tests {
                     node.expect_quantum_mut().instances[0].offset = ivec2(2 * x, 0);
                 }
                 bloq.add_edge(producer, consumer, BloqEdge::quantum(vec![]));
-                bloq.add_edge(producer, reuser, BloqEdge::Order);
                 bloq.add_edge(reuser, consumer, BloqEdge::Order);
-                expected.push((producer, consumer, reuser));
+                if !sparse_conflicts || x == 0 || x == count - 1 {
+                    bloq.add_edge(producer, reuser, BloqEdge::Order);
+                    expected.push((producer, consumer, reuser));
+                }
             }
             let before = order_edges(&bloq);
             let error = induce_occupancy_order_edges(&mut bloq).unwrap_err();
@@ -1147,7 +1162,13 @@ mod tests {
             let actual: Vec<_> = std::iter::once((producer, consumer, reuser))
                 .chain(related.iter().map(|w| (w.producer, w.consumer, w.reuser)))
                 .collect();
-            assert_eq!(actual, expected[..expected.len().min(MAX_REUSE_CONFLICTS)]);
+            let expected_count = if sparse_conflicts {
+                // The final conflict lies beyond the auxiliary probe budget.
+                1
+            } else {
+                expected.len().min(MAX_REUSE_CONFLICTS)
+            };
+            assert_eq!(actual, expected[..expected_count]);
             for (x, witness) in related.iter().enumerate() {
                 assert_eq!(witness.qubit, ivec2(2 * (x as i32 + 1), 0));
                 assert_eq!(
