@@ -109,14 +109,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         {
             return Err("IR output interface differs from the source".into());
         }
+        result["physical_qubits"] = program.qubit_count()?.into();
+        result["measurements"] = program.measurement_count().into();
         let binary = program.to_binary();
         let ir_path = output.join(format!("program_d{distance}.bloq"));
         fs::write(&ir_path, &binary)?;
+        // Keep only one full IR in memory during persistence verification.
+        drop(program);
         if Bloq::from_binary(&fs::read(ir_path)?)?.to_binary() != binary {
             return Err("IR binary round trip changed the validated program".into());
         }
-        result["physical_qubits"] = program.qubit_count()?.into();
-        result["measurements"] = program.measurement_count().into();
         result["warnings"] = json!(artifacts.warnings);
         result["validated"] = true.into();
         result["blog_round_trip"] = true.into();
