@@ -1241,7 +1241,7 @@ impl GuardedSurfaceSpace {
             }
             // The quotient alone fixes an arbitrary physical coset. Restore
             // accepted relations before choosing an early equivalent witness.
-            let restored = if RECLAIM && !readout_pivots.rows.is_empty() {
+            let mut restored = if RECLAIM && !readout_pivots.rows.is_empty() {
                 let rows = available_rows
                     .rows()
                     .chain(readout_pivots.rows.rows())
@@ -1270,10 +1270,24 @@ impl GuardedSurfaceSpace {
             } else {
                 None
             };
+            let reuse_restored = FACTORED
+                && restored.is_some()
+                && relevant
+                    .as_ref()
+                    .is_some_and(|ids| ids.len() == source_rows.len());
             let reduced = if factored.is_some() {
                 BooleanRowSpace::default()
             } else {
-                let allowed = if RECLAIM {
+                let allowed = if reuse_restored {
+                    for row in source_rows.rows() {
+                        timing.include(row, &mut self.topology.diagram)?;
+                    }
+                    // Every live row is selected in its existing source order.
+                    // Reuse the charged index instead of copying and indexing it again.
+                    restored
+                        .take()
+                        .expect("the complete restored space is present")
+                } else if RECLAIM {
                     let rows = if let Some(ids) = &relevant {
                         let mut rows = Vec::with_capacity(ids.len());
                         for &id in ids {
@@ -1368,7 +1382,12 @@ impl GuardedSurfaceSpace {
             // previously unavailable named row without releasing a site.
             let mut batch_ready = candidates.len() == unknown.len();
             if batch_ready && !pending_controls.is_empty() {
-                'rows: for row in source_rows.rows().chain(causal_basis.iter()) {
+                // These owners retain the same live rows used to build restoration.
+                'rows: for row in available_rows
+                    .rows()
+                    .chain(readout_pivots.rows.rows().filter(|_| RECLAIM))
+                    .chain(causal_basis.iter())
+                {
                     for root in
                         std::iter::once(row.active).chain(row.terms().iter().map(|&(_, bit)| bit))
                     {
