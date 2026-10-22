@@ -456,6 +456,7 @@ delegate_to_top! {
     fn has_path(from: BloqNodeId, to: BloqNodeId) -> bool;
     fn path_scratch() -> PathScratch;
     fn has_path_with_scratch(from: BloqNodeId, to: BloqNodeId, scratch: &mut PathScratch) -> bool;
+    fn has_path_backwards_with_scratch(from: BloqNodeId, to: BloqNodeId, scratch: &mut PathScratch) -> bool;
     fn value_inputs(id: BloqNodeId) -> impl Iterator<Item = ValueInput<'_>> + '_;
     fn data_inputs(id: BloqNodeId) -> impl Iterator<Item = ValueInput<'_>> + '_;
     fn data_consumers(id: BloqNodeId) -> impl Iterator<Item = (BloqNodeId, u32)> + '_;
