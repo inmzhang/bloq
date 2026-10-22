@@ -1,6 +1,6 @@
 """Unit-grid geometry shared by the layout adapters."""
 
-from bisect import bisect_left
+from bisect import bisect_left, insort
 from collections import Counter, defaultdict, deque
 from fractions import Fraction
 from importlib import metadata
@@ -233,28 +233,75 @@ def _t_placement(path, frame, axis, arm_frame, sign=1):
     return len(path) - 1, end, terminal, additions, frozenset([end, *(r for r, _ in additions.values())])
 
 
-def _t_placements(nodes, edges, node, *, bends=False, margin=2, positions=None, occupied=None):
+class _TPlacementIndex:
+    """Keep seam and projected occupancy queries local while endpoints move."""
+
+    def __init__(self, nodes, edges, positions, occupied=None):
+        self.seams = defaultdict(list)
+        for index, (a, b) in enumerate(edges):
+            self.seams[a].append((index, b))
+            self.seams[b].append((index, a))
+        self.occupied = set(positions.values() if occupied is None else occupied)
+        self.columns = Counter(p[:2] for p in self.occupied)
+        self.factories = Counter(positions[n][:2] for n, data in nodes.items() if data['tqec'] == 'T')
+        self.axes = [Counter(p[i] for p in self.occupied) for i in (0, 1)]
+        self.coordinates = [sorted(axis) for axis in self.axes]
+
+    def update(self, position, kind, delta):
+        if delta > 0:
+            self.occupied.add(position)
+        else:
+            self.occupied.remove(position)
+        for counts in (self.columns, self.factories) if kind == 'T' else (self.columns,):
+            counts[position[:2]] += delta
+            if not counts[position[:2]]:
+                del counts[position[:2]]
+        for i, (counts, coordinates) in enumerate(zip(self.axes, self.coordinates)):
+            value = position[i]
+            counts[value] += delta
+            if not counts[value]:
+                del counts[value]
+                coordinates.pop(bisect_left(coordinates, value))
+            elif counts[value] == 1 and delta > 0:
+                insort(coordinates, value)
+
+    def bounds(self, excluded):
+        result = []
+        for i, (counts, values) in enumerate(zip(self.axes, self.coordinates)):
+            lo, hi = values[0], values[-1]
+            if excluded is not None:
+                if lo == excluded[i] and counts[lo] == 1:
+                    lo = values[1]
+                if hi == excluded[i] and counts[hi] == 1:
+                    hi = values[-2]
+            result.append((lo, hi))
+        return result
+
+
+def _t_placements(nodes, edges, node, *, bends=False, margin=2, positions=None, occupied=None, index=None):
     """Enumerate verified arm/elbow footprints without changing the routed graph."""
     p = _position(nodes[node]['position'])
-    adjacent = [b if a == node else a for a, b in edges if node in (a, b)]
+    if positions is None:
+        positions = {n: _position(d['position']) for n, d in nodes.items()}
+    if index is None:
+        index = _TPlacementIndex(nodes, edges, positions, occupied)
+    adjacent = index.seams[node]
     if len(adjacent) != 1:
         raise GeometryError('resource_frame', f'T resource {node!r} is not terminal')
-    neighbor = adjacent[0]
+    _, neighbor = adjacent[0]
     q = _position(nodes[neighbor]['position'])
     direction = _direction(q, p)
     axis = 'XYZ'.index(direction[1])
     if axis == 2 or nodes[neighbor]['tqec'] not in _CUBES:
         raise GeometryError('resource_frame', f'T resource {node!r} has no proved spatial ZZ seam')
-    if positions is None:
-        positions = {n: _position(d['position']) for n, d in nodes.items()}
-    # Joint searches share bulk occupancy; their own endpoint may move.
-    excluded = p if occupied is not None else None
-    if occupied is None:
-        occupied = {p for n, p in positions.items() if n != node}
-    space = {r[:2] for r in occupied if r != excluded}
-    factories = {positions[n][:2] for n, d in nodes.items()
-                 if n != node and d['tqec'] == 'T'}
-    bounds = [(min(r[i] for r in space), max(r[i] for r in space)) for i in (0, 1)]
+    occupied = index.occupied
+    excluded = p if p in occupied else None
+    def in_space(column):
+        return index.columns[column] > int(excluded is not None and column == p[:2])
+    def in_factories(column):
+        return index.factories[column] > int(nodes[node]['tqec'] == 'T' and column == p[:2])
+    bounds = index.bounds(excluded)
+    space_count = len(index.columns) - int(excluded is not None and index.columns[p[:2]] == 1)
     frame = nodes[neighbor]['tqec']
     step = tuple(b - a for a, b in zip(q, p))
     limit = (bounds[axis][1 if step[axis] > 0 else 0] - p[axis]) * step[axis] + margin
@@ -297,7 +344,7 @@ def _t_placements(nodes, edges, node, *, bends=False, margin=2, positions=None, 
                     moves.append((step, forward, sign, offset, distance + 1))
             for delta, f, s, o, d in moves:
                 end = _position(tuple(a + dx for a, dx in zip(path[-1], delta)))
-                if end not in occupied and end[:2] not in factories:
+                if end not in occupied and not in_factories(end[:2]):
                     queue.append((path + [end], f, s, o, d))
 
     for path, arm_frame in paths():
@@ -308,18 +355,18 @@ def _t_placements(nodes, edges, node, *, bends=False, margin=2, positions=None, 
             center = additions['source'][0]
             # The adaptive cap may wait beyond its source layer. A different
             # Z coordinate does not certify that its stored state was consumed.
-            if center[:2] in space:
+            if in_space(center[:2]):
                 continue
             if (len(footprint) != len(additions) + 1 or any(r != excluded and r in occupied for r in footprint)
-                    or any(r[:2] in factories for r in footprint)):
+                    or any(in_factories(r[:2]) for r in footprint)):
                 continue
             for r in footprint:
                 _position(r)
-            extra = {r[:2] for r in footprint} - space
+            extra = {r[:2] for r in footprint if not in_space(r[:2])}
             width, height = (max(hi, max((r[i] for r in extra), default=hi))
                              - min(lo, min((r[i] for r in extra), default=lo)) + 1
                              for i, (lo, hi) in enumerate(bounds))
-            choices.append((width * height, len(space) + len(extra), placement))
+            choices.append((width * height, space_count + len(extra), placement))
         for _, _, placement in sorted(choices, key=lambda c: c[:2]):
             yield placement
 
@@ -475,16 +522,16 @@ def _spatial_t_endpoints(nodes, edges, resources):
     """Turn proved temporal-X resource wires through phase-zero identity elbows."""
     occupied = {_position(data['position']) for data in nodes.values()}
     neighbors: dict[Any, list[Any]] = {node: [] for node, _, _ in resources}
-    for a, b in edges:
+    for index, (a, b) in enumerate(edges):
         if a in neighbors:
-            neighbors[a].append(b)
+            neighbors[a].append((index, b))
         if b in neighbors:
-            neighbors[b].append(a)
+            neighbors[b].append((index, a))
     for node, _, name in resources:
         adjacent = neighbors[node]
         if len(adjacent) != 1:
             raise GeometryError('resource_frame', f'T resource {node!r} is not terminal')
-        neighbor = adjacent[0]
+        edge_index, neighbor = adjacent[0]
         p, q = _position(nodes[node]['position']), _position(nodes[neighbor]['position'])
         if _direction(q, p)[1] != 'Z':
             continue
@@ -502,17 +549,17 @@ def _spatial_t_endpoints(nodes, edges, resources):
             raise GeometryError('source_provenance', f'Reserved T elbow node already exists: {key}')
         nodes[key] = dict(position=p, tqec=frame, other=None)
         nodes[node] = dict(nodes[node], position=target)
-        pair = (neighbor, node) if (neighbor, node) in edges else (node, neighbor)
-        edges.remove(pair)
-        edges.extend([(neighbor, key), (key, node)])
+        edges[edge_index] = (neighbor, key)
+        edges.append((key, node))
         occupied.add(target)
 
 
 def _search_t_placements(nodes, edges, resources, positions):
     occupied = frozenset(positions.values())
+    index = _TPlacementIndex(nodes, edges, positions, occupied)
     domains, remaining = [], 100_000
     for node, _, _ in resources:
-        domain = list(islice(_t_placements(nodes, edges, node, positions=positions, occupied=occupied), remaining + 1))
+        domain = list(islice(_t_placements(nodes, edges, node, positions=positions, occupied=occupied, index=index), remaining + 1))
         remaining -= len(domain)
         if remaining < 0:
             raise GeometryError('resource_placement_limit', 'T placement exceeded 100000 candidates')
@@ -523,7 +570,7 @@ def _search_t_placements(nodes, edges, resources, positions):
         if error.code != 'resource_collision':
             raise
         streams = [_t_placements(nodes, edges, node, bends=True,
-                                 margin=max(2, isqrt(len(resources)) + 1), positions=positions, occupied=occupied)
+                                 margin=max(2, isqrt(len(resources)) + 1), positions=positions, occupied=occupied, index=index)
                    for node, _, _ in resources]
         domains = [[] for _ in resources]
         # Try small candidate prefixes; grow only after a bounded solve.
@@ -680,15 +727,21 @@ def _greedy_t_resources(nodes, edges, resources, positions):
     """Stage the existing short-arm placements without mutating the import."""
     staged, pipes, positions = nodes.copy(), list(edges), positions.copy()
     actions, placements = [], {}
+    index = _TPlacementIndex(staged, pipes, positions)
     for i, (node, phase, name) in enumerate(resources):
-        placement = (next(_t_placements(staged, pipes, node, positions=positions), None)
-                     or next(_t_placements(staged, pipes, node, bends=True, positions=positions), None))
+        placement = (next(_t_placements(staged, pipes, node, positions=positions, index=index), None)
+                     or next(_t_placements(staged, pipes, node, bends=True, positions=positions, index=index), None))
         if placement is None:
             raise GeometryError('resource_collision', f'T resource {node!r} has no free outward arm')
         placements[i] = placement
-        actions.extend(_attach_t_resource(staged, pipes, node, phase, name, placement))
+        edge_index, _ = index.seams[node][0]
+        index.update(positions[node], staged[node]['tqec'], -1)
+        actions.extend(_attach_t_resource(staged, pipes, node, phase, name, placement, edge_index=edge_index))
         positions[node] = placement[1]
-        positions.update((f'{name}_{suffix}', p) for suffix, (p, _) in placement[3].items())
+        index.update(placement[1], placement[2], 1)
+        for suffix, (p, kind) in placement[3].items():
+            positions[f'{name}_{suffix}'] = p
+            index.update(p, kind, 1)
     return staged, pipes, actions, placements
 
 
@@ -815,12 +868,13 @@ def _compact_temporal_layers(graph, *, defer_analysis=False):
     return compact, positions
 
 
-def build_graph(nodes, edges, qubits, actions, *, defer_analysis=False):
-    """Validate frames and bind the complete, source-ordered interface."""
+def build_graph(nodes, edges, qubits, actions, *, defer_analysis=False, position_map=None):
+    """Bind the source interface, optionally mapping surviving original positions."""
     positions = {n: _position(d['position']) for n, d in nodes.items()}
     if len(set(positions.values())) != len(positions):
         raise GeometryError('coordinates', 'Exported nodes overlap')
     ports: dict[str, dict[int, Position]] = {'input': {}, 'output': {}}
+    degrees = Counter(n for edge in edges for n in set(edge))
     graph = bloq.BlockGraph()
     for n, data in nodes.items():
         role = data['other']
@@ -828,7 +882,7 @@ def build_graph(nodes, edges, qubits, actions, *, defer_analysis=False):
             kind, wire = role.get('type'), role.get('qubit')
             if kind not in ports or type(wire) is not int or not 0 <= wire < qubits or wire in ports[kind]:
                 raise GeometryError('boundaries', f'Invalid or duplicate source port {role}')
-            if sum(n in edge for edge in edges) != 1:
+            if degrees[n] != 1:
                 raise GeometryError('boundaries', f'Port {n!r} is not terminal')
             ports[kind][wire] = positions[n]
         graph.add_block(bloq.Block(positions[n], 'Port' if isinstance(role, dict) else data['tqec'],
@@ -853,4 +907,6 @@ def build_graph(nodes, edges, qubits, actions, *, defer_analysis=False):
         inputs={f'in_{i}': p for i, p in enumerate(inputs)}, outputs={f'out_{i}': p for i, p in enumerate(outputs)},
         defer_analysis=defer_analysis)
     (graph.validate_structure if defer_analysis else graph.validate)()
+    if position_map is not None:
+        position_map.update(((x, y, z + min_z), q) for (x, y, z), q in positions.items())
     return graph, inputs, outputs

@@ -4,6 +4,7 @@ TopoLS is optional. Only static Clifford+T circuits are accepted; signed
 phases must survive its patched classifier, fusion, and fallback paths.
 """
 
+from collections import defaultdict
 from dataclasses import dataclass
 from fractions import Fraction
 from math import ceil, sqrt
@@ -158,6 +159,9 @@ def _convert(embedding: dict[str, Any], qubits: int, *, _build=None) -> tuple[bl
     for a, b in edges:
         neighbors[a].append(b)
         neighbors[b].append(a)
+    source_nodes = defaultdict(list)
+    for node in nodes:
+        source_nodes[str(node)].append(node)
     actions = []
     occupied = {_position(data["position"]) for data in nodes.values()}
     resources = {"S": 0, "T": 0}
@@ -174,7 +178,7 @@ def _convert(embedding: dict[str, Any], qubits: int, *, _build=None) -> tuple[bl
         resources[other] += 1
         if len(neighbors[node]) != 1:
             raise TopoLSImportError("resource_frame", f"Resource endpoint {node!r} is not terminal")
-        roots = [n for n in nodes if str(n) == str(node)[:-2]]
+        roots = source_nodes[str(node)[:-2]]
         if len(roots) != 1 or not str(node).endswith("_" + other.lower()):
             raise TopoLSImportError("source_provenance", f"Resource endpoint {node!r} has no source junction")
         root = roots[0]

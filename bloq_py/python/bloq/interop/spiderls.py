@@ -123,6 +123,10 @@ def _convert(source, target, schedule, routing, *, _build=None):
 
     measurements, gadgets = _phase_history(source, target, schedule)
     nodes, edges, zs = diagram(source, target, schedule, routing)
+    neighbors = defaultdict(list)
+    for a, b in edges:
+        neighbors[a].append(b)
+        neighbors[b].append(a)
     routes = {c.measurement_id: (c, layer) for layer in routing.layers for c in layer.connections}
     actions = [bloq.Action.feedback([bloq.FeedbackTarget(pauli, nodes[n]['position'], direction='+Z')]) for n, pauli in zs]
     resources = []
@@ -156,7 +160,7 @@ def _convert(source, target, schedule, routing, *, _build=None):
                 terminal = next(t for t in connection.terminals if t.kind == 'data')
                 root = f'q{int(terminal.operand[1:])}_t{layer.time}'
                 p = nodes[root]['position']
-                leg = _latest_leg(p, (nodes[b if a == root else a]['position'] for a, b in edges if root in (a, b)))
+                leg = _latest_leg(p, (nodes[n]['position'] for n in neighbors[root]))
                 actions.append(bloq.Action.feedback([bloq.FeedbackTarget('Z', p, direction=leg)]))
     expected_s = {gadget for gadget, (kind, _, _) in gadgets.items() if kind == 'S'}
     if s_gadgets != expected_s:

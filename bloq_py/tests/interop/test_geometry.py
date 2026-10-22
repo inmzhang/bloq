@@ -461,7 +461,7 @@ def test_anchored_mixed_walls_retain_one_spatial_axis_and_the_identity_channel(t
 @pytest.mark.parametrize('blocked', (False, True))
 def test_shared_t_occupancy_preserves_candidate_contents_and_order(frame, sign, blocked):
     from itertools import islice
-    from bloq.interop._geometry import _t_placements
+    from bloq.interop._geometry import _TPlacementIndex, _t_placements
 
     axis = 0 if frame in ('XZX', 'ZXZ') else 1
     nodes = resource_nodes(frame)
@@ -478,5 +478,46 @@ def test_shared_t_occupancy_preserves_candidate_contents_and_order(frame, sign, 
     expected = list(islice(_t_placements(nodes, edges, 'resource', bends=True), 500))
     assert expected
     actual = list(islice(_t_placements(nodes, edges, 'resource', bends=True,
-                                    positions=positions, occupied=frozenset(positions.values())), 500))
+                                    positions=positions, occupied=frozenset(positions.values()),
+                                    index=_TPlacementIndex(nodes, edges, positions)), 500))
     assert actual == expected
+
+
+def test_incremental_t_index_preserves_candidates_after_each_attachment(monkeypatch):
+    from itertools import islice
+    from bloq.interop import _geometry
+
+    original = _geometry._t_placements
+    def checked(nodes, edges, node, **options):
+        rebuilt = {key: value for key, value in options.items() if key != 'index'}
+        expected = list(islice(original(nodes, edges, node, **rebuilt), 100))
+        actual = list(islice(original(nodes, edges, node, **options), 100))
+        assert actual == expected
+        yield from actual
+
+    monkeypatch.setattr(_geometry, '_t_placements', checked)
+    nodes, edges, resources = {}, [], []
+    for i, (x, z, sign) in enumerate(((0, 0, 1), (0, 5, -1), (0, 10, 1), (0, 15, -1))):
+        nodes[f'r{i}'] = dict(position=(x, 0, z), tqec='XZX', other=None)
+        nodes[f't{i}'] = dict(position=(x + sign, 0, z), tqec=None, other='T')
+        edges.append((f'r{i}', f't{i}'))
+        resources.append((f't{i}', '1/4', f'magic_{i}'))
+    positions = {n: d['position'] for n, d in nodes.items()}
+    staged, _, actions, placements = _geometry._greedy_t_resources(nodes, edges, resources, positions)
+    assert len(placements) == 4 and len(actions) == 8
+    assert len({d['position'] for d in staged.values()}) == len(staged)
+
+
+def test_build_graph_exposes_only_surviving_positions_after_shift_and_compaction():
+    nodes = {z: dict(position=(0, 0, z), tqec='ZXX',
+                     other=dict(type='input' if z == -3 else 'output', qubit=0) if z in (-3, 5) else None)
+             for z in range(-3, 6)}
+    edges = [(z, z + 1) for z in range(-3, 5)]
+    positions = {}
+    graph, inputs, outputs = build_graph(nodes, edges, 1, [
+        bloq.Action.feedback([bloq.FeedbackTarget('Z', (0, 0, 0), direction='+Z')]),
+    ], position_map=positions)
+    assert positions == {(0, 0, -3): (0, 0, 0), (0, 0, 0): (0, 0, 1),
+                         (0, 0, 1): (0, 0, 2), (0, 0, 5): (0, 0, 3)}
+    assert inputs == ((0, 0, 0),) and outputs == ((0, 0, 3),)
+    assert set(positions.values()) == set(graph.flatten().positions())

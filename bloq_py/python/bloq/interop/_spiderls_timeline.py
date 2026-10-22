@@ -103,6 +103,19 @@ def diagram(source, target, schedule, routed):
         raise GeometryError('event_order', 'Zero-time events contain a dependency cycle') from error
     raw = (routing_to_pipe_inputs(routed, include_worldlines=False, include_io_ports=False)
            if routed.layers else {'nodes': {}, 'edges': []})
+    nodes_by_layer: dict[int, dict] = defaultdict(dict)
+    edges_by_layer = defaultdict(list)
+    node_layers = {}
+    for n, d in raw['nodes'].items():
+        time = d['position'][2]
+        nodes_by_layer[time][n] = d
+        node_layers[n] = time
+    edge_nodes: set[str] = set()
+    for a, b in raw['edges']:
+        edge_nodes.update((a, b))
+        time = node_layers.get(a)
+        if time is not None and time == node_layers.get(b):
+            edges_by_layer[time].append((a, b))
     nodes, edges = {}, []
     active: dict[int, int] = {}
     previous: dict[int, str] = {}
@@ -176,17 +189,16 @@ def diagram(source, target, schedule, routed):
     zero_group(grouped[0])
     for layer in routed.layers:
         index += 1
-        prefix = {n: d for n, d in raw['nodes'].items() if d['position'][2] == layer.time}
+        prefix = nodes_by_layer[layer.time]
         inactive = {f'q{p.patch_id}_t{layer.time}' for p in layer.patches
                     if p.kind == 'data' and p.patch_id not in active}
         for n, d in prefix.items():
             if n not in inactive:
                 add(n, (*d['position'][:2], index), d.get('tqec'), d.get('other'))
                 route_times[n] = layer.time
-        for a, b in raw['edges']:
-            if a in prefix and b in prefix:
-                _require(a not in inactive and b not in inactive, 'A route touches a released data patch')
-                edges.append((a, b))
+        for a, b in edges_by_layer[layer.time]:
+            _require(a not in inactive and b not in inactive, 'A route touches a released data patch')
+            edges.append((a, b))
         for patch in layer.patches:
             n = (f'q{patch.patch_id}' if patch.kind == 'data' else f'ancilla_g{patch.gadget_id}') + f'_t{layer.time}'
             if patch.kind == 'data':
@@ -194,7 +206,7 @@ def diagram(source, target, schedule, routed):
                 if p not in active:
                     continue
                 _require(active[p] == patch.orientation, f'Patch {p} orientation disagrees with ordered events')
-                if not any(n in pair for pair in raw['edges']):
+                if n not in edge_nodes:
                     nodes[n]['tqec'] = body(patch.orientation)
                 connect(previous[p], n)
                 previous[p] = n
