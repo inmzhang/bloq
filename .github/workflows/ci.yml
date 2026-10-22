@@ -222,7 +222,10 @@ jobs:
           python-version: '3.12'
       - name: Check Python bindings
         if: github.event_name == 'workflow_dispatch' || needs.quick.outputs.python == 'true'
-        run: just py-typecheck py-test
+        run: |
+          just py-typecheck
+          uv sync --project bloq_py --group dev --group interop --locked
+          uv run --project bloq_py --no-sync pytest bloq_py/tests
       - name: Check documentation and web editor
         run: just ci-site
 
