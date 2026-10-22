@@ -257,7 +257,6 @@ impl Frontier<'_> {
         };
         if self.live.contains_key(target)
             || self.measured.contains(target)
-            || self.remaining[&vertex].len() != 1
             || !self.remaining[&vertex].contains(target)
         {
             return Ok(false);
@@ -270,6 +269,14 @@ impl Frontier<'_> {
         if neighbors != z.iter().copied().collect() {
             return Ok(false);
         }
+        // Finish the source's interactions before reusing its patch for the fresh target.
+        let edges = self.remaining[&vertex]
+            .iter()
+            .copied()
+            .filter(|v| v != target)
+            .map(|v| (v.min(vertex), v.max(vertex)))
+            .collect();
+        self.entangle_edges(edges, BTreeSet::new())?;
         self.prepare(vertex, None)?;
         self.phase(vertex);
         let patch = self
@@ -298,9 +305,19 @@ impl Frontier<'_> {
         let mut edges = BTreeSet::new();
         for &v in targets {
             for &u in &self.remaining[&v] {
-                needed.insert(u);
                 edges.insert((u.min(v), u.max(v)));
             }
+        }
+        self.entangle_edges(edges, needed)
+    }
+
+    fn entangle_edges(
+        &mut self,
+        edges: BTreeSet<(V, V)>,
+        mut needed: BTreeSet<V>,
+    ) -> Result<(), String> {
+        for &(u, v) in &edges {
+            needed.extend([u, v]);
         }
         let mut needed: Vec<_> = needed.into_iter().collect();
         needed.sort_by_key(|v| self.rank[v]);
@@ -663,6 +680,94 @@ pub(crate) mod tests {
         expanded.cancel_hadamards();
         verify_branches(&expanded, &circuit);
         verify_branches(&contracted, &circuit);
+    }
+
+    #[test]
+    fn entangled_transfers_match_all_branches_in_either_source_order() {
+        let circuit = Circuit::from_qasm(
+            "OPENQASM 2.0; include \"qelib1.inc\"; qreg q[2]; cz q[0],q[1]; t q[0]; tdg q[1]; h q[0]; h q[1]; cz q[0],q[1];",
+        )
+        .unwrap();
+        for reverse in [false, true] {
+            let mut graph = Graph::new();
+            let mut sources = [graph.add_vertex(VType::Z), graph.add_vertex(VType::Z)];
+            if reverse {
+                sources.reverse();
+            }
+            let targets = [graph.add_vertex(VType::Z), graph.add_vertex(VType::Z)];
+            let [v, w] = sources;
+            let [u, t] = targets;
+            for (i, phase) in [(0, Phase::from((1, 4))), (1, Phase::from((-1, 4)))] {
+                graph.set_phase(sources[i], phase);
+            }
+            let inputs: Vec<_> = sources
+                .iter()
+                .map(|&v| {
+                    let boundary = graph.add_vertex(VType::B);
+                    graph.add_edge(boundary, v);
+                    boundary
+                })
+                .collect();
+            let outputs: Vec<_> = targets
+                .iter()
+                .map(|&v| {
+                    let boundary = graph.add_vertex(VType::B);
+                    graph.add_edge(v, boundary);
+                    boundary
+                })
+                .collect();
+            graph.set_inputs(inputs);
+            graph.set_outputs(outputs);
+            for (a, b) in [(v, u), (w, t), (v, w), (u, t)] {
+                graph.add_edge_with_type(a, b, EType::H);
+            }
+            let mut expanded = Plan {
+                outputs: vec![(0, 2), (1, 3)],
+                peak_patches: 4,
+                ..Plan::default()
+            };
+            for (patch, vertex) in [v, w, u, t].into_iter().enumerate() {
+                expanded.instructions.push(Instruction::Prepare {
+                    patch,
+                    vertex,
+                    input: (patch < 2).then_some(patch),
+                });
+            }
+            for patches in [[0, 2], [1, 3], [0, 1], [2, 3]] {
+                expanded.instructions.push(Instruction::Cz {
+                    patches,
+                    vertices: patches.map(|i| [v, w, u, t][i]),
+                });
+            }
+            for patch in if reverse { [1, 0] } else { [0, 1] } {
+                let vertex = sources[patch];
+                expanded.instructions.extend([
+                    Instruction::Phase {
+                        patch,
+                        vertex,
+                        phase: graph.phase(vertex),
+                    },
+                    Instruction::Release { patch, vertex },
+                    Instruction::Feedback {
+                        measurement: vertex,
+                        x_targets: vec![patch + 2],
+                        z_targets: vec![3 - patch],
+                    },
+                ]);
+            }
+            verify_branches(&expanded, &circuit);
+            let contracted = plan(&graph).unwrap();
+            assert_eq!(contracted.peak_patches, 2);
+            assert_eq!(
+                contracted
+                    .instructions
+                    .iter()
+                    .filter(|i| matches!(i, Instruction::Cz { .. }))
+                    .count(),
+                2
+            );
+            verify_branches(&contracted, &circuit);
+        }
     }
 
     #[test]
