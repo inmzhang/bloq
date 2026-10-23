@@ -10,9 +10,11 @@ use bloq_graph::{
 use glam::{IVec2, IVec3};
 
 use crate::spider::{Instruction, Plan};
+use crate::{LayoutOptions, grid::Grid};
 
 #[derive(Clone, Copy)]
 struct Patch {
+    slot: usize,
     end: IVec3,
     // A resource cap can finish one layer after the last data cube.
     ready: i32,
@@ -39,6 +41,8 @@ struct Builder {
     release_times: BTreeMap<usize, i32>,
     occupied_until: HashMap<IVec2, i32>,
     max_blocks: usize,
+    max_temporal_extent: Option<u32>,
+    grid: Option<Grid>,
 }
 
 impl Builder {
@@ -48,6 +52,13 @@ impl Builder {
         }
         let pos = block.pos();
         let offsets = block.reserved_offsets();
+        if let Some(limit) = self.max_temporal_extent
+            && offsets
+                .iter()
+                .any(|offset| i64::from(pos.z) + i64::from(offset.z) >= i64::from(limit))
+        {
+            return Err(format!("temporal extent limit {limit} exhausted"));
+        }
         self.graph.try_add_block(block).map_err(|e| e.to_string())?;
         for offset in offsets {
             let cell = pos + offset;
@@ -86,6 +97,17 @@ impl Builder {
             .ok_or_else(|| format!("patch {id} is not live"))
     }
 
+    fn home(&self, slot: usize) -> Result<IVec2, String> {
+        if let Some(grid) = &self.grid {
+            return grid.home(slot);
+        }
+        let x = i32::try_from(slot)
+            .ok()
+            .and_then(|x| x.checked_mul(2))
+            .ok_or("spatial coordinate overflow")?;
+        Ok(IVec2::new(x, 0))
+    }
+
     fn advance(&mut self, id: usize, time: i32) -> Result<Patch, String> {
         let mut patch = self.patch(id)?;
         while patch.end.z < time {
@@ -118,7 +140,14 @@ impl Builder {
         let mut patch = self.advance(id, self.patch(id)?.ready)?;
         let time = Self::after(patch.end.z, 3)?;
         let start = patch.end + IVec3::Z;
-        let movement = IVec2::new(0, if patch.end.y == 0 { 1 } else { -1 });
+        let movement = IVec2::new(
+            0,
+            if patch.end.y == self.home(patch.slot)?.y {
+                1
+            } else {
+                -1
+            },
+        );
         let rotation =
             PatchRotationKind::new(if patch.rotated { Basis::Z } else { Basis::X }, movement)
                 .map_err(|e| e.to_string())?;
@@ -148,6 +177,68 @@ impl Builder {
         Ok(())
     }
 
+    fn route(&self, control: Patch, target: Patch) -> Result<(Vec<IVec2>, i32), String> {
+        let from = control.end.truncate() + IVec2::X;
+        let to = target.end.truncate();
+        let mut path = vec![from];
+        let mut z = Self::after(control.ready.max(target.ready), 1)?;
+        if let Some(grid) = &self.grid {
+            let exit_y = self.home(control.slot)?.y - 1;
+            while path.last().expect("route has a start").y > exit_y {
+                path.push(*path.last().expect("route has a start") - IVec2::Y);
+            }
+            let entry = IVec2::new(to.x, self.home(target.slot)?.y - 1);
+            let mut tail = vec![entry];
+            while tail.last().expect("route has an entry").y < to.y {
+                tail.push(*tail.last().expect("route has an entry") + IVec2::Y);
+            }
+            for cell in path.iter().chain(&tail) {
+                if let Some(&last) = self.occupied_until.get(cell) {
+                    z = z.max(Self::after(last, 1)?);
+                }
+            }
+            let exit = *path.last().expect("route has an exit");
+            // Try a concurrent detour before waiting for the shortest static route.
+            let middle = match grid.path(exit, entry, |p| {
+                self.occupied_until.get(&p).is_some_and(|&last| last >= z)
+            })? {
+                Some(path) => path,
+                None => grid
+                    .path(exit, entry, |_| false)?
+                    .ok_or("no route inside the grid canvas")?,
+            };
+            path.extend(middle.into_iter().skip(1));
+            path.extend(tail.into_iter().skip(1));
+            for cell in &path {
+                if let Some(&last) = self.occupied_until.get(cell) {
+                    z = z.max(Self::after(last, 1)?);
+                }
+            }
+        } else {
+            let [a, b] =
+                [from.x, to.x].map(|x| usize::try_from(x).expect("patch columns are non-negative"));
+            z = z.max(Self::after(
+                self.corridor_ready[a.min(b)..=a.max(b)]
+                    .iter()
+                    .copied()
+                    .max()
+                    .unwrap_or_default(),
+                1,
+            )?);
+            while path.last().expect("route has a start").y > -1 {
+                path.push(*path.last().expect("route has a start") - IVec2::Y);
+            }
+            let dx = (to.x - from.x).signum();
+            while path.last().expect("route has a start").x != to.x {
+                path.push(*path.last().expect("route has a start") + IVec2::X * dx);
+            }
+            while path.last().expect("route has a start").y < to.y {
+                path.push(*path.last().expect("route has a start") + IVec2::Y);
+            }
+        }
+        Ok((path, z))
+    }
+
     fn cz(&mut self, control: usize, target: usize) -> Result<(), String> {
         if control == target {
             return Err("CZ requires distinct live patches".into());
@@ -160,22 +251,7 @@ impl Builder {
         };
         self.orient(control, false)?;
         self.orient(target, true)?;
-        let [start, end] = [self.patch(control)?.end.x + 1, self.patch(target)?.end.x]
-            .map(|x| usize::try_from(x).expect("patch columns are non-negative"));
-        let columns = start.min(end)..=start.max(end);
-        // The corridor includes both vertical spokes; patch times reserve data endpoints.
-        let corridor_ready = self.corridor_ready[columns.clone()]
-            .iter()
-            .copied()
-            .max()
-            .unwrap_or_default();
-        let z = Self::after(
-            self.patch(control)?
-                .ready
-                .max(self.patch(target)?.ready)
-                .max(corridor_ready),
-            1,
-        )?;
+        let (path, z) = self.route(self.patch(control)?, self.patch(target)?)?;
         Self::after(z, 2)?;
         let control_id = control;
         let control = self.advance(control, z)?;
@@ -193,47 +269,33 @@ impl Builder {
         let mut cursor = control.end + IVec3::X;
         self.cube(cursor, CubeKind::XZX)?;
         self.pipe(control.end, cursor, false)?;
-        let upper = cursor + IVec3::Z;
-        self.cube(upper, CubeKind::XZZ)?;
-        self.pipe(cursor, upper, false)?;
-        cursor = upper;
-        while cursor.y > -1 {
-            let next = cursor - IVec3::Y;
-            self.cube(
-                next,
-                if next.y == -1 {
-                    CubeKind::XXZ
-                } else {
-                    CubeKind::XZZ
-                },
-            )?;
-            self.pipe(cursor, next, false)?;
-            cursor = next;
-        }
-        let dx = (target_junction.x - cursor.x).signum();
-        while cursor.x != target_junction.x {
-            let next = cursor + IVec3::X * dx;
-            self.cube(
-                next,
-                if next.x == target_junction.x {
-                    CubeKind::XXZ
-                } else {
-                    CubeKind::ZXZ
-                },
-            )?;
-            self.pipe(cursor, next, false)?;
-            cursor = next;
-        }
-        while cursor.y < target_junction.y {
-            let next = cursor + IVec3::Y;
+        for (index, &cell) in path.iter().enumerate() {
+            let next = cell.extend(z + 1);
             if next != target_junction {
-                self.cube(next, CubeKind::XZZ)?;
+                let kind = if index == 0 {
+                    CubeKind::XZZ
+                } else {
+                    let before = cell - path[index - 1];
+                    let after = path[index + 1] - cell;
+                    if before.x != 0 && after.x != 0 {
+                        CubeKind::ZXZ
+                    } else if before.y != 0 && after.y != 0 {
+                        CubeKind::XZZ
+                    } else {
+                        CubeKind::XXZ
+                    }
+                };
+                self.cube(next, kind)?;
             }
             self.pipe(cursor, next, false)?;
             cursor = next;
         }
         self.advance(control_id, target_patch.end.z)?;
-        self.corridor_ready[columns].fill(target_patch.end.z);
+        if self.grid.is_none() {
+            let [a, b] = [control.end.x + 1, target_patch.end.x]
+                .map(|x| usize::try_from(x).expect("patch columns are non-negative"));
+            self.corridor_ready[a.min(b)..=a.max(b)].fill(target_patch.end.z);
+        }
         self.time = self.time.max(target_patch.end.z);
         Ok(())
     }
@@ -343,7 +405,7 @@ impl Builder {
 
 pub(crate) fn embed(
     plan: &Plan,
-    max_blocks: usize,
+    options: &LayoutOptions,
     extra_patches: usize,
 ) -> Result<(BlockGraph, Vec<IVec3>, Vec<IVec3>), String> {
     // More locations than preparations cannot be used, even with an unbounded request.
@@ -354,16 +416,33 @@ pub(crate) fn embed(
         .count();
     let slots =
         plan.peak_patches + extra_patches.min(preparations.saturating_sub(plan.peak_patches));
+    let grid = options
+        .grid
+        .map(|options| {
+            Grid::new(
+                options,
+                slots
+                    .checked_add(plan.direct_wires.len())
+                    .ok_or("patch count overflow")?,
+            )
+        })
+        .transpose()?;
     let mut b = Builder {
         graph: BlockGraph::new(),
         live: vec![None; plan.peak_patches],
         actions: Vec::new(),
         time: 0,
-        corridor_ready: vec![0; slots.checked_mul(2).ok_or("spatial coordinate overflow")?],
+        corridor_ready: if grid.is_none() {
+            vec![0; slots.checked_mul(2).ok_or("spatial coordinate overflow")?]
+        } else {
+            Vec::new()
+        },
         available: (0..slots).map(|slot| (slot, 0)).collect(),
         release_times: BTreeMap::new(),
         occupied_until: HashMap::default(),
-        max_blocks,
+        max_blocks: options.max_blocks,
+        max_temporal_extent: options.max_temporal_extent,
+        grid,
     };
     let mut inputs = Vec::new();
     let mut outputs = Vec::new();
@@ -385,11 +464,7 @@ pub(crate) fn embed(
                 };
                 let ready = b.available.remove(&slot).ok_or("patch location is live")?;
                 used_slots = used_slots.max(slot + 1);
-                let x = i32::try_from(slot)
-                    .ok()
-                    .and_then(|x| x.checked_mul(2))
-                    .ok_or("spatial coordinate overflow")?;
-                let end = IVec3::new(x, 0, Builder::after(ready, 1)?);
+                let end = b.home(slot)?.extend(Builder::after(ready, 1)?);
                 if let Some(input) = input {
                     let pos = end - IVec3::Z;
                     b.port(pos, PortRole::Input)?;
@@ -400,6 +475,7 @@ pub(crate) fn embed(
                     b.pipe(end - IVec3::Z, end, false)?;
                 }
                 b.live[patch] = Some(Patch {
+                    slot,
                     end,
                     ready: end.z,
                     rotated: false,
@@ -424,8 +500,7 @@ pub(crate) fn embed(
                     .end;
                 b.release_times.insert(vertex, end.z);
                 b.live[patch] = None;
-                let slot = usize::try_from(end.x / 2).expect("patch columns are non-negative");
-                b.available.insert(slot, Builder::after(end.z, 1)?);
+                b.available.insert(live.slot, Builder::after(end.z, 1)?);
                 b.time = b.time.max(end.z);
             }
             Instruction::Feedback {
@@ -450,11 +525,7 @@ pub(crate) fn embed(
         let lane = used_slots
             .checked_add(index)
             .ok_or("spatial coordinate overflow")?;
-        let x = i32::try_from(lane)
-            .ok()
-            .and_then(|x| x.checked_mul(2))
-            .ok_or("spatial coordinate overflow")?;
-        let input = IVec3::new(x, 0, 0);
+        let input = b.home(lane)?.extend(0);
         let middle = input + IVec3::Z;
         let output = middle + IVec3::Z;
         b.port(input, PortRole::Input)?;
@@ -484,6 +555,21 @@ mod tests {
     use bloq_graph::verify::{BoundaryOrder, LogicalVerifier, QuizxGraph};
     use quizx::circuit::Circuit;
     use quizx::vec_graph::Graph;
+
+    fn embed(
+        plan: &Plan,
+        max_blocks: usize,
+        extra_patches: usize,
+    ) -> Result<(BlockGraph, Vec<IVec3>, Vec<IVec3>), String> {
+        super::embed(
+            plan,
+            &LayoutOptions {
+                max_blocks,
+                ..Default::default()
+            },
+            extra_patches,
+        )
+    }
 
     #[test]
     fn extra_locations_overlap_independent_lifetimes_and_keep_passthroughs_clear() {
@@ -525,23 +611,41 @@ mod tests {
         let expected: QuizxGraph = Circuit::from_qasm("OPENQASM 2.0; qreg q[3]; h q[0]; h q[1];")
             .unwrap()
             .to_graph();
-        let metrics = [0, usize::MAX].map(|extra| {
-            let (graph, inputs, outputs) = embed(&plan, 1000, extra).unwrap();
-            LogicalVerifier::with_boundaries_and_internal_measurements(
-                &graph,
-                BoundaryOrder::new(inputs, outputs),
-            )
-            .unwrap()
-            .verify(&expected, 8, 29)
-            .unwrap();
-            bloq_compile::CompileContext::new(bloq_compile::CompileConfig::new(3))
-                .compile_and_validate(&graph)
+        for grid in [
+            None,
+            Some(crate::GridOptions {
+                columns: 1,
+                ..Default::default()
+            }),
+        ] {
+            let metrics = [0, usize::MAX].map(|extra| {
+                let (graph, inputs, outputs) = super::embed(
+                    &plan,
+                    &LayoutOptions {
+                        grid,
+                        ..Default::default()
+                    },
+                    extra,
+                )
                 .unwrap();
-            let (x, _, z) = graph.spans().unwrap();
-            (*x.end() - *x.start(), *z.end() - *z.start())
-        });
-        assert!(metrics[1].0 > metrics[0].0);
-        assert!(metrics[1].1 < metrics[0].1);
+                LogicalVerifier::with_boundaries_and_internal_measurements(
+                    &graph,
+                    BoundaryOrder::new(inputs, outputs),
+                )
+                .unwrap()
+                .verify(&expected, 8, 29)
+                .unwrap();
+                bloq_compile::CompileContext::new(bloq_compile::CompileConfig::new(3))
+                    .compile_and_validate(&graph)
+                    .unwrap();
+                let (x, _, z) = graph.spans().unwrap();
+                (*x.end() - *x.start(), *z.end() - *z.start())
+            });
+            if grid.is_none() {
+                assert!(metrics[1].0 > metrics[0].0);
+            }
+            assert!(metrics[1].1 < metrics[0].1);
+        }
     }
 
     #[test]
@@ -851,7 +955,7 @@ mod tests {
             let expected: QuizxGraph = circuit.to_graph();
             let mut zx: Graph = circuit.to_graph();
             quizx::simplify::full_simp(&mut zx);
-            let plan = crate::spider::plan(&zx).unwrap();
+            let plan = crate::spider::plan(&zx, None).unwrap();
             let (graph, inputs, outputs) =
                 embed(&plan, 100_000, 0).unwrap_or_else(|e| panic!("{gates}: {e}"));
             assert!(

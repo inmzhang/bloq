@@ -344,7 +344,12 @@ impl Frontier<'_> {
 
 /// Schedule a graph with causal XY measurements and explicit Pauli corrections.
 /// `order` controls deterministic allocation without changing the flow constraints.
-pub(crate) fn causal_plan(graph: &Graph, order: &[V]) -> Result<Plan, String> {
+/// The batch cap splits each causal layer, allowing released patches to be reused.
+pub(crate) fn causal_plan(
+    graph: &Graph,
+    order: &[V],
+    measurement_batch_size: Option<usize>,
+) -> Result<Plan, String> {
     let interface = interface(graph)?;
     let flow = crate::flow::xy_gflow(graph)?;
     let mut f = Frontier {
@@ -380,50 +385,51 @@ pub(crate) fn causal_plan(graph: &Graph, order: &[V]) -> Result<Plan, String> {
         }
     }
     for layer in flow.layers {
-        let mut measurements = Vec::with_capacity(layer.len());
-        for correction in layer {
-            if !f.transfer(correction.vertex, &correction.x, &correction.z)? {
-                measurements.push(correction);
+        for batch in layer.chunks(measurement_batch_size.unwrap_or(layer.len())) {
+            let mut measurements = Vec::with_capacity(batch.len());
+            for correction in batch {
+                if !f.transfer(correction.vertex, &correction.x, &correction.z)? {
+                    measurements.push(correction);
+                }
             }
-        }
-        let mut entangle = BTreeSet::new();
-        let mut corrections = BTreeSet::new();
-        for correction in &measurements {
-            entangle.insert(correction.vertex);
-            entangle.extend(&correction.x);
-            corrections.extend(&correction.z);
-        }
-        // Later CZs commute with every correction: X targets have no edges left,
-        // and Z corrections commute with CZ without extra byproducts.
-        f.entangle(&entangle, &corrections)?;
-        for correction in measurements {
-            let v = correction.vertex;
-            f.phase(v);
-            let patch = f
-                .live
-                .remove(&v)
-                .ok_or("flow measures an inactive spider")?;
-            f.plan
-                .instructions
-                .push(Instruction::Release { patch, vertex: v });
-            f.measured.insert(v);
-            f.free.insert(patch);
-            let targets = |vertices: &[V]| {
-                vertices
-                    .iter()
-                    .map(|v| {
-                        f.live
-                            .get(v)
-                            .copied()
-                            .ok_or_else(|| format!("flow correction targets inactive spider {v}"))
-                    })
-                    .collect::<Result<Vec<_>, _>>()
-            };
-            f.plan.instructions.push(Instruction::Feedback {
-                measurement: v,
-                x_targets: targets(&correction.x)?,
-                z_targets: targets(&correction.z)?,
-            });
+            let mut entangle = BTreeSet::new();
+            let mut corrections = BTreeSet::new();
+            for correction in &measurements {
+                entangle.insert(correction.vertex);
+                entangle.extend(&correction.x);
+                corrections.extend(&correction.z);
+            }
+            // Later CZs commute with every correction: X targets have no edges left,
+            // and Z corrections commute with CZ without extra byproducts.
+            f.entangle(&entangle, &corrections)?;
+            for correction in measurements {
+                let v = correction.vertex;
+                f.phase(v);
+                let patch = f
+                    .live
+                    .remove(&v)
+                    .ok_or("flow measures an inactive spider")?;
+                f.plan
+                    .instructions
+                    .push(Instruction::Release { patch, vertex: v });
+                f.measured.insert(v);
+                f.free.insert(patch);
+                let targets = |vertices: &[V]| {
+                    vertices
+                        .iter()
+                        .map(|v| {
+                            f.live.get(v).copied().ok_or_else(|| {
+                                format!("flow correction targets inactive spider {v}")
+                            })
+                        })
+                        .collect::<Result<Vec<_>, _>>()
+                };
+                f.plan.instructions.push(Instruction::Feedback {
+                    measurement: v,
+                    x_targets: targets(&correction.x)?,
+                    z_targets: targets(&correction.z)?,
+                });
+            }
         }
     }
     let outputs: BTreeSet<_> = interface.outputs.iter().map(|&(_, v, _)| v).collect();
@@ -446,7 +452,7 @@ pub(crate) fn causal_plan(graph: &Graph, order: &[V]) -> Result<Plan, String> {
 }
 
 /// Reduce externally with QuiZX, then execute its graph using a causal frontier.
-pub(crate) fn plan(graph: &Graph) -> Result<Plan, String> {
+pub(crate) fn plan(graph: &Graph, measurement_batch_size: Option<usize>) -> Result<Plan, String> {
     let mut vertices: Vec<_> = graph
         .vertices()
         .filter(|&v| graph.vertex_type(v) == VType::Z)
@@ -458,7 +464,7 @@ pub(crate) fn plan(graph: &Graph) -> Result<Plan, String> {
             .then_with(|| graph.qubit(a).total_cmp(&graph.qubit(b)))
             .then(a.cmp(&b))
     });
-    causal_plan(graph, &vertices)
+    causal_plan(graph, &vertices, measurement_batch_size)
 }
 
 #[cfg(test)]
@@ -557,13 +563,20 @@ pub(crate) mod tests {
             .unwrap();
             let mut g: Graph = circuit.to_graph();
             quizx::simplify::flow_simp(&mut g);
-            let p = plan(&g).unwrap();
-            assert_eq!(p, plan(&g).unwrap());
-            verify_branches(&p, &circuit);
+            let p = plan(&g, None).unwrap();
+            assert_eq!(p, plan(&g, Some(usize::MAX)).unwrap());
+            for measurement_batch_size in [None, Some(1), Some(2)] {
+                verify_branches(&plan(&g, measurement_batch_size).unwrap(), &circuit);
+            }
         }
     }
 
     pub(crate) fn verify_branches(p: &Plan, circuit: &Circuit) {
+        verify_graph_branches(p, &circuit.to_graph());
+    }
+
+    fn verify_graph_branches(p: &Plan, graph: &Graph) {
+        assert_eq!(graph.inputs().len(), graph.outputs().len());
         let measured: Vec<_> = p
             .instructions
             .iter()
@@ -584,11 +597,57 @@ pub(crate) mod tests {
                 .map(|(_, &v)| v)
                 .collect();
             assert!(
-                TensorF::scalar_compare(circuit, &branch_graph(p, circuit.num_qubits(), &outcomes)),
-                "outcome mask {mask}: {}\n{p:?}",
-                circuit.to_qasm()
+                TensorF::scalar_compare(graph, &branch_graph(p, graph.inputs().len(), &outcomes)),
+                "outcome mask {mask}: {p:?}"
             );
         }
+    }
+
+    #[test]
+    fn smaller_measurement_batches_reuse_patches_and_preserve_every_branch() {
+        let mut graph = Graph::new();
+        let sources: Vec<_> = (0..4)
+            .map(|i| {
+                graph.add_vertex_with_phase(VType::Z, if i % 2 == 0 { (1, 4) } else { (-1, 4) })
+            })
+            .collect();
+        let targets: Vec<_> = (0..4).map(|_| graph.add_vertex(VType::Z)).collect();
+        let inputs = sources
+            .iter()
+            .map(|&v| {
+                let boundary = graph.add_vertex(VType::B);
+                graph.add_edge(boundary, v);
+                boundary
+            })
+            .collect();
+        let outputs = targets
+            .iter()
+            .map(|&v| {
+                let boundary = graph.add_vertex(VType::B);
+                graph.add_edge(v, boundary);
+                boundary
+            })
+            .collect();
+        graph.set_inputs(inputs);
+        graph.set_outputs(outputs);
+        // Invertible adjacency with multi-target corrections in one causal layer.
+        for (source, row) in sources.iter().zip([
+            [true, false, false, false],
+            [true, true, true, true],
+            [true, true, true, false],
+            [true, true, false, true],
+        ]) {
+            for (&target, edge) in targets.iter().zip(row) {
+                if edge {
+                    graph.add_edge_with_type(*source, target, EType::H);
+                }
+            }
+        }
+        let parallel = plan(&graph, None).unwrap();
+        let limited = plan(&graph, Some(1)).unwrap();
+        assert!(limited.peak_patches < parallel.peak_patches);
+        verify_graph_branches(&parallel, &graph);
+        verify_graph_branches(&limited, &graph);
     }
 
     #[test]
@@ -599,7 +658,7 @@ pub(crate) mod tests {
         g.add_edge(vertices[1], vertices[2]);
         g.set_inputs(vertices[..2].to_vec());
         g.set_outputs(vertices[2..].to_vec());
-        let p = plan(&g).unwrap();
+        let p = plan(&g, None).unwrap();
         assert_eq!(
             p.direct_wires,
             [
@@ -668,7 +727,7 @@ pub(crate) mod tests {
             peak_patches: 2,
             ..Plan::default()
         };
-        let contracted = plan(&graph).unwrap();
+        let contracted = plan(&graph, None).unwrap();
         assert_eq!(contracted.peak_patches, 1);
         assert!(
             !contracted
@@ -756,7 +815,7 @@ pub(crate) mod tests {
                 ]);
             }
             verify_branches(&expanded, &circuit);
-            let contracted = plan(&graph).unwrap();
+            let contracted = plan(&graph, None).unwrap();
             assert_eq!(contracted.peak_patches, 2);
             assert_eq!(
                 contracted
@@ -766,7 +825,9 @@ pub(crate) mod tests {
                     .count(),
                 2
             );
-            verify_branches(&contracted, &circuit);
+            for measurement_batch_size in [None, Some(1), Some(2)] {
+                verify_branches(&plan(&graph, measurement_batch_size).unwrap(), &circuit);
+            }
         }
     }
 
@@ -809,13 +870,13 @@ pub(crate) mod tests {
         let a = g.add_vertex(VType::Z);
         let b = g.add_vertex(VType::Z);
         g.add_edge(a, b);
-        assert!(plan(&g).unwrap_err().contains("Hadamard"));
+        assert!(plan(&g, None).unwrap_err().contains("Hadamard"));
         g.remove_edge(a, b);
         let i = g.add_vertex(VType::B);
         let j = g.add_vertex(VType::B);
         g.add_edge(i, a);
         g.add_edge(j, a);
         g.set_inputs(vec![i, j]);
-        assert!(plan(&g).unwrap_err().contains("two inputs"));
+        assert!(plan(&g, None).unwrap_err().contains("two inputs"));
     }
 }

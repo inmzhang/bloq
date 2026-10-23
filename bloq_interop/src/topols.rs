@@ -12,19 +12,69 @@ use quizx::vec_graph::Graph;
 
 use crate::spider::{Plan, causal_plan, interface};
 
+/// Bounded ZX-fusion settings for the TopoLS-style planner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TopologyOptions {
+    /// Try bounded fusion candidates before graph execution.
+    ///
+    /// Disabling fusion retains exact graph normalization and causal-flow checks.
+    pub fusion: bool,
+    /// Maximum number of distinct source ZX rows in each fusion partition.
+    /// Must be positive; this does not bound physical layout rows.
+    pub block_rows: usize,
+}
+
+impl Default for TopologyOptions {
+    fn default() -> Self {
+        Self {
+            fusion: true,
+            block_rows: 20,
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 enum Fusion {
+    Disabled,
     SinglePass,
     FixedPoint,
 }
 
-pub(crate) fn candidates(graph: Graph) -> [(&'static str, Result<Plan, String>); 2] {
-    [
+pub(crate) fn candidates(
+    graph: Graph,
+    options: TopologyOptions,
+    measurement_batch_size: Option<usize>,
+) -> Vec<(&'static str, Result<Plan, String>)> {
+    if !options.fusion {
+        return vec![(
+            "unfused",
+            plan(
+                graph,
+                Fusion::Disabled,
+                options.block_rows,
+                measurement_batch_size,
+            ),
+        )];
+    }
+    vec![
         (
             "bounded_single_pass",
-            plan(graph.clone(), Fusion::SinglePass),
+            plan(
+                graph.clone(),
+                Fusion::SinglePass,
+                options.block_rows,
+                measurement_batch_size,
+            ),
         ),
-        ("bounded_fixed_point", plan(graph, Fusion::FixedPoint)),
+        (
+            "bounded_fixed_point",
+            plan(
+                graph,
+                Fusion::FixedPoint,
+                options.block_rows,
+                measurement_batch_size,
+            ),
+        ),
     ]
 }
 
@@ -36,8 +86,7 @@ fn vertex_order(graph: &Graph, a: V, b: V) -> std::cmp::Ordering {
         .then(a.cmp(&b))
 }
 
-fn prepare(mut graph: Graph, fusion: Fusion) -> Result<Graph, String> {
-    let fixed_point = matches!(fusion, Fusion::FixedPoint);
+fn prepare(mut graph: Graph, fusion: Fusion, block_rows: usize) -> Result<Graph, String> {
     for v in graph.vertices() {
         if !matches!(graph.vertex_type(v), VType::B | VType::X | VType::Z)
             || graph.vars(v) != Default::default()
@@ -58,6 +107,30 @@ fn prepare(mut graph: Graph, fusion: Fusion) -> Result<Graph, String> {
     }
     // Identity removal also cancels adjacent H edges without losing their parity.
     quizx::simplify::id_simp(&mut graph);
+    if !matches!(fusion, Fusion::Disabled) {
+        fuse(&mut graph, fusion, block_rows);
+    }
+    graph.x_to_z();
+    let ordinary: Vec<_> = graph
+        .edges()
+        .filter(|&(u, v, kind)| {
+            kind == EType::N && graph.vertex_type(u) == VType::Z && graph.vertex_type(v) == VType::Z
+        })
+        .collect();
+    for (u, v, _) in ordinary {
+        graph.remove_edge(u, v);
+        let middle = graph.add_vertex(VType::Z);
+        graph.set_row(middle, graph.row(u).midpoint(graph.row(v)));
+        graph.set_qubit(middle, graph.qubit(u).midpoint(graph.qubit(v)));
+        graph.add_edge_with_type(u, middle, EType::H);
+        graph.add_edge_with_type(middle, v, EType::H);
+    }
+    interface(&graph)?;
+    Ok(graph)
+}
+
+fn fuse(graph: &mut Graph, fusion: Fusion, block_rows: usize) {
+    let fixed_point = matches!(fusion, Fusion::FixedPoint);
     let mut rows: Vec<_> = graph.vertices().map(|v| graph.row(v)).collect();
     rows.sort_by(f64::total_cmp);
     rows.dedup_by(|a, b| a.total_cmp(b).is_eq());
@@ -67,13 +140,13 @@ fn prepare(mut graph: Graph, fusion: Fusion) -> Result<Graph, String> {
             let row = rows
                 .binary_search_by(|row| row.total_cmp(&graph.row(v)))
                 .expect("every vertex row is in the sorted row table");
-            (v, row / 20)
+            (v, row / block_rows)
         })
         .collect();
     let inputs: BTreeSet<_> = graph.inputs().iter().copied().collect();
     let outputs: BTreeSet<_> = graph.outputs().iter().copied().collect();
     let mut vertices: Vec<_> = graph.vertices().collect();
-    vertices.sort_by(|&a, &b| vertex_order(&graph, a, b));
+    vertices.sort_by(|&a, &b| vertex_order(graph, a, b));
     loop {
         let before = graph.num_vertices();
         for &u in &vertices {
@@ -82,7 +155,7 @@ fn prepare(mut graph: Graph, fusion: Fusion) -> Result<Graph, String> {
             }
             loop {
                 let mut neighbors: Vec<_> = graph.neighbors(u).collect();
-                neighbors.sort_by(|&a, &b| vertex_order(&graph, a, b));
+                neighbors.sort_by(|&a, &b| vertex_order(graph, a, b));
                 let fused = neighbors.into_iter().any(|v| {
                     if graph.degree(u) + graph.degree(v) > 6 || blocks[&u] != blocks[&v] {
                         return false;
@@ -105,7 +178,7 @@ fn prepare(mut graph: Graph, fusion: Fusion) -> Result<Graph, String> {
                             .count()
                             <= 1
                     });
-                    interfaces_fit && spider_fusion(&mut graph, u, v)
+                    interfaces_fit && spider_fusion(graph, u, v)
                 });
                 if !fused || !fixed_point {
                     break;
@@ -118,33 +191,21 @@ fn prepare(mut graph: Graph, fusion: Fusion) -> Result<Graph, String> {
         // Exact phase sums can expose identity wires and further local fusions.
         for v in graph.vertex_vec() {
             // Keep vertex IDs stable so partition and boundary identities survive.
-            remove_id(&mut graph, v);
+            remove_id(graph, v);
         }
         if graph.num_vertices() == before {
             break;
         }
     }
-    graph.x_to_z();
-    let ordinary: Vec<_> = graph
-        .edges()
-        .filter(|&(u, v, kind)| {
-            kind == EType::N && graph.vertex_type(u) == VType::Z && graph.vertex_type(v) == VType::Z
-        })
-        .collect();
-    for (u, v, _) in ordinary {
-        graph.remove_edge(u, v);
-        let middle = graph.add_vertex(VType::Z);
-        graph.set_row(middle, graph.row(u).midpoint(graph.row(v)));
-        graph.set_qubit(middle, graph.qubit(u).midpoint(graph.qubit(v)));
-        graph.add_edge_with_type(u, middle, EType::H);
-        graph.add_edge_with_type(middle, v, EType::H);
-    }
-    interface(&graph)?;
-    Ok(graph)
 }
 
-fn plan(graph: Graph, fusion: Fusion) -> Result<Plan, String> {
-    let graph = prepare(graph, fusion)?;
+fn plan(
+    graph: Graph,
+    fusion: Fusion,
+    block_rows: usize,
+    measurement_batch_size: Option<usize>,
+) -> Result<Plan, String> {
+    let graph = prepare(graph, fusion, block_rows)?;
     let interface = interface(&graph)?;
     let inputs: BTreeMap<_, _> = interface
         .inputs
@@ -191,7 +252,7 @@ fn plan(graph: Graph, fusion: Fusion) -> Result<Plan, String> {
             .cmp(&layers[&b])
             .then_with(|| vertex_order(&graph, a, b))
     });
-    causal_plan(&graph, &vertices)
+    causal_plan(&graph, &vertices, measurement_batch_size)
 }
 
 #[cfg(test)]
@@ -213,18 +274,20 @@ mod tests {
             ))
             .unwrap();
             let graph: Graph = circuit.to_graph();
-            for fusion in [Fusion::SinglePass, Fusion::FixedPoint] {
-                let prepared = prepare(graph.clone(), fusion).unwrap();
-                assert!(
-                    TensorF::scalar_compare(&circuit, &prepared),
-                    "graph: {gates}"
-                );
-                let p = plan(graph.clone(), fusion).unwrap();
-                assert_eq!(p, plan(graph.clone(), fusion).unwrap());
-                assert!(
-                    TensorF::scalar_compare(&circuit, &execution_graph(&p, 3)),
-                    "plan: {gates}"
-                );
+            for block_rows in [1, 20] {
+                for fusion in [Fusion::Disabled, Fusion::SinglePass, Fusion::FixedPoint] {
+                    let prepared = prepare(graph.clone(), fusion, block_rows).unwrap();
+                    assert!(
+                        TensorF::scalar_compare(&circuit, &prepared),
+                        "graph: {gates}"
+                    );
+                    let p = plan(graph.clone(), fusion, block_rows, None).unwrap();
+                    assert_eq!(p, plan(graph.clone(), fusion, block_rows, None).unwrap());
+                    assert!(
+                        TensorF::scalar_compare(&circuit, &execution_graph(&p, 3)),
+                        "plan: {gates}"
+                    );
+                }
             }
         }
     }
@@ -238,7 +301,7 @@ mod tests {
         g.add_edge(a, v);
         g.add_edge(b, v);
         g.set_inputs(vec![a, b]);
-        for (_, p) in candidates(g) {
+        for (_, p) in candidates(g, TopologyOptions::default(), None) {
             assert!(p.unwrap_err().contains("two inputs"));
         }
     }
@@ -248,8 +311,21 @@ mod tests {
         let circuit = Circuit::from_qasm(
             "OPENQASM 2.0; include \"qelib1.inc\"; qreg q[2]; h q[0]; cx q[0],q[1]; t q[1]; h q[1];"
         ).unwrap();
-        for (_, p) in candidates(circuit.to_graph()) {
-            crate::spider::tests::verify_branches(&p.unwrap(), &circuit);
+        for fusion in [false, true] {
+            for measurement_batch_size in [None, Some(1), Some(2)] {
+                let candidates = candidates(
+                    circuit.to_graph(),
+                    TopologyOptions {
+                        fusion,
+                        block_rows: 1,
+                    },
+                    measurement_batch_size,
+                );
+                assert_eq!(candidates.len(), if fusion { 2 } else { 1 });
+                for (_, p) in candidates {
+                    crate::spider::tests::verify_branches(&p.unwrap(), &circuit);
+                }
+            }
         }
     }
 
@@ -259,7 +335,7 @@ mod tests {
             "OPENQASM 2.0; include \"qelib1.inc\"; qreg q[1]; t q[0]; t q[0]; sdg q[0];",
         )
         .unwrap();
-        let p = plan(circuit.to_graph(), Fusion::FixedPoint).unwrap();
+        let p = plan(circuit.to_graph(), Fusion::FixedPoint, 20, None).unwrap();
         assert!(p.instructions.is_empty());
         assert_eq!(p.direct_wires.len(), 1);
         crate::spider::tests::verify_branches(&p, &circuit);

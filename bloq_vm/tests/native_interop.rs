@@ -3,7 +3,7 @@
 mod common;
 
 use bloq_compile::CompileConfig;
-use bloq_interop::{LayoutOptions, LayoutTradeoff, Strategy, layout_qasm};
+use bloq_interop::{GridOptions, LayoutOptions, LayoutTradeoff, Strategy, layout_qasm};
 use common::choi::exact::ExactChoi;
 use rstest::rstest;
 
@@ -15,12 +15,16 @@ fn native_channels(
     #[case] qubits: usize,
     #[case] gates: &str,
     #[values(Strategy::TopoLs, Strategy::SpiderLs)] strategy: Strategy,
+    #[values(None, Some(GridOptions { columns: 2, ..GridOptions::default() }))] grid: Option<
+        GridOptions,
+    >,
 ) {
     let source = format!("OPENQASM 2.0; include \"qelib1.inc\"; qreg q[{qubits}]; {gates}");
     let layout = layout_qasm(
         &source,
         &LayoutOptions {
             strategy,
+            grid,
             ..Default::default()
         },
     )
@@ -59,7 +63,10 @@ fn native_channels(
     if let Some(root) = std::env::var_os("BLOQ_INTEROP_EVIDENCE_DIR") {
         let root = std::path::PathBuf::from(root);
         std::fs::create_dir_all(&root).expect("create evidence root");
-        let directory = root.join(format!("{strategy:?}-q{qubits}"));
+        let directory = root.join(format!(
+            "{strategy:?}-q{qubits}{}",
+            if grid.is_some() { "-grid" } else { "" }
+        ));
         std::fs::create_dir(&directory).expect("evidence directory must be new");
         for (name, bytes) in [
             ("source.qasm", source.into_bytes()),
@@ -67,7 +74,7 @@ fn native_channels(
             ("program_d3.bloq", compiled.bloq.to_binary()),
             ("execution.json", serde_json::to_vec_pretty(&serde_json::json!({
                 "verification": "sampled exact normalized Choi channel",
-                "distance": 3, "t_preparation": "ideal_t_proxy",
+                "distance": 3, "t_preparation": "ideal_t_proxy", "grid_columns": grid.map(|g| g.columns),
                 "shots": report.shots, "seed": 0x1A7E,
                 "discarded": report.discarded, "execution_verified": true,
                 "all_detectors_constant": report.all_detectors_constant(),
