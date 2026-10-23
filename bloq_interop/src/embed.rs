@@ -50,6 +50,7 @@ struct Builder {
     max_temporal_extent: Option<u32>,
     grid: Option<Grid>,
     t_placement: TPlacement,
+    ready_cz: bool,
 }
 
 impl Builder {
@@ -250,8 +251,17 @@ impl Builder {
         if control == target {
             return Err("CZ requires distinct live patches".into());
         }
-        // CZ is symmetric; reuse opposite frames instead of rotating both patches.
-        let (control, target) = if self.patch(control)?.rotated && !self.patch(target)?.rotated {
+        // CZ is symmetric; opposite frames need no rotations. A separate
+        // candidate can rotate the earlier-ready patch when both frames agree.
+        let a = self.patch(control)?;
+        let b = self.patch(target)?;
+        let swap = match (a.rotated, b.rotated) {
+            (true, false) => true,
+            (false, false) if self.ready_cz => a.ready < b.ready,
+            (true, true) if self.ready_cz => b.ready < a.ready,
+            _ => false,
+        };
+        let (control, target) = if swap {
             (target, control)
         } else {
             (control, target)
@@ -436,6 +446,7 @@ pub(crate) fn embed(
     plan: &Plan,
     options: &LayoutOptions,
     t_placement: TPlacement,
+    ready_cz: bool,
 ) -> Result<Embedding, String> {
     let extra_patches = options.extra_patches;
     // More locations than preparations cannot be used, even with an unbounded request.
@@ -470,6 +481,7 @@ pub(crate) fn embed(
         max_temporal_extent: options.max_temporal_extent,
         grid,
         t_placement,
+        ready_cz,
     };
     let patch_locations = (0..locations)
         .map(|slot| b.home(slot))
@@ -603,6 +615,7 @@ mod tests {
                 ..Default::default()
             },
             TPlacement::Fixed,
+            false,
         )
         .map(|e| (e.graph, e.input_ports, e.output_ports))
     }
@@ -672,7 +685,7 @@ mod tests {
                 input_ports: inputs,
                 output_ports: outputs,
                 ..
-            } = super::embed(&plan, &options, placement).unwrap();
+            } = super::embed(&plan, &options, placement, false).unwrap();
             assert_eq!(
                 graph.blocks().filter(|b| b.kind() == BlockKind::T).count(),
                 9
@@ -717,6 +730,83 @@ mod tests {
             times[0],
             times[1]
         );
+    }
+
+    #[test]
+    fn early_cz_rotation_preserves_unequal_ready_frames_and_signed_followers() {
+        for rotated in [false, true] {
+            for reversed in [false, true] {
+                let pair = if reversed { [1, 0] } else { [0, 1] };
+                let delayed = pair[usize::from(!rotated)];
+                let mut plan = Plan {
+                    peak_patches: 2,
+                    outputs: vec![(0, 0), (1, 1)],
+                    instructions: (0..2)
+                        .map(|patch| Instruction::Prepare {
+                            patch,
+                            vertex: patch,
+                            input: Some(patch),
+                        })
+                        .collect(),
+                    ..Plan::default()
+                };
+                let mut expected = Circuit::new(2);
+                if rotated {
+                    for patch in 0..2 {
+                        plan.instructions.push(Instruction::Hadamard { patch });
+                        expected.add_gate("h", vec![patch]);
+                    }
+                }
+                for _ in 0..2 {
+                    plan.instructions.push(Instruction::Phase {
+                        patch: delayed,
+                        vertex: delayed,
+                        phase: (1, 4).into(),
+                    });
+                    expected.add_gate("t", vec![delayed]);
+                }
+                plan.instructions.push(Instruction::Cz {
+                    patches: pair,
+                    vertices: pair,
+                });
+                expected.add_gate("cz", pair.to_vec());
+                for (patch, quarter, gate) in [(0, -1, "tdg"), (1, 1, "t")] {
+                    plan.instructions.extend([
+                        Instruction::Hadamard { patch },
+                        Instruction::Phase {
+                            patch,
+                            vertex: patch,
+                            phase: (quarter, 4).into(),
+                        },
+                    ]);
+                    expected.add_gate("h", vec![patch]);
+                    expected.add_gate(gate, vec![patch]);
+                }
+                plan.instructions.push(Instruction::Cz {
+                    patches: pair,
+                    vertices: pair,
+                });
+                expected.add_gate("cz", pair.to_vec());
+                for placement in [TPlacement::Fixed, TPlacement::Available] {
+                    for ready_cz in [false, true] {
+                        let Embedding {
+                            graph,
+                            input_ports,
+                            output_ports,
+                            ..
+                        } = super::embed(&plan, &LayoutOptions::default(), placement, ready_cz)
+                            .unwrap();
+                        LogicalVerifier::with_boundaries_and_internal_measurements(
+                            &graph,
+                            BoundaryOrder::new(input_ports, output_ports),
+                        )
+                        .unwrap()
+                        .verify(&expected.to_graph(), 8, 0xC2EA)
+                        .unwrap();
+                    }
+                }
+            }
+        }
     }
 
     #[test]
@@ -781,6 +871,7 @@ mod tests {
                         ..Default::default()
                     },
                     TPlacement::Fixed,
+                    false,
                 )
                 .unwrap();
                 assert_eq!(patch_locations.len(), if extra == 0 { 4 } else { 5 });

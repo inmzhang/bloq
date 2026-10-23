@@ -74,12 +74,18 @@ an already occupied column, then the original positive face. Source, junction
 and adaptive-cap lifetimes remain reserved together. The physical occupancy
 scheduler orders teardown and initialization when a resource reuses qubits
 between patch movements. Y/S resources keep their existing placement. The
-original fixed-face layout remains a candidate. Complete, source-validated
-candidates use one deterministic ordering: footprint times temporal extent,
-then footprint, then blocks. There is no public area/depth objective selector
+original fixed-face layout remains a candidate. The grid also tries a CZ
+frame assignment that rotates the earlier-ready patch when both frames match.
+CZ symmetry preserves the logical operation;
+reversing its route can increase spatial cost. The original frame assignment
+remains a candidate and wins equal-cost ties.
+Complete, source-validated candidates use one deterministic ordering:
+footprint times temporal extent, then footprint, then blocks.
+There is no public area/depth objective selector
 and no optimality guarantee. `Layout::compile` still
 performs the full IR audit.
-This is a bounded heuristic and adds layout work when T gadgets are present.
+This bounded search tries at most four embeddings per plan when both T and CZ
+gadgets are present; physical lowering still runs only on the selected layout.
 
 | Control | Default | Meaning |
 | --- | --- | --- |

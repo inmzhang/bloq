@@ -196,41 +196,56 @@ fn layout_normalized(circuit: &Circuit, options: &LayoutOptions) -> Result<Layou
     options.validate()?;
     let mut graph: Graph = circuit.to_graph();
     let build = |plan: spider::Plan, reduction, reduction_fallback: Option<String>| {
-        let emit = |placement| {
-            let embedded = embed::embed(&plan, options, placement).map_err(Error::Layout)?;
-            Ok(Layout {
-                graph: embedded.graph,
-                input_ports: embedded.input_ports,
-                output_ports: embedded.output_ports,
-                reduction,
-                reduction_fallback: reduction_fallback.clone(),
-                grid: embedded.grid,
-                patch_locations: embedded.patch_locations,
-                routing_bounds: embedded.routing_bounds,
-            })
+        let emit = |placement, ready_cz| {
+            let embedded =
+                embed::embed(&plan, options, placement, ready_cz).map_err(Error::Layout)?;
+            Ok((
+                Layout {
+                    graph: embedded.graph,
+                    input_ports: embedded.input_ports,
+                    output_ports: embedded.output_ports,
+                    reduction,
+                    reduction_fallback: reduction_fallback.clone(),
+                    grid: embedded.grid,
+                    patch_locations: embedded.patch_locations,
+                    routing_bounds: embedded.routing_bounds,
+                },
+                ready_cz,
+            ))
         };
-        let mut best = emit(embed::TPlacement::Fixed);
-        if options.grid.is_some()
+        let has_t = options.grid.is_some() && plan.instructions.iter().any(|instruction| {
+            matches!(instruction, spider::Instruction::Phase { phase, .. } if *phase.to_rational().denom() == 4)
+        });
+        let has_cz = options.grid.is_some()
             && plan
                 .instructions
                 .iter()
-                .any(|instruction| match instruction {
-                    spider::Instruction::Phase { phase, .. } => *phase.to_rational().denom() == 4,
-                    _ => false,
-                })
-            && let Ok(candidate) = emit(embed::TPlacement::Available)
-            && best
-                .as_ref()
-                .ok()
-                .is_none_or(|current| layout_cost(&candidate) < layout_cost(current))
-        {
-            best = Ok(candidate);
+                .any(|instruction| matches!(instruction, spider::Instruction::Cz { .. }));
+        let mut best = emit(embed::TPlacement::Fixed, false);
+        // Keep both original T families ahead of the readiness variants so ties
+        // retain the existing geometry, including when a new candidate fails.
+        for (placement, ready_cz) in [
+            (embed::TPlacement::Available, false),
+            (embed::TPlacement::Fixed, true),
+            (embed::TPlacement::Available, true),
+        ] {
+            if (placement == embed::TPlacement::Available && !has_t) || (ready_cz && !has_cz) {
+                continue;
+            }
+            if let Ok(candidate) = emit(placement, ready_cz)
+                && best
+                    .as_ref()
+                    .ok()
+                    .is_none_or(|current| layout_cost(&candidate.0) < layout_cost(&current.0))
+            {
+                best = Ok(candidate);
+            }
         }
         best
     };
-    let layout = match options.strategy {
+    let (layout, _) = match options.strategy {
         Strategy::TopoLs => {
-            let mut best: Option<Layout> = None;
+            let mut best: Option<(Layout, bool)> = None;
             let mut failure = None;
             for (reduction, plan) in
                 topols::candidates(graph, options.topology, options.measurement_batch_size)
@@ -240,10 +255,11 @@ fn layout_normalized(circuit: &Circuit, options: &LayoutOptions) -> Result<Layou
                     .and_then(|plan| build(plan, reduction, None))
                 {
                     Ok(candidate) => {
-                        if best
-                            .as_ref()
-                            .is_none_or(|current| layout_cost(&candidate) < layout_cost(current))
-                        {
+                        if best.as_ref().is_none_or(|current| {
+                            // Across fusion plans, retain a baseline candidate on equal cost.
+                            (layout_cost(&candidate.0), candidate.1)
+                                < (layout_cost(&current.0), current.1)
+                        }) {
                             best = Some(candidate);
                         }
                     }

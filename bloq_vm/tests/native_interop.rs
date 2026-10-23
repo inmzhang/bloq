@@ -177,8 +177,79 @@ t q[2];
         Ok(())
     });
     let report = channel.run(&compiled.bloq, 8, 0x1A7E, |_, _| Ok(()));
+    assert!(report.all_detectors_constant());
     save_evidence(
         &format!("{strategy:?}-grover3-grid2"),
+        source,
+        &layout,
+        &compiled.bloq,
+        &report,
+    );
+}
+
+#[rstest]
+fn mqt_qpe3_preserves_the_algorithm_channel(
+    #[values(Strategy::TopoLs, Strategy::SpiderLs)] strategy: Strategy,
+) {
+    // Exact MQT Bench 2.3.0 QPE3 lowering; the oracle groups its controlled phases.
+    let source = r#"OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[3];
+h q[0];
+h q[1];
+x q[2];
+s q[2];
+cx q[2],q[0];
+sdg q[0];
+cx q[2],q[0];
+s q[0];
+cx q[0],q[1];
+cx q[1],q[0];
+cx q[0],q[1];
+h q[0];
+tdg q[1];
+cx q[1],q[0];
+t q[0];
+cx q[1],q[0];
+tdg q[0];
+h q[1];
+"#;
+    let layout = layout_qasm(
+        source,
+        &LayoutOptions {
+            strategy,
+            grid: Some(GridOptions {
+                columns: 2,
+                ..Default::default()
+            }),
+            measurement_batch_size: Some(3),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let compiled = layout
+        .compile(CompileConfig::new(3).with_prepare_t_with_mpps(true))
+        .unwrap();
+    let channel = ExactChoi::new(&layout.input_ports, &layout.output_ports, |sim| {
+        sim.h(0);
+        sim.h(1);
+        sim.x(2);
+        sim.cz(2, 0)?;
+        sim.swap(0, 1);
+        sim.h(0);
+        // Controlled S† from its parity phase, independently of the source lowering.
+        sim.t_dag(0)?;
+        sim.t_dag(1)?;
+        sim.cx(1, 0)?;
+        sim.t(0)?;
+        sim.cx(1, 0)?;
+        sim.h(1);
+        Ok(())
+    });
+    let report = channel.run(&compiled.bloq, 8, 0x1A7E, |_, _| Ok(()));
+    assert!(report.all_detectors_constant());
+    save_evidence(
+        &format!("{strategy:?}-qpe3-grid2"),
         source,
         &layout,
         &compiled.bloq,
