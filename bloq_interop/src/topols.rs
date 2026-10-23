@@ -268,6 +268,7 @@ mod tests {
             &crate::LayoutOptions {
                 strategy: crate::Strategy::TopoLs,
                 max_blocks: 3,
+                ..Default::default()
             },
         )
         .unwrap();

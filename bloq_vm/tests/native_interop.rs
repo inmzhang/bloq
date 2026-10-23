@@ -3,7 +3,7 @@
 mod common;
 
 use bloq_compile::CompileConfig;
-use bloq_interop::{LayoutOptions, Strategy, layout_qasm};
+use bloq_interop::{LayoutOptions, LayoutTradeoff, Strategy, layout_qasm};
 use common::choi::exact::ExactChoi;
 use rstest::rstest;
 
@@ -77,5 +77,56 @@ fn native_channels(
         ] {
             std::fs::write(directory.join(name), bytes).expect("save exact executed artifacts");
         }
+    }
+}
+
+#[rstest]
+fn area_time_tradeoff_preserves_the_channel(
+    #[values(Strategy::TopoLs, Strategy::SpiderLs)] strategy: Strategy,
+) {
+    let source = "OPENQASM 2.0; qreg q[3]; cz q[1],q[2]; tdg q[2]; cx q[1],q[0]; h q[2]; tdg q[1]; cz q[1],q[2]; h q[2]; t q[1];";
+    let layouts = [
+        LayoutTradeoff::Compact,
+        LayoutTradeoff::Depth { extra_patches: 2 },
+    ]
+    .map(|tradeoff| {
+        layout_qasm(
+            source,
+            &LayoutOptions {
+                strategy,
+                tradeoff,
+                ..Default::default()
+            },
+        )
+        .unwrap()
+    });
+    let metrics = |layout: &bloq_interop::Layout| {
+        let (x, y, z) = layout.graph.spans().unwrap();
+        (
+            (*x.end() - *x.start() + 1) * (*y.end() - *y.start() + 1),
+            *z.end() - *z.start() + 1,
+        )
+    };
+    let (compact, depth) = (metrics(&layouts[0]), metrics(&layouts[1]));
+    assert!(depth.1 <= compact.1);
+    if strategy == Strategy::TopoLs {
+        assert!(depth.0 > compact.0 && depth.1 < compact.1);
+    }
+    for layout in layouts {
+        let program = layout
+            .compile(CompileConfig::new(3).with_prepare_t_with_mpps(true))
+            .unwrap();
+        let channel = ExactChoi::new(&layout.input_ports, &layout.output_ports, |sim| {
+            sim.cz(1, 2)?;
+            sim.t_dag(2)?;
+            sim.cx(1, 0)?;
+            sim.h(2);
+            sim.t_dag(1)?;
+            sim.cz(1, 2)?;
+            sim.h(2);
+            sim.t(1)?;
+            Ok(())
+        });
+        channel.run(&program.bloq, 8, 0xA7EA, |_, _| Ok(()));
     }
 }

@@ -35,7 +35,7 @@ struct Builder {
     actions: Vec<Action>,
     time: i32,
     corridor_ready: Vec<i32>,
-    available: Vec<i32>,
+    available: BTreeMap<usize, i32>,
     release_times: BTreeMap<usize, i32>,
     occupied_until: HashMap<IVec2, i32>,
     max_blocks: usize,
@@ -344,36 +344,52 @@ impl Builder {
 pub(crate) fn embed(
     plan: &Plan,
     max_blocks: usize,
+    extra_patches: usize,
 ) -> Result<(BlockGraph, Vec<IVec3>, Vec<IVec3>), String> {
+    // More locations than preparations cannot be used, even with an unbounded request.
+    let preparations = plan
+        .instructions
+        .iter()
+        .filter(|i| matches!(i, Instruction::Prepare { .. }))
+        .count();
+    let slots =
+        plan.peak_patches + extra_patches.min(preparations.saturating_sub(plan.peak_patches));
     let mut b = Builder {
         graph: BlockGraph::new(),
         live: vec![None; plan.peak_patches],
         actions: Vec::new(),
         time: 0,
-        corridor_ready: vec![
-            0;
-            plan.peak_patches
-                .checked_mul(2)
-                .ok_or("spatial coordinate overflow")?
-        ],
-        available: vec![0; plan.peak_patches],
+        corridor_ready: vec![0; slots.checked_mul(2).ok_or("spatial coordinate overflow")?],
+        available: (0..slots).map(|slot| (slot, 0)).collect(),
         release_times: BTreeMap::new(),
         occupied_until: HashMap::default(),
         max_blocks,
     };
     let mut inputs = Vec::new();
     let mut outputs = Vec::new();
+    let mut used_slots = 0;
     for instruction in &plan.instructions {
         match *instruction {
             Instruction::Prepare { patch, input, .. } => {
                 if b.live.get(patch).is_none_or(Option::is_some) {
                     return Err("invalid patch preparation".into());
                 }
-                let x = i32::try_from(patch)
+                let slot = if extra_patches == 0 {
+                    patch
+                } else {
+                    *b.available
+                        .iter()
+                        .min_by_key(|&(slot, ready)| (*ready, *slot))
+                        .ok_or("no free patch location")?
+                        .0
+                };
+                let ready = b.available.remove(&slot).ok_or("patch location is live")?;
+                used_slots = used_slots.max(slot + 1);
+                let x = i32::try_from(slot)
                     .ok()
                     .and_then(|x| x.checked_mul(2))
                     .ok_or("spatial coordinate overflow")?;
-                let end = IVec3::new(x, 0, Builder::after(b.available[patch], 1)?);
+                let end = IVec3::new(x, 0, Builder::after(ready, 1)?);
                 if let Some(input) = input {
                     let pos = end - IVec3::Z;
                     b.port(pos, PortRole::Input)?;
@@ -408,7 +424,8 @@ pub(crate) fn embed(
                     .end;
                 b.release_times.insert(vertex, end.z);
                 b.live[patch] = None;
-                b.available[patch] = Builder::after(end.z, 1)?;
+                let slot = usize::try_from(end.x / 2).expect("patch columns are non-negative");
+                b.available.insert(slot, Builder::after(end.z, 1)?);
                 b.time = b.time.max(end.z);
             }
             Instruction::Feedback {
@@ -430,8 +447,7 @@ pub(crate) fn embed(
         outputs.push((output, port));
     }
     for (index, wire) in plan.direct_wires.iter().enumerate() {
-        let lane = plan
-            .peak_patches
+        let lane = used_slots
             .checked_add(index)
             .ok_or("spatial coordinate overflow")?;
         let x = i32::try_from(lane)
@@ -470,6 +486,65 @@ mod tests {
     use quizx::vec_graph::Graph;
 
     #[test]
+    fn extra_locations_overlap_independent_lifetimes_and_keep_passthroughs_clear() {
+        let mut plan = Plan {
+            peak_patches: 3,
+            outputs: vec![(0, 1), (1, 2)],
+            direct_wires: vec![crate::spider::DirectWire {
+                input: 2,
+                output: 2,
+                hadamard: false,
+            }],
+            ..Plan::default()
+        };
+        for (input, target) in [(0, 1), (1, 2)] {
+            let vertex = input * 2;
+            plan.instructions.extend([
+                Instruction::Prepare {
+                    patch: 0,
+                    vertex,
+                    input: Some(input),
+                },
+                Instruction::Prepare {
+                    patch: target,
+                    vertex: vertex + 1,
+                    input: None,
+                },
+                Instruction::Cz {
+                    patches: [0, target],
+                    vertices: [vertex, vertex + 1],
+                },
+                Instruction::Release { patch: 0, vertex },
+                Instruction::Feedback {
+                    measurement: vertex,
+                    x_targets: vec![target],
+                    z_targets: vec![],
+                },
+            ]);
+        }
+        let expected: QuizxGraph = Circuit::from_qasm("OPENQASM 2.0; qreg q[3]; h q[0]; h q[1];")
+            .unwrap()
+            .to_graph();
+        let metrics = [0, usize::MAX].map(|extra| {
+            let (graph, inputs, outputs) = embed(&plan, 1000, extra).unwrap();
+            LogicalVerifier::with_boundaries_and_internal_measurements(
+                &graph,
+                BoundaryOrder::new(inputs, outputs),
+            )
+            .unwrap()
+            .verify(&expected, 8, 29)
+            .unwrap();
+            bloq_compile::CompileContext::new(bloq_compile::CompileConfig::new(3))
+                .compile_and_validate(&graph)
+                .unwrap();
+            let (x, _, z) = graph.spans().unwrap();
+            (*x.end() - *x.start(), *z.end() - *z.start())
+        });
+        assert!(metrics[1].0 > metrics[0].0);
+        assert!(metrics[1].1 < metrics[0].1);
+    }
+
+    #[test]
     fn tall_idle_memory_preserves_occupied_cells_and_physical_rounds() {
         for rotated in [false, true] {
             let mut plan = Plan {
@@ -489,11 +564,11 @@ mod tests {
             }
             plan.instructions
                 .extend((0..7).map(|_| Instruction::Hadamard { patch: 0 }));
-            let (graph, inputs, outputs) = embed(&plan, 100).unwrap();
+            let (graph, inputs, outputs) = embed(&plan, 100, 0).unwrap();
             assert_eq!(graph.occupied_positions().count(), 20);
             assert!(graph.block_count() < 20);
             assert_eq!(outputs.iter().map(|p| p.z).collect::<Vec<_>>(), [9, 9]);
-            embed(&plan, graph.block_count() - 1).unwrap_err();
+            embed(&plan, graph.block_count() - 1, 0).unwrap_err();
 
             // Expand only idle memory to the previous unit-cube construction.
             let mut reference = BlockGraph::new();
@@ -569,7 +644,7 @@ mod tests {
                     expected.add_gate("h", vec![0]);
                 }
             }
-            let (graph, inputs, outputs) = embed(&plan, 1000).unwrap();
+            let (graph, inputs, outputs) = embed(&plan, 1000, 0).unwrap();
             assert_eq!(graph.block_count(), blocks);
             assert_eq!(outputs[0].z, output_time);
             LogicalVerifier::with_boundaries_and_internal_measurements(
@@ -618,7 +693,7 @@ mod tests {
                 });
                 expected.add_gate("cz", patches.to_vec());
             }
-            let (graph, inputs, outputs) = embed(&plan, 1000).unwrap();
+            let (graph, inputs, outputs) = embed(&plan, 1000, 0).unwrap();
             if hadamard.is_some() {
                 assert!(
                     graph
@@ -677,7 +752,7 @@ mod tests {
             ],
             ..Plan::default()
         };
-        let (graph, inputs, outputs) = embed(&plan, 1000).unwrap();
+        let (graph, inputs, outputs) = embed(&plan, 1000, 0).unwrap();
         let expected: QuizxGraph =
             Circuit::from_qasm("OPENQASM 2.0; include \"qelib1.inc\"; qreg q[1]; h q[0];")
                 .unwrap()
@@ -714,7 +789,7 @@ mod tests {
                 phase: (1, 4).into(),
             });
         }
-        let (graph, inputs, outputs) = embed(&plan, 100_000).unwrap();
+        let (graph, inputs, outputs) = embed(&plan, 100_000, 0).unwrap();
         let first_sources: Vec<_> = graph
             .blocks()
             .filter(|b| b.kind() == BlockKind::T)
@@ -723,7 +798,7 @@ mod tests {
         let earliest = first_sources.iter().map(|p| p.z).min().unwrap();
         assert_eq!(first_sources.iter().filter(|p| p.z == earliest).count(), 2);
         assert!(
-            embed(&plan, graph.block_count() - 1)
+            embed(&plan, graph.block_count() - 1, 0)
                 .unwrap_err()
                 .contains("budget")
         );
@@ -778,7 +853,7 @@ mod tests {
             quizx::simplify::full_simp(&mut zx);
             let plan = crate::spider::plan(&zx).unwrap();
             let (graph, inputs, outputs) =
-                embed(&plan, 100_000).unwrap_or_else(|e| panic!("{gates}: {e}"));
+                embed(&plan, 100_000, 0).unwrap_or_else(|e| panic!("{gates}: {e}"));
             assert!(
                 graph
                     .pipes()

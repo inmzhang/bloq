@@ -4,15 +4,15 @@ use std::{collections::BTreeSet, error::Error, fs, path::Path, time::Instant};
 
 use bloq_compile::CompileConfig;
 use bloq_graph::{lower_blog_graph_ast_deferred, parse_blog_program_to_ast};
-use bloq_interop::{LayoutOptions, Strategy, layout_qasm};
+use bloq_interop::{LayoutOptions, LayoutTradeoff, Strategy, layout_qasm};
 use bloq_ir::Bloq;
 use serde_json::json;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<_> = std::env::args().skip(1).collect();
-    if !(3..=4).contains(&args.len()) {
+    if !(3..=5).contains(&args.len()) {
         return Err(
-            "usage: compile_qasm SOURCE.qasm topols|spiderls NEW_OUTPUT_DIR [DISTANCE=25]".into(),
+            "usage: compile_qasm SOURCE.qasm topols|spiderls NEW_OUTPUT_DIR [DISTANCE=25] [EXTRA_PATCHES=0]".into(),
         );
     }
     let strategy = match args[1].as_str() {
@@ -21,6 +21,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         _ => return Err("strategy must be topols or spiderls".into()),
     };
     let distance = args.get(3).map_or(Ok(25), |s| s.parse::<u32>())?;
+    let extra_patches = args.get(4).map_or(Ok(0), |s| s.parse::<usize>())?;
+    let tradeoff = if extra_patches == 0 {
+        LayoutTradeoff::Compact
+    } else {
+        LayoutTradeoff::Depth { extra_patches }
+    };
     let config = CompileConfig::try_new(distance)?.with_prepare_t_with_mpps(true);
     let matched_started = Instant::now();
     let source = fs::read_to_string(&args[0])?;
@@ -31,6 +37,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         "compiler": args[1], "status": "running", "distance": distance,
         "t_preparation": "ideal_t_proxy", "execution_verified": false,
         "max_blocks": LayoutOptions::default().max_blocks,
+        "layout_tradeoff": if extra_patches == 0 { "compact" } else { "depth" },
+        "extra_patch_budget": extra_patches,
     });
     let outcome = (|| -> Result<(), Box<dyn Error>> {
         result["failed_stage"] = "layout".into();
@@ -38,6 +46,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             &source,
             &LayoutOptions {
                 strategy,
+                tradeoff,
                 ..Default::default()
             },
         )?;

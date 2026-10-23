@@ -38,11 +38,39 @@ pub enum Strategy {
     SpiderLs,
 }
 
+/// Spatial reuse versus temporal extent during layout selection.
+///
+/// ```
+/// use bloq_interop::{LayoutOptions, LayoutTradeoff, layout_qasm};
+///
+/// let options = LayoutOptions {
+///     tradeoff: LayoutTradeoff::Depth { extra_patches: 4 },
+///     ..Default::default()
+/// };
+/// let layout = layout_qasm("OPENQASM 2.0; qreg q[1]; t q[0];", &options)?;
+/// # Ok::<(), bloq_interop::Error>(())
+/// ```
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum LayoutTradeoff {
+    /// Reuse patch locations; minimize blocks, then footprint, then time.
+    #[default]
+    Compact,
+    /// Minimize time, then footprint, then blocks, among bounded candidates.
+    ///
+    /// Also try placement with at most this many extra patch locations beyond
+    /// the plan's peak live frontier. This bounds lanes, not total footprint;
+    /// routing and resource columns still contribute to area. Compact placement
+    /// remains a candidate. Neither placement nor candidate search is optimal.
+    Depth { extra_patches: usize },
+}
+
 /// Bounds and strategy for logical layout generation.
 #[derive(Debug, Clone, Copy)]
 pub struct LayoutOptions {
     /// Graph planning strategy.
     pub strategy: Strategy,
+    /// Patch-location budget and layout selection objective.
+    pub tradeoff: LayoutTradeoff,
     /// Maximum number of emitted blocks, including resources and idle memory.
     /// A tall idle block occupies multiple cells but counts as one graph node.
     pub max_blocks: usize,
@@ -52,6 +80,7 @@ impl Default for LayoutOptions {
     fn default() -> Self {
         Self {
             strategy: Strategy::SpiderLs,
+            tradeoff: LayoutTradeoff::Compact,
             max_blocks: 1_000_000,
         }
     }
@@ -127,16 +156,29 @@ fn layout_normalized(circuit: &Circuit, options: &LayoutOptions) -> Result<Layou
         return Err(Error::Layout("max_blocks must be positive".into()));
     }
     let mut graph: Graph = circuit.to_graph();
-    let build = |plan, reduction, reduction_fallback| {
-        let (graph, input_ports, output_ports) =
-            embed::embed(&plan, options.max_blocks).map_err(Error::Layout)?;
-        Ok(Layout {
-            graph,
-            input_ports,
-            output_ports,
-            reduction,
-            reduction_fallback,
-        })
+    let build = |plan, reduction, reduction_fallback: Option<String>| {
+        let place = |extra_patches| {
+            let (graph, input_ports, output_ports) =
+                embed::embed(&plan, options.max_blocks, extra_patches).map_err(Error::Layout)?;
+            Ok(Layout {
+                graph,
+                input_ports,
+                output_ports,
+                reduction,
+                reduction_fallback: reduction_fallback.clone(),
+            })
+        };
+        let mut best = place(0);
+        if let LayoutTradeoff::Depth { extra_patches } = options.tradeoff
+            && extra_patches != 0
+            && let Ok(candidate) = place(extra_patches)
+            && best.as_ref().ok().is_none_or(|current| {
+                layout_cost(&candidate, options.tradeoff) < layout_cost(current, options.tradeoff)
+            })
+        {
+            best = Ok(candidate);
+        }
+        best
     };
     let layout = match options.strategy {
         Strategy::TopoLs => {
@@ -148,10 +190,10 @@ fn layout_normalized(circuit: &Circuit, options: &LayoutOptions) -> Result<Layou
                     .and_then(|plan| build(plan, reduction, None))
                 {
                     Ok(candidate) => {
-                        if best
-                            .as_ref()
-                            .is_none_or(|current| layout_cost(&candidate) < layout_cost(current))
-                        {
+                        if best.as_ref().is_none_or(|current| {
+                            layout_cost(&candidate, options.tradeoff)
+                                < layout_cost(current, options.tradeoff)
+                        }) {
                             best = Some(candidate);
                         }
                     }
@@ -185,11 +227,54 @@ fn layout_normalized(circuit: &Circuit, options: &LayoutOptions) -> Result<Layou
     Ok(layout)
 }
 
-fn layout_cost(layout: &Layout) -> (usize, i64, i64) {
+fn layout_cost(layout: &Layout, tradeoff: LayoutTradeoff) -> (u128, u128, u128) {
     let (x, y, z) = layout
         .graph
         .spans()
         .expect("a layout has source boundaries");
-    let [x, y, z] = [x, y, z].map(|s| i64::from(*s.end()) - i64::from(*s.start()) + 1);
-    (layout.graph.block_count(), x * y, z)
+    let [x, y, z] = [x, y, z].map(|s| (i64::from(*s.end()) - i64::from(*s.start()) + 1) as u128);
+    let blocks = layout.graph.block_count() as u128;
+    match tradeoff {
+        LayoutTradeoff::Compact => (blocks, x * y, z),
+        LayoutTradeoff::Depth { .. } => (z, x * y, blocks),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn depth_search_bounds_unused_slots_and_keeps_a_compact_budget_fallback() {
+        let source = "OPENQASM 2.0; qreg q[3]; cz q[1],q[2]; tdg q[2]; cx q[1],q[0]; h q[2]; tdg q[1]; cz q[1],q[2]; h q[2]; t q[1];";
+        for strategy in [Strategy::TopoLs, Strategy::SpiderLs] {
+            let compact = layout_qasm(
+                source,
+                &LayoutOptions {
+                    strategy,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let bounded = layout_qasm(
+                source,
+                &LayoutOptions {
+                    strategy,
+                    tradeoff: LayoutTradeoff::Depth {
+                        extra_patches: usize::MAX,
+                    },
+                    max_blocks: compact.graph.block_count(),
+                },
+            )
+            .unwrap();
+            assert!(bounded.graph.block_count() <= compact.graph.block_count());
+            let time = |l: &Layout| {
+                let (_, _, z) = l.graph.spans().unwrap();
+                *z.end() - *z.start()
+            };
+            assert!(time(&bounded) <= time(&compact));
+            assert_eq!(bounded.input_ports.len(), 3);
+            assert_eq!(bounded.output_ports.len(), 3);
+        }
+    }
 }
