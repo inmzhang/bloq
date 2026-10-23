@@ -191,6 +191,24 @@ fn main() -> Result<(), Box<dyn Error>> {
         let extents =
             [xs, ys, zs].map(|span| i64::from(*span.end()) - i64::from(*span.start()) + 1);
         result["blocks"] = layout.graph.block_count().into();
+        result["patch_rotations"] = layout
+            .graph
+            .blocks()
+            .filter(|block| matches!(block.kind(), bloq_graph::BlockKind::PatchRotation(_)))
+            .count()
+            .into();
+        result["hadamard_pipes"] = layout
+            .graph
+            .pipes()
+            .filter(|pipe| pipe.is_hadamard())
+            .count()
+            .into();
+        result["spatial_hadamard_pipes"] = layout
+            .graph
+            .pipes()
+            .filter(|pipe| pipe.is_hadamard() && pipe.dir().is_spatial())
+            .count()
+            .into();
         result["occupied_cells"] = layout.graph.occupied_positions().count().into();
         result["occupied_columns"] = columns.len().into();
         result["anchor_columns"] = layout

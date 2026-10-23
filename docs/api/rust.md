@@ -53,7 +53,7 @@ Set `grid.columns` to a positive integer to choose the maximum locations per row
 zero resolves to the ceiling of the square root of the allocated locations.
 Two or fewer locations can naturally occupy a single row. `grid: None` explicitly
 selects the legacy row router.
-The grid reserves local space for patch rotation and T/Y resources,
+The grid reserves local space for routing outlets and T/Y resources,
 including future patch lifetimes and untouched wires. Routes can detour around
 busy cells or wait for their release. The final footprint includes used geometry,
 not the entire search canvas. `Layout.grid` records the resolved numerical
@@ -72,20 +72,26 @@ For T gadgets the grid also tries a placement using the earlier available
 compatible face (`±X` or `±Y` according to the patch frame). Equal times prefer
 an already occupied column, then the original positive face. Source, junction
 and adaptive-cap lifetimes remain reserved together. The physical occupancy
-scheduler orders teardown and initialization when a resource reuses qubits
-between patch movements. Y/S resources keep their existing placement. The
-original fixed-face layout remains a candidate. The grid also tries a CZ
-frame assignment that rotates the earlier-ready patch when both frames match.
-CZ symmetry preserves the logical operation;
-reversing its route can increase spatial cost. The original frame assignment
+scheduler orders teardown and initialization when resources reuse qubits.
+Y/S resources keep their existing placement. The original fixed-face layout
 remains a candidate and wins equal-cost ties.
+
+Data patches stay at their allocated homes. CZ routes connect to the compatible
+boundary in either Hadamard frame, without emitting `PatchRotation` blocks.
+An exact ZX color-change pass moves spatial Hadamards onto temporal connections,
+then cancels even Hadamard parity through uninterrupted temporal memory. It
+preserves cube heights, occupied cells, and storage rounds. Resource and action
+sites retain their frames; cancellation does not cross an interaction or an
+adaptive measurement. Spatial parity conflicts are errors. One deterministic
+component sweep reduces the remaining temporal transitions without claiming a
+global minimum.
 Complete, source-validated candidates use one deterministic ordering:
 footprint times temporal extent, then footprint, then blocks.
 There is no public area/depth objective selector
 and no optimality guarantee. `Layout::compile` still
 performs the full IR audit.
-This bounded search tries at most four embeddings per plan when both T and CZ
-gadgets are present; physical lowering still runs only on the selected layout.
+This bounded search tries at most two embeddings per plan when T gadgets are
+present; physical lowering still runs only on the selected layout.
 
 | Control | Default | Meaning |
 | --- | --- | --- |

@@ -3,9 +3,8 @@
 use std::collections::{BTreeMap, HashMap};
 
 use bloq_graph::{
-    Action, Basis, Block, BlockGraph, BlockKind, CubeHeight, CubeKind, Direction, Expr,
-    FeedbackTarget, MAX_CUBE_HEIGHT_CELLS, MeasureTarget, PatchRotationKind, PauliBasis, Pipe,
-    PortRole, SelectiveKind,
+    Action, Block, BlockGraph, BlockKind, CubeHeight, CubeKind, Direction, Expr, FeedbackTarget,
+    MAX_CUBE_HEIGHT_CELLS, MeasureTarget, PauliBasis, Pipe, PortRole, SelectiveKind,
 };
 use glam::{IVec2, IVec3};
 
@@ -24,12 +23,12 @@ struct Patch {
     end: IVec3,
     // A resource cap can finish one layer after the last data cube.
     ready: i32,
-    rotated: bool,
+    hadamard: bool,
 }
 
 impl Patch {
     fn memory(self) -> CubeKind {
-        if self.rotated {
+        if self.hadamard {
             CubeKind::ZXX
         } else {
             CubeKind::XZX
@@ -42,7 +41,6 @@ struct Builder {
     live: Vec<Option<Patch>>,
     actions: Vec<Action>,
     time: i32,
-    corridor_ready: Vec<i32>,
     available: BTreeMap<usize, i32>,
     release_times: BTreeMap<usize, i32>,
     occupied_until: HashMap<IVec2, i32>,
@@ -50,7 +48,6 @@ struct Builder {
     max_temporal_extent: Option<u32>,
     grid: Option<Grid>,
     t_placement: TPlacement,
-    ready_cz: bool,
 }
 
 impl Builder {
@@ -141,43 +138,12 @@ impl Builder {
             .ok_or_else(|| "temporal coordinate overflow".into())
     }
 
-    fn orient(&mut self, id: usize, rotated: bool) -> Result<(), String> {
-        if self.patch(id)?.rotated == rotated {
-            return Ok(());
-        }
-        let mut patch = self.advance(id, self.patch(id)?.ready)?;
-        let time = Self::after(patch.end.z, 3)?;
-        let start = patch.end + IVec3::Z;
-        let movement = IVec2::new(
-            0,
-            if patch.end.y == self.home(patch.slot)?.y {
-                1
-            } else {
-                -1
-            },
-        );
-        let rotation =
-            PatchRotationKind::new(if patch.rotated { Basis::Z } else { Basis::X }, movement)
-                .map_err(|e| e.to_string())?;
-        self.block(Block::new(start, BlockKind::PatchRotation(rotation)))?;
-        self.pipe(patch.end, start, false)?;
-        let end = rotation.end_position(start);
-        patch.end = end + IVec3::Z;
-        patch.ready = patch.end.z;
-        patch.rotated = rotated;
-        self.cube(patch.end, patch.memory())?;
-        self.pipe(end, patch.end, false)?;
-        self.live[id] = Some(patch);
-        self.time = self.time.max(time);
-        Ok(())
-    }
-
     fn hadamard(&mut self, id: usize) -> Result<(), String> {
         let mut patch = self.patch(id)?;
         let previous = patch.end;
         patch.end.z = Self::after(patch.end.z, 1)?;
         patch.ready = patch.end.z;
-        patch.rotated = !patch.rotated;
+        patch.hadamard = !patch.hadamard;
         self.cube(patch.end, patch.memory())?;
         self.pipe(previous, patch.end, true)?;
         self.live[id] = Some(patch);
@@ -186,62 +152,59 @@ impl Builder {
     }
 
     fn route(&self, control: Patch, target: Patch) -> Result<(Vec<IVec2>, i32), String> {
-        let from = control.end.truncate() + IVec2::X;
+        let source = control.end.truncate();
+        let from = source
+            + if control.hadamard {
+                IVec2::NEG_Y
+            } else {
+                IVec2::X
+            };
         let to = target.end.truncate();
         let mut path = vec![from];
+        let exit = if control.hadamard {
+            from + IVec2::new(if to.x < source.x { -1 } else { 1 }, 0)
+        } else {
+            from - IVec2::Y
+        };
+        path.push(exit);
+        // The +X target arm stays clear of a neighbouring source in pitch-two rows.
+        let mut tail = if target.hadamard {
+            vec![to - IVec2::Y]
+        } else {
+            vec![to + IVec2::X - IVec2::Y, to + IVec2::X]
+        };
+        tail.push(to);
+        let entry = tail[0];
         let mut z = Self::after(control.ready.max(target.ready), 1)?;
         if let Some(grid) = &self.grid {
-            let exit_y = self.home(control.slot)?.y - 1;
-            while path.last().expect("route has a start").y > exit_y {
-                path.push(*path.last().expect("route has a start") - IVec2::Y);
-            }
-            let entry = IVec2::new(to.x, self.home(target.slot)?.y - 1);
-            let mut tail = vec![entry];
-            while tail.last().expect("route has an entry").y < to.y {
-                tail.push(*tail.last().expect("route has an entry") + IVec2::Y);
-            }
             for cell in path.iter().chain(&tail) {
                 if let Some(&last) = self.occupied_until.get(cell) {
                     z = z.max(Self::after(last, 1)?);
                 }
             }
-            let exit = *path.last().expect("route has an exit");
+            let stub =
+                |p: IVec2| p != exit && p != entry && (path.contains(&p) || tail.contains(&p));
             // Try a concurrent detour before waiting for the shortest static route.
             let middle = match grid.path(exit, entry, |p| {
-                self.occupied_until.get(&p).is_some_and(|&last| last >= z)
+                stub(p) || self.occupied_until.get(&p).is_some_and(|&last| last >= z)
             })? {
                 Some(path) => path,
                 None => grid
-                    .path(exit, entry, |_| false)?
+                    .path(exit, entry, stub)?
                     .ok_or("no route inside the grid canvas")?,
             };
             path.extend(middle.into_iter().skip(1));
             path.extend(tail.into_iter().skip(1));
-            for cell in &path {
-                if let Some(&last) = self.occupied_until.get(cell) {
-                    z = z.max(Self::after(last, 1)?);
-                }
-            }
         } else {
-            let [a, b] =
-                [from.x, to.x].map(|x| usize::try_from(x).expect("patch columns are non-negative"));
-            z = z.max(Self::after(
-                self.corridor_ready[a.min(b)..=a.max(b)]
-                    .iter()
-                    .copied()
-                    .max()
-                    .unwrap_or_default(),
-                1,
-            )?);
-            while path.last().expect("route has a start").y > -1 {
-                path.push(*path.last().expect("route has a start") - IVec2::Y);
-            }
-            let dx = (to.x - from.x).signum();
-            while path.last().expect("route has a start").x != to.x {
+            let dx = (entry.x - exit.x).signum();
+            while path.last().expect("route has a start").x != entry.x {
                 path.push(*path.last().expect("route has a start") + IVec2::X * dx);
             }
-            while path.last().expect("route has a start").y < to.y {
-                path.push(*path.last().expect("route has a start") + IVec2::Y);
+            path.extend(tail.into_iter().skip(1));
+        }
+        for cell in &path {
+            if let Some(&last) = self.occupied_until.get(cell) {
+                z = z.max(Self::after(last, 1)?);
             }
         }
         Ok((path, z))
@@ -251,46 +214,32 @@ impl Builder {
         if control == target {
             return Err("CZ requires distinct live patches".into());
         }
-        // CZ is symmetric; opposite frames need no rotations. A separate
-        // candidate can rotate the earlier-ready patch when both frames agree.
-        let a = self.patch(control)?;
-        let b = self.patch(target)?;
-        let swap = match (a.rotated, b.rotated) {
-            (true, false) => true,
-            (false, false) if self.ready_cz => a.ready < b.ready,
-            (true, true) if self.ready_cz => b.ready < a.ready,
-            _ => false,
-        };
-        let (control, target) = if swap {
-            (target, control)
-        } else {
-            (control, target)
-        };
-        self.orient(control, false)?;
-        self.orient(target, true)?;
         let (path, z) = self.route(self.patch(control)?, self.patch(target)?)?;
         Self::after(z, 2)?;
         let control_id = control;
         let control = self.advance(control, z)?;
         let mut target_patch = self.advance(target, z)?;
         let target_junction = target_patch.end + IVec3::Z;
-        self.cube(target_junction, CubeKind::XZZ)?;
-        self.pipe(target_patch.end, target_junction, true)?;
+        self.cube(target_junction, target_patch.memory())?;
+        self.pipe(target_patch.end, target_junction, false)?;
         target_patch.end = target_junction + IVec3::Z;
         target_patch.ready = target_patch.end.z;
         self.cube(target_patch.end, target_patch.memory())?;
-        self.pipe(target_junction, target_patch.end, true)?;
+        self.pipe(target_junction, target_patch.end, false)?;
         self.live[target] = Some(target_patch);
 
-        // Temporal bending transports the route frame without spatial H walls.
-        let mut cursor = control.end + IVec3::X;
-        self.cube(cursor, CubeKind::XZX)?;
+        let mut cursor = path[0].extend(z);
+        self.cube(cursor, control.memory())?;
         self.pipe(control.end, cursor, false)?;
         for (index, &cell) in path.iter().enumerate() {
             let next = cell.extend(z + 1);
             if next != target_junction {
                 let kind = if index == 0 {
-                    CubeKind::XZZ
+                    if control.hadamard {
+                        CubeKind::ZXZ
+                    } else {
+                        CubeKind::XZZ
+                    }
                 } else {
                     let before = cell - path[index - 1];
                     let after = path[index + 1] - cell;
@@ -304,15 +253,11 @@ impl Builder {
                 };
                 self.cube(next, kind)?;
             }
-            self.pipe(cursor, next, false)?;
+            // A colour change moves the interaction H onto the target's temporal legs.
+            self.pipe(cursor, next, next == target_junction)?;
             cursor = next;
         }
         self.advance(control_id, target_patch.end.z)?;
-        if self.grid.is_none() {
-            let [a, b] = [control.end.x + 1, target_patch.end.x]
-                .map(|x| usize::try_from(x).expect("patch columns are non-negative"));
-            self.corridor_ready[a.min(b)..=a.max(b)].fill(target_patch.end.z);
-        }
         self.time = self.time.max(target_patch.end.z);
         Ok(())
     }
@@ -368,7 +313,7 @@ impl Builder {
 
     fn resource(&mut self, id: usize, t: bool, dagger: bool) -> Result<(), String> {
         let patch = self.patch(id)?;
-        let mut direction = if patch.rotated {
+        let mut direction = if patch.hadamard {
             Direction::YPLUS
         } else {
             Direction::XPLUS
@@ -376,7 +321,7 @@ impl Builder {
         let availability = |direction: Direction| -> Result<_, String> {
             let column = (patch.end + direction.to_ivec3()).truncate();
             let last = self.occupied_until.get(&column);
-            // Reserve source, junction and cap after all prior geometry, including rotations.
+            // Reserve source, junction and cap after all prior routing geometry.
             let z = match last {
                 Some(&last) => patch.ready.max(Self::after(last, if t { 2 } else { 1 })?),
                 None => patch.ready,
@@ -446,7 +391,6 @@ pub(crate) fn embed(
     plan: &Plan,
     options: &LayoutOptions,
     t_placement: TPlacement,
-    ready_cz: bool,
 ) -> Result<Embedding, String> {
     let extra_patches = options.extra_patches;
     // More locations than preparations cannot be used, even with an unbounded request.
@@ -469,11 +413,6 @@ pub(crate) fn embed(
         live: vec![None; plan.peak_patches],
         actions: Vec::new(),
         time: 0,
-        corridor_ready: if grid.is_none() {
-            vec![0; slots.checked_mul(2).ok_or("spatial coordinate overflow")?]
-        } else {
-            Vec::new()
-        },
         available: (0..slots).map(|slot| (slot, 0)).collect(),
         release_times: BTreeMap::new(),
         occupied_until: HashMap::default(),
@@ -481,7 +420,6 @@ pub(crate) fn embed(
         max_temporal_extent: options.max_temporal_extent,
         grid,
         t_placement,
-        ready_cz,
     };
     let patch_locations = (0..locations)
         .map(|slot| b.home(slot))
@@ -520,7 +458,7 @@ pub(crate) fn embed(
                     slot,
                     end,
                     ready: end.z,
-                    rotated: false,
+                    hadamard: false,
                 });
                 b.time = b.time.max(end.z);
             }
@@ -583,6 +521,7 @@ pub(crate) fn embed(
     b.graph
         .set_actions_deferred(b.actions)
         .map_err(|e| e.to_string())?;
+    b.graph = crate::hadamard::optimize(b.graph)?;
     b.graph.validate_source().map_err(|e| e.to_string())?;
     Ok(Embedding {
         graph: b.graph,
@@ -615,7 +554,6 @@ mod tests {
                 ..Default::default()
             },
             TPlacement::Fixed,
-            false,
         )
         .map(|e| (e.graph, e.input_ports, e.output_ports))
     }
@@ -658,7 +596,7 @@ mod tests {
                 expected.add_gate("h", vec![1]);
             }
         }
-        // Rotate back after both X-face resource lifetimes.
+        // Follow the changed Hadamard frame after both X-face resource lifetimes.
         plan.instructions.push(Instruction::Cz {
             patches: [0, 1],
             vertices: [0, 1],
@@ -685,7 +623,7 @@ mod tests {
                 input_ports: inputs,
                 output_ports: outputs,
                 ..
-            } = super::embed(&plan, &options, placement, false).unwrap();
+            } = super::embed(&plan, &options, placement).unwrap();
             assert_eq!(
                 graph.blocks().filter(|b| b.kind() == BlockKind::T).count(),
                 9
@@ -733,11 +671,11 @@ mod tests {
     }
 
     #[test]
-    fn early_cz_rotation_preserves_unequal_ready_frames_and_signed_followers() {
-        for rotated in [false, true] {
+    fn fixed_home_cz_preserves_all_frames_and_signed_followers() {
+        for frames in [[false, false], [false, true], [true, false], [true, true]] {
             for reversed in [false, true] {
                 let pair = if reversed { [1, 0] } else { [0, 1] };
-                let delayed = pair[usize::from(!rotated)];
+                let delayed = pair[0];
                 let mut plan = Plan {
                     peak_patches: 2,
                     outputs: vec![(0, 0), (1, 1)],
@@ -751,8 +689,8 @@ mod tests {
                     ..Plan::default()
                 };
                 let mut expected = Circuit::new(2);
-                if rotated {
-                    for patch in 0..2 {
+                for (patch, hadamard) in frames.into_iter().enumerate() {
+                    if hadamard {
                         plan.instructions.push(Instruction::Hadamard { patch });
                         expected.add_gate("h", vec![patch]);
                     }
@@ -788,14 +726,27 @@ mod tests {
                 });
                 expected.add_gate("cz", pair.to_vec());
                 for placement in [TPlacement::Fixed, TPlacement::Available] {
-                    for ready_cz in [false, true] {
+                    for grid in [None, Some(crate::GridOptions::default())] {
+                        let options = LayoutOptions {
+                            grid,
+                            ..Default::default()
+                        };
                         let Embedding {
                             graph,
                             input_ports,
                             output_ports,
                             ..
-                        } = super::embed(&plan, &LayoutOptions::default(), placement, ready_cz)
-                            .unwrap();
+                        } = super::embed(&plan, &options, placement).unwrap();
+                        assert!(
+                            graph
+                                .blocks()
+                                .all(|block| !matches!(block.kind(), BlockKind::PatchRotation(_)))
+                        );
+                        assert!(
+                            graph
+                                .pipes()
+                                .all(|pipe| !pipe.is_hadamard() || !pipe.dir().is_spatial())
+                        );
                         LogicalVerifier::with_boundaries_and_internal_measurements(
                             &graph,
                             BoundaryOrder::new(input_ports, output_ports),
@@ -871,7 +822,6 @@ mod tests {
                         ..Default::default()
                     },
                     TPlacement::Fixed,
-                    false,
                 )
                 .unwrap();
                 assert_eq!(patch_locations.len(), if extra == 0 { 4 } else { 5 });
@@ -1055,7 +1005,7 @@ mod tests {
             }
             let occupied_layers: std::collections::BTreeSet<_> = graph
                 .pipes()
-                .filter(|p| p.src().y == -1 && p.dst().y == -1)
+                .filter(|p| p.dir().is_spatial() && p.src().y == -1 && p.dst().y == -1)
                 .map(|p| p.src().z)
                 .collect();
             assert_eq!(occupied_layers.len(), route_layers, "{pairs:?}");

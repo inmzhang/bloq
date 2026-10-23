@@ -41,7 +41,7 @@ fn save_evidence(
 
 #[rstest]
 #[case::signed_phase(1, "t q[0]; h q[0]; tdg q[0]; h q[0]; s q[0];")]
-// Inward T placement reuses a data column between rotations in this channel.
+// Adaptive resources follow both Hadamard frames in this entangled channel.
 #[case::adaptive_entangled(2, "h q[0]; cx q[0],q[1]; t q[1]; h q[1]; cx q[1],q[0]; tdg q[0];")]
 #[case::nonlocal(3, "h q[0]; cx q[0],q[2]; cz q[1],q[2]; t q[2];")]
 fn native_channels(
@@ -61,6 +61,18 @@ fn native_channels(
         },
     )
     .expect("native layout is causal and valid");
+    assert!(
+        layout
+            .graph
+            .blocks()
+            .all(|block| !matches!(block.kind(), bloq_graph::BlockKind::PatchRotation(_)))
+    );
+    assert!(
+        layout
+            .graph
+            .pipes()
+            .all(|pipe| !pipe.is_hadamard() || !pipe.dir().is_spatial())
+    );
     let compiled = layout
         .compile(CompileConfig::new(3).with_prepare_t_with_mpps(true))
         .expect("small physical program passes the full IR audit");
