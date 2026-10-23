@@ -252,7 +252,8 @@ impl ReadoutTiming {
         let mut columns = Vec::new();
         diagram.charge(row.terms().len())?;
         for &(column, value) in row.terms() {
-            let value = diagram.constrain(value, care)?;
+            // Activation is already timed; its live product determines each active coefficient.
+            let value = diagram.apply(BooleanOp::And, value, care)?;
             if value == ZERO {
                 continue;
             }
@@ -916,7 +917,15 @@ impl GuardedSurfaceSpace {
     fn plan_causal_readouts<const RECLAIM: bool, const DEFER_WITNESSES: bool>(
         &mut self,
     ) -> Result<(), BlockGraphError> {
-        self.plan_causal_readouts_with_fast_path::<RECLAIM, DEFER_WITNESSES, true>()
+        // Bound symbolic history; a full source solve retains the same relation.
+        let reclaim_limit = self
+            .topology
+            .diagram
+            .nodes()
+            .len()
+            .saturating_mul(4)
+            .max(65_536);
+        self.plan_causal_readouts_with_fast_path::<RECLAIM, DEFER_WITNESSES, true>(reclaim_limit)
     }
 
     fn plan_causal_readouts_with_fast_path<
@@ -925,6 +934,7 @@ impl GuardedSurfaceSpace {
         const FACTORED: bool,
     >(
         &mut self,
+        reclaim_limit: usize,
     ) -> Result<(), BlockGraphError> {
         let actions = self.topology.source.actions();
         let feedback_columns = self.index_feedbacks(&actions)?;
@@ -1058,8 +1068,19 @@ impl GuardedSurfaceSpace {
             .iter()
             .map(|name| (name.clone(), i64::MIN))
             .collect::<HashMap<_, _>>();
+        let mut incremental = RECLAIM;
         while names.iter().any(|(name, _)| !known.contains(name)) {
             crate::CancellationToken::checkpoint()?;
+            if incremental && self.topology.diagram.nodes().len() > reclaim_limit {
+                self.charge_row_copy(&basis)?;
+                causal_basis = basis.clone();
+                self.exclude_outputs(&mut causal_basis, &zx)?;
+                self.fill_selective(&mut causal_basis, &all_resolved)?;
+                availability = None;
+                available_rows = BooleanRowSpace::default();
+                readout_pivots = GuardedPivots::default();
+                incremental = false;
+            }
             let mut timing = self.readout_timing(&names, &readout_times, &actions)?;
             if available_values.is_none() {
                 self.topology.diagram.charge(
@@ -1172,7 +1193,7 @@ impl GuardedSurfaceSpace {
                 )
                 .collect::<BTreeSet<_>>();
             let mut constraints = Vec::new();
-            if !RECLAIM || availability.is_none() {
+            if !incremental || availability.is_none() {
                 let mut blocked_columns = Vec::new();
                 for position in unavailable {
                     let columns = &columns_by_site[&position];
@@ -1212,7 +1233,7 @@ impl GuardedSurfaceSpace {
                     constraints.push((AvailabilityKey::Feedback(ordinal), terms));
                 }
             }
-            if RECLAIM {
+            if incremental {
                 if let Some(availability) = &mut availability {
                     availability.release(
                         &pending,
@@ -1241,7 +1262,7 @@ impl GuardedSurfaceSpace {
             }
             // The quotient alone fixes an arbitrary physical coset. Restore
             // accepted relations before choosing an early equivalent witness.
-            let mut restored = if RECLAIM && !readout_pivots.rows.is_empty() {
+            let mut restored = if incremental && !readout_pivots.rows.is_empty() {
                 let rows = available_rows
                     .rows()
                     .chain(readout_pivots.rows.rows())
@@ -1253,7 +1274,7 @@ impl GuardedSurfaceSpace {
                 None
             };
             let source_rows = restored.as_ref().unwrap_or(&available_rows);
-            let relevant = if RECLAIM && FACTORED {
+            let relevant = if incremental && FACTORED {
                 Some(self.named_component_rows(source_rows, &unknown)?)
             } else {
                 None
@@ -1287,7 +1308,7 @@ impl GuardedSurfaceSpace {
                     restored
                         .take()
                         .expect("the complete restored space is present")
-                } else if RECLAIM {
+                } else if incremental {
                     let rows = if let Some(ids) = &relevant {
                         let mut rows = Vec::with_capacity(ids.len());
                         for &id in ids {
@@ -1319,10 +1340,11 @@ impl GuardedSurfaceSpace {
                 };
                 // Keep only named pivots. Physical kernel pivots normalize
                 // those rows, but their own forms are never used here.
-                self.reduce_named_rows::<RECLAIM>(
+                self.reduce_named_rows(
                     allowed,
                     unknown.iter().map(|(_, column)| *column),
                     &timing.columns,
+                    incremental,
                 )?
             };
             let mut candidates = Vec::new();
@@ -1385,7 +1407,7 @@ impl GuardedSurfaceSpace {
                 // These owners retain the same live rows used to build restoration.
                 'rows: for row in available_rows
                     .rows()
-                    .chain(readout_pivots.rows.rows().filter(|_| RECLAIM))
+                    .chain(readout_pivots.rows.rows().filter(|_| incremental))
                     .chain(causal_basis.iter())
                 {
                     for root in
@@ -1455,7 +1477,7 @@ impl GuardedSurfaceSpace {
                 }
                 candidates.retain(|(_, _, time)| *time <= cutoff);
             }
-            let reclaim = RECLAIM && candidates.len() < unknown.len();
+            let reclaim = incremental && candidates.len() < unknown.len();
             let mut reclaimed = Vec::new();
             for (name, surface, time) in candidates {
                 readout_times.insert(name.clone(), time);
@@ -2010,15 +2032,16 @@ impl GuardedSurfaceSpace {
         Ok(timing)
     }
 
-    fn reduce_named_rows<const SPARSE: bool>(
+    fn reduce_named_rows(
         &mut self,
         mut remaining: BooleanRowSpace,
         names: impl Iterator<Item = usize>,
         timing: &[i64],
+        sparse: bool,
     ) -> Result<BooleanRowSpace, BooleanResourceError> {
         let mut named = BooleanRowSpace::default();
         for column in names {
-            let pivot = if SPARSE {
+            let pivot = if sparse {
                 remaining.eliminate_column_sparse(column, &mut self.topology.diagram)?
             } else {
                 remaining.eliminate_column(column, &mut self.topology.diagram)?
@@ -2046,7 +2069,7 @@ impl GuardedSurfaceSpace {
             if remaining.is_empty() {
                 break;
             }
-            let pivot = if SPARSE {
+            let pivot = if sparse {
                 remaining.eliminate_column_sparse(column, &mut self.topology.diagram)?
             } else {
                 remaining.eliminate_column(column, &mut self.topology.diagram)?
@@ -3900,6 +3923,82 @@ mod tests {
     }
 
     #[test]
+    fn readout_control_times_determine_live_coefficients_on_the_source_domain() {
+        use bloq_utils::boolean::BooleanDecisionDiagram;
+
+        let mut diagram = BooleanDecisionDiagram::default();
+        let functions = (0..16)
+            .map(|table| {
+                let bit = |index| if table & (1 << index) == 0 { ZERO } else { ONE };
+                let low = diagram.make_node(1, bit(0), bit(1)).unwrap();
+                let high = diagram.make_node(1, bit(2), bit(3)).unwrap();
+                diagram.make_node(0, low, high).unwrap()
+            })
+            .collect::<Vec<_>>();
+        // Every two-variable activation/coefficient, with each nonconstant
+        // source domain and both finite and unavailable variable times.
+        for domain in 1..15 {
+            for active in 0..16 {
+                for coefficient in 0..16 {
+                    let row =
+                        BooleanRow::from_terms(functions[active], [(0, functions[coefficient])]);
+                    for variables in [[1, 2], [2, 1], [i64::MIN, i64::MAX]] {
+                        let mut timing = ReadoutTiming {
+                            columns: Vec::new(),
+                            variables: variables.to_vec(),
+                            domain: functions[domain],
+                            decisions: HashMap::new(),
+                        };
+                        let result = timing.controls(&row, &mut diagram).unwrap();
+                        let care = domain & active;
+                        if care == 0 {
+                            assert!(result.is_none());
+                            continue;
+                        }
+                        let (time, columns) = result.unwrap();
+                        assert_eq!(
+                            columns,
+                            if care & coefficient == 0 {
+                                vec![]
+                            } else {
+                                vec![0]
+                            }
+                        );
+                        // Outcomes available at the reported time must determine
+                        // activation and, when active, the physical coefficient.
+                        for left in 0..4 {
+                            for right in 0..4 {
+                                if domain & (1 << left) == 0 || domain & (1 << right) == 0 {
+                                    continue;
+                                }
+                                if variables.iter().enumerate().any(|(variable, &ready)| {
+                                    ready <= time && ((left ^ right) & (1 << (1 - variable))) != 0
+                                }) {
+                                    continue;
+                                }
+                                let left_active = active & (1 << left) != 0;
+                                let right_active = active & (1 << right) != 0;
+                                assert_eq!(left_active, right_active);
+                                if left_active {
+                                    assert_eq!(
+                                        coefficient & (1 << left) != 0,
+                                        coefficient & (1 << right) != 0
+                                    );
+                                }
+                            }
+                        }
+                        // Correlated y may be unavailable: x still determines
+                        // both activation x and coefficient y when x == y.
+                        if domain == 9 && active == 12 && coefficient == 10 {
+                            assert_eq!(time, variables[0]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn early_readout_unlocks_a_shorter_witness_before_late_candidates_are_committed() {
         for (condition, symbolic_kernel) in [("a", false), ("a ^ c", false), ("a ^ c", true)] {
             let other_time = if symbolic_kernel { 20 } else { 1 };
@@ -4186,7 +4285,10 @@ mod tests {
         .map(crate::GalleryItem::build)
         .into_iter()
         .chain([crate::lower_blog_graph_ast_deferred(&conditional).unwrap()]);
-        for (program_index, program) in programs.enumerate() {
+        for (program_index, (program, reclaim_limit)) in programs
+            .flat_map(|program| [0, 64, usize::MAX].map(move |limit| (program.clone(), limit)))
+            .enumerate()
+        {
             let linked = crate::flatten_module_definition(&program, program.root(), "").unwrap();
             let graph = linked.graph.fix_shadowed_faces();
             let limits = ModuleCertificationLimits::DEFAULT;
@@ -4199,7 +4301,9 @@ mod tests {
                 .unwrap()
             };
             let mut actual = new_space();
-            actual.plan_causal_readouts::<true, true>().unwrap();
+            actual
+                .plan_causal_readouts_with_fast_path::<true, true, true>(reclaim_limit)
+                .unwrap();
             expand_output_folds(&mut actual.surfaces, &mut actual.topology.diagram);
             let mut expected = new_space();
             expected.plan_causal_readouts::<false, false>().unwrap();
@@ -4379,11 +4483,11 @@ mod tests {
         };
         let mut actual = new_space();
         actual
-            .plan_causal_readouts_with_fast_path::<true, true, true>()
+            .plan_causal_readouts_with_fast_path::<true, true, true>(usize::MAX)
             .unwrap();
         let mut expected = new_space();
         expected
-            .plan_causal_readouts_with_fast_path::<true, true, false>()
+            .plan_causal_readouts_with_fast_path::<true, true, false>(usize::MAX)
             .unwrap();
         assert_eq!(actual.topology.domain, ONE, "{bits} bits");
         assert_eq!(expected.topology.domain, ONE, "{bits} bits");
@@ -4434,7 +4538,7 @@ mod tests {
             .remove(0)
             .unwrap();
         let full = space
-            .reduce_named_rows::<true>(guarded, [2].into_iter(), &[])
+            .reduce_named_rows(guarded, [2].into_iter(), &[], true)
             .unwrap();
         let expected = space.named_row(&full, 2).unwrap();
         assert_eq!(
@@ -4551,7 +4655,7 @@ mod tests {
                 let remaining =
                     BooleanRowSpace::new(persistent.clone(), &mut space.topology.diagram).unwrap();
                 let actual_named = space
-                    .reduce_named_rows::<true>(remaining, names.iter().copied(), &[])
+                    .reduce_named_rows(remaining, names.iter().copied(), &[], true)
                     .unwrap()
                     .into_rows(&mut space.topology.diagram)
                     .unwrap();

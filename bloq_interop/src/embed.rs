@@ -726,7 +726,14 @@ mod tests {
                 });
                 expected.add_gate("cz", pair.to_vec());
                 for placement in [TPlacement::Fixed, TPlacement::Available] {
-                    for grid in [None, Some(crate::GridOptions::default())] {
+                    for grid in [
+                        None,
+                        Some(crate::GridOptions::default()),
+                        Some(crate::GridOptions {
+                            columns: 1,
+                            ..Default::default()
+                        }),
+                    ] {
                         let options = LayoutOptions {
                             grid,
                             ..Default::default()
