@@ -195,6 +195,12 @@ pub fn layout(circuit: &Circuit, options: &LayoutOptions) -> Result<Layout, Erro
 
 fn layout_normalized(circuit: &Circuit, options: &LayoutOptions) -> Result<Layout, Error> {
     options.validate()?;
+    // Every source wire retains a distinct input and output port.
+    if circuit.num_qubits() > options.max_blocks / 2 {
+        return Err(Error::Layout(
+            "source boundaries exceed the block budget".into(),
+        ));
+    }
     let mut graph: Graph = circuit.to_graph();
     let build = |plan: spider::Plan, reduction, reduction_fallback: Option<String>| {
         let emit = |placement| {
@@ -340,6 +346,10 @@ mod tests {
     fn grid_and_scheduling_limits_reject_invalid_or_exhausted_budgets() {
         let source = "OPENQASM 2.0; qreg q[2]; cz q[0],q[1];";
         let defaults = LayoutOptions::default();
+        assert!(matches!(
+            layout(&Circuit::new(usize::MAX), &defaults),
+            Err(Error::Layout(_))
+        ));
         for options in [
             LayoutOptions {
                 grid: Some(GridOptions {
