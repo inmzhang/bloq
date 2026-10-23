@@ -12,6 +12,12 @@ use glam::{IVec2, IVec3};
 use crate::spider::{Instruction, Plan};
 use crate::{LayoutOptions, grid::Grid};
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TPlacement {
+    Fixed,
+    Available,
+}
+
 #[derive(Clone, Copy)]
 struct Patch {
     slot: usize,
@@ -43,6 +49,7 @@ struct Builder {
     max_blocks: usize,
     max_temporal_extent: Option<u32>,
     grid: Option<Grid>,
+    t_placement: TPlacement,
 }
 
 impl Builder {
@@ -351,17 +358,34 @@ impl Builder {
 
     fn resource(&mut self, id: usize, t: bool, dagger: bool) -> Result<(), String> {
         let patch = self.patch(id)?;
-        let direction = if patch.rotated {
+        let mut direction = if patch.rotated {
             Direction::YPLUS
         } else {
             Direction::XPLUS
         };
-        let column = (patch.end + direction.to_ivec3()).truncate();
-        // Reserve the whole resource after prior geometry, including rotation footprints.
-        let z = match self.occupied_until.get(&column) {
-            Some(&last) => patch.ready.max(Self::after(last, if t { 2 } else { 1 })?),
-            None => patch.ready,
+        let availability = |direction: Direction| -> Result<_, String> {
+            let column = (patch.end + direction.to_ivec3()).truncate();
+            let last = self.occupied_until.get(&column);
+            // Reserve source, junction and cap after all prior geometry, including rotations.
+            let z = match last {
+                Some(&last) => patch.ready.max(Self::after(last, if t { 2 } else { 1 })?),
+                None => patch.ready,
+            };
+            Ok((z, last.is_none()))
         };
+        let mut cost = availability(direction)?;
+        // shortcut: keep vacated data tracks free until moving-patch reuse is ordered.
+        if t && self.grid.is_some()
+            && self.t_placement == TPlacement::Available
+            && (!patch.rotated || patch.end.y == self.home(patch.slot)?.y)
+        {
+            let opposite = availability(direction.negate())?;
+            if opposite < cost {
+                direction = direction.negate();
+                cost = opposite;
+            }
+        }
+        let z = cost.0;
         Self::after(z, 1)?;
         let mut patch = self.advance(id, z)?;
         let resource = patch.end + direction.to_ivec3();
@@ -407,6 +431,7 @@ pub(crate) fn embed(
     plan: &Plan,
     options: &LayoutOptions,
     extra_patches: usize,
+    t_placement: TPlacement,
 ) -> Result<(BlockGraph, Vec<IVec3>, Vec<IVec3>), String> {
     // More locations than preparations cannot be used, even with an unbounded request.
     let preparations = plan
@@ -443,6 +468,7 @@ pub(crate) fn embed(
         max_blocks: options.max_blocks,
         max_temporal_extent: options.max_temporal_extent,
         grid,
+        t_placement,
     };
     let mut inputs = Vec::new();
     let mut outputs = Vec::new();
@@ -568,7 +594,115 @@ mod tests {
                 ..Default::default()
             },
             extra_patches,
+            TPlacement::Fixed,
         )
+    }
+
+    #[test]
+    fn alternate_t_faces_overlap_resource_lifetimes_without_changing_the_map() {
+        let mut plan = Plan {
+            peak_patches: 2,
+            outputs: vec![(0, 0), (1, 1)],
+            direct_wires: vec![crate::spider::DirectWire {
+                input: 2,
+                output: 2,
+                hadamard: false,
+            }],
+            instructions: (0..2)
+                .map(|patch| Instruction::Prepare {
+                    patch,
+                    vertex: patch,
+                    input: Some(patch),
+                })
+                .collect(),
+        };
+        let mut expected = Circuit::new(3);
+        plan.instructions.push(Instruction::Cz {
+            patches: [0, 1],
+            vertices: [0, 1],
+        });
+        expected.add_gate("cz", vec![0, 1]);
+        for phase in [0, 1] {
+            for (gate, angle) in [("t", 1), ("t", 1), ("tdg", -1)] {
+                plan.instructions.push(Instruction::Phase {
+                    patch: 1,
+                    vertex: 1,
+                    phase: (angle, 4).into(),
+                });
+                expected.add_gate(gate, vec![1]);
+            }
+            if phase == 0 {
+                plan.instructions.push(Instruction::Hadamard { patch: 1 });
+                expected.add_gate("h", vec![1]);
+            }
+        }
+        // Rotate back after both X-face resource lifetimes.
+        plan.instructions.push(Instruction::Cz {
+            patches: [0, 1],
+            vertices: [0, 1],
+        });
+        expected.add_gate("cz", vec![0, 1]);
+        for (gate, angle) in [("t", 1), ("t", 1), ("tdg", -1)] {
+            plan.instructions.push(Instruction::Phase {
+                patch: 1,
+                vertex: 1,
+                phase: (angle, 4).into(),
+            });
+            expected.add_gate(gate, vec![1]);
+        }
+        let options = LayoutOptions {
+            grid: Some(crate::GridOptions {
+                columns: 1,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let times = [TPlacement::Fixed, TPlacement::Available].map(|placement| {
+            let (graph, inputs, outputs) = super::embed(&plan, &options, 0, placement).unwrap();
+            assert_eq!(
+                graph.blocks().filter(|b| b.kind() == BlockKind::T).count(),
+                9
+            );
+            if placement == TPlacement::Available {
+                let directions: std::collections::HashSet<_> = graph
+                    .actions()
+                    .into_iter()
+                    .filter_map(|action| match action {
+                        Action::Measure {
+                            target: MeasureTarget::Edge { dir, .. },
+                            ..
+                        } => Some(dir),
+                        _ => None,
+                    })
+                    .collect();
+                assert!(
+                    [Direction::XMINUS, Direction::YMINUS]
+                        .iter()
+                        .all(|direction| directions.contains(direction))
+                );
+            }
+            LogicalVerifier::with_boundaries_and_internal_measurements(
+                &graph,
+                BoundaryOrder::new(inputs, outputs.clone()),
+            )
+            .unwrap()
+            .verify(&expected.to_graph(), 16, 2903)
+            .unwrap();
+            for proxies in [false, true] {
+                bloq_compile::CompileContext::new(
+                    bloq_compile::CompileConfig::new(3).with_prepare_t_with_mpps(proxies),
+                )
+                .compile_and_validate(&graph)
+                .unwrap();
+            }
+            outputs[0].z
+        });
+        assert!(
+            times[1] < times[0],
+            "fixed {}, alternate {}",
+            times[0],
+            times[1]
+        );
     }
 
     #[test]
@@ -626,6 +760,7 @@ mod tests {
                         ..Default::default()
                     },
                     extra,
+                    TPlacement::Fixed,
                 )
                 .unwrap();
                 LogicalVerifier::with_boundaries_and_internal_measurements(

@@ -137,3 +137,33 @@ fn area_time_tradeoff_preserves_the_channel(
         channel.run(&program.bloq, 8, 0xA7EA, |_, _| Ok(()));
     }
 }
+
+#[test]
+fn signed_t_faces_preserve_the_same_magic_phase() {
+    for hadamard in [false, true] {
+        let source = format!(
+            "OPENQASM 2.0; qreg q[1]; {} t q[0];",
+            if hadamard { "h q[0];" } else { "" }
+        );
+        let layout = layout_qasm(&source, &LayoutOptions::default()).unwrap();
+        for turns in [0, 2] {
+            let graph = layout
+                .graph
+                .rotate_about_origin(bloq_graph::UDirection::Z, turns)
+                .unwrap();
+            let program = bloq_compile::CompileContext::new(
+                CompileConfig::new(3).with_prepare_t_with_mpps(true),
+            )
+            .compile_and_validate(&graph)
+            .unwrap();
+            let channel = ExactChoi::new(&layout.input_ports, &layout.output_ports, |sim| {
+                if hadamard {
+                    sim.h(0);
+                }
+                sim.t(0)?;
+                Ok(())
+            });
+            channel.run(&program.bloq, 8, 0xFACE, |_, _| Ok(()));
+        }
+    }
+}

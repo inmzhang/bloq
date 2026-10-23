@@ -218,15 +218,38 @@ fn layout_normalized(circuit: &Circuit, options: &LayoutOptions) -> Result<Layou
     let mut graph: Graph = circuit.to_graph();
     let build = |plan, reduction, reduction_fallback: Option<String>| {
         let place = |extra_patches| {
-            let (graph, input_ports, output_ports) =
-                embed::embed(&plan, options, extra_patches).map_err(Error::Layout)?;
-            Ok(Layout {
-                graph,
-                input_ports,
-                output_ports,
-                reduction,
-                reduction_fallback: reduction_fallback.clone(),
-            })
+            let emit = |placement| {
+                let (graph, input_ports, output_ports) =
+                    embed::embed(&plan, options, extra_patches, placement)
+                        .map_err(Error::Layout)?;
+                Ok(Layout {
+                    graph,
+                    input_ports,
+                    output_ports,
+                    reduction,
+                    reduction_fallback: reduction_fallback.clone(),
+                })
+            };
+            let mut best = emit(embed::TPlacement::Fixed);
+            if options.grid.is_some()
+                && plan
+                    .instructions
+                    .iter()
+                    .any(|instruction| match instruction {
+                        spider::Instruction::Phase { phase, .. } => {
+                            *phase.to_rational().denom() == 4
+                        }
+                        _ => false,
+                    })
+                && let Ok(candidate) = emit(embed::TPlacement::Available)
+                && best.as_ref().ok().is_none_or(|current| {
+                    layout_cost(&candidate, options.tradeoff)
+                        < layout_cost(current, options.tradeoff)
+                })
+            {
+                best = Ok(candidate);
+            }
+            best
         };
         let mut best = place(0);
         if let LayoutTradeoff::Depth { extra_patches } = options.tradeoff

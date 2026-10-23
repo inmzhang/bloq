@@ -71,6 +71,17 @@ including future patch lifetimes and untouched wires. Routes can detour around
 busy cells or wait for their release. The final footprint includes used geometry,
 not the entire search canvas.
 
+For T gadgets the grid also tries a placement using the earlier available
+compatible face (`±X` or `±Y` according to the patch frame). Equal times prefer
+an already occupied column, then the original positive face. Source, junction
+and adaptive-cap lifetimes remain reserved together. Vacated data tracks are
+excluded from the new negative-face choices because the physical occupancy
+scheduler does not yet order their reuse around moving patches. Y/S resources
+keep their existing placement. The original fixed-face layout remains a
+candidate; the configured objective selects between complete block graphs after
+source validation. `Layout::compile` still performs the full IR audit.
+This is a bounded heuristic and adds layout work when T gadgets are present.
+
 | Control | Default | Meaning |
 | --- | --- | --- |
 | `grid.columns` | 4 when enabled | Maximum patch locations per row |
