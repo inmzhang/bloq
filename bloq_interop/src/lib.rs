@@ -27,7 +27,7 @@ mod topols;
 
 use bloq_compile::{CompileArtifacts, CompileConfig, CompileContext};
 use bloq_graph::BlockGraph;
-use glam::IVec3;
+use glam::{IVec2, IVec3};
 use quizx::{circuit::Circuit, vec_graph::Graph};
 
 pub use grid::GridOptions;
@@ -40,37 +40,6 @@ pub enum Strategy {
     TopoLs,
     /// Reduce with QuiZX and execute the remaining spider frontier.
     SpiderLs,
-}
-
-/// Spatial reuse versus temporal extent during layout selection.
-///
-/// ```
-/// use bloq_interop::{GridOptions, LayoutOptions, LayoutTradeoff, layout_qasm};
-///
-/// let options = LayoutOptions {
-///     grid: Some(GridOptions { columns: 2, ..Default::default() }),
-///     tradeoff: LayoutTradeoff::Depth { extra_patches: 4 },
-///     ..Default::default()
-/// };
-/// let layout = layout_qasm("OPENQASM 2.0; qreg q[1]; t q[0];", &options)?;
-/// # Ok::<(), bloq_interop::Error>(())
-/// ```
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub enum LayoutTradeoff {
-    /// Reuse patch locations; minimize blocks, then footprint, then time.
-    #[default]
-    Compact,
-    /// Minimize footprint, then time, then blocks among generated candidates.
-    Area,
-    /// Minimize footprint times temporal extent, then footprint, then blocks.
-    SpaceTimeVolume,
-    /// Minimize time, then footprint, then blocks, among bounded candidates.
-    ///
-    /// Also try placement with at most this many extra patch locations beyond
-    /// the plan's peak live frontier. This bounds lanes, not total footprint;
-    /// routing and resource columns still contribute to area. Compact placement
-    /// remains a candidate. Neither placement nor candidate search is optimal.
-    Depth { extra_patches: usize },
 }
 
 /// QuiZX reduction policy for the SpiderLS-style planner.
@@ -90,9 +59,12 @@ pub enum SpiderReduction {
 pub struct LayoutOptions {
     /// Graph planning strategy.
     pub strategy: Strategy,
-    /// Patch-location budget and layout selection objective.
-    pub tradeoff: LayoutTradeoff,
-    /// Two-dimensional placement; `None` preserves the original single-row router.
+    /// Extra patch locations beyond the plan's peak live frontier (default 0).
+    /// Clamped to the number of preparations that could use them; routing and
+    /// resources contribute additional area. No smaller-budget fallback is tried.
+    pub extra_patches: usize,
+    /// Two-dimensional placement, enabled by default with automatic row width.
+    /// `None` explicitly selects the original single-row router.
     pub grid: Option<GridOptions>,
     /// SpiderLS-style reduction policy. TopoLS uses `topology` instead.
     pub spider_reduction: SpiderReduction,
@@ -113,8 +85,8 @@ impl Default for LayoutOptions {
     fn default() -> Self {
         Self {
             strategy: Strategy::SpiderLs,
-            tradeoff: LayoutTradeoff::Compact,
-            grid: None,
+            extra_patches: 0,
+            grid: Some(GridOptions::default()),
             spider_reduction: SpiderReduction::Auto,
             topology: TopologyOptions::default(),
             measurement_batch_size: None,
@@ -178,6 +150,13 @@ pub struct Layout {
     pub reduction: &'static str,
     /// Why full reduction was replaced by conservative reduction.
     pub reduction_fallback: Option<String>,
+    /// Resolved grid settings, with a concrete column count; `None` is the legacy router.
+    pub grid: Option<GridOptions>,
+    /// Allocated patch homes, including spare locations and direct wires.
+    /// Some locations may remain unused by the generated geometry.
+    pub patch_locations: Vec<IVec2>,
+    /// Inclusive planar routing-canvas bounds; `None` is the legacy router.
+    pub routing_bounds: Option<[IVec2; 2]>,
 }
 
 impl Layout {
@@ -216,48 +195,34 @@ pub fn layout(circuit: &Circuit, options: &LayoutOptions) -> Result<Layout, Erro
 fn layout_normalized(circuit: &Circuit, options: &LayoutOptions) -> Result<Layout, Error> {
     options.validate()?;
     let mut graph: Graph = circuit.to_graph();
-    let build = |plan, reduction, reduction_fallback: Option<String>| {
-        let place = |extra_patches| {
-            let emit = |placement| {
-                let (graph, input_ports, output_ports) =
-                    embed::embed(&plan, options, extra_patches, placement)
-                        .map_err(Error::Layout)?;
-                Ok(Layout {
-                    graph,
-                    input_ports,
-                    output_ports,
-                    reduction,
-                    reduction_fallback: reduction_fallback.clone(),
-                })
-            };
-            let mut best = emit(embed::TPlacement::Fixed);
-            if options.grid.is_some()
-                && plan
-                    .instructions
-                    .iter()
-                    .any(|instruction| match instruction {
-                        spider::Instruction::Phase { phase, .. } => {
-                            *phase.to_rational().denom() == 4
-                        }
-                        _ => false,
-                    })
-                && let Ok(candidate) = emit(embed::TPlacement::Available)
-                && best.as_ref().ok().is_none_or(|current| {
-                    layout_cost(&candidate, options.tradeoff)
-                        < layout_cost(current, options.tradeoff)
-                })
-            {
-                best = Ok(candidate);
-            }
-            best
-        };
-        let mut best = place(0);
-        if let LayoutTradeoff::Depth { extra_patches } = options.tradeoff
-            && extra_patches != 0
-            && let Ok(candidate) = place(extra_patches)
-            && best.as_ref().ok().is_none_or(|current| {
-                layout_cost(&candidate, options.tradeoff) < layout_cost(current, options.tradeoff)
+    let build = |plan: spider::Plan, reduction, reduction_fallback: Option<String>| {
+        let emit = |placement| {
+            let embedded = embed::embed(&plan, options, placement).map_err(Error::Layout)?;
+            Ok(Layout {
+                graph: embedded.graph,
+                input_ports: embedded.input_ports,
+                output_ports: embedded.output_ports,
+                reduction,
+                reduction_fallback: reduction_fallback.clone(),
+                grid: embedded.grid,
+                patch_locations: embedded.patch_locations,
+                routing_bounds: embedded.routing_bounds,
             })
+        };
+        let mut best = emit(embed::TPlacement::Fixed);
+        if options.grid.is_some()
+            && plan
+                .instructions
+                .iter()
+                .any(|instruction| match instruction {
+                    spider::Instruction::Phase { phase, .. } => *phase.to_rational().denom() == 4,
+                    _ => false,
+                })
+            && let Ok(candidate) = emit(embed::TPlacement::Available)
+            && best
+                .as_ref()
+                .ok()
+                .is_none_or(|current| layout_cost(&candidate) < layout_cost(current))
         {
             best = Ok(candidate);
         }
@@ -275,10 +240,10 @@ fn layout_normalized(circuit: &Circuit, options: &LayoutOptions) -> Result<Layou
                     .and_then(|plan| build(plan, reduction, None))
                 {
                     Ok(candidate) => {
-                        if best.as_ref().is_none_or(|current| {
-                            layout_cost(&candidate, options.tradeoff)
-                                < layout_cost(current, options.tradeoff)
-                        }) {
+                        if best
+                            .as_ref()
+                            .is_none_or(|current| layout_cost(&candidate) < layout_cost(current))
+                        {
                             best = Some(candidate);
                         }
                     }
@@ -323,19 +288,14 @@ fn layout_normalized(circuit: &Circuit, options: &LayoutOptions) -> Result<Layou
     Ok(layout)
 }
 
-fn layout_cost(layout: &Layout, tradeoff: LayoutTradeoff) -> (u128, u128, u128) {
+fn layout_cost(layout: &Layout) -> (u128, u128, u128) {
     let (x, y, z) = layout
         .graph
         .spans()
         .expect("a layout has source boundaries");
     let [x, y, z] = [x, y, z].map(|s| (i64::from(*s.end()) - i64::from(*s.start()) + 1) as u128);
     let blocks = layout.graph.block_count() as u128;
-    match tradeoff {
-        LayoutTradeoff::Compact => (blocks, x * y, z),
-        LayoutTradeoff::Area => (x * y, z, blocks),
-        LayoutTradeoff::SpaceTimeVolume => (x * y * z, x * y, blocks),
-        LayoutTradeoff::Depth { .. } => (z, x * y, blocks),
-    }
+    (x * y * z, x * y, blocks)
 }
 
 #[cfg(test)]
@@ -349,7 +309,7 @@ mod tests {
         let source = "OPENQASM 2.0; qreg q[5]; h q[0]; t q[0]; cz q[0],q[3]; h q[3]; tdg q[3]; cx q[2],q[0]; cz q[1],q[2]; h q[1]; t q[1]; cz q[3],q[1];";
         let expected = Circuit::from_qasm(source).unwrap().to_graph();
         for strategy in [Strategy::TopoLs, Strategy::SpiderLs] {
-            for (columns, spacing) in [(1, 4), (2, 4), (4, 6)] {
+            for (columns, spacing) in [(0, 4), (1, 4), (2, 4), (4, 6)] {
                 let layout = layout_qasm(
                     source,
                     &LayoutOptions {
@@ -384,13 +344,6 @@ mod tests {
         let source = "OPENQASM 2.0; qreg q[2]; cz q[0],q[1];";
         let defaults = LayoutOptions::default();
         for options in [
-            LayoutOptions {
-                grid: Some(GridOptions {
-                    columns: 0,
-                    ..Default::default()
-                }),
-                ..defaults
-            },
             LayoutOptions {
                 grid: Some(GridOptions {
                     spacing: 3,
@@ -456,37 +409,42 @@ mod tests {
     }
 
     #[test]
-    fn depth_search_bounds_unused_slots_and_keeps_a_compact_budget_fallback() {
+    fn unused_extra_locations_are_clamped_to_source_preparations() {
         let source = "OPENQASM 2.0; qreg q[3]; cz q[1],q[2]; tdg q[2]; cx q[1],q[0]; h q[2]; tdg q[1]; cz q[1],q[2]; h q[2]; t q[1];";
-        for strategy in [Strategy::TopoLs, Strategy::SpiderLs] {
-            let compact = layout_qasm(
+        let counts = [0, 1, usize::MAX].map(|extra_patches| {
+            layout_qasm(
                 source,
                 &LayoutOptions {
-                    strategy,
+                    extra_patches,
+                    strategy: Strategy::TopoLs,
                     ..Default::default()
                 },
             )
-            .unwrap();
-            let bounded = layout_qasm(
-                source,
-                &LayoutOptions {
-                    strategy,
-                    tradeoff: LayoutTradeoff::Depth {
-                        extra_patches: usize::MAX,
-                    },
-                    max_blocks: compact.graph.block_count(),
-                    ..Default::default()
-                },
-            )
-            .unwrap();
-            assert!(bounded.graph.block_count() <= compact.graph.block_count());
-            let time = |l: &Layout| {
-                let (_, _, z) = l.graph.spans().unwrap();
-                *z.end() - *z.start()
-            };
-            assert!(time(&bounded) <= time(&compact));
-            assert_eq!(bounded.input_ports.len(), 3);
-            assert_eq!(bounded.output_ports.len(), 3);
-        }
+            .unwrap()
+            .patch_locations
+            .len()
+        });
+        assert_eq!(counts, [3, 3, 3]);
+    }
+
+    #[test]
+    fn automatic_grid_reports_two_axis_placement_and_canvas() {
+        let layout = layout_qasm(
+            "OPENQASM 2.0; qreg q[5]; h q[4]; h q[4];",
+            &LayoutOptions::default(),
+        )
+        .unwrap();
+        let grid = layout.grid.unwrap();
+        assert_eq!(grid.columns, 3);
+        assert_eq!(grid.spacing, 4);
+        assert_eq!(grid.routing_margin, 2);
+        assert_eq!(layout.patch_locations.len(), 5);
+        assert!(layout.patch_locations.iter().any(|p| p.x > 0));
+        assert!(layout.patch_locations.iter().any(|p| p.y > 0));
+        assert_eq!(layout.routing_bounds.unwrap()[0], IVec2::splat(-2));
+        assert_eq!(layout.input_ports.len(), 5);
+        assert_eq!(layout.output_ports.len(), 5);
+        assert!(layout.input_ports.iter().any(|p| p.y > 0));
+        layout.compile(CompileConfig::new(3)).unwrap();
     }
 }

@@ -3,7 +3,7 @@
 mod common;
 
 use bloq_compile::CompileConfig;
-use bloq_interop::{GridOptions, LayoutOptions, LayoutTradeoff, Strategy, layout_qasm};
+use bloq_interop::{GridOptions, LayoutOptions, Strategy, layout_qasm};
 use common::choi::exact::ExactChoi;
 use rstest::rstest;
 
@@ -16,16 +16,15 @@ fn native_channels(
     #[case] qubits: usize,
     #[case] gates: &str,
     #[values(Strategy::TopoLs, Strategy::SpiderLs)] strategy: Strategy,
-    #[values(None, Some(GridOptions { columns: 2, ..GridOptions::default() }))] grid: Option<
-        GridOptions,
-    >,
+    #[values(GridOptions::default(), GridOptions { columns: 2, ..GridOptions::default() })]
+    grid: GridOptions,
 ) {
     let source = format!("OPENQASM 2.0; include \"qelib1.inc\"; qreg q[{qubits}]; {gates}");
     let layout = layout_qasm(
         &source,
         &LayoutOptions {
             strategy,
-            grid,
+            grid: Some(grid),
             ..Default::default()
         },
     )
@@ -66,7 +65,11 @@ fn native_channels(
         std::fs::create_dir_all(&root).expect("create evidence root");
         let directory = root.join(format!(
             "{strategy:?}-q{qubits}{}",
-            if grid.is_some() { "-grid" } else { "" }
+            if grid.columns == 0 {
+                "-auto-grid"
+            } else {
+                "-grid2"
+            }
         ));
         std::fs::create_dir(&directory).expect("evidence directory must be new");
         for (name, bytes) in [
@@ -75,7 +78,7 @@ fn native_channels(
             ("program_d3.bloq", compiled.bloq.to_binary()),
             ("execution.json", serde_json::to_vec_pretty(&serde_json::json!({
                 "verification": "sampled exact normalized Choi channel",
-                "distance": 3, "t_preparation": "ideal_t_proxy", "grid_columns": grid.map(|g| g.columns),
+                "distance": 3, "t_preparation": "ideal_t_proxy", "grid_columns": layout.grid.map(|g| g.columns),
                 "shots": report.shots, "seed": 0x1A7E,
                 "discarded": report.discarded, "execution_verified": true,
                 "all_detectors_constant": report.all_detectors_constant(),
@@ -89,37 +92,26 @@ fn native_channels(
 }
 
 #[rstest]
-fn area_time_tradeoff_preserves_the_channel(
+fn numerical_resource_budgets_preserve_the_channel(
     #[values(Strategy::TopoLs, Strategy::SpiderLs)] strategy: Strategy,
 ) {
     let source = "OPENQASM 2.0; qreg q[3]; cz q[1],q[2]; tdg q[2]; cx q[1],q[0]; h q[2]; tdg q[1]; cz q[1],q[2]; h q[2]; t q[1];";
-    let layouts = [
-        LayoutTradeoff::Compact,
-        LayoutTradeoff::Depth { extra_patches: 2 },
-    ]
-    .map(|tradeoff| {
+    let layouts = [0, 2].map(|extra_patches| {
         layout_qasm(
             source,
             &LayoutOptions {
                 strategy,
-                tradeoff,
+                extra_patches,
+                grid: Some(GridOptions {
+                    columns: 2,
+                    ..Default::default()
+                }),
+                measurement_batch_size: Some(2),
                 ..Default::default()
             },
         )
         .unwrap()
     });
-    let metrics = |layout: &bloq_interop::Layout| {
-        let (x, y, z) = layout.graph.spans().unwrap();
-        (
-            (*x.end() - *x.start() + 1) * (*y.end() - *y.start() + 1),
-            *z.end() - *z.start() + 1,
-        )
-    };
-    let (compact, depth) = (metrics(&layouts[0]), metrics(&layouts[1]));
-    assert!(depth.1 <= compact.1);
-    if strategy == Strategy::TopoLs {
-        assert!(depth.0 > compact.0 && depth.1 < compact.1);
-    }
     for layout in layouts {
         let program = layout
             .compile(CompileConfig::new(3).with_prepare_t_with_mpps(true))

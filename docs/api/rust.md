@@ -47,29 +47,26 @@ preserving occupied cells and syndrome rounds. The block budget and candidate
 cost count graph nodes; occupied cells, footprint, and temporal extent remain
 separate layout metrics.
 
-`LayoutOptions::tradeoff` controls spatial reuse and candidate selection.
-`LayoutTradeoff::Compact` is the default: reuse patch locations and choose fewer
-blocks, then smaller footprint, then shorter temporal extent.
-`LayoutTradeoff::Depth { extra_patches: N }` also tries placement with up to `N`
-extra patch locations beyond the plan's peak live frontier. It assigns each new
-lifetime to the free location with the earliest availability, and selects shorter
-temporal extent, then smaller footprint, then fewer blocks. Compact placement
-remains a candidate, so enabling depth mode cannot lengthen the selected layout.
-The extra-patch budget bounds data lanes, not resource columns or total footprint.
-This is a bounded heuristic: a larger budget need not improve time, and routing
-can still serialize operations.
-
-`LayoutTradeoff::Area` selects footprint first, then temporal extent and blocks.
-`SpaceTimeVolume` selects footprint times temporal extent, then footprint and
-blocks. Objectives rank generated candidates; they do not promise an optimal
-layout or search over grid widths automatically.
-
-`LayoutOptions::grid = Some(GridOptions { .. })` enables row-major 2D patch
-placement with cell-aware orthogonal routing. `None` preserves the original row
-layout. The grid reserves local space for patch rotation and T/Y resources,
+`LayoutOptions` exposes numerical placement and scheduling controls. By default,
+patch locations form a near-square 2D grid with cell-aware orthogonal routing.
+Set `grid.columns` to a positive integer to choose the maximum locations per row;
+zero resolves to the ceiling of the square root of the allocated locations.
+Two or fewer locations can naturally occupy a single row. `grid: None` explicitly
+selects the legacy row router.
+The grid reserves local space for patch rotation and T/Y resources,
 including future patch lifetimes and untouched wires. Routes can detour around
 busy cells or wait for their release. The final footprint includes used geometry,
-not the entire search canvas.
+not the entire search canvas. `Layout.grid` records the resolved numerical
+settings, `Layout.patch_locations` lists allocated homes, and
+`Layout.routing_bounds` records the inclusive routing canvas. Allocated homes
+include spare sites and untouched wires; they are distinct from occupied cells.
+
+`extra_patches` adds up to the requested number of locations beyond the plan's
+peak live frontier, limited by the number of preparations that can use them.
+With a positive budget, new lifetimes choose the free location available earliest.
+The requested budget applies to every candidate; the compiler does not silently
+replace it with a zero-budget candidate. Extra locations can reduce waiting but
+do not guarantee shorter layouts. They do not bound resource cells or footprint.
 
 For T gadgets the grid also tries a placement using the earlier available
 compatible face (`±X` or `±Y` according to the patch frame). Equal times prefer
@@ -77,18 +74,22 @@ an already occupied column, then the original positive face. Source, junction
 and adaptive-cap lifetimes remain reserved together. The physical occupancy
 scheduler orders teardown and initialization when a resource reuses qubits
 between patch movements. Y/S resources keep their existing placement. The
-original fixed-face layout remains a candidate; the configured objective selects
-between complete block graphs after source validation. `Layout::compile` still
+original fixed-face layout remains a candidate. Complete, source-validated
+candidates use one deterministic ordering: footprint times temporal extent,
+then footprint, then blocks. There is no public area/depth objective selector
+and no optimality guarantee. `Layout::compile` still
 performs the full IR audit.
 This is a bounded heuristic and adds layout work when T gadgets are present.
 
 | Control | Default | Meaning |
 | --- | --- | --- |
-| `grid.columns` | 4 when enabled | Maximum patch locations per row |
+| `grid` | `Some(GridOptions::default())` | 2D placement and cell-aware routing |
+| `grid.columns` | 0 (automatic) | Maximum locations per row; automatic resolves from allocated locations |
 | `grid.spacing` | 4 | Pitch on both axes in graph cells; must be at least 4 for the Bloq gadgets |
-| `grid.routing_margin` | 1 | Positive extra routing canvas around the patch islands |
+| `grid.routing_margin` | 2 | Positive extra routing canvas around the patch islands |
 | `grid.max_route_expansions` | 100,000 | Expanded A* states per route search; exhaustion is an error |
 | `measurement_batch_size` | `None` | Split causal layers into ordered batches; smaller batches can reduce the live frontier, but this is not an exact ancilla cap |
+| `extra_patches` | 0 | Additional reusable patch locations beyond the peak live frontier |
 | `spider_reduction` | `Auto` | Full simplification with conservative fallback, `Conservative` only, or strict `Full` without fallback |
 | `topology.fusion` | `true` | Enable bounded fusion candidates; disabling retains graph normalization |
 | `topology.block_rows` | 20 | Source ZX rows per fusion partition, unrelated to physical grid rows |
@@ -101,12 +102,12 @@ simplification is not a claim of universal flow preservation. These deterministi
 native planners have no upstream MCTS, stochastic seed, or CZ-star controls.
 
 ```rust
-use bloq_interop::{GridOptions, LayoutOptions, LayoutTradeoff, layout_qasm};
+use bloq_interop::{GridOptions, LayoutOptions, layout_qasm};
 
 let options = LayoutOptions {
     grid: Some(GridOptions { columns: 2, ..Default::default() }),
     measurement_batch_size: Some(2),
-    tradeoff: LayoutTradeoff::Depth { extra_patches: 4 },
+    extra_patches: 4,
     ..Default::default()
 };
 let layout = layout_qasm("OPENQASM 2.0; qreg q[1]; t q[0];", &options)
@@ -123,18 +124,16 @@ To reproduce compilation measurements from a frozen synthesized circuit:
 ```sh
 cargo build --release -p bloq-interop --example compile_qasm --locked
 target/release/examples/compile_qasm circuit.qasm spiderls new-result-directory 25
-# Depth mode with at most four extra patch locations:
-target/release/examples/compile_qasm circuit.qasm spiderls new-depth-directory 25 4
-# Two-dimensional placement; other grid controls keep their defaults:
-target/release/examples/compile_qasm circuit.qasm spiderls new-grid-directory 25 4 --columns 2 --batch 2
-# Topology controls and a footprint-first objective:
-target/release/examples/compile_qasm circuit.qasm topols new-area-directory 25 --columns 4 --fusion off --block-rows 10 --objective area
+# Two columns, four extra patch locations, batches of two measurements:
+target/release/examples/compile_qasm circuit.qasm spiderls new-grid-directory 25 --extra-patches 4 --columns 2 --batch 2
+# A wider grid, larger routing canvas, and explicit topology controls:
+target/release/examples/compile_qasm circuit.qasm topols new-wide-directory 25 --columns 4 --routing-margin 3 --fusion off --block-rows 10
 ```
 
 The output includes BLOG, validated binary IR, persisted-file round-trip
 checks, compilation times, separate block/column/footprint/time metrics, and
-all configuration values and the reduction actually selected. The result directory
-must not already exist.
+all requested and resolved configuration values and the reduction actually
+selected. The result directory must not already exist.
 The example compiles the persisted BLOG after exact canonical checks, including
 after flattening; full source analysis and IR validation run on that graph.
 `matched_pipeline_seconds` covers source-file reading through the validated IR
@@ -144,6 +143,10 @@ Measure process wall time and peak RSS with an external isolated runner under
 the same CPU, memory, and timeout limits for both implementations. Column and
 footprint comparisons must consistently include extended blocks' reserved cells;
 `anchor_columns` separately supports comparisons with older anchor-only reports.
+
+Migration: the unreleased `LayoutTradeoff` enum, `LayoutOptions.tradeoff`, and
+`--objective` CLI flag have been removed. Set numerical budgets and grid dimensions
+directly. Omitted grid settings now use automatic 2D placement rather than a row.
 
 ## Local API documentation
 

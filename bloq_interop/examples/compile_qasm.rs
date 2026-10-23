@@ -4,13 +4,11 @@ use std::{collections::BTreeSet, error::Error, fs, path::Path, time::Instant};
 
 use bloq_compile::CompileConfig;
 use bloq_graph::{lower_blog_graph_ast_deferred, parse_blog_program_to_ast};
-use bloq_interop::{
-    GridOptions, LayoutOptions, LayoutTradeoff, SpiderReduction, Strategy, layout_qasm,
-};
+use bloq_interop::{GridOptions, LayoutOptions, SpiderReduction, Strategy, layout_qasm};
 use bloq_ir::Bloq;
 use serde_json::json;
 
-const USAGE: &str = "usage: compile_qasm SOURCE.qasm topols|spiderls NEW_OUTPUT_DIR [DISTANCE=25] [EXTRA_PATCHES=0] [--columns N] [--spacing N] [--routing-margin N] [--route-expansions N] [--batch N] [--reduction auto|conservative|full] [--fusion on|off] [--block-rows N] [--objective compact|depth|area|volume] [--max-time N] [--max-blocks N]";
+const USAGE: &str = "usage: compile_qasm SOURCE.qasm topols|spiderls NEW_OUTPUT_DIR [DISTANCE=25] [EXTRA_PATCHES=0] [--extra-patches N] [--columns N] [--spacing N] [--routing-margin N] [--route-expansions N] [--batch N] [--reduction auto|conservative|full] [--fusion on|off] [--block-rows N] [--max-time N] [--max-blocks N]";
 
 fn options(args: &[String]) -> Result<(LayoutOptions, u32), Box<dyn Error>> {
     if args.len() < 3 {
@@ -32,14 +30,10 @@ fn options(args: &[String]) -> Result<(LayoutOptions, u32), Box<dyn Error>> {
         }
     };
     let distance = positional().map_or(Ok(25), |s| s.parse::<u32>())?;
-    let extra_patches = positional().map_or(Ok(0), |s| s.parse::<usize>())?;
+    let positional_extra = positional().map(|s| s.parse::<usize>()).transpose()?;
     let mut options = LayoutOptions {
         strategy,
-        tradeoff: if extra_patches == 0 {
-            LayoutTradeoff::Compact
-        } else {
-            LayoutTradeoff::Depth { extra_patches }
-        },
+        extra_patches: positional_extra.unwrap_or(0),
         ..Default::default()
     };
     let mut seen = BTreeSet::new();
@@ -50,6 +44,12 @@ fn options(args: &[String]) -> Result<(LayoutOptions, u32), Box<dyn Error>> {
             return Err(format!("duplicate option {flag}").into());
         }
         match flag {
+            "--extra-patches" => {
+                if positional_extra.is_some() {
+                    return Err("extra patches specified both positionally and by flag".into());
+                }
+                options.extra_patches = value.parse()?;
+            }
             "--columns" => {
                 options
                     .grid
@@ -93,23 +93,11 @@ fn options(args: &[String]) -> Result<(LayoutOptions, u32), Box<dyn Error>> {
                     _ => return Err("reduction must be auto, conservative or full".into()),
                 }
             }
-            "--objective" => {
-                options.tradeoff = match value {
-                    "compact" => LayoutTradeoff::Compact,
-                    "depth" => LayoutTradeoff::Depth { extra_patches },
-                    "area" => LayoutTradeoff::Area,
-                    "volume" => LayoutTradeoff::SpaceTimeVolume,
-                    _ => return Err("objective must be compact, depth, area or volume".into()),
-                }
-            }
             _ => return Err(format!("unknown option {flag}; {USAGE}").into()),
         }
     }
     if !remainder.is_empty() {
         return Err("every flag needs a value".into());
-    }
-    if extra_patches != 0 && !matches!(options.tradeoff, LayoutTradeoff::Depth { .. }) {
-        return Err("extra patches require the depth objective".into());
     }
     if strategy == Strategy::TopoLs && seen.contains("--reduction") {
         return Err("--reduction applies only to spiderls".into());
@@ -123,15 +111,18 @@ fn options(args: &[String]) -> Result<(LayoutOptions, u32), Box<dyn Error>> {
     Ok((options, distance))
 }
 
+fn grid_json(grid: Option<GridOptions>) -> serde_json::Value {
+    json!(grid.map(|g| json!({
+        "columns": g.columns,
+        "spacing": g.spacing,
+        "routing_margin": g.routing_margin,
+        "max_route_expansions": g.max_route_expansions,
+    })))
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     let (options, distance) = options(&args)?;
-    let (objective, extra_patches) = match options.tradeoff {
-        LayoutTradeoff::Compact => ("compact", 0),
-        LayoutTradeoff::Area => ("area", 0),
-        LayoutTradeoff::SpaceTimeVolume => ("volume", 0),
-        LayoutTradeoff::Depth { extra_patches } => ("depth", extra_patches),
-    };
     let config = CompileConfig::try_new(distance)?.with_prepare_t_with_mpps(true);
     let matched_started = Instant::now();
     let source = fs::read_to_string(&args[0])?;
@@ -142,19 +133,37 @@ fn main() -> Result<(), Box<dyn Error>> {
         "compiler": args[1], "status": "running", "distance": distance,
         "t_preparation": "ideal_t_proxy", "execution_verified": false,
         "max_blocks": options.max_blocks,
-        "layout_tradeoff": objective,
-        "grid": options.grid.map(|g| json!({"columns": g.columns, "spacing": g.spacing,
-            "routing_margin": g.routing_margin, "max_route_expansions": g.max_route_expansions})),
+        "requested_grid": grid_json(options.grid),
         "measurement_batch_size": options.measurement_batch_size,
         "max_temporal_extent": options.max_temporal_extent,
         "spider_reduction": match options.spider_reduction { SpiderReduction::Auto => "auto", SpiderReduction::Conservative => "conservative", SpiderReduction::Full => "full" },
         "topology": {"fusion": options.topology.fusion, "block_rows": options.topology.block_rows},
-        "extra_patch_budget": extra_patches,
+        "extra_patch_budget": options.extra_patches,
     });
     let outcome = (|| -> Result<(), Box<dyn Error>> {
         result["failed_stage"] = "layout".into();
         let mut layout = layout_qasm(&source, &options)?;
         result["layout_seconds"] = started.elapsed().as_secs_f64().into();
+        result["grid"] = grid_json(layout.grid);
+        result["patch_locations"] = json!(
+            layout
+                .patch_locations
+                .iter()
+                .map(glam::IVec2::to_array)
+                .collect::<Vec<_>>()
+        );
+        result["patch_rows"] = layout
+            .patch_locations
+            .iter()
+            .map(|p| p.y)
+            .collect::<BTreeSet<_>>()
+            .len()
+            .into();
+        result["routing_bounds"] = json!(
+            layout
+                .routing_bounds
+                .map(|bounds| bounds.map(|p| p.to_array()))
+        );
         result["reduction"] = layout.reduction.into();
         result["reduction_fallback"] = json!(layout.reduction_fallback);
         let blog = layout.graph.to_blog_text();
@@ -284,11 +293,20 @@ mod tests {
     fn controls_preserve_old_arguments_and_reject_ignored_or_invalid_options() {
         let (old, distance) = parse("in spiderls out 25 4").unwrap();
         assert_eq!(distance, 25);
-        assert!(old.grid.is_none());
-        assert_eq!(old.tradeoff, LayoutTradeoff::Depth { extra_patches: 4 });
+        assert_eq!(old.grid.unwrap(), GridOptions::default());
+        assert_eq!(old.extra_patches, 4);
+        let (default, _) = parse("in spiderls out").unwrap();
+        assert_eq!(default.extra_patches, 0);
+        assert_eq!(default.grid.unwrap().columns, 0);
+        assert_eq!(
+            parse("in spiderls out --extra-patches 3")
+                .unwrap()
+                .0
+                .extra_patches,
+            3
+        );
         let (grid, _) =
-            parse("in topols out --columns 2 --spacing 6 --fusion off --batch 1 --objective area")
-                .unwrap();
+            parse("in topols out --columns 2 --spacing 6 --fusion off --batch 1").unwrap();
         assert_eq!(grid.grid.unwrap().columns, 2);
         assert!(!grid.topology.fusion);
         assert_eq!(grid.measurement_batch_size, Some(1));
@@ -296,9 +314,13 @@ mod tests {
             "in topols out --columns",
             "in topols out --spacing 3",
             "in topols out --columns 2 --columns 4",
+            "in topols out --columns 18446744073709551616000",
             "in topols out --reduction auto",
             "in spiderls out --fusion on",
             "in spiderls out 25 4 --objective compact",
+            "in spiderls out --objective volume",
+            "in spiderls out 25 0 --extra-patches 2",
+            "in spiderls out --extra-patches 2 --extra-patches 3",
             "in spiderls out --batch 0",
             "in spiderls out --unknown 4",
         ] {

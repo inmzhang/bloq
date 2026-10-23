@@ -6,9 +6,10 @@ use std::collections::{BinaryHeap, HashMap, HashSet};
 use glam::IVec2;
 
 /// Two-dimensional data-patch placement and routing bounds.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GridOptions {
     /// Maximum patch locations per row, filled in row-major order.
+    /// Zero (the default) resolves to a near-square grid for the allocated sites.
     pub columns: usize,
     /// Pitch between patch homes on both axes, in graph cells (at least 4).
     /// Each home reserves room for both patch frames and local T/Y resources.
@@ -23,9 +24,9 @@ pub struct GridOptions {
 impl Default for GridOptions {
     fn default() -> Self {
         Self {
-            columns: 4,
+            columns: 0,
             spacing: 4,
-            routing_margin: 1,
+            routing_margin: 2,
             max_route_expansions: 100_000,
         }
     }
@@ -33,12 +34,11 @@ impl Default for GridOptions {
 
 impl GridOptions {
     pub(crate) fn validate(self) -> Result<(), String> {
-        if self.columns == 0
-            || self.spacing < 4
-            || self.routing_margin == 0
-            || self.max_route_expansions == 0
-        {
-            return Err("grid requires columns > 0, spacing >= 4, routing_margin > 0 and max_route_expansions > 0".into());
+        if self.spacing < 4 || self.routing_margin == 0 || self.max_route_expansions == 0 {
+            return Err(
+                "grid requires spacing >= 4, routing_margin > 0 and max_route_expansions > 0"
+                    .into(),
+            );
         }
         Ok(())
     }
@@ -49,12 +49,16 @@ pub(crate) struct Grid {
     islands: HashSet<IVec2>,
     min: IVec2,
     max: IVec2,
-    max_expansions: usize,
+    options: GridOptions,
 }
 
 impl Grid {
-    pub(crate) fn new(options: GridOptions, slots: usize) -> Result<Self, String> {
+    pub(crate) fn new(mut options: GridOptions, slots: usize) -> Result<Self, String> {
         options.validate()?;
+        if options.columns == 0 {
+            let root = slots.isqrt();
+            options.columns = (root + usize::from(root * root < slots)).max(1);
+        }
         let pitch = usize::try_from(options.spacing).map_err(|e| e.to_string())?;
         let margin = i32::try_from(options.routing_margin)
             .map_err(|_| "routing margin exceeds spatial coordinate range")?;
@@ -98,8 +102,16 @@ impl Grid {
             islands,
             min: IVec2::splat(-margin),
             max,
-            max_expansions: options.max_route_expansions,
+            options,
         })
+    }
+
+    pub(crate) fn options(&self) -> GridOptions {
+        self.options
+    }
+
+    pub(crate) fn bounds(&self) -> [IVec2; 2] {
+        [self.min, self.max]
     }
 
     pub(crate) fn home(&self, slot: usize) -> Result<IVec2, String> {
@@ -132,10 +144,10 @@ impl Grid {
             if costs.get(&current) != Some(&cost) {
                 continue;
             }
-            if expanded == self.max_expansions {
+            if expanded == self.options.max_route_expansions {
                 return Err(format!(
                     "routing search exhausted {} expanded states",
-                    self.max_expansions
+                    self.options.max_route_expansions
                 ));
             }
             expanded += 1;
@@ -175,6 +187,39 @@ impl Grid {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn automatic_width_and_spatial_coordinate_bounds() {
+        let grid = Grid::new(GridOptions::default(), 3).unwrap();
+        assert_eq!(grid.options().columns, 2);
+        assert_eq!(
+            (0..3)
+                .map(|slot| grid.home(slot).unwrap())
+                .collect::<Vec<_>>(),
+            [IVec2::ZERO, IVec2::new(4, 0), IVec2::new(0, 4)]
+        );
+        // A maximum row width does not allocate or reserve empty columns.
+        Grid::new(
+            GridOptions {
+                columns: usize::MAX,
+                ..Default::default()
+            },
+            3,
+        )
+        .unwrap();
+        for options in [
+            GridOptions {
+                spacing: u32::MAX,
+                ..Default::default()
+            },
+            GridOptions {
+                routing_margin: u32::MAX,
+                ..Default::default()
+            },
+        ] {
+            assert!(Grid::new(options, 3).is_err());
+        }
+    }
 
     #[test]
     fn routes_detour_around_reserved_and_busy_cells_deterministically() {

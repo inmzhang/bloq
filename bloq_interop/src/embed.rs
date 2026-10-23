@@ -10,7 +10,7 @@ use bloq_graph::{
 use glam::{IVec2, IVec3};
 
 use crate::spider::{Instruction, Plan};
-use crate::{LayoutOptions, grid::Grid};
+use crate::{GridOptions, LayoutOptions, grid::Grid};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TPlacement {
@@ -423,12 +423,21 @@ impl Builder {
     }
 }
 
+pub(crate) struct Embedding {
+    pub graph: BlockGraph,
+    pub input_ports: Vec<IVec3>,
+    pub output_ports: Vec<IVec3>,
+    pub grid: Option<GridOptions>,
+    pub patch_locations: Vec<IVec2>,
+    pub routing_bounds: Option<[IVec2; 2]>,
+}
+
 pub(crate) fn embed(
     plan: &Plan,
     options: &LayoutOptions,
-    extra_patches: usize,
     t_placement: TPlacement,
-) -> Result<(BlockGraph, Vec<IVec3>, Vec<IVec3>), String> {
+) -> Result<Embedding, String> {
+    let extra_patches = options.extra_patches;
     // More locations than preparations cannot be used, even with an unbounded request.
     let preparations = plan
         .instructions
@@ -437,16 +446,12 @@ pub(crate) fn embed(
         .count();
     let slots =
         plan.peak_patches + extra_patches.min(preparations.saturating_sub(plan.peak_patches));
+    let locations = slots
+        .checked_add(plan.direct_wires.len())
+        .ok_or("patch count overflow")?;
     let grid = options
         .grid
-        .map(|options| {
-            Grid::new(
-                options,
-                slots
-                    .checked_add(plan.direct_wires.len())
-                    .ok_or("patch count overflow")?,
-            )
-        })
+        .map(|options| Grid::new(options, locations))
         .transpose()?;
     let mut b = Builder {
         graph: BlockGraph::new(),
@@ -466,6 +471,9 @@ pub(crate) fn embed(
         grid,
         t_placement,
     };
+    let patch_locations = (0..locations)
+        .map(|slot| b.home(slot))
+        .collect::<Result<Vec<_>, _>>()?;
     let mut inputs = Vec::new();
     let mut outputs = Vec::new();
     let mut used_slots = 0;
@@ -564,11 +572,14 @@ pub(crate) fn embed(
         .set_actions_deferred(b.actions)
         .map_err(|e| e.to_string())?;
     b.graph.validate_source().map_err(|e| e.to_string())?;
-    Ok((
-        b.graph,
-        inputs.into_iter().map(|(_, p)| p).collect(),
-        outputs.into_iter().map(|(_, p)| p).collect(),
-    ))
+    Ok(Embedding {
+        graph: b.graph,
+        input_ports: inputs.into_iter().map(|(_, p)| p).collect(),
+        output_ports: outputs.into_iter().map(|(_, p)| p).collect(),
+        grid: b.grid.as_ref().map(Grid::options),
+        patch_locations,
+        routing_bounds: b.grid.as_ref().map(Grid::bounds),
+    })
 }
 
 #[cfg(test)]
@@ -587,11 +598,13 @@ mod tests {
             plan,
             &LayoutOptions {
                 max_blocks,
+                extra_patches,
+                grid: None,
                 ..Default::default()
             },
-            extra_patches,
             TPlacement::Fixed,
         )
+        .map(|e| (e.graph, e.input_ports, e.output_ports))
     }
 
     #[test]
@@ -654,7 +667,12 @@ mod tests {
             ..Default::default()
         };
         let times = [TPlacement::Fixed, TPlacement::Available].map(|placement| {
-            let (graph, inputs, outputs) = super::embed(&plan, &options, 0, placement).unwrap();
+            let Embedding {
+                graph,
+                input_ports: inputs,
+                output_ports: outputs,
+                ..
+            } = super::embed(&plan, &options, placement).unwrap();
             assert_eq!(
                 graph.blocks().filter(|b| b.kind() == BlockKind::T).count(),
                 9
@@ -748,17 +766,24 @@ mod tests {
                 ..Default::default()
             }),
         ] {
-            let metrics = [0, usize::MAX].map(|extra| {
-                let (graph, inputs, outputs) = super::embed(
+            let metrics = [0, 1, usize::MAX].map(|extra| {
+                let Embedding {
+                    graph,
+                    input_ports: inputs,
+                    output_ports: outputs,
+                    patch_locations,
+                    ..
+                } = super::embed(
                     &plan,
                     &LayoutOptions {
                         grid,
+                        extra_patches: extra,
                         ..Default::default()
                     },
-                    extra,
                     TPlacement::Fixed,
                 )
                 .unwrap();
+                assert_eq!(patch_locations.len(), if extra == 0 { 4 } else { 5 });
                 LogicalVerifier::with_boundaries_and_internal_measurements(
                     &graph,
                     BoundaryOrder::new(inputs, outputs),
@@ -776,6 +801,7 @@ mod tests {
                 assert!(metrics[1].0 > metrics[0].0);
             }
             assert!(metrics[1].1 < metrics[0].1);
+            assert_eq!(metrics[1], metrics[2]);
         }
     }
 
