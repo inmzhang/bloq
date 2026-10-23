@@ -314,6 +314,7 @@ fn guarded_era_boundary(
     bloq: &Bloq,
     endpoints: [(bloq_ir::BloqNodeId, bool); 2],
     qubit: glam::IVec2,
+    require_live: bool,
     neighbors: &EraNeighbors,
     supports: &mut LiveSupportCache,
     predicates: &mut bloq_ir::lowering::PredicateAnalysis<'_>,
@@ -380,7 +381,7 @@ fn guarded_era_boundary(
     };
     for left_guard in left_guards {
         for right_guard in right_guards {
-            let required = left_guard
+            let mut required = left_guard
                 .iter()
                 .chain(right_guard)
                 .copied()
@@ -394,7 +395,37 @@ fn guarded_era_boundary(
                     },
                 )?
             {
-                return Ok(true);
+                if !require_live {
+                    return Ok(true);
+                }
+                for guard in [
+                    &left_support.inputs,
+                    &left_support.outputs,
+                    &right_support.inputs,
+                    &right_support.outputs,
+                ]
+                .into_iter()
+                .filter_map(|face| face.get(&qubit))
+                .flatten()
+                {
+                    let Some(guard) = guard else {
+                        return Ok(true);
+                    };
+                    required.push(*guard);
+                    let live =
+                        predicates
+                            .coexist_without(&required, &continuing)
+                            .map_err(|source| {
+                                bloq_ir::BloqValidationError::InvalidInstanceMergeStructure {
+                                    node: left,
+                                    source,
+                                }
+                            })?;
+                    required.pop();
+                    if live {
+                        return Ok(true);
+                    }
+                }
             }
         }
     }
@@ -869,6 +900,7 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
                     ),
                 ],
                 qubit,
+                false,
                 &neighbors,
                 &mut live_supports,
                 &mut predicates,
@@ -926,13 +958,40 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
                 cache_live_uses(bloq, &mut live_supports, from)?;
                 cache_live_uses(bloq, &mut live_supports, to)?;
                 let (a, b) = (&live_supports.nodes[&from], &live_supports.nodes[&to]);
-                let carries = |a: &LiveQubitUses, b: &LiveQubitUses| {
-                    a.inputs
-                        .keys()
-                        .chain(a.outputs.keys())
-                        .any(|q| b.uses.contains_key(q))
-                };
-                carries(a, b) || carries(b, a)
+                let mut qubits = a
+                    .inputs
+                    .keys()
+                    .chain(a.outputs.keys())
+                    .filter(|q| b.uses.contains_key(*q))
+                    .chain(
+                        b.inputs
+                            .keys()
+                            .chain(b.outputs.keys())
+                            .filter(|q| a.uses.contains_key(*q)),
+                    )
+                    .copied()
+                    .collect::<Vec<_>>();
+                qubits.sort_unstable_by_key(glam::IVec2::to_array);
+                qubits.dedup();
+                // Shared live support alone is not a witness: that qubit may still
+                // continue through a seam while only reset ancillas justify this pair.
+                let endpoints = [from, to].map(|id| (id, footprints[slot_by_id[&id]].moving));
+                let mut live = false;
+                for qubit in qubits {
+                    if guarded_era_boundary(
+                        bloq,
+                        endpoints,
+                        qubit,
+                        true,
+                        &neighbors,
+                        &mut live_supports,
+                        &mut predicates,
+                    )? {
+                        live = true;
+                        break;
+                    }
+                }
+                live
             });
         let forward = rank[from.0 as usize] < rank[to.0 as usize];
         pairs.push((!live, !forward, from, to));
@@ -1230,6 +1289,46 @@ mod tests {
         assert!(bloq.has_path(earlier_cap, later_source));
         assert!(bloq.has_path(earlier_source, ancilla));
         bloq.deterministic_emit_order().unwrap();
+    }
+
+    #[test]
+    fn shared_live_support_does_not_promote_an_ancilla_only_order() {
+        for guarded in [false, true] {
+            let mut bloq = Bloq::new();
+            let later_source = add_live_node(&mut bloq, 4, false, true);
+            let earlier_source = add_live_node(&mut bloq, 2, false, true);
+            let earlier_cap = add_live_node(&mut bloq, 3, true, false);
+            let later_cap = add_live_node(&mut bloq, 5, true, false);
+            let mut reset = CoordCircuit::new();
+            reset.do_gate(GateType::RZ, [ivec2(1, 0)]).unwrap();
+            let template = bloq.add_template(BloqTemplate::new(reset));
+            for id in [earlier_cap, later_cap] {
+                bloq.node_mut(id)
+                    .unwrap()
+                    .expect_quantum_mut()
+                    .instances
+                    .push(TemplateInstance::new(
+                        TemplateInstanceId(100 + id.0),
+                        template,
+                        ivec2(0, 0),
+                    ));
+            }
+            if guarded {
+                let (bit, _) = opposite_selectors(&mut bloq);
+                for id in [later_source, earlier_source, earlier_cap, later_cap] {
+                    guard_member(&mut bloq, id, bit);
+                }
+            }
+            bloq.add_edge(earlier_source, earlier_cap, BloqEdge::quantum(vec![]));
+            bloq.add_edge(later_source, later_cap, BloqEdge::quantum(vec![]));
+            bloq.add_edge(later_source, earlier_cap, BloqEdge::Order);
+            // The cap-to-cap candidate is witnessed only by the reset ancilla.
+            // Their shared data qubit belongs to two complete, reversible eras.
+            induce_occupancy_order_edges(&mut bloq).unwrap();
+            assert!(bloq.has_path(later_cap, earlier_source));
+            assert!(!bloq.has_path(earlier_cap, later_cap));
+            bloq.deterministic_emit_order().unwrap();
+        }
     }
 
     #[test]

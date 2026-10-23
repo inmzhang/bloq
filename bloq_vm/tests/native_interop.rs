@@ -7,6 +7,38 @@ use bloq_interop::{GridOptions, LayoutOptions, Strategy, layout_qasm};
 use common::choi::exact::ExactChoi;
 use rstest::rstest;
 
+fn save_evidence(
+    case: &str,
+    source: &str,
+    layout: &bloq_interop::Layout,
+    program: &bloq_ir::Bloq,
+    report: &bloq_vm::verify::VerifyReport,
+) {
+    let Some(root) = std::env::var_os("BLOQ_INTEROP_EVIDENCE_DIR") else {
+        return;
+    };
+    let root = std::path::PathBuf::from(root);
+    std::fs::create_dir_all(&root).expect("create evidence root");
+    let directory = root.join(case);
+    std::fs::create_dir(&directory).expect("evidence directory must be new");
+    for (name, bytes) in [
+        ("source.qasm", source.as_bytes().to_vec()),
+        ("layout.blog", layout.graph.to_blog_text().into_bytes()),
+        ("program_d3.bloq", program.to_binary()),
+        ("execution.json", serde_json::to_vec_pretty(&serde_json::json!({
+            "case": case, "verification": "sampled exact normalized Choi channel",
+            "distance": 3, "t_preparation": "ideal_t_proxy", "grid_columns": layout.grid.map(|g| g.columns),
+            "shots": report.shots, "seed": 0x1A7E,
+            "discarded": report.discarded, "execution_verified": true,
+            "all_detectors_constant": report.all_detectors_constant(),
+            "input_ports": layout.input_ports.iter().map(glam::IVec3::to_array).collect::<Vec<_>>(),
+            "output_ports": layout.output_ports.iter().map(glam::IVec3::to_array).collect::<Vec<_>>(),
+        })).expect("serialize execution evidence")),
+    ] {
+        std::fs::write(directory.join(name), bytes).expect("save exact executed artifacts");
+    }
+}
+
 #[rstest]
 #[case::signed_phase(1, "t q[0]; h q[0]; tdg q[0]; h q[0]; s q[0];")]
 // Inward T placement reuses a data column between rotations in this channel.
@@ -60,35 +92,98 @@ fn native_channels(
         Ok(())
     });
     let report = channel.run(&compiled.bloq, 8, 0x1A7E, |_, _| Ok(()));
-    if let Some(root) = std::env::var_os("BLOQ_INTEROP_EVIDENCE_DIR") {
-        let root = std::path::PathBuf::from(root);
-        std::fs::create_dir_all(&root).expect("create evidence root");
-        let directory = root.join(format!(
+    save_evidence(
+        &format!(
             "{strategy:?}-q{qubits}{}",
             if grid.columns == 0 {
                 "-auto-grid"
             } else {
                 "-grid2"
             }
-        ));
-        std::fs::create_dir(&directory).expect("evidence directory must be new");
-        for (name, bytes) in [
-            ("source.qasm", source.into_bytes()),
-            ("layout.blog", layout.graph.to_blog_text().into_bytes()),
-            ("program_d3.bloq", compiled.bloq.to_binary()),
-            ("execution.json", serde_json::to_vec_pretty(&serde_json::json!({
-                "verification": "sampled exact normalized Choi channel",
-                "distance": 3, "t_preparation": "ideal_t_proxy", "grid_columns": layout.grid.map(|g| g.columns),
-                "shots": report.shots, "seed": 0x1A7E,
-                "discarded": report.discarded, "execution_verified": true,
-                "all_detectors_constant": report.all_detectors_constant(),
-                "input_ports": layout.input_ports.iter().map(glam::IVec3::to_array).collect::<Vec<_>>(),
-                "output_ports": layout.output_ports.iter().map(glam::IVec3::to_array).collect::<Vec<_>>(),
-            })).expect("serialize execution evidence")),
-        ] {
-            std::fs::write(directory.join(name), bytes).expect("save exact executed artifacts");
+        ),
+        &source,
+        &layout,
+        &compiled.bloq,
+        &report,
+    );
+}
+
+#[rstest]
+fn mqt_grover3_preserves_the_algorithm_channel(
+    #[values(Strategy::TopoLs, Strategy::SpiderLs)] strategy: Strategy,
+) {
+    // Exact MQT Bench 2.3.0 Grover3 lowering; the oracle below uses CCZ directly.
+    let source = r#"OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[3];
+h q[0];
+h q[1];
+x q[2];
+cx q[0],q[2];
+tdg q[2];
+cx q[1],q[2];
+t q[2];
+cx q[0],q[2];
+tdg q[2];
+cx q[1],q[2];
+t q[1];
+cx q[0],q[1];
+tdg q[1];
+cx q[0],q[1];
+t q[0];
+h q[0];
+x q[0];
+h q[1];
+x q[1];
+h q[1];
+cx q[0],q[1];
+x q[0];
+h q[0];
+h q[1];
+x q[1];
+h q[1];
+t q[2];
+"#;
+    let layout = layout_qasm(
+        source,
+        &LayoutOptions {
+            strategy,
+            grid: Some(GridOptions {
+                columns: 2,
+                ..Default::default()
+            }),
+            measurement_batch_size: Some(3),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let compiled = layout
+        .compile(CompileConfig::new(3).with_prepare_t_with_mpps(true))
+        .unwrap();
+    let channel = ExactChoi::new(&layout.input_ports, &layout.output_ports, |sim| {
+        sim.h(0);
+        sim.h(1);
+        sim.x(2);
+        sim.ccz(0, 1, 2)?;
+        for q in [0, 1] {
+            sim.h(q);
+            sim.x(q);
         }
-    }
+        sim.cz(0, 1)?;
+        for q in [0, 1] {
+            sim.x(q);
+            sim.h(q);
+        }
+        Ok(())
+    });
+    let report = channel.run(&compiled.bloq, 8, 0x1A7E, |_, _| Ok(()));
+    save_evidence(
+        &format!("{strategy:?}-grover3-grid2"),
+        source,
+        &layout,
+        &compiled.bloq,
+        &report,
+    );
 }
 
 #[rstest]
