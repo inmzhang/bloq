@@ -207,34 +207,20 @@ fn plan(
 ) -> Result<Plan, String> {
     let graph = prepare(graph, fusion, block_rows)?;
     let interface = interface(&graph)?;
-    let inputs: BTreeMap<_, _> = interface
-        .inputs
-        .iter()
-        .map(|&(i, v, h)| (v, (i, h)))
-        .collect();
     let mut vertices: Vec<_> = graph
         .vertices()
         .filter(|&v| graph.vertex_type(v) == VType::Z)
         .collect();
     vertices.sort_by(|&a, &b| vertex_order(&graph, a, b));
-    let remaining: BTreeMap<_, BTreeSet<_>> = vertices
-        .iter()
-        .map(|&v| {
-            (
-                v,
-                graph
-                    .neighbors(v)
-                    .filter(|&u| graph.vertex_type(u) == VType::Z)
-                    .collect(),
-            )
-        })
-        .collect();
-    let mut layers: BTreeMap<V, usize> = inputs.keys().map(|&v| (v, 0)).collect();
-    let mut queue: VecDeque<_> = inputs.keys().copied().collect();
+    let mut layers: BTreeMap<V, usize> = interface.inputs.iter().map(|&(_, v, _)| (v, 0)).collect();
+    let mut queue: VecDeque<_> = layers.keys().copied().collect();
     loop {
         while let Some(v) = queue.pop_front() {
             let next_layer = layers[&v] + 1;
-            for &u in &remaining[&v] {
+            for u in graph
+                .neighbors(v)
+                .filter(|&u| graph.vertex_type(u) == VType::Z)
+            {
                 if let std::collections::btree_map::Entry::Vacant(entry) = layers.entry(u) {
                     entry.insert(next_layer);
                     queue.push_back(u);

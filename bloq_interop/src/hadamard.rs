@@ -163,46 +163,27 @@ pub(crate) fn optimize(graph: BlockGraph) -> Result<BlockGraph, String> {
         }
     }
 
-    let identity = (0..blocks.len())
-        .map(|node| {
-            !fixed[node]
-                && incident[node].len() == 2
-                && incident[node]
-                    .iter()
-                    .all(|&index| !edges[index].pipe.dir().is_spatial())
-                && incident[node]
-                    .iter()
-                    .any(|&index| blocks[edges[index].other(node)].pos().z < blocks[node].pos().z)
-                && incident[node]
-                    .iter()
-                    .any(|&index| blocks[edges[index].other(node)].pos().z > blocks[node].pos().z)
-        })
-        .collect::<Vec<_>>();
-    for start in 0..blocks.len() {
-        if !identity[start] {
-            continue;
-        }
-        let incoming = *incident[start]
-            .iter()
-            .find(|&&index| blocks[edges[index].other(start)].pos().z < blocks[start].pos().z)
-            .expect("identity has an incoming pipe");
-        let mut previous = edges[incoming].other(start);
-        if identity[previous] {
-            continue;
-        }
-        let mut node = start;
-        let mut edge = incoming;
-        while identity[node] {
-            // Collect the chain's H parity at its last edge; storage time stays intact.
-            flips[node] = edges[edge].pipe.is_hadamard() ^ flips[previous];
-            let outgoing = *incident[node]
+    // Position order visits each temporal predecessor first, collecting H parity at the last edge.
+    for node in 0..blocks.len() {
+        if fixed[node]
+            || incident[node].len() != 2
+            || incident[node]
                 .iter()
-                .find(|&&index| index != edge)
-                .expect("identity has an outgoing pipe");
-            previous = node;
-            node = edges[outgoing].other(node);
-            edge = outgoing;
+                .any(|&index| edges[index].pipe.dir().is_spatial())
+            || !incident[node]
+                .iter()
+                .any(|&index| blocks[edges[index].other(node)].pos().z > blocks[node].pos().z)
+        {
+            continue;
         }
+        let Some(&incoming) = incident[node]
+            .iter()
+            .find(|&&index| blocks[edges[index].other(node)].pos().z < blocks[node].pos().z)
+        else {
+            continue;
+        };
+        let edge = &edges[incoming];
+        flips[node] = edge.pipe.is_hadamard() ^ flips[edge.other(node)];
     }
 
     let mut optimized = BlockGraph::new();

@@ -1,7 +1,7 @@
 use bloq_ir::{Bloq, BloqEdge, BloqNode};
 use smallvec::SmallVec;
 use std::collections::{BTreeMap, hash_map::Entry};
-use std::sync::Arc;
+use std::rc::Rc;
 
 use super::qubit_layout::{QubitRun, template_qubit_runs};
 
@@ -121,8 +121,8 @@ type GuardedPlacement = (bloq_ir::TemplateId, glam::IVec2, Option<bloq_ir::Value
 
 #[derive(Default)]
 struct LiveSupportCache {
-    nodes: crate::FxMap<bloq_ir::BloqNodeId, Arc<LiveQubitUses>>,
-    placements: crate::FxMap<Vec<GuardedPlacement>, Arc<LiveQubitUses>>,
+    nodes: crate::FxMap<bloq_ir::BloqNodeId, Rc<LiveQubitUses>>,
+    placements: crate::FxMap<Vec<GuardedPlacement>, Rc<LiveQubitUses>>,
 }
 
 struct EraNeighbors {
@@ -183,29 +183,30 @@ fn cache_live_uses(
     id: bloq_ir::BloqNodeId,
 ) -> Result<(), crate::CompileError> {
     if let Entry::Vacant(entry) = supports.nodes.entry(id) {
-        let support = if let Some(quantum) = bloq[id].try_quantum() {
-            let guards = instance_guards(bloq.top(), id);
-            let key = quantum
-                .instances
-                .iter()
-                .map(|instance| {
-                    (
-                        instance.template_id,
-                        instance.offset,
-                        guards.get(&instance.id).copied(),
-                    )
-                })
-                .collect::<Vec<_>>();
-            // Time and instance IDs do not change a quantum node's physical support.
-            match supports.placements.entry(key) {
-                Entry::Occupied(entry) => Arc::clone(entry.get()),
-                Entry::Vacant(entry) => Arc::clone(entry.insert(Arc::new(
-                    live_qubit_uses_in_level(bloq, bloq.top(), id, id)?,
-                ))),
-            }
-        } else {
-            Arc::new(live_qubit_uses_in_level(bloq, bloq.top(), id, id)?)
-        };
+        let support =
+            if let Some(quantum) = bloq[id].try_quantum() {
+                let guards = instance_guards(bloq.top(), id);
+                let key = quantum
+                    .instances
+                    .iter()
+                    .map(|instance| {
+                        (
+                            instance.template_id,
+                            instance.offset,
+                            guards.get(&instance.id).copied(),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                // Time and instance IDs do not change a quantum node's physical support.
+                match supports.placements.entry(key) {
+                    Entry::Occupied(entry) => Rc::clone(entry.get()),
+                    Entry::Vacant(entry) => Rc::clone(
+                        entry.insert(Rc::new(live_qubit_uses_in_level(bloq, bloq.top(), id, id)?)),
+                    ),
+                }
+            } else {
+                Rc::new(live_qubit_uses_in_level(bloq, bloq.top(), id, id)?)
+            };
         entry.insert(support);
     }
     Ok(())
@@ -393,7 +394,7 @@ fn guarded_era_boundary(
             {
                 continue;
             }
-            if predicates
+            if !predicates
                 .coexist_without(&required, &continuing)
                 .map_err(
                     |source| bloq_ir::BloqValidationError::InvalidInstanceMergeStructure {
@@ -402,36 +403,37 @@ fn guarded_era_boundary(
                     },
                 )?
             {
-                if !require_live {
+                continue;
+            }
+            if !require_live {
+                return Ok(true);
+            }
+            for guard in [
+                &left_support.inputs,
+                &left_support.outputs,
+                &right_support.inputs,
+                &right_support.outputs,
+            ]
+            .into_iter()
+            .filter_map(|face| face.get(&qubit))
+            .flatten()
+            {
+                let Some(guard) = guard else {
                     return Ok(true);
-                }
-                for guard in [
-                    &left_support.inputs,
-                    &left_support.outputs,
-                    &right_support.inputs,
-                    &right_support.outputs,
-                ]
-                .into_iter()
-                .filter_map(|face| face.get(&qubit))
-                .flatten()
-                {
-                    let Some(guard) = guard else {
-                        return Ok(true);
-                    };
-                    required.push(*guard);
-                    let live =
-                        predicates
-                            .coexist_without(&required, &continuing)
-                            .map_err(|source| {
-                                bloq_ir::BloqValidationError::InvalidInstanceMergeStructure {
-                                    node: left,
-                                    source,
-                                }
-                            })?;
-                    required.pop();
-                    if live {
-                        return Ok(true);
-                    }
+                };
+                required.push(*guard);
+                let live =
+                    predicates
+                        .coexist_without(&required, &continuing)
+                        .map_err(|source| {
+                            bloq_ir::BloqValidationError::InvalidInstanceMergeStructure {
+                                node: left,
+                                source,
+                            }
+                        })?;
+                required.pop();
+                if live {
+                    return Ok(true);
                 }
             }
         }

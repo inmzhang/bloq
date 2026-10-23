@@ -156,10 +156,6 @@ the same CPU, memory, and timeout limits for both implementations. Column and
 footprint comparisons must consistently include extended blocks' reserved cells;
 `anchor_columns` separately supports comparisons with older anchor-only reports.
 
-Migration: the unreleased `LayoutTradeoff` enum, `LayoutOptions.tradeoff`, and
-`--objective` CLI flag have been removed. Set numerical budgets and grid dimensions
-directly. Omitted grid settings now use automatic 2D placement rather than a row.
-
 ## Local API documentation
 
 From a Cargo project that depends on `bloq`, build its enabled API with:

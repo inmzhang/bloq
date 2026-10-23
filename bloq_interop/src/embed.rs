@@ -88,10 +88,11 @@ impl Builder {
     }
 
     fn port(&mut self, pos: IVec3, role: PortRole) -> Result<(), String> {
-        self.block(Block::new(pos, BlockKind::Port))?;
-        self.graph
-            .set_port_role(pos, role)
-            .map_err(|e| e.to_string())
+        self.block(
+            Block::new(pos, BlockKind::Port)
+                .with_port_role(role)
+                .map_err(|e| e.to_string())?,
+        )
     }
 
     fn patch(&self, id: usize) -> Result<Patch, String> {

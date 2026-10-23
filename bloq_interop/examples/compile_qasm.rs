@@ -36,6 +36,7 @@ fn options(args: &[String]) -> Result<(LayoutOptions, u32), Box<dyn Error>> {
         extra_patches: positional_extra.unwrap_or(0),
         ..Default::default()
     };
+    let grid = options.grid.get_or_insert_default();
     let mut seen = BTreeSet::new();
     let (pairs, remainder) = rest.as_chunks::<2>();
     for pair in pairs {
@@ -50,30 +51,10 @@ fn options(args: &[String]) -> Result<(LayoutOptions, u32), Box<dyn Error>> {
                 }
                 options.extra_patches = value.parse()?;
             }
-            "--columns" => {
-                options
-                    .grid
-                    .get_or_insert_with(GridOptions::default)
-                    .columns = value.parse()?
-            }
-            "--spacing" => {
-                options
-                    .grid
-                    .get_or_insert_with(GridOptions::default)
-                    .spacing = value.parse()?
-            }
-            "--routing-margin" => {
-                options
-                    .grid
-                    .get_or_insert_with(GridOptions::default)
-                    .routing_margin = value.parse()?
-            }
-            "--route-expansions" => {
-                options
-                    .grid
-                    .get_or_insert_with(GridOptions::default)
-                    .max_route_expansions = value.parse()?
-            }
+            "--columns" => grid.columns = value.parse()?,
+            "--spacing" => grid.spacing = value.parse()?,
+            "--routing-margin" => grid.routing_margin = value.parse()?,
+            "--route-expansions" => grid.max_route_expansions = value.parse()?,
             "--batch" => options.measurement_batch_size = Some(value.parse()?),
             "--max-time" => options.max_temporal_extent = Some(value.parse()?),
             "--max-blocks" => options.max_blocks = value.parse()?,
@@ -112,12 +93,14 @@ fn options(args: &[String]) -> Result<(LayoutOptions, u32), Box<dyn Error>> {
 }
 
 fn grid_json(grid: Option<GridOptions>) -> serde_json::Value {
-    json!(grid.map(|g| json!({
-        "columns": g.columns,
-        "spacing": g.spacing,
-        "routing_margin": g.routing_margin,
-        "max_route_expansions": g.max_route_expansions,
-    })))
+    grid.map_or(serde_json::Value::Null, |g| {
+        json!({
+            "columns": g.columns,
+            "spacing": g.spacing,
+            "routing_margin": g.routing_margin,
+            "max_route_expansions": g.max_route_expansions,
+        })
+    })
 }
 
 fn main() -> Result<(), Box<dyn Error>> {

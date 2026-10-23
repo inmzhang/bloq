@@ -48,15 +48,12 @@ fn native_channels(
     #[case] qubits: usize,
     #[case] gates: &str,
     #[values(Strategy::TopoLs, Strategy::SpiderLs)] strategy: Strategy,
-    #[values(GridOptions::default(), GridOptions { columns: 2, ..GridOptions::default() })]
-    grid: GridOptions,
 ) {
     let source = format!("OPENQASM 2.0; include \"qelib1.inc\"; qreg q[{qubits}]; {gates}");
     let layout = layout_qasm(
         &source,
         &LayoutOptions {
             strategy,
-            grid: Some(grid),
             ..Default::default()
         },
     )
@@ -105,14 +102,7 @@ fn native_channels(
     });
     let report = channel.run(&compiled.bloq, 8, 0x1A7E, |_, _| Ok(()));
     save_evidence(
-        &format!(
-            "{strategy:?}-q{qubits}{}",
-            if grid.columns == 0 {
-                "-auto-grid"
-            } else {
-                "-grid2"
-            }
-        ),
+        &format!("{strategy:?}-q{qubits}-auto-grid"),
         &source,
         &layout,
         &compiled.bloq,

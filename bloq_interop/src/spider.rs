@@ -213,7 +213,6 @@ struct Frontier<'a> {
     live: BTreeMap<V, usize>,
     measured: BTreeSet<V>,
     free: BTreeSet<usize>,
-    allocated: usize,
     plan: Plan,
 }
 
@@ -226,12 +225,11 @@ impl Frontier<'_> {
             return Err("flow targets a released spider".into());
         }
         let patch = self.free.pop_first().unwrap_or_else(|| {
-            let patch = self.allocated;
-            self.allocated += 1;
+            let patch = self.plan.peak_patches;
+            self.plan.peak_patches += 1;
             patch
         });
         self.live.insert(vertex, patch);
-        self.plan.peak_patches = self.plan.peak_patches.max(self.live.len());
         self.plan.instructions.push(Instruction::Prepare {
             patch,
             vertex,
@@ -370,7 +368,6 @@ pub(crate) fn causal_plan(
         live: BTreeMap::new(),
         measured: BTreeSet::new(),
         free: BTreeSet::new(),
-        allocated: 0,
         plan: Plan {
             direct_wires: interface.direct_wires,
             ..Plan::default()
