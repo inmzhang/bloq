@@ -374,11 +374,7 @@ impl Builder {
             Ok((z, last.is_none()))
         };
         let mut cost = availability(direction)?;
-        // shortcut: keep vacated data tracks free until moving-patch reuse is ordered.
-        if t && self.grid.is_some()
-            && self.t_placement == TPlacement::Available
-            && (!patch.rotated || patch.end.y == self.home(patch.slot)?.y)
-        {
+        if t && self.grid.is_some() && self.t_placement == TPlacement::Available {
             let opposite = availability(direction.negate())?;
             if opposite < cost {
                 direction = direction.negate();
