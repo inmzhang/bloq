@@ -386,6 +386,13 @@ fn guarded_era_boundary(
                 .chain(right_guard)
                 .copied()
                 .collect::<Vec<_>>();
+            // A required continuation rules out an era boundary without lowering its guards.
+            if continuing
+                .iter()
+                .any(|clause| clause.iter().all(|guard| required.contains(guard)))
+            {
+                continue;
+            }
             if predicates
                 .coexist_without(&required, &continuing)
                 .map_err(
@@ -432,11 +439,45 @@ fn guarded_era_boundary(
     Ok(false)
 }
 
-/// Source-z reversal may reorder complete eras. It cannot put another use
-/// inside a live era: retained boundary-flow support must survive along its
-/// temporal seams until consumed. Resettable syndrome ancillas impose no
-/// storage constraint when they do not occur on these faces.
-fn plan_live_era_reordering(
+struct EraFrontier {
+    node: bloq_ir::BloqNodeId,
+    qubit: glam::IVec2,
+    required: Vec<bloq_ir::ValueRef>,
+    excluded: Vec<Vec<bloq_ir::ValueRef>>,
+}
+
+#[derive(Default)]
+struct EraPlan {
+    edges: crate::FxSet<(bloq_ir::BloqNodeId, bloq_ir::BloqNodeId)>,
+    frontiers: Vec<EraFrontier>,
+}
+
+enum EraReversal {
+    Feasible(Vec<(bloq_ir::BloqNodeId, bloq_ir::BloqNodeId)>),
+    Cyclic,
+}
+
+fn frontier_domain(
+    bloq: &Bloq,
+    node: bloq_ir::BloqNodeId,
+    required: &[bloq_ir::ValueRef],
+    excluded: &[Vec<bloq_ir::ValueRef>],
+) -> Result<bool, crate::CompileError> {
+    if excluded
+        .iter()
+        .any(|clause| clause.iter().all(|guard| required.contains(guard)))
+    {
+        return Ok(false);
+    }
+    Ok(bloq_ir::lowering::PredicateAnalysis::new(bloq.top())
+        .coexist_without(required, excluded)
+        .map_err(
+            |source| bloq_ir::BloqValidationError::InvalidInstanceMergeStructure { node, source },
+        )?)
+}
+
+/// Follow one side of a live era, retaining the guards under which its outer boundary ends.
+fn walk_live_era(
     bloq: &Bloq,
     endpoint: bloq_ir::BloqNodeId,
     reuser: bloq_ir::BloqNodeId,
@@ -444,7 +485,7 @@ fn plan_live_era_reordering(
     direction: LiveDirection,
     supports: &mut LiveSupportCache,
     scratch: &mut bloq_ir::PathScratch,
-) -> Result<Vec<(bloq_ir::BloqNodeId, bloq_ir::BloqNodeId)>, crate::CompileError> {
+) -> Result<EraPlan, crate::CompileError> {
     use bloq_utils::boolean::BooleanDecisionDiagram;
 
     for id in [endpoint, reuser] {
@@ -458,13 +499,22 @@ fn plan_live_era_reordering(
         .collect::<Vec<_>>();
     qubits.sort_unstable_by_key(glam::IVec2::to_array);
     let mut work = BooleanDecisionDiagram::default();
-    let mut ordering = crate::FxSet::default();
-    // The graph stays fixed while planning an era, including across qubits and guards.
+    let mut plan = EraPlan::default();
     let mut paths = crate::FxMap::default();
     let mut has_path = |from, to| {
         *paths
             .entry((from, to))
             .or_insert_with(|| bloq.has_path_backwards_with_scratch(from, to, scratch))
+    };
+    let coexist = |guards: &[bloq_ir::ValueRef]| {
+        bloq.top()
+            .predicates_can_coexist_values(guards)
+            .map_err(
+                |source| bloq_ir::BloqValidationError::InvalidInstanceMergeStructure {
+                    node: endpoint,
+                    source,
+                },
+            )
     };
     for qubit in qubits {
         let mut pending = Vec::new();
@@ -481,64 +531,136 @@ fn plan_live_era_reordering(
             work.charge(guards.len().saturating_add(1))?;
             guards.sort_unstable();
             guards.dedup();
-            if !visited.insert((current, guards.clone())) {
+            if !visited.insert((current, guards.clone())) || !coexist(&guards)? {
                 continue;
             }
-            let coexist = |guards: &[bloq_ir::ValueRef]| {
-                bloq.top()
-                    .predicates_can_coexist_values(guards)
-                    .map_err(
-                        |source| bloq_ir::BloqValidationError::InvalidInstanceMergeStructure {
-                            node: endpoint,
-                            source,
-                        },
-                    )
-            };
-            if !coexist(&guards)? {
-                continue;
-            }
+            let mut continuing = Vec::new();
+            let entries = direction
+                .entry(&supports.nodes[&current])
+                .get(&qubit)
+                .cloned()
+                .unwrap_or_default();
             for &next in neighbors.get(&current).into_iter().flatten() {
                 cache_live_uses(bloq, supports, next)?;
                 let Some(outputs) = direction.exit(&supports.nodes[&next]).get(&qubit) else {
                     continue;
                 };
-                for output in outputs {
-                    let mut path_guards = guards.clone();
-                    path_guards.extend(output);
-                    work.charge(path_guards.len().saturating_add(1))?;
-                    if !coexist(&path_guards)? {
-                        continue;
-                    }
-                    if next == reuser {
-                        continue;
-                    }
-                    let (from, to) = direction.orient(next, reuser);
-                    if has_path(to, from) {
-                        let (producer, consumer) = direction.orient(endpoint, next);
-                        return Err(crate::CompileError::LiveQubitReuse {
-                            producer,
-                            consumer,
-                            reuser,
-                            qubit,
-                        });
-                    }
-                    if !has_path(from, to) {
-                        ordering.insert((from, to));
-                    }
-                    if let Some(inputs) = direction.entry(&supports.nodes[&next]).get(&qubit) {
-                        for input in inputs {
-                            let mut guards = path_guards.clone();
-                            guards.extend(input);
-                            pending.push((next, guards));
+                for input in &entries {
+                    for output in outputs {
+                        let clause = input.iter().chain(output).copied().collect::<Vec<_>>();
+                        let mut path_guards = guards.clone();
+                        path_guards.extend(&clause);
+                        work.charge(path_guards.len().saturating_add(1))?;
+                        // Reaching the opposite endpoint continues this same era, not a frontier.
+                        continuing.push(clause);
+                        if !coexist(&path_guards)? || next == reuser {
+                            continue;
                         }
+                        let (from, to) = direction.orient(next, reuser);
+                        if has_path(to, from) {
+                            let (producer, consumer) = direction.orient(endpoint, next);
+                            return Err(crate::CompileError::LiveQubitReuse {
+                                producer,
+                                consumer,
+                                reuser,
+                                qubit,
+                            });
+                        }
+                        if !has_path(from, to) {
+                            plan.edges.insert((from, to));
+                        }
+                        pending.push((next, path_guards));
                     }
                 }
             }
+            if frontier_domain(bloq, endpoint, &guards, &continuing)? {
+                plan.frontiers.push(EraFrontier {
+                    node: current,
+                    qubit,
+                    required: guards,
+                    excluded: continuing,
+                });
+            }
         }
     }
-    let mut ordering = ordering.into_iter().collect::<Vec<_>>();
-    ordering.sort_unstable();
-    Ok(ordering)
+    Ok(plan)
+}
+
+/// Reverse complete eras atomically: the new terminal frontier must precede the old initial one.
+fn plan_live_era_reordering(
+    bloq: &Bloq,
+    from: bloq_ir::BloqNodeId,
+    to: bloq_ir::BloqNodeId,
+    neighbors: &EraNeighbors,
+    supports: &mut LiveSupportCache,
+    scratch: &mut bloq_ir::PathScratch,
+) -> Result<EraReversal, crate::CompileError> {
+    let mut before = walk_live_era(
+        bloq,
+        from,
+        to,
+        &neighbors.predecessors,
+        LiveDirection::BeforeInputs,
+        supports,
+        scratch,
+    )?;
+    let after = walk_live_era(
+        bloq,
+        to,
+        from,
+        &neighbors.successors,
+        LiveDirection::AfterOutputs,
+        supports,
+        scratch,
+    )?;
+    before.edges.extend(after.edges);
+    let mut terminals: crate::FxMap<_, Vec<_>> = crate::FxMap::default();
+    for terminal in &after.frontiers {
+        terminals.entry(terminal.qubit).or_default().push(terminal);
+    }
+    let mut work = bloq_utils::boolean::BooleanDecisionDiagram::default();
+    for initial in &before.frontiers {
+        for terminal in terminals.get(&initial.qubit).into_iter().flatten() {
+            work.charge(1)?;
+            if initial.node == terminal.node {
+                continue;
+            }
+            let required = initial
+                .required
+                .iter()
+                .chain(&terminal.required)
+                .copied()
+                .collect::<Vec<_>>();
+            let excluded = initial
+                .excluded
+                .iter()
+                .chain(&terminal.excluded)
+                .cloned()
+                .collect::<Vec<_>>();
+            work.charge(required.len().saturating_add(excluded.len()))?;
+            if !frontier_domain(bloq, from, &required, &excluded)? {
+                continue;
+            }
+            if bloq.has_path_backwards_with_scratch(initial.node, terminal.node, scratch) {
+                return Err(crate::CompileError::LiveQubitReuse {
+                    producer: to,
+                    consumer: terminal.node,
+                    reuser: initial.node,
+                    qubit: initial.qubit,
+                });
+            }
+            if !bloq.has_path_backwards_with_scratch(terminal.node, initial.node, scratch) {
+                before.edges.insert((terminal.node, initial.node));
+            }
+        }
+    }
+    let mut edges = before.edges.into_iter().collect::<Vec<_>>();
+    edges.sort_unstable();
+    Ok(if edges.is_empty() || bloq.is_acyclic_with_edges(&edges) {
+        EraReversal::Feasible(edges)
+    } else {
+        EraReversal::Cyclic
+    })
 }
 
 /// Induce occupancy `Order` edges between physical-qubit eras: a terminating
@@ -952,6 +1074,7 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
         || bloq.is_acyclic_with_edges(&candidate_pairs);
     // Reset-only overlaps are preferences; settle data-bearing boundaries first.
     let mut pairs = Vec::with_capacity(candidate_pairs.len());
+    let mut scratch = bloq.path_scratch();
     for (from, to) in candidate_pairs {
         let live = !batch_acyclic
             && (bloq[from].try_region().is_some() || bloq[to].try_region().is_some() || {
@@ -994,14 +1117,31 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
                 live
             });
         let forward = rank[from.0 as usize] < rank[to.0 as usize];
-        pairs.push((!live, !forward, from, to));
+        // Prove required orientations before committing unrelated source-time preferences.
+        let reversal_blocked = if live && !forward {
+            match plan_live_era_reordering(
+                bloq,
+                from,
+                to,
+                &neighbors,
+                &mut live_supports,
+                &mut scratch,
+            ) {
+                Ok(EraReversal::Feasible(_)) => false,
+                Ok(EraReversal::Cyclic) | Err(crate::CompileError::LiveQubitReuse { .. }) => true,
+                Err(error) => return Err(error),
+            }
+        } else {
+            false
+        };
+        pairs.push((!live, !reversal_blocked, !forward, from, to));
     }
-    pairs
-        .sort_unstable_by_key(|&(optional, backward, from, to)| (optional, backward, from.0, to.0));
+    pairs.sort_unstable_by_key(|&(optional, reversible, backward, from, to)| {
+        (optional, reversible, backward, from.0, to.0)
+    });
     // Forward edges cannot close a cycle until a backward edge is inserted.
     let mut ranked = true;
-    let mut scratch = bloq.path_scratch();
-    for (_, backward, from, to) in pairs {
+    for (_, _, backward, from, to) in pairs {
         if has_edge(bloq, from, to) {
             continue;
         }
@@ -1013,26 +1153,18 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
             ranked &= !backward;
         } else {
             ranked = false;
-            for (from, to) in plan_live_era_reordering(
+            let EraReversal::Feasible(edges) = plan_live_era_reordering(
                 bloq,
                 from,
                 to,
-                &neighbors.predecessors,
-                LiveDirection::BeforeInputs,
+                &neighbors,
                 &mut live_supports,
                 &mut scratch,
-            )? {
-                bloq.add_edge(from, to, BloqEdge::Order);
-            }
-            for (before, after) in plan_live_era_reordering(
-                bloq,
-                to,
-                from,
-                &neighbors.successors,
-                LiveDirection::AfterOutputs,
-                &mut live_supports,
-                &mut scratch,
-            )? {
+            )?
+            else {
+                return Err(bloq_ir::BloqValidationError::CyclicGraph.into());
+            };
+            for (before, after) in edges {
                 bloq.add_edge(before, after, BloqEdge::Order);
             }
         }
@@ -1144,6 +1276,113 @@ mod tests {
         }));
         bloq.add_edge(bit, inverse, BloqEdge::value(0));
         (bit, inverse)
+    }
+
+    #[test]
+    fn reversing_source_time_does_not_split_a_continuous_live_era() {
+        let mut bloq = Bloq::new();
+        let source = add_live_node(&mut bloq, 4, false, true);
+        let first = add_live_node(&mut bloq, 5, true, true);
+        let second = add_live_node(&mut bloq, 6, true, true);
+        let cap = add_live_node(&mut bloq, 0, true, false);
+        for (from, to) in [(source, first), (first, second), (second, cap)] {
+            bloq.add_edge(from, to, BloqEdge::quantum(vec![]));
+        }
+        induce_occupancy_order_edges(&mut bloq).unwrap();
+        assert_eq!(
+            bloq.deterministic_emit_order().unwrap(),
+            vec![source, first, second, cap]
+        );
+    }
+
+    #[test]
+    fn reversing_two_live_eras_orders_the_new_cap_before_the_old_source() {
+        let mut bloq = Bloq::new();
+        let old_source = add_live_node(&mut bloq, 0, false, true);
+        let old_cap = add_live_node(&mut bloq, 1, true, false);
+        let new_source = add_live_node(&mut bloq, 2, false, true);
+        let new_cap = add_live_node(&mut bloq, 3, true, false);
+        bloq.add_edge(old_source, old_cap, BloqEdge::quantum(vec![]));
+        bloq.add_edge(new_source, new_cap, BloqEdge::quantum(vec![]));
+        bloq.add_edge(new_source, old_cap, BloqEdge::Order);
+        induce_occupancy_order_edges(&mut bloq).unwrap();
+        assert_eq!(
+            bloq.deterministic_emit_order().unwrap(),
+            vec![new_source, new_cap, old_source, old_cap]
+        );
+    }
+
+    #[test]
+    fn original_feedback_orders_live_eras_before_unconstrained_forward_boundaries() {
+        let mut bloq = Bloq::new();
+        // Node order puts the independent x -> y boundary before b -> p.
+        let p = add_live_node(&mut bloq, 2, false, true);
+        let a = add_live_node(&mut bloq, 0, false, true);
+        let d = add_live_node(&mut bloq, 0, false, true);
+        let x = add_live_node(&mut bloq, 1, true, false);
+        let y = add_live_node(&mut bloq, 2, false, true);
+        let z = add_live_node(&mut bloq, 3, true, false);
+        let b = add_live_node(&mut bloq, 1, true, false);
+        let c = add_live_node(&mut bloq, 3, true, false);
+        for id in [d, x, y, z] {
+            let node = bloq.node_mut(id).unwrap();
+            node.expect_quantum_mut().instances[0].offset = ivec2(10, 0);
+            if let bloq_ir::NodeProvenance::BlockComponent { members } = &mut node.provenance {
+                members[0].pos.x = 5;
+            }
+        }
+        for (from, to) in [(a, b), (p, c), (d, x), (y, z)] {
+            bloq.add_edge(from, to, BloqEdge::quantum(vec![]));
+        }
+        for (from, to) in [(p, x), (z, b), (b, c)] {
+            bloq.add_edge(from, to, BloqEdge::Order);
+        }
+        induce_occupancy_order_edges(&mut bloq).unwrap();
+        assert!(bloq.has_path(b, p));
+        assert!(bloq.has_path(z, d));
+        bloq.deterministic_emit_order().unwrap();
+    }
+
+    #[test]
+    fn continuing_live_wire_needs_no_boolean_work_to_exclude_an_era_boundary() {
+        for guarded in [false, true] {
+            let mut bloq = Bloq::new();
+            let left = add_live_node(&mut bloq, 0, true, false);
+            let source = add_live_node(&mut bloq, 1, false, true);
+            let right = add_live_node(&mut bloq, 2, true, false);
+            bloq.add_edge(source, right, BloqEdge::quantum(vec![]));
+            if guarded {
+                let (first, _) = opposite_selectors(&mut bloq);
+                let (second, _) = opposite_selectors(&mut bloq);
+                guard_member(&mut bloq, left, first);
+                guard_member(&mut bloq, right, second);
+            }
+            let neighbors = EraNeighbors {
+                predecessors: [(right, vec![source])].into_iter().collect(),
+                successors: [(left, vec![])].into_iter().collect(),
+            };
+            for require_live in [false, true] {
+                let mut predicates = bloq_ir::lowering::PredicateAnalysis::with_limits(
+                    bloq.top(),
+                    bloq_utils::boolean::BooleanLimits {
+                        max_steps: 0,
+                        ..Default::default()
+                    },
+                );
+                assert!(
+                    !guarded_era_boundary(
+                        &bloq,
+                        [(left, false), (right, false)],
+                        ivec2(0, 0),
+                        require_live,
+                        &neighbors,
+                        &mut LiveSupportCache::default(),
+                        &mut predicates,
+                    )
+                    .unwrap()
+                );
+            }
+        }
     }
 
     #[test]
