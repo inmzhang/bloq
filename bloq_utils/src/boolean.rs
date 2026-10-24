@@ -2116,6 +2116,7 @@ impl BooleanRowSpace {
     fn candidates(
         &self,
         column: usize,
+        sparse: bool,
         diagram: &mut BooleanDecisionDiagram,
     ) -> Result<Vec<usize>, BooleanResourceError> {
         diagram.charge(1)?;
@@ -2123,7 +2124,13 @@ impl BooleanRowSpace {
             return Ok(Vec::new());
         };
         diagram.charge(indices.len())?;
-        Ok(self.row_ids_with_column(column).collect())
+        let mut candidates = indices.iter().copied().collect::<Vec<_>>();
+        if sparse {
+            self.sort_sparse_candidates(&mut candidates, diagram)?;
+        } else {
+            candidates.sort_unstable();
+        }
+        Ok(candidates)
     }
 
     fn remove_column_row(&mut self, column: usize, index: usize) {
@@ -2243,10 +2250,7 @@ impl BooleanRowSpace {
         if gate == DECISION_FALSE {
             return Ok(BooleanRow::new(DECISION_FALSE));
         }
-        let mut candidates = self.candidates(column, diagram)?;
-        if sparse {
-            self.sort_sparse_candidates(&mut candidates, diagram)?;
-        }
+        let candidates = self.candidates(column, sparse, diagram)?;
         let pivot = self.eliminate_candidates(candidates, diagram, |row, diagram| {
             diagram.apply(BooleanOp::And, gate, row.get(column))
         })?;
@@ -2377,7 +2381,7 @@ impl BooleanRowSpace {
         if pivot.active == DECISION_FALSE {
             return Ok(());
         }
-        for index in self.candidates(column, diagram)? {
+        for index in self.candidates(column, false, diagram)? {
             diagram.charge(1)?;
             let row = self.rows[index].as_ref().expect("indexed row exists");
             let factor = diagram.apply(BooleanOp::And, row.active, row.get(column))?;
@@ -2407,7 +2411,7 @@ impl BooleanRowSpace {
         let mut candidates = BTreeSet::new();
         for &(column, weight) in terms {
             if weight != DECISION_FALSE {
-                candidates.extend(self.candidates(column, diagram)?);
+                candidates.extend(self.candidates(column, false, diagram)?);
             }
         }
         for index in candidates {
