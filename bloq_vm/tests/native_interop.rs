@@ -13,6 +13,7 @@ fn save_evidence(
     layout: &bloq_interop::Layout,
     program: &bloq_ir::Bloq,
     report: &bloq_vm::verify::VerifyReport,
+    ideal_t: bool,
 ) {
     let Some(root) = std::env::var_os("BLOQ_INTEROP_EVIDENCE_DIR") else {
         return;
@@ -27,7 +28,7 @@ fn save_evidence(
         ("program_d3.bloq", program.to_binary()),
         ("execution.json", serde_json::to_vec_pretty(&serde_json::json!({
             "case": case, "verification": "sampled exact normalized Choi channel",
-            "distance": 3, "t_preparation": "ideal_t_proxy", "grid_columns": layout.grid.map(|g| g.columns),
+            "distance": 3, "t_preparation": if ideal_t { "ideal_t_proxy" } else { "cultivation" }, "grid_columns": layout.grid.map(|g| g.columns),
             "shots": report.shots, "seed": 0x1A7E,
             "discarded": report.discarded, "execution_verified": true,
             "all_detectors_constant": report.all_detectors_constant(),
@@ -37,6 +38,85 @@ fn save_evidence(
     ] {
         std::fs::write(directory.join(name), bytes).expect("save exact executed artifacts");
     }
+}
+
+#[rstest]
+#[case::t(false, false)]
+#[case::tdg(false, true)]
+#[case::ht(true, false)]
+fn native_single_t_phases(
+    #[case] hadamard: bool,
+    #[case] inverse: bool,
+    #[values(Strategy::TopoLs, Strategy::SpiderLs)] strategy: Strategy,
+) {
+    assert_single_t_phase(strategy, hadamard, inverse, true);
+}
+
+#[rstest]
+fn native_cultivation_gateway_phases(
+    #[values(false, true)] inverse: bool,
+    #[values(Strategy::TopoLs, Strategy::SpiderLs)] strategy: Strategy,
+) {
+    // The full factory's signed X/Y gateway and retry boundary are the subject.
+    assert_single_t_phase(strategy, false, inverse, false);
+}
+
+fn assert_single_t_phase(strategy: Strategy, hadamard: bool, inverse: bool, ideal_t: bool) {
+    let source = format!(
+        "OPENQASM 2.0; qreg q[1]; {} {} q[0];",
+        if hadamard { "h q[0];" } else { "" },
+        if inverse { "tdg" } else { "t" },
+    );
+    let layout = layout_qasm(
+        &source,
+        &LayoutOptions {
+            strategy,
+            ..Default::default()
+        },
+    )
+    .expect("single-T native layout is valid");
+    let cap = layout
+        .graph
+        .blocks()
+        .find(|block| matches!(block.kind(), bloq_graph::BlockKind::Selective(_)))
+        .expect("single-T layout has a selective cap")
+        .pos();
+    let selector = bloq_graph::selective_selector_name(cap);
+    let compiled = layout
+        .compile(CompileConfig::new(3).with_prepare_t_with_mpps(ideal_t))
+        .expect("single-T physical compilation passes the IR audit");
+    let channel = ExactChoi::new(&layout.input_ports, &layout.output_ports, |sim| {
+        if hadamard {
+            sim.h(0);
+        }
+        if inverse {
+            sim.t_dag(0)?;
+        } else {
+            sim.t(0)?;
+        }
+        Ok(())
+    });
+    let mut outcomes = [false; 2];
+    let report = channel.run(&compiled.bloq, 16, 0x1A7E, |_, context| {
+        let outcome = context
+            .named_branch_selectors
+            .iter()
+            .find(|(name, _)| *name == selector)
+            .expect("native selective outcome")
+            .1;
+        outcomes[usize::from(outcome)] = true;
+        Ok(())
+    });
+    assert_eq!(outcomes, [true, true]);
+    assert!(report.all_detectors_constant());
+    save_evidence(
+        &format!("{strategy:?}-single-t-h{hadamard}-inverse{inverse}-ideal{ideal_t}"),
+        &source,
+        &layout,
+        &compiled.bloq,
+        &report,
+        ideal_t,
+    );
 }
 
 #[rstest]
@@ -107,6 +187,7 @@ fn native_channels(
         &layout,
         &compiled.bloq,
         &report,
+        true,
     );
 }
 
@@ -186,6 +267,7 @@ t q[2];
         &layout,
         &compiled.bloq,
         &report,
+        true,
     );
 }
 
@@ -256,6 +338,7 @@ h q[1];
         &layout,
         &compiled.bloq,
         &report,
+        true,
     );
 }
 

@@ -9,6 +9,7 @@
 mod component_tests;
 #[cfg(test)]
 mod gauge_probe;
+mod native_gauges;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
@@ -18,6 +19,8 @@ use bloq_utils::boolean::{
     DECISION_TRUE as ONE, DecisionId, eliminate_boolean_rows, reduce_boolean_rows,
 };
 use glam::IVec3;
+
+use native_gauges::{ConstantReadoutBasis, NativeGauge};
 
 use super::guarded_readouts::{GuardedReadoutPlan, LocalArm, LocalTopology};
 use super::runtime_basis::authored_boundary_columns;
@@ -55,8 +58,7 @@ pub struct GuardedSurfaceSpace {
     limits: ModuleCertificationLimits,
     module_sites: BTreeMap<[i32; 3], usize>,
     next_readout_collection: usize,
-    #[cfg(test)]
-    reference_gauges: Option<Vec<gauge_probe::NativeGauge>>,
+    native_gauges: Option<Vec<NativeGauge>>,
     #[cfg(test)]
     audit_reference: bool,
     #[cfg(test)]
@@ -657,8 +659,7 @@ impl GuardedSurfaceSpace {
             limits: self.limits,
             module_sites: BTreeMap::new(),
             next_readout_collection: self.next_readout_collection,
-            #[cfg(test)]
-            reference_gauges: None,
+            native_gauges: None,
             #[cfg(test)]
             audit_reference: false,
             #[cfg(test)]
@@ -950,8 +951,7 @@ impl GuardedSurfaceSpace {
             limits,
             module_sites,
             next_readout_collection: next_readout_collection(0, limits.max_witness_nodes),
-            #[cfg(test)]
-            reference_gauges: None,
+            native_gauges: None,
             #[cfg(test)]
             audit_reference: false,
             #[cfg(test)]
@@ -964,12 +964,20 @@ impl GuardedSurfaceSpace {
     /// explicit folds; their physical member rows are never expanded again.
     /// Consumes the working relation before sharing decision ids with physical
     /// lowering. The result retains local incidence instead of full ZX graphs.
+    /// Certified fixed native T gadgets use a constant reference relation;
+    /// complete witnesses are lifted back before the signed physical queries.
     ///
     /// # Errors
     ///
     /// Returns an error if causal readout planning or resource accounting fails.
     pub fn plan_readouts(mut self) -> Result<GuardedReadoutPlan, BlockGraphError> {
+        self.native_gauges = self.certify_native_gauges()?;
+        #[cfg(test)]
+        {
+            self.incremental_reference = self.native_gauges.is_some();
+        }
         self.plan_causal_readouts::<true, true>()?;
+        self.lift_native_surfaces()?;
         self.into_readout_plan()
     }
 
@@ -1194,8 +1202,10 @@ impl GuardedSurfaceSpace {
         self.topology.diagram.charge(names.len())?;
         let mut unknown = names.iter().collect::<Vec<_>>();
         let mut incremental = RECLAIM;
+        let mut reference_basis: Option<ConstantReadoutBasis> = None;
+        let use_native = self.native_gauges.is_some();
         #[cfg(test)]
-        let mut reference_basis: Option<gauge_probe::ConstantReadoutBasis> = None;
+        let use_native = use_native && self.incremental_reference;
         while !unknown.is_empty() {
             crate::CancellationToken::checkpoint()?;
             if incremental && self.topology.diagram.nodes().len() > reclaim_limit {
@@ -1222,6 +1232,7 @@ impl GuardedSurfaceSpace {
                     available_rows = BooleanRowSpace::default();
                     readout_pivots = GuardedPivots::default();
                     incremental = false;
+                    reference_basis = None;
                 }
             }
             // Decision-id caches do not own roots across the collection boundary.
@@ -1388,7 +1399,6 @@ impl GuardedSurfaceSpace {
                     constraints.push((AvailabilityKey::Feedback(ordinal), terms));
                 }
             }
-            #[cfg(test)]
             let first_new_row = available_rows.indexed_slot_count();
             if incremental {
                 if let Some(availability) = &mut availability {
@@ -1409,11 +1419,10 @@ impl GuardedSurfaceSpace {
                     available_rows = rows;
                 }
             }
-            #[cfg(test)]
-            if self.incremental_reference {
-                assert!(incremental && self.topology.domain == ONE);
+            if use_native && incremental {
+                debug_assert_eq!(self.topology.domain, ONE);
                 if reference_basis.is_none() {
-                    reference_basis = Some(gauge_probe::ConstantReadoutBasis::new(
+                    reference_basis = Some(ConstantReadoutBasis::new(
                         timing,
                         &names,
                         physical_columns,
@@ -1430,10 +1439,7 @@ impl GuardedSurfaceSpace {
                     }
                 }
             }
-            #[cfg(test)]
             let cached_reference = reference_basis.is_some();
-            #[cfg(not(test))]
-            let cached_reference = false;
             let mut unknown_columns = vec![false; names.len()];
             for (_, column) in &unknown {
                 unknown_columns[*column - physical_columns] = true;
@@ -1529,13 +1535,10 @@ impl GuardedSurfaceSpace {
             let mut candidates = Vec::new();
             for (index, (name, wanted)) in unknown.iter().enumerate() {
                 self.topology.diagram.charge(1)?;
-                #[cfg(test)]
                 let cached = reference_basis
                     .as_ref()
                     .map(|basis| basis.candidate(*wanted, &mut self.topology.diagram))
                     .transpose()?;
-                #[cfg(not(test))]
-                let cached: Option<Option<BooleanRow>> = None;
                 let row = if let Some(cached) = cached {
                     let Some(row) = cached else { continue };
                     row
@@ -1671,7 +1674,6 @@ impl GuardedSurfaceSpace {
                 candidates.retain(|(_, _, time)| *time <= cutoff);
             }
             let reclaim = incremental && candidates.len() < unknown.len();
-            #[cfg(test)]
             if reclaim && let Some(basis) = &mut reference_basis {
                 for (name, _, time) in &candidates {
                     let column = readout_timing
@@ -1721,7 +1723,6 @@ impl GuardedSurfaceSpace {
                     ),
             )?;
         }
-        #[cfg(test)]
         drop(reference_basis);
         drop((
             causal_basis,
@@ -2269,8 +2270,7 @@ impl GuardedSurfaceSpace {
                 timing.pending[column].guards.push(guard);
             }
         }
-        #[cfg(test)]
-        if let Some(gauges) = &self.reference_gauges {
+        if let Some(gauges) = &self.native_gauges {
             for (gauge, &(_, selector)) in gauges.iter().zip(&self.topology.resolves) {
                 timing.pending[gauge.lambda].guards.push(selector);
             }
@@ -2905,8 +2905,7 @@ impl GuardedSurfaceSpace {
         index: usize,
     ) -> Result<(), BooleanResourceError> {
         let (position, selector) = self.topology.resolves[index];
-        #[cfg(test)]
-        let selector = if self.reference_gauges.is_some() {
+        let selector = if self.native_gauges.is_some() {
             ONE
         } else {
             selector

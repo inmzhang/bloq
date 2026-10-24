@@ -341,6 +341,15 @@ $(1\oplus b)\,x_e\oplus z_e=0$. It permits $\{I,Y\}$ for $b=0$ and
 $\{I,X\}$ for $b=1$.
 Bloq imposes this constraint by the same elimination as a seam.
 
+For certified fixed native T gadgets, Bloq first plans in the constant X-cap
+reference relation and retains a complete GF(2) basis between causal waves.
+The cap-X coordinate alone inherits the selector's availability time. Before
+physical lowering, each complete witness is lifted into the original X/Y
+relation; the existing signed binder receives that whole local tuple. The
+certificate preserves named projections, feedback and protected resource
+sectors. Unsupported inputs use the general guarded planner, while resource
+errors propagate without resetting their budgets.
+
 Keeping alternatives as guarded rows matters because their union is not a
 vector space. Multiplying the $X$ and $Y$ alternatives yields $Z$ support,
 which neither arm admits.
