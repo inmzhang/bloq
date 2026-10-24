@@ -2212,7 +2212,7 @@ impl BooleanRow {
 pub struct BooleanRowSpace {
     rows: Vec<Option<BooleanRow>>,
     columns: FxHashMap<usize, FxHashSet<usize>>,
-    live: usize,
+    live: BTreeSet<usize>,
 }
 
 impl BooleanRowSpace {
@@ -2234,37 +2234,51 @@ impl BooleanRowSpace {
 
     /// Returns the number of live rows.
     pub fn len(&self) -> usize {
-        self.live
+        self.live.len()
     }
 
     /// Returns whether the space contains no live rows.
     pub fn is_empty(&self) -> bool {
-        self.live == 0
+        self.live.is_empty()
     }
 
     /// Roots for diagram collection. Only renumber the same truth functions;
     /// changing coefficients or activation here would invalidate the index.
+    /// Iterates live rows only, without scanning removed slots.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal live-row index is inconsistent.
     pub fn decisions_mut(&mut self) -> impl Iterator<Item = &mut DecisionId> {
-        self.rows
-            .iter_mut()
-            .filter_map(Option::as_mut)
-            .flat_map(BooleanRow::decisions_mut)
+        let mut tail = self.rows.as_mut_slice();
+        let mut start = 0;
+        self.live.iter().flat_map(move |&index| {
+            let (_, from) = std::mem::take(&mut tail).split_at_mut(index - start);
+            let (row, remainder) = from.split_first_mut().expect("live row exists");
+            tail = remainder;
+            start = index + 1;
+            row.as_mut().expect("live row exists").decisions_mut()
+        })
     }
 
     /// Iterates live rows in source order.
     pub fn rows(&self) -> impl Iterator<Item = &BooleanRow> {
-        self.rows.iter().filter_map(Option::as_ref)
+        self.indexed_rows().map(|(_, row)| row)
     }
 
     /// Live rows with their stable insertion IDs, in source order.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal live-row index is inconsistent.
     pub fn indexed_rows(&self) -> impl Iterator<Item = (usize, &BooleanRow)> {
-        self.rows
+        self.live
             .iter()
-            .enumerate()
-            .filter_map(|(index, row)| row.as_ref().map(|row| (index, row)))
+            .map(|&index| (index, self.rows[index].as_ref().expect("live row exists")))
     }
 
-    /// Slots traversed by `indexed_rows`, including removed row IDs.
+    /// Stable slot extent, including removed IDs. Consuming the space traverses
+    /// these slots; row and root iterators visit only live IDs.
     pub fn indexed_slot_count(&self) -> usize {
         self.rows.len()
     }
@@ -2293,7 +2307,7 @@ impl BooleanRowSpace {
         &self,
         diagram: &mut BooleanDecisionDiagram,
     ) -> Result<Vec<usize>, BooleanResourceError> {
-        diagram.charge(self.rows.len())?;
+        diagram.charge(self.live.len())?;
         let rows = self.rows().collect::<Vec<_>>();
         diagram.candidate_row_columns(&rows)
     }
@@ -2308,9 +2322,9 @@ impl BooleanRowSpace {
             return Ok((Vec::new(), Vec::new()));
         }
         let columns = terms.iter().map(|&(column, _)| column).collect::<Vec<_>>();
-        diagram.charge(self.rows.len().saturating_add(self.live.saturating_mul(2)))?;
-        let mut candidates = Vec::with_capacity(self.live);
-        let mut rows = Vec::with_capacity(self.live);
+        diagram.charge(self.live.len().saturating_mul(3))?;
+        let mut candidates = Vec::with_capacity(self.live.len());
+        let mut rows = Vec::with_capacity(self.live.len());
         for (index, row) in self.indexed_rows() {
             diagram.charge(
                 terms
@@ -2499,7 +2513,8 @@ impl BooleanRowSpace {
         if row.active == DECISION_FALSE {
             return Ok(None);
         }
-        diagram.charge(row.bits.len())?;
+        let index_work = self.live.len().max(1).ilog2() as usize + 1;
+        diagram.charge(row.bits.len().saturating_add(index_work))?;
         if self.rows.len() == self.rows.capacity() {
             diagram.charge(self.rows.len())?;
         }
@@ -2508,7 +2523,7 @@ impl BooleanRowSpace {
             self.columns.entry(column).or_default().insert(index);
         }
         self.rows.push(Some(row));
-        self.live += 1;
+        self.live.insert(index);
         Ok(Some(index))
     }
 
@@ -2526,7 +2541,8 @@ impl BooleanRowSpace {
         let Some(row) = self.row(index) else {
             return Ok(None);
         };
-        diagram.charge(row.bits.len())?;
+        let index_work = self.live.len().max(1).ilog2() as usize + 1;
+        diagram.charge(row.bits.len().saturating_add(index_work))?;
         Ok(self.take_row(index))
     }
 
@@ -2552,14 +2568,22 @@ impl BooleanRowSpace {
         } else {
             row.bits.len()
         };
-        diagram.charge(1usize.saturating_add(old_terms).saturating_add(new_terms))?;
+        let index_work = self.live.len().max(1).ilog2() as usize + 1;
+        let changes =
+            usize::from(self.rows[index].is_some()) + usize::from(row.active != DECISION_FALSE);
+        diagram.charge(
+            1usize
+                .saturating_add(old_terms)
+                .saturating_add(new_terms)
+                .saturating_add(changes.saturating_mul(index_work)),
+        )?;
         let previous = self.take_row(index);
         if row.active != DECISION_FALSE {
             for &(column, _) in &row.bits {
                 self.columns.entry(column).or_default().insert(index);
             }
             self.rows[index] = Some(row);
-            self.live += 1;
+            self.live.insert(index);
         }
         Ok(previous)
     }
@@ -2645,7 +2669,7 @@ impl BooleanRowSpace {
 
     fn take_row(&mut self, index: usize) -> Option<BooleanRow> {
         let row = self.rows[index].take()?;
-        self.live -= 1;
+        self.live.remove(&index);
         for &(column, _) in &row.bits {
             self.remove_column_row(column, index);
         }
@@ -2841,12 +2865,17 @@ impl BooleanRowSpace {
         let mut factors = Vec::with_capacity(candidates.len());
         let mut pivot = BooleanRow::new(DECISION_FALSE);
         for &index in &candidates {
-            let row = self.rows[index].as_mut().expect("indexed row exists");
+            let row = self.rows[index].as_ref().expect("indexed row exists");
             let coefficient = coefficient(row, diagram)?;
             factors.push(coefficient);
-            select_into_pivot(&mut pivot, row, coefficient, diagram)?;
-            if row.active == DECISION_FALSE {
+            let remaining = select_into_pivot(&mut pivot, row, coefficient, diagram)?;
+            if remaining == DECISION_FALSE {
                 self.take(index, diagram)?;
+            } else {
+                self.rows[index]
+                    .as_mut()
+                    .expect("indexed row exists")
+                    .active = remaining;
             }
         }
         // Pivot selection changes activation only, so raw coefficients stay valid.
@@ -2930,26 +2959,25 @@ impl BooleanRowSpace {
 }
 
 /// Splice `row` into `pivot` on the guards where `pivot` is not yet available,
-/// and withdraw those guards from `row`. The pivot therefore takes the first
-/// available row pointwise, and the guards the two carry stay disjoint.
+/// returning the remaining activation for `row`. The pivot therefore takes the
+/// first available row pointwise, disjoint from the row's remaining guards.
 ///
 /// Shared by the dense [`eliminate_boolean_rows`] and the indexed
 /// [`BooleanRowSpace::eliminate_candidates`] so their pivot choice, sign
 /// handling, and charged work cannot drift apart.
 fn select_into_pivot(
     pivot: &mut BooleanRow,
-    row: &mut BooleanRow,
+    row: &BooleanRow,
     coefficient: DecisionId,
     diagram: &mut BooleanDecisionDiagram,
-) -> Result<(), BooleanResourceError> {
+) -> Result<DecisionId, BooleanResourceError> {
     let candidate = diagram.apply(BooleanOp::And, row.active, coefficient)?;
     let absent = diagram.negate(pivot.active)?;
     let selected = diagram.apply(BooleanOp::And, candidate, absent)?;
     pivot.xor_scaled(row, selected, diagram)?;
     pivot.active = diagram.apply(BooleanOp::Or, pivot.active, candidate)?;
     let remaining = diagram.negate(selected)?;
-    row.active = diagram.apply(BooleanOp::And, row.active, remaining)?;
-    Ok(())
+    diagram.apply(BooleanOp::And, row.active, remaining)
 }
 
 /// Eliminate one linear constraint pointwise, returning its conditional pivot.
@@ -2974,7 +3002,7 @@ pub fn eliminate_boolean_rows(
     for row in rows.iter_mut() {
         let coefficient = constraint(row, diagram)?;
         factors.push(coefficient);
-        select_into_pivot(&mut pivot, row, coefficient, diagram)?;
+        row.active = select_into_pivot(&mut pivot, row, coefficient, diagram)?;
     }
     for (row, coefficient) in rows.iter_mut().zip(factors) {
         let factor = diagram.apply(BooleanOp::And, row.active, coefficient)?;
@@ -4534,7 +4562,7 @@ mod tests {
 
     #[test]
     fn indexed_mutation_limits_leave_rows_and_postings_unchanged() {
-        for operation in 0..5 {
+        for operation in 0..6 {
             let mut diagram = BooleanDecisionDiagram::default();
             let rows = vec![
                 BooleanRow::from_terms(DECISION_TRUE, [(0, DECISION_TRUE), (2, DECISION_TRUE)]),
@@ -4542,7 +4570,12 @@ mod tests {
             ];
             let mut indexed = BooleanRowSpace::new(rows.clone(), &mut diagram).unwrap();
             // Enough for lookup/candidate counting, but not the actual mutation.
-            diagram.limits.max_steps = diagram.steps() + if operation == 0 { 2 } else { 3 };
+            diagram.limits.max_steps = diagram.steps()
+                + match operation {
+                    0 => 2,
+                    5 => 8,
+                    _ => 3,
+                };
             let error = match operation {
                 0 => indexed.take(0, &mut diagram),
                 1 => indexed.replace(0, rows[1].clone(), &mut diagram),
@@ -4562,6 +4595,7 @@ mod tests {
             assert_eq!(indexed.len(), rows.len());
             for (id, row) in rows.iter().enumerate() {
                 assert_eq!(indexed.row(id).unwrap().terms(), row.terms());
+                assert_eq!(indexed.row(id).unwrap().active, row.active);
             }
             assert_eq!(
                 indexed.row_ids_with_column(0).collect::<Vec<_>>(),
@@ -4570,6 +4604,70 @@ mod tests {
             assert_eq!(indexed.row_ids_with_column(2).collect::<Vec<_>>(), vec![0]);
             assert_eq!(indexed.row_ids_with_column(3).collect::<Vec<_>>(), vec![1]);
         }
+    }
+
+    #[test]
+    fn queried_solves_visit_live_ids_without_reusing_removed_slots() {
+        let mut diagram = BooleanDecisionDiagram::default();
+        diagram.start_witness_tape([0], 16).unwrap();
+        let mut space = BooleanRowSpace::default();
+        for id in 0..4096 {
+            assert_eq!(
+                space
+                    .insert_indexed(BooleanRow::default(), &mut diagram)
+                    .unwrap(),
+                Some(id)
+            );
+        }
+        for id in 0..4096 {
+            space.take(id, &mut diagram).unwrap();
+        }
+        let mut first = BooleanRow::from_terms(DECISION_TRUE, [(7, DECISION_TRUE)]);
+        let mut second = BooleanRow::from_terms(DECISION_TRUE, [(8, DECISION_TRUE)]);
+        first.defer_coefficients(&mut diagram).unwrap();
+        second.defer_coefficients(&mut diagram).unwrap();
+        assert!(space.replace(17, first, &mut diagram).unwrap().is_none());
+        assert!(
+            space
+                .replace(2047, BooleanRow::default(), &mut diagram)
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(
+            space.insert_indexed(second, &mut diagram).unwrap(),
+            Some(4096)
+        );
+        assert_eq!(space.indexed_slot_count(), 4097);
+        assert_eq!(
+            space.indexed_rows().map(|(id, _)| id).collect::<Vec<_>>(),
+            [17, 2047, 4096]
+        );
+        diagram.limits.max_steps = diagram.steps() + 256;
+        assert_eq!(space.candidate_columns(&mut diagram).unwrap(), [7, 8]);
+        let pivot = space.eliminate_column_queried(7, &mut diagram).unwrap();
+        assert!(space.row(17).is_none());
+        let private = space.row(4096).unwrap();
+        assert!(private.is_deferred() && private.terms().is_empty());
+        assert_eq!(
+            diagram
+                .probe_row_coefficients(&[private, &pivot], &[7, 8])
+                .unwrap(),
+            [
+                vec![DECISION_FALSE, DECISION_TRUE],
+                vec![DECISION_TRUE, DECISION_FALSE]
+            ]
+        );
+        space.eliminate_column_queried(8, &mut diagram).unwrap();
+        assert_eq!(
+            space.len(),
+            1,
+            "active structural zero rows retain their IDs"
+        );
+        assert!(space.row(2047).unwrap().terms().is_empty());
+        assert_eq!(
+            space.indexed_rows().map(|(id, _)| id).collect::<Vec<_>>(),
+            [2047]
+        );
     }
 
     #[test]
@@ -4724,18 +4822,35 @@ mod tests {
             .make_node(99, DECISION_FALSE, DECISION_TRUE)
             .unwrap();
         let a = diagram.make_node(0, DECISION_FALSE, DECISION_TRUE).unwrap();
+        let b = diagram.make_node(1, DECISION_FALSE, DECISION_TRUE).unwrap();
+        diagram.start_witness_tape([2, 7, 9], 16).unwrap();
         let mut indexed = BooleanRowSpace::new(
             vec![
+                BooleanRow::default(),
                 BooleanRow::from_terms(DECISION_TRUE, [(2, a), (7, DECISION_TRUE)]),
+                BooleanRow::default(),
                 BooleanRow::from_terms(a, [(2, DECISION_TRUE), (9, a)]),
             ],
             &mut diagram,
         )
         .unwrap();
+        indexed.take(0, &mut diagram).unwrap();
+        indexed.take(2, &mut diagram).unwrap();
+        let mut private = BooleanRow::from_terms(b, [(11, a)]);
+        private.defer_coefficients(&mut diagram).unwrap();
+        assert_eq!(
+            indexed.insert_indexed(private, &mut diagram).unwrap(),
+            Some(4)
+        );
         let before = diagram.steps();
         assert_eq!(diagram.collect_garbage(indexed.decisions_mut()), 1);
         assert_eq!(diagram.steps(), before);
-        assert_eq!(indexed.len(), 2);
+        assert_eq!(indexed.len(), 3);
+        assert_eq!(
+            indexed.indexed_rows().map(|(id, _)| id).collect::<Vec<_>>(),
+            [1, 3, 4]
+        );
+        assert!(indexed.row(4).unwrap().terms().is_empty());
         assert_eq!(indexed.rows_with_column(2).count(), 2);
         assert_eq!(indexed.rows_with_column(7).count(), 1);
         let mut reference_diagram = diagram.clone();
@@ -4745,11 +4860,12 @@ mod tests {
         })
         .unwrap();
         let pivot = indexed.eliminate_column(2, &mut diagram).unwrap();
-        for value in [false, true] {
+        let columns = (0..12).collect::<Vec<_>>();
+        for assignment in 0..4 {
             let evaluate = |row: &BooleanRow, diagram: &BooleanDecisionDiagram| {
-                std::iter::once(row.active)
-                    .chain((0..10).map(|column| row.get(column)))
-                    .map(|root| diagram.evaluate(root, |_| value))
+                let evaluate = |root| diagram.evaluate(root, |bit| assignment & (1 << bit) != 0);
+                std::iter::once(evaluate(row.active))
+                    .chain(row.evaluate_coefficients(&columns, diagram, evaluate))
                     .collect::<Vec<_>>()
             };
             assert_eq!(
@@ -4771,22 +4887,32 @@ mod tests {
 
     #[test]
     fn indexed_reduction_scales_with_sparse_incidence() {
-        let rows = (0..128)
+        const WIDTH: usize = 128;
+        // Source/result insertions and source removals each update the ordered
+        // live-ID set. Keep the original bound on all other incidence work.
+        let insert_work = (0..WIDTH)
+            .map(|live| live.max(1).ilog2() as usize + 1)
+            .sum::<usize>();
+        let remove_work = (1..=WIDTH)
+            .map(|live| live.ilog2() as usize + 1)
+            .sum::<usize>();
+        let index_work = 2 * insert_work + remove_work;
+        let rows = (0..WIDTH)
             .map(|column| BooleanRow::from_terms(DECISION_TRUE, [(column, DECISION_TRUE)]))
             .collect::<Vec<_>>();
         let mut diagram = BooleanDecisionDiagram::with_limits(BooleanLimits {
             max_nodes: 0,
-            max_steps: 2_000,
+            max_steps: 2_000 + index_work,
         });
-        let reduced = reduce_boolean_rows(rows, 0..128, &mut diagram).unwrap();
-        assert_eq!(reduced.len(), 128);
+        let reduced = reduce_boolean_rows(rows, 0..WIDTH, &mut diagram).unwrap();
+        assert_eq!(reduced.len(), WIDTH);
         for (column, row) in reduced.iter().enumerate() {
             assert_eq!(row.active, DECISION_TRUE);
             assert_eq!(row.terms(), [(column, DECISION_TRUE)]);
         }
         // Full-row forward/backward scans need quadratic work even though all
-        // rows are disjoint. Incidence construction and each pivot are linear.
-        assert!(diagram.steps() < 2_000);
+        // rows are disjoint. Other incidence and pivot work stays linear.
+        assert!(diagram.steps() - index_work < 2_000);
     }
 
     #[test]
