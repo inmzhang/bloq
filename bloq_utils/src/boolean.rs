@@ -2320,22 +2320,25 @@ impl BooleanRowSpace {
             &mut BooleanDecisionDiagram,
         ) -> Result<DecisionId, BooleanResourceError>,
     ) -> Result<BooleanRow, BooleanResourceError> {
+        // Charge the first traversal before allocating its coefficient cache.
+        diagram.charge(candidates.len())?;
+        let mut factors = Vec::with_capacity(candidates.len());
         let mut pivot = BooleanRow::new(DECISION_FALSE);
         for &index in &candidates {
-            diagram.charge(1)?;
             let row = self.rows[index].as_mut().expect("indexed row exists");
             let coefficient = coefficient(row, diagram)?;
+            factors.push(coefficient);
             select_into_pivot(&mut pivot, row, coefficient, diagram)?;
             if row.active == DECISION_FALSE {
                 self.take(index, diagram)?;
             }
         }
-        for index in candidates {
+        // Pivot selection changes activation only, so raw coefficients stay valid.
+        for (index, coefficient) in candidates.into_iter().zip(factors) {
             diagram.charge(1)?;
             let Some(row) = &self.rows[index] else {
                 continue;
             };
-            let coefficient = coefficient(row, diagram)?;
             let factor = diagram.apply(BooleanOp::And, row.active, coefficient)?;
             self.xor_row(index, &pivot, factor, diagram)?;
         }
@@ -3782,7 +3785,7 @@ mod tests {
 
     #[test]
     fn indexed_mutation_limits_leave_rows_and_postings_unchanged() {
-        for operation in 0..4 {
+        for operation in 0..5 {
             let mut diagram = BooleanDecisionDiagram::default();
             let rows = vec![
                 BooleanRow::from_terms(DECISION_TRUE, [(0, DECISION_TRUE), (2, DECISION_TRUE)]),
@@ -3795,7 +3798,7 @@ mod tests {
                 0 => indexed.take(0, &mut diagram),
                 1 => indexed.replace(0, rows[1].clone(), &mut diagram),
                 2 => indexed.erase_column(0, &mut diagram).map(|()| None),
-                _ => indexed
+                3 => indexed
                     .insert_indexed(
                         BooleanRow::from_terms(
                             DECISION_TRUE,
@@ -3804,6 +3807,7 @@ mod tests {
                         &mut diagram,
                     )
                     .map(|_| None),
+                _ => indexed.eliminate_column(0, &mut diagram).map(|_| None),
             };
             error.unwrap_err();
             assert_eq!(indexed.len(), rows.len());

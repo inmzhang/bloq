@@ -1072,14 +1072,30 @@ impl GuardedSurfaceSpace {
         while names.iter().any(|(name, _)| !known.contains(name)) {
             crate::CancellationToken::checkpoint()?;
             if incremental && self.topology.diagram.nodes().len() > reclaim_limit {
-                self.charge_row_copy(&basis)?;
-                causal_basis = basis.clone();
-                self.exclude_outputs(&mut causal_basis, &zx)?;
-                self.fill_selective(&mut causal_basis, &all_resolved)?;
-                availability = None;
-                available_rows = BooleanRowSpace::default();
-                readout_pivots = GuardedPivots::default();
-                incremental = false;
+                // Dead reduction products must not disable incremental solving.
+                self.collect_readout_roots(
+                    basis
+                        .iter_mut()
+                        .chain(causal_basis.iter_mut())
+                        .flat_map(BooleanRow::decisions_mut)
+                        .chain(available_rows.decisions_mut())
+                        .chain(readout_pivots.rows.decisions_mut())
+                        .chain(
+                            availability
+                                .iter_mut()
+                                .flat_map(|state| state.pivots.rows.decisions_mut()),
+                        ),
+                )?;
+                if self.topology.diagram.nodes().len() > reclaim_limit {
+                    self.charge_row_copy(&basis)?;
+                    causal_basis = basis.clone();
+                    self.exclude_outputs(&mut causal_basis, &zx)?;
+                    self.fill_selective(&mut causal_basis, &all_resolved)?;
+                    availability = None;
+                    available_rows = BooleanRowSpace::default();
+                    readout_pivots = GuardedPivots::default();
+                    incremental = false;
+                }
             }
             let mut timing = self.readout_timing(&names, &readout_times, &actions)?;
             if available_values.is_none() {
