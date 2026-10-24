@@ -8,6 +8,7 @@
 #[cfg(test)]
 mod component_tests;
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
@@ -64,6 +65,26 @@ fn next_readout_collection(retained: usize, limit: usize) -> usize {
         .saturating_add(growth)
         .max(READOUT_COLLECTION_TARGET)
         .min(limit)
+}
+
+/// Timing and readiness inspect exact coefficients, including cancelled passive support.
+fn raw_terms<'a>(
+    row: &'a BooleanRow,
+    diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
+) -> Result<Cow<'a, [(usize, DecisionId)]>, BooleanResourceError> {
+    if !row.is_deferred() {
+        return Ok(Cow::Borrowed(row.terms()));
+    }
+    let columns = row.candidate_columns(diagram)?;
+    let values = row.probe_coefficients(&columns, diagram)?;
+    diagram.charge(columns.len())?;
+    Ok(Cow::Owned(
+        columns
+            .into_iter()
+            .zip(values)
+            .filter(|&(_, value)| value != ZERO)
+            .collect(),
+    ))
 }
 
 #[doc(hidden)]
@@ -349,8 +370,9 @@ impl ReadoutTiming {
         }
         let mut control = self.decision(row.active, diagram)?;
         let mut columns = Vec::new();
-        diagram.charge(row.terms().len())?;
-        for &(column, value) in row.terms() {
+        let terms = raw_terms(row, diagram)?;
+        diagram.charge(terms.len())?;
+        for &(column, value) in terms.iter() {
             // Activation is already timed; its live product determines each active coefficient.
             let value = diagram.apply(BooleanOp::And, value, care)?;
             if value == ZERO {
@@ -1112,6 +1134,13 @@ impl GuardedSurfaceSpace {
         if let Some(name) = crossing {
             basis = self.crossing_readout_coordinates(basis, &zx, &names, &name)?;
         }
+        // Restricted domains retain their eager generalized-cofactor convention.
+        let lazy = DEFER_WITNESSES && self.topology.domain == ONE;
+        let (input_nodes, resource_nodes) = authored_boundary_columns(&zx);
+        let mut output_ports = zx.output_ports();
+        if lazy {
+            self.start_readout_witnesses(&zx, &output_ports, &names)?;
+        }
         let all_resolved = self
             .topology
             .resolves
@@ -1178,6 +1207,9 @@ impl GuardedSurfaceSpace {
             crate::CancellationToken::checkpoint()?;
             if incremental && self.topology.diagram.nodes().len() > reclaim_limit {
                 // Dead reduction products must not disable incremental solving.
+                if lazy {
+                    self.compact_readout_witnesses()?;
+                }
                 self.collect_readout_roots(
                     basis
                         .iter_mut()
@@ -1416,6 +1448,7 @@ impl GuardedSurfaceSpace {
                     &unknown,
                     physical_columns,
                     physical_columns + names.len(),
+                    lazy,
                 )?
             } else {
                 None
@@ -1428,7 +1461,7 @@ impl GuardedSurfaceSpace {
             let reduced = if factored.is_some() {
                 BooleanRowSpace::default()
             } else {
-                let allowed = if reuse_restored {
+                let mut allowed = if reuse_restored {
                     for row in source_rows.rows() {
                         timing.include(row, &mut self.topology.diagram)?;
                     }
@@ -1467,6 +1500,13 @@ impl GuardedSurfaceSpace {
                     }
                     allowed
                 };
+                if lazy {
+                    let mut rows = allowed.into_rows(&mut self.topology.diagram)?;
+                    for row in &mut rows {
+                        row.defer_coefficients(&mut self.topology.diagram)?;
+                    }
+                    allowed = BooleanRowSpace::new(rows, &mut self.topology.diagram)?;
+                }
                 // Keep only named pivots. Physical kernel pivots normalize
                 // those rows, but their own forms are never used here.
                 self.reduce_named_rows(
@@ -1474,12 +1514,13 @@ impl GuardedSurfaceSpace {
                     unknown.iter().map(|(_, column)| *column),
                     &timing.columns,
                     incremental,
+                    lazy,
                 )?
             };
             let mut candidates = Vec::new();
             for (index, (name, wanted)) in unknown.iter().enumerate() {
                 self.topology.diagram.charge(1)?;
-                let row = if let Some(factored) = &mut factored {
+                let mut row = if let Some(factored) = &mut factored {
                     let Some(row) = factored[index].take() else {
                         continue;
                     };
@@ -1487,6 +1528,9 @@ impl GuardedSurfaceSpace {
                 } else {
                     self.named_row(&reduced, *wanted)?
                 };
+                if lazy && !row.is_deferred() {
+                    row.defer_coefficients(&mut self.topology.diagram)?;
+                }
                 let named =
                     Self::named_terms(&row, physical_columns, physical_columns + names.len());
                 if row.active != ONE
@@ -1497,7 +1541,7 @@ impl GuardedSurfaceSpace {
                     continue;
                 }
                 let mut ready = true;
-                for &(_, bit) in row.terms() {
+                for &(_, bit) in raw_terms(&row, &mut self.topology.diagram)?.iter() {
                     if !available_values.available(bit, &mut self.topology.diagram)? {
                         ready = false;
                         break;
@@ -1620,6 +1664,7 @@ impl GuardedSurfaceSpace {
                 if reclaim {
                     self.topology.diagram.charge(surface.row.terms().len())?;
                     let mut row = surface.row.clone();
+                    row.expand_coefficients(&mut self.topology.diagram)?;
                     // Candidate coefficients were simplified on the source
                     // domain. They represent a source relation only there.
                     row.active = self.topology.domain;
@@ -1631,6 +1676,9 @@ impl GuardedSurfaceSpace {
             unknown.retain(|(name, _)| !known.contains(name));
             if reclaim {
                 self.reclaim_readouts(&mut available_rows, &mut readout_pivots, reclaimed)?;
+            }
+            if lazy {
+                self.compact_readout_witnesses()?;
             }
             self.check_readout_roots(
                 basis
@@ -1654,42 +1702,12 @@ impl GuardedSurfaceSpace {
             available_values,
             readout_timing,
         ));
-        let (input_nodes, resource_nodes) = authored_boundary_columns(&zx);
-        let mut output_ports = zx.output_ports();
         if DEFER_WITNESSES {
-            // Stable terminal choices inspect only these explicit constraints.
-            // Reconstruct raw physical support before feedback and final kernel
-            // reduction; a zero-core private row must remain live until then.
-            self.topology.diagram.charge(
-                zx.nodes()
-                    .len()
-                    .saturating_add(self.topology.resolves.len()),
-            )?;
-            // Output pivots and selective fills never query input or protected
-            // resource columns. Keep their exact payload on the witness tape
-            // until input normalization actually needs it.
-            let positions = output_ports
-                .iter()
-                .copied()
-                .chain(
-                    zx.nodes()
-                        .iter()
-                        .filter(|node| node.role == crate::PortRole::Multiplex)
-                        .map(|node| node.pos),
-                )
-                .chain(self.topology.resolves.iter().map(|&(position, _)| position));
-            let core = positions
-                .flat_map(|position| {
-                    self.node_components(position.to_array())
-                        .into_iter()
-                        .flatten()
-                        .map(|(column, _)| column)
-                })
-                .chain(names.iter().map(|(_, column)| *column))
-                .collect::<Vec<_>>();
-            self.topology
-                .diagram
-                .start_witness_tape(core, self.limits.max_witness_nodes)?;
+            // Output pivots and selective fills inspect the common front;
+            // private kernels retain their passive physical support.
+            if !lazy {
+                self.start_readout_witnesses(&zx, &output_ports, &names)?;
+            }
             for row in &mut basis {
                 row.defer_coefficients(&mut self.topology.diagram)?;
             }
@@ -1845,7 +1863,7 @@ impl GuardedSurfaceSpace {
             )
             .collect::<Vec<_>>();
         let mut basis = basis.into_rows(&mut self.topology.diagram)?;
-        if DEFER_WITNESSES && !basis.is_empty() {
+        if DEFER_WITNESSES && !lazy && !basis.is_empty() {
             // The global kernel needs input and protected-resource projections,
             // not every physical coefficient. Keep the same source-ordered solve
             // while its row operations compose the remaining passive transfers.
@@ -1876,9 +1894,9 @@ impl GuardedSurfaceSpace {
                     .chain(output_rows.decisions_mut()),
             )?;
         }
-        self.normalize_output_inputs(&mut basis, &mut output_rows, &inputs, &protected)?;
+        self.normalize_output_inputs(&mut basis, &mut output_rows, &inputs, &protected, lazy)?;
         let mut output_rows = output_rows.into_rows(&mut self.topology.diagram)?;
-        if DEFER_WITNESSES {
+        if DEFER_WITNESSES && !lazy {
             for index in 0..basis.len() {
                 basis[index].expand_coefficients(&mut self.topology.diagram)?;
                 self.check_readout_roots(
@@ -1948,11 +1966,24 @@ impl GuardedSurfaceSpace {
                     .map(|(column, _)| column)
             })
             .collect::<Vec<_>>();
-        let remaining = reduce_boolean_rows(
-            basis,
-            input_columns.into_iter().chain(0..physical_columns),
-            &mut self.topology.diagram,
-        )?;
+        let remaining = if lazy {
+            let mut remaining = BooleanRowSpace::new(basis, &mut self.topology.diagram)?;
+            let mut reduced = BooleanRowSpace::default();
+            let physical = remaining.candidate_columns(&mut self.topology.diagram)?;
+            for column in input_columns.into_iter().chain(physical) {
+                let pivot =
+                    remaining.eliminate_column_queried(column, &mut self.topology.diagram)?;
+                reduced.reduce_column_queried(column, &pivot, &mut self.topology.diagram)?;
+                reduced.push(pivot, &mut self.topology.diagram)?;
+            }
+            reduced.into_rows(&mut self.topology.diagram)?
+        } else {
+            reduce_boolean_rows(
+                basis,
+                input_columns.into_iter().chain(0..physical_columns),
+                &mut self.topology.diagram,
+            )?
+        };
         // The kernel also contains closed logical surfaces: memory and
         // stability readouts have no input or output Port support.
         for row in remaining {
@@ -1965,8 +1996,54 @@ impl GuardedSurfaceSpace {
         }
         // Physical lowering retains decision ids in its own caches. Finish the
         // planning stage with only live functions before those ids escape.
+        if lazy {
+            self.compact_readout_witnesses()?;
+        }
         self.collect_readout_roots(std::iter::empty())?;
         self.check_budget()
+    }
+
+    fn start_readout_witnesses(
+        &mut self,
+        zx: &ZXGraph,
+        outputs: &[IVec3],
+        names: &[(String, usize)],
+    ) -> Result<(), BooleanResourceError> {
+        self.topology.diagram.charge(
+            zx.nodes()
+                .len()
+                .saturating_add(self.topology.resolves.len())
+                .saturating_add(names.len()),
+        )?;
+        let positions = outputs
+            .iter()
+            .copied()
+            .chain(
+                zx.nodes()
+                    .iter()
+                    .filter(|node| node.role == crate::PortRole::Multiplex)
+                    .map(|node| node.pos),
+            )
+            .chain(self.topology.resolves.iter().map(|&(position, _)| position));
+        let front = positions
+            .flat_map(|position| {
+                self.node_components(position.to_array())
+                    .into_iter()
+                    .flatten()
+                    .map(|(column, _)| column)
+            })
+            .chain(names.iter().map(|(_, column)| *column))
+            .collect::<Vec<_>>();
+        self.topology
+            .diagram
+            .start_witness_tape(front, self.limits.max_witness_nodes)
+    }
+
+    /// Call only when all surviving deferred rows belong to `surfaces`.
+    fn compact_readout_witnesses(&mut self) -> Result<(), BooleanResourceError> {
+        self.topology
+            .diagram
+            .compact_row_witnesses(self.surfaces.iter_mut().map(|surface| &mut surface.row))
     }
 
     /// Normalize erased input operators within the selected resource class.
@@ -1979,6 +2056,7 @@ impl GuardedSurfaceSpace {
         outputs: &mut BooleanRowSpace,
         inputs: &[(SurfaceColumn, Pauli)],
         protected: &[(SurfaceColumn, Pauli)],
+        queried: bool,
     ) -> Result<(), BlockGraphError> {
         if outputs.is_empty() || inputs.is_empty() {
             return Ok(());
@@ -1994,11 +2072,10 @@ impl GuardedSurfaceSpace {
             .collect::<BTreeSet<_>>();
         let mut input_support = false;
         for row in remaining.iter() {
-            self.topology.diagram.charge(row.terms().len())?;
             if row
-                .terms()
+                .candidate_columns(&mut self.topology.diagram)?
                 .iter()
-                .any(|&(column, _)| input_columns.contains(&column))
+                .any(|column| input_columns.contains(column))
             {
                 input_support = true;
                 break;
@@ -2011,7 +2088,11 @@ impl GuardedSurfaceSpace {
         let mut kernel = BooleanRowSpace::new(remaining.to_vec(), &mut self.topology.diagram)?;
         for &(column, axis) in protected {
             let terms = self.component_terms(column, axis);
-            kernel.eliminate_linear(&terms, &mut self.topology.diagram)?;
+            if queried {
+                kernel.eliminate_linear_queried(&terms, &mut self.topology.diagram)?;
+            } else {
+                kernel.eliminate_linear(&terms, &mut self.topology.diagram)?;
+            }
             self.check_readout_roots(
                 remaining
                     .iter_mut()
@@ -2022,8 +2103,13 @@ impl GuardedSurfaceSpace {
         }
         for &(column, axis) in inputs {
             let terms = self.component_terms(column, axis);
-            let pivot = kernel.eliminate_linear(&terms, &mut self.topology.diagram)?;
-            outputs.reduce_linear(&terms, &pivot, &mut self.topology.diagram)?;
+            if queried {
+                let pivot = kernel.eliminate_linear_queried(&terms, &mut self.topology.diagram)?;
+                outputs.reduce_linear_queried(&terms, &pivot, &mut self.topology.diagram)?;
+            } else {
+                let pivot = kernel.eliminate_linear(&terms, &mut self.topology.diagram)?;
+                outputs.reduce_linear(&terms, &pivot, &mut self.topology.diagram)?;
+            }
             self.check_readout_roots(
                 remaining
                     .iter_mut()
@@ -2202,6 +2288,7 @@ impl GuardedSurfaceSpace {
         names: impl Iterator<Item = usize>,
         timing: &[i64],
         sparse: bool,
+        queried: bool,
     ) -> Result<BooleanRowSpace, BooleanResourceError> {
         let mut named = BooleanRowSpace::default();
         for column in names {
@@ -2218,11 +2305,15 @@ impl GuardedSurfaceSpace {
         // For these conservative column weights, eliminating late support
         // first favors an earlier witness, including the cost of known folds.
         // This does not optimize latency independently in each Boolean branch.
-        let columns = remaining.columns().len();
+        let mut physical_and_known = if queried {
+            remaining.candidate_columns(&mut self.topology.diagram)?
+        } else {
+            remaining.columns().collect::<Vec<_>>()
+        };
+        let columns = physical_and_known.len();
         self.topology
             .diagram
             .charge(columns.saturating_mul(columns.max(1).ilog2() as usize + 2))?;
-        let mut physical_and_known = remaining.columns().collect::<Vec<_>>();
         physical_and_known.sort_unstable_by_key(|&column| {
             (
                 std::cmp::Reverse(timing.get(column).copied().unwrap_or(i64::MIN)),
@@ -2233,12 +2324,18 @@ impl GuardedSurfaceSpace {
             if remaining.is_empty() {
                 break;
             }
-            let pivot = if sparse {
+            let pivot = if queried {
+                remaining.eliminate_column_queried(column, &mut self.topology.diagram)?
+            } else if sparse {
                 remaining.eliminate_column_sparse(column, &mut self.topology.diagram)?
             } else {
                 remaining.eliminate_column(column, &mut self.topology.diagram)?
             };
-            named.reduce_column(column, &pivot, &mut self.topology.diagram)?;
+            if queried {
+                named.reduce_column_queried(column, &pivot, &mut self.topology.diagram)?;
+            } else {
+                named.reduce_column(column, &pivot, &mut self.topology.diagram)?;
+            }
         }
         Ok(named)
     }
@@ -2308,6 +2405,7 @@ impl GuardedSurfaceSpace {
         unknown: &[&(String, usize)],
         physical_columns: usize,
         first_tag: usize,
+        deferred: bool,
     ) -> Result<Option<Vec<Option<BooleanRow>>>, BooleanResourceError> {
         if self.topology.domain != ONE {
             return Ok(None);
@@ -2358,13 +2456,18 @@ impl GuardedSurfaceSpace {
             diagram.charge(row.terms().len())?;
             for &(column, scale) in row.terms() {
                 if column >= first_tag {
-                    full.xor_scaled(
-                        available
-                            .row(column - first_tag)
-                            .expect("tagged row exists"),
-                        scale,
-                        diagram,
-                    )?;
+                    let source = available
+                        .row(column - first_tag)
+                        .expect("tagged row exists");
+                    let source = if deferred {
+                        diagram.charge(source.terms().len().saturating_add(1))?;
+                        let mut source = source.clone();
+                        source.defer_coefficients(diagram)?;
+                        Cow::Owned(source)
+                    } else {
+                        Cow::Borrowed(source)
+                    };
+                    full.xor_scaled(&source, scale, diagram)?;
                 }
             }
             // Exact lifts must retain raw named coefficients, including off-domain values.
@@ -2398,12 +2501,14 @@ impl GuardedSurfaceSpace {
             .topology
             .diagram
             .constrain(row.active, self.topology.domain)?;
-        self.topology.diagram.charge(row.terms().len())?;
-        row.map_coefficients(|coefficient| {
-            self.topology
-                .diagram
-                .constrain(coefficient, self.topology.domain)
-        })?;
+        if self.topology.domain != ONE {
+            self.topology.diagram.charge(row.terms().len())?;
+            row.map_coefficients(|coefficient| {
+                self.topology
+                    .diagram
+                    .constrain(coefficient, self.topology.domain)
+            })?;
+        }
         Ok(row)
     }
 
@@ -2661,11 +2766,6 @@ impl GuardedSurfaceSpace {
         [Pauli::X, Pauli::Z].map(|axis| self.component_terms(SurfaceColumn::Node(position), axis))
     }
 
-    fn component(&self, row: &BooleanRow, column: SurfaceColumn, axis: Pauli) -> DecisionId {
-        let index = self.columns[&column];
-        row.get(2 * index + usize::from(axis == Pauli::Z))
-    }
-
     #[cfg(test)]
     fn linear_value(
         row: &BooleanRow,
@@ -2881,10 +2981,9 @@ impl GuardedSurfaceSpace {
                     variant.zx.nodes()[edge.n1].pos.to_array(),
                     variant.zx.nodes()[edge.n2].pos.to_array(),
                 );
-                let bits = [
-                    self.component(row, column, Pauli::X),
-                    self.component(row, column, Pauli::Z),
-                ];
+                let index = self.columns[&column] * 2;
+                let bits =
+                    row.probe_coefficients(&[index, index + 1], &mut self.topology.diagram)?;
                 let pauli = Pauli::from(target.pauli);
                 let x = if pauli & Pauli::Z { bits[0] } else { ZERO };
                 let z = if pauli & Pauli::X { bits[1] } else { ZERO };
@@ -2962,9 +3061,8 @@ impl GuardedSurfaceSpace {
         columns: &HashMap<usize, Vec<usize>>,
     ) -> Result<Vec<(u32, DecisionId)>, BooleanResourceError> {
         let ordinals = if INDEXED {
-            self.topology.diagram.charge(row.terms().len())?;
             let mut ordinals = BTreeSet::new();
-            for &(column, _) in row.terms() {
+            for column in row.candidate_columns(&mut self.topology.diagram)? {
                 if let Some(candidates) = columns.get(&column) {
                     self.topology.diagram.charge(candidates.len())?;
                     ordinals.extend(candidates.iter().copied());
@@ -3003,11 +3101,20 @@ impl GuardedSurfaceSpace {
         zx: &ZXGraph,
         evaluate: impl Fn(DecisionId) -> bool,
     ) -> crate::PauliString {
+        let columns = (0..self.columns.len() * 2).collect::<Vec<_>>();
+        let values = row.evaluate_coefficients(&columns, &self.topology.diagram, &evaluate);
+        let row = BooleanRow::from_terms(
+            ONE,
+            columns
+                .into_iter()
+                .zip(values)
+                .filter_map(|(column, value)| value.then_some((column, ONE))),
+        );
         materialize_row(
             self.columns.iter().map(|(&column, &index)| (column, index)),
-            row,
+            &row,
             zx,
-            evaluate,
+            |value| value == ONE,
         )
     }
 
@@ -3228,6 +3335,16 @@ mod tests {
         actual: &GuardedSurfaceSpace,
         expected: &GuardedSurfaceSpace,
     ) {
+        let mut actual = actual.clone();
+        let mut expected = expected.clone();
+        for space in [&mut actual, &mut expected] {
+            for surface in &mut space.surfaces {
+                surface
+                    .row
+                    .expand_coefficients(&mut space.topology.diagram)
+                    .unwrap();
+            }
+        }
         // Both plans use the same source variable order; compare raw functions
         // on every assignment, including outside activation and source domain.
         let mut canonical = expected.topology.diagram.clone();
@@ -4350,12 +4467,15 @@ mod tests {
                     )
                 })
                 .unwrap();
+            let values = b
+                .row
+                .probe_coefficients(&[late, selective], &mut space.topology.diagram)
+                .unwrap();
             assert_eq!(
-                b.row.get(late),
-                ZERO,
+                values[0], ZERO,
                 "b must use the newly unlocked early witness"
             );
-            assert_eq!(b.row.get(selective), ONE, "condition {condition}");
+            assert_eq!(values[1], ONE, "condition {condition}");
         }
     }
 
@@ -4585,6 +4705,12 @@ mod tests {
             actual
                 .plan_causal_readouts_with_fast_path::<true, true, true>(reclaim_limit)
                 .unwrap();
+            for surface in &mut actual.surfaces {
+                surface
+                    .row
+                    .expand_coefficients(&mut actual.topology.diagram)
+                    .unwrap();
+            }
             expand_output_folds(&mut actual.surfaces, &mut actual.topology.diagram);
             let mut expected = new_space();
             expected.plan_causal_readouts::<false, false>().unwrap();
@@ -4813,13 +4939,13 @@ mod tests {
         )
         .unwrap();
         let fast = space
-            .injective_named_candidates(&guarded, &[0, 1], &unknown, 2, 3)
+            .injective_named_candidates(&guarded, &[0, 1], &unknown, 2, 3, false)
             .unwrap()
             .unwrap()
             .remove(0)
             .unwrap();
         let full = space
-            .reduce_named_rows(guarded, [2].into_iter(), &[], true)
+            .reduce_named_rows(guarded, [2].into_iter(), &[], true, false)
             .unwrap();
         let expected = space.named_row(&full, 2).unwrap();
         assert_eq!(
@@ -4838,7 +4964,7 @@ mod tests {
         .unwrap();
         assert!(
             space
-                .injective_named_candidates(&kernel, &[0, 1], &unknown, 2, 3)
+                .injective_named_candidates(&kernel, &[0, 1], &unknown, 2, 3, false)
                 .unwrap()
                 .is_none()
         );
@@ -4847,7 +4973,7 @@ mod tests {
         space.topology.diagram.charge(remaining - 7).unwrap();
         let before = space.topology.diagram.steps();
         assert!(matches!(
-            space.injective_named_candidates(&kernel, &[0, 1], &unknown, 2, 3),
+            space.injective_named_candidates(&kernel, &[0, 1], &unknown, 2, 3, false),
             Err(BooleanResourceError {
                 resource: "Boolean work steps",
                 ..
@@ -4936,7 +5062,7 @@ mod tests {
                 let remaining =
                     BooleanRowSpace::new(persistent.clone(), &mut space.topology.diagram).unwrap();
                 let actual_named = space
-                    .reduce_named_rows(remaining, names.iter().copied(), &[], true)
+                    .reduce_named_rows(remaining, names.iter().copied(), &[], true, false)
                     .unwrap()
                     .into_rows(&mut space.topology.diagram)
                     .unwrap();

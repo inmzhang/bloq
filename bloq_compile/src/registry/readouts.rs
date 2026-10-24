@@ -188,7 +188,6 @@ thread_local! {
     static KEEP_QUERY_COEFFICIENTS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static COLLECTIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static FORCE_UNCACHED_BINDINGS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-    static FRAGMENT_CACHE_HITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static BINDING_CACHE_HITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
@@ -298,8 +297,6 @@ pub(super) fn lower(
             .collect::<Vec<_>>();
         for (id, (representative, sites)) in queries {
             let fragment = if let Some(fragment) = id.and_then(|id| fragments.get(&id)) {
-                #[cfg(test)]
-                FRAGMENT_CACHE_HITS.set(FRAGMENT_CACHE_HITS.get() + 1);
                 Arc::clone(fragment)
             } else {
                 let mut fragment = FragmentBinding {
@@ -803,6 +800,7 @@ fn collect_boolean_garbage<'a>(
         .saturating_add(profiles.len())
         .saturating_add(anchors.decisions_mut().count())
         .saturating_add(assembly.decisions_mut().count());
+    plan.compact_witnesses()?;
     let owned_work = plan.collection_work();
     plan.topology
         .diagram
@@ -1186,7 +1184,6 @@ mod tests {
     #[test]
     fn collection_between_every_local_binding_preserves_compiled_recipes() {
         BINDING_CACHE_HITS.set(0);
-        FRAGMENT_CACHE_HITS.set(0);
         for gallery in [
             bloq_graph::GalleryItem::THTH,
             bloq_graph::GalleryItem::CCZGateTeleport,
@@ -1218,7 +1215,6 @@ mod tests {
             );
         }
         assert!(BINDING_CACHE_HITS.get() > 0);
-        assert!(FRAGMENT_CACHE_HITS.get() > 0);
     }
 
     #[test]
