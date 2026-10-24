@@ -1569,6 +1569,47 @@ mod tests {
     }
 
     #[test]
+    fn phase_caps_move_to_an_open_spider_leg() {
+        for (cube, reference, gates, opposite) in [
+            ("XZX", "X", vec!["sdg"], vec!["s"]),
+            ("ZXZ", "Z", vec!["h", "s", "h"], vec!["h", "sdg", "h"]),
+        ] {
+            for cap in [reference, "Y"] {
+                let source = BlockGraph::from_blog_text(&format!(
+                    "BLOG 1.0\n0: Port [0,0,0] role=input\n1: {cube} [0,0,1]\n\
+                     2: {cap} [0,0,2]\n3: Port [1,0,1] role=output\n\
+                     0 -> +Z\n1 -> +Z\n1 -> +X\n"
+                ))
+                .unwrap();
+                let (_, actual) = LogicalVerifier::new(&source)
+                    .unwrap()
+                    .instantiate(&BTreeMap::new())
+                    .unwrap();
+                let actual = contract(&actual.unwrap());
+                let expected_gates = if cap == reference { &[][..] } else { &gates };
+                let expected = circuit_graph(
+                    1,
+                    &expected_gates
+                        .iter()
+                        .map(|&gate| (gate, vec![0]))
+                        .collect::<Vec<_>>(),
+                );
+                assert!(TensorF::scalar_eq(&actual, &contract(&expected)));
+                if cap == "Y" {
+                    let wrong = circuit_graph(
+                        1,
+                        &opposite
+                            .iter()
+                            .map(|&gate| (gate, vec![0]))
+                            .collect::<Vec<_>>(),
+                    );
+                    assert!(!TensorF::scalar_eq(&actual, &contract(&wrong)));
+                }
+            }
+        }
+    }
+
+    #[test]
     fn basis_flip_dualizes_fixed_resources_through_their_pipes() {
         for (kind, gate) in [(BlockKind::T, "t"), (BlockKind::Y, "s")] {
             for hadamard in [false, true] {
