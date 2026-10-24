@@ -429,12 +429,10 @@ fn native_reference_branches_preserve_spaces_and_avoid_self_wait() {
     for text in [
         include_str!("fixtures/native_t.blog"),
         include_str!("fixtures/native_tdg.blog"),
+        include_str!("fixtures/native_mixed_t.blog"),
     ] {
         let mut actual = make_space(text);
         let gauges = actual.certify_native_gauges().unwrap();
-        let [gauge] = gauges.as_slice() else {
-            panic!("one T gadget");
-        };
         let resolved = actual
             .topology
             .resolves
@@ -453,53 +451,68 @@ fn native_reference_branches_preserve_spaces_and_avoid_self_wait() {
                 .all(|row| row.terms().iter().all(|&(_, bit)| bit == ONE))
         );
         // Equality of these linear functionals proves the protected-zero kernel is fixed.
-        assert!(
-            reference_rows
+        assert!(reference_rows.iter().all(|row| {
+            gauges
                 .iter()
-                .all(|row| row.get(gauge.lambda) == row.get(gauge.generator[2] - 1))
-        );
+                .all(|gauge| row.get(gauge.lambda) == row.get(gauge.generator[2] - 1))
+        }));
         let mut actual_rows = actual.rows.clone();
         actual.fill_selective(&mut actual_rows, &resolved).unwrap();
-        for outcome in [false, true] {
-            let flip = !actual
-                .topology
-                .diagram
-                .evaluate(actual.topology.resolves[0].1, |_| outcome);
-            let evaluated = actual_rows
-                .iter()
-                .filter(|row| actual.topology.diagram.evaluate(row.active, |_| outcome))
-                .map(|row| {
-                    BooleanRow::from_terms(
-                        ONE,
-                        row.terms().iter().filter_map(|&(column, bit)| {
-                            actual
-                                .topology
-                                .diagram
-                                .evaluate(bit, |_| outcome)
-                                .then_some((column, ONE))
-                        }),
-                    )
-                })
-                .collect();
-            let mut lifted = reference_rows.clone();
-            for row in &mut lifted {
-                if flip && row.get(gauge.lambda) == ONE {
-                    for &column in &gauge.generator {
-                        row.set(column, if row.get(column) == ONE { ZERO } else { ONE });
-                    }
-                }
-            }
-            assert_eq!(
-                canonical(lifted, 2 * actual.columns.len()),
-                canonical(evaluated, 2 * actual.columns.len())
-            );
-        }
         reference.audit_reference = true;
         let mut incremental = reference.clone();
         incremental.incremental_reference = true;
         incremental.plan_causal_readouts::<true, true>().unwrap();
         reference.plan_causal_readouts::<true, true>().unwrap();
         assert_same_reference_plan(&incremental, &reference);
+        let physical = 2 * actual.columns.len();
+        for assignment in 0..1usize << actual.topology.variables.len() {
+            let evaluate = |root| {
+                actual
+                    .topology
+                    .diagram
+                    .evaluate(root, |variable| assignment & (1 << variable) != 0)
+            };
+            let evaluated = actual_rows
+                .iter()
+                .filter(|row| evaluate(row.active))
+                .map(|row| {
+                    BooleanRow::from_terms(
+                        ONE,
+                        row.terms()
+                            .iter()
+                            .filter_map(|&(column, bit)| evaluate(bit).then_some((column, ONE))),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let lift = |row: &BooleanRow| {
+                let mut lifted = BooleanRow::from_terms(
+                    row.active,
+                    row.terms()
+                        .iter()
+                        .copied()
+                        .filter(|&(column, _)| column < physical),
+                );
+                for (gauge, &(_, selector)) in gauges.iter().zip(&actual.topology.resolves) {
+                    if !evaluate(selector) && row.get(gauge.lambda) == ONE {
+                        for &column in &gauge.generator {
+                            lifted.set(column, if lifted.get(column) == ONE { ZERO } else { ONE });
+                        }
+                    }
+                }
+                lifted
+            };
+            let expected = canonical(evaluated.clone(), physical);
+            assert_eq!(
+                canonical(reference_rows.iter().map(lift).collect(), physical),
+                expected
+            );
+            let mut with_plan = evaluated;
+            with_plan.extend(reference.surfaces.iter().map(|surface| lift(&surface.row)));
+            assert_eq!(canonical(with_plan, physical), expected);
+        }
+        let [gauge] = gauges.as_slice() else {
+            continue;
+        };
         let merge = reference
             .surfaces
             .iter()
@@ -559,28 +572,19 @@ fn native_reference_branches_preserve_spaces_and_avoid_self_wait() {
     }
 }
 
+#[cfg(feature = "verify")]
 #[test]
-fn incremental_reference_preserves_mixed_native_plan() {
-    let mut reference = make_space(include_str!("fixtures/native_mixed_t.blog"));
-    reference.reference_gauges = Some(reference.certify_native_gauges().unwrap());
-    reference.audit_reference = true;
-    let mut incremental = reference.clone();
-    incremental.incremental_reference = true;
-    incremental.plan_causal_readouts::<true, true>().unwrap();
-    reference.plan_causal_readouts::<true, true>().unwrap();
-    assert_same_reference_plan(&incremental, &reference);
-    #[cfg(feature = "verify")]
-    {
-        let circuit = quizx::circuit::Circuit::from_qasm(
-            "OPENQASM 2.0; include \"qelib1.inc\"; qreg q[2];
-             h q[0]; t q[0]; cx q[0],q[1]; tdg q[1]; h q[0]; t q[0];",
-        )
+fn mixed_native_fixture_matches_qasm() {
+    let space = make_space(include_str!("fixtures/native_mixed_t.blog"));
+    let circuit = quizx::circuit::Circuit::from_qasm(
+        "OPENQASM 2.0; include \"qelib1.inc\"; qreg q[2];
+         h q[0]; t q[0]; cx q[0],q[1]; tdg q[1]; h q[0]; t q[0];",
+    )
+    .unwrap();
+    crate::verify::LogicalVerifier::new(&space.topology.source)
+        .unwrap()
+        .verify(&circuit.to_graph(), 16, 0)
         .unwrap();
-        crate::verify::LogicalVerifier::new(&reference.topology.source)
-            .unwrap()
-            .verify(&circuit.to_graph(), 16, 0)
-            .unwrap();
-    }
 }
 
 #[test]
