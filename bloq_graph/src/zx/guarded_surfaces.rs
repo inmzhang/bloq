@@ -219,8 +219,8 @@ struct ReadoutTiming {
     pending: Vec<ColumnTiming>,
     domain: DecisionId,
     generation: u64,
-    constrained: HashMap<DecisionId, DecisionId>,
-    decisions: HashMap<DecisionId, i64>,
+    constrained: crate::FxHashMap<DecisionId, DecisionId>,
+    decisions: crate::FxHashMap<DecisionId, i64>,
 }
 
 impl ReadoutTiming {
@@ -235,8 +235,8 @@ impl ReadoutTiming {
             pending: Vec::new(),
             domain,
             generation,
-            constrained: HashMap::new(),
-            decisions: HashMap::new(),
+            constrained: crate::FxHashMap::default(),
+            decisions: crate::FxHashMap::default(),
         }
     }
 
@@ -308,15 +308,18 @@ impl ReadoutTiming {
         diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
     ) -> Result<i64, BooleanResourceError> {
         debug_assert_eq!(self.generation, diagram.generation());
+        diagram.charge(1)?;
+        if root == ZERO || root == ONE {
+            return Ok(i64::MIN);
+        }
         let root = if let Some(&constrained) = self.constrained.get(&root) {
             constrained
         } else {
-            diagram.charge(1)?;
             let constrained = diagram.constrain(root, self.domain)?;
             self.constrained.insert(root, constrained);
             constrained
         };
-        let cached = |values: &HashMap<DecisionId, i64>, root: DecisionId| {
+        let cached = |values: &crate::FxHashMap<DecisionId, i64>, root: DecisionId| {
             if root == ZERO || root == ONE {
                 Some(i64::MIN)
             } else {
@@ -1742,7 +1745,14 @@ impl GuardedSurfaceSpace {
                 &mut self.topology.diagram,
             )?;
             let mut reclaimed = Vec::new();
+            self.topology.diagram.charge(candidates.len())?;
             for (name, surface, time) in candidates {
+                let column = readout_timing
+                    .as_ref()
+                    .expect("timing initialized")
+                    .outcomes[&name]
+                    .1;
+                unknown_columns[column - physical_columns] = false;
                 readout_times.insert(name.clone(), time);
                 known.insert(name);
                 if reclaim_quotient {
@@ -1756,7 +1766,7 @@ impl GuardedSurfaceSpace {
                 self.surfaces.push(surface);
             }
             self.topology.diagram.charge(unknown.len())?;
-            unknown.retain(|(name, _)| !known.contains(name));
+            unknown.retain(|(_, column)| unknown_columns[*column - physical_columns]);
             if reclaim_quotient {
                 self.reclaim_readouts(&mut available_rows, &mut readout_pivots, reclaimed)?;
             }
@@ -4329,9 +4339,19 @@ mod tests {
             cached.decision(root, &mut space.topology.diagram).unwrap();
             assert_eq!(
                 space.topology.diagram.steps(),
-                spent,
+                spent + 1,
                 "cached domain restriction"
             );
+            if step == names.len() {
+                let diagram = &mut space.topology.diagram;
+                diagram
+                    .charge(diagram.limits().max_steps - diagram.steps())
+                    .unwrap();
+                for root in [ZERO, ONE, root] {
+                    let error = cached.decision(root, diagram).unwrap_err();
+                    assert_eq!(error.resource, "Boolean work steps");
+                }
+            }
             if let Some((name, _)) = names.get(step) {
                 let time = [7, 3, 11][step];
                 cached
