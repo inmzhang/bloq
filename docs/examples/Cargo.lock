@@ -56,7 +56,7 @@ dependencies = [
 
 [[package]]
 name = "bloq"
-version = "0.1.2-dev"
+version = "0.1.1"
 dependencies = [
  "bloq_circuit",
  "bloq_compile",
@@ -80,7 +80,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_circuit"
-version = "0.1.2-dev"
+version = "0.1.1"
 dependencies = [
  "bloq_utils",
  "glam",
@@ -93,7 +93,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_compile"
-version = "0.1.2-dev"
+version = "0.1.1"
 dependencies = [
  "bloq_circuit",
  "bloq_graph",
@@ -110,7 +110,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_graph"
-version = "0.1.2-dev"
+version = "0.1.1"
 dependencies = [
  "ariadne",
  "bloq_utils",
@@ -126,7 +126,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_ir"
-version = "0.1.2-dev"
+version = "0.1.1"
 dependencies = [
  "bloq_circuit",
  "bloq_utils",
@@ -140,7 +140,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_stim"
-version = "0.1.2-dev"
+version = "0.1.1"
 dependencies = [
  "bloq_circuit",
  "bloq_ir",
@@ -154,7 +154,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_utils"
-version = "0.1.2-dev"
+version = "0.1.1"
 dependencies = [
  "binar",
  "glam",
@@ -167,7 +167,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_vm"
-version = "0.1.2-dev"
+version = "0.1.1"
 dependencies = [
  "bloq_ir",
  "glam",
