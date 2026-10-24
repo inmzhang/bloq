@@ -1131,59 +1131,83 @@ impl RowWitnessTape {
         columns: &[usize],
         diagram: &mut BooleanDecisionDiagram,
     ) -> Result<Vec<Vec<(usize, DecisionId)>>, BooleanResourceError> {
-        diagram.charge(
-            self.ops
-                .len()
-                .saturating_mul(4)
-                .saturating_add(roots.len().saturating_mul(2)),
-        )?;
-        let mut needed = vec![false; self.ops.len()];
+        diagram.charge(roots.len().saturating_mul(3))?;
         let mut subscribers = FxHashMap::<usize, Vec<usize>>::default();
+        let mut pending = Vec::with_capacity(roots.len());
         for (index, &root) in roots.iter().enumerate() {
             if let Some(root) = root {
-                needed[root] = true;
-                diagram.charge(1)?;
-                subscribers.entry(root).or_default().push(index);
+                let entries = subscribers.entry(root).or_default();
+                diagram.charge(
+                    1 + if entries.len() == entries.capacity() {
+                        entries.len()
+                    } else {
+                        0
+                    },
+                )?;
+                entries.push(index);
+                pending.push(root);
             }
         }
-        let mut parents = vec![Vec::new(); self.ops.len()];
-        for (id, node) in self.ops.iter().enumerate().rev() {
-            if needed[id]
-                && let RowWitnessOp::Xor {
-                    left,
-                    right,
-                    factor,
-                } = node.op
+        let mut seen = FxHashSet::default();
+        let mut parents = FxHashMap::<usize, Vec<(usize, DecisionId)>>::default();
+        let mut seeds = BTreeMap::<usize, Vec<(usize, DecisionId)>>::new();
+        while let Some(id) = pending.pop() {
+            diagram.charge(1)?;
+            if !seen.insert(id) {
+                continue;
+            }
+            let node = &self.ops[id];
+            diagram.charge(2 * (columns.len().max(1).ilog2() as usize + 1))?;
+            let first = columns.partition_point(|&column| column < node.columns.0);
+            let last = columns.partition_point(|&column| column <= node.columns.1);
+            if first == last {
+                continue;
+            }
+            let requested = &columns[first..last];
+            if let RowWitnessOp::Xor {
+                left,
+                right,
+                factor,
+            } = node.op
             {
                 for (child, scale) in left
                     .map(|left| (left, DECISION_TRUE))
                     .into_iter()
                     .chain(std::iter::once((right, factor)))
                 {
+                    diagram.charge(1)?;
+                    if scale == DECISION_FALSE {
+                        continue;
+                    }
+                    let bounds = self.ops[child].columns;
+                    diagram.charge(requested.len().max(1).ilog2() as usize + 1)?;
+                    let first = requested.partition_point(|&column| column < bounds.0);
+                    if requested.get(first).is_none_or(|&column| column > bounds.1) {
+                        continue;
+                    }
+                    let entries = parents.entry(child).or_default();
                     diagram.charge(
-                        1 + if parents[child].len() == parents[child].capacity() {
-                            parents[child].len()
+                        1 + if entries.len() == entries.capacity() {
+                            entries.len()
                         } else {
                             0
                         },
                     )?;
-                    needed[child] = true;
-                    parents[child].push((id, scale));
+                    entries.push((id, scale));
+                    diagram.charge(
+                        1 + if pending.len() == pending.capacity() {
+                            pending.len()
+                        } else {
+                            0
+                        },
+                    )?;
+                    pending.push(child);
                 }
+                continue;
             }
-        }
-        let mut seeds = BTreeMap::<usize, Vec<(usize, DecisionId)>>::new();
-        for (id, node) in self.ops.iter().enumerate() {
             let RowWitnessOp::Leaf(terms) = &node.op else {
-                continue;
+                unreachable!("witness nodes are leaves or transfers");
             };
-            if !needed[id] {
-                continue;
-            }
-            diagram.charge(2 * (columns.len().max(1).ilog2() as usize + 1))?;
-            let first = columns.partition_point(|&column| column < node.columns.0);
-            let last = columns.partition_point(|&column| column <= node.columns.1);
-            let requested = &columns[first..last];
             let mut seed = |column, value, diagram: &mut BooleanDecisionDiagram| {
                 diagram.charge(seeds.len().max(1).ilog2() as usize + 1)?;
                 let entries = seeds.entry(column).or_default();
@@ -1249,8 +1273,9 @@ impl RowWitnessTape {
                         front.push((column, value));
                     }
                 }
-                diagram.charge(parents[id].len())?;
-                for &(parent, scale) in &parents[id] {
+                let parents = parents.get(&id).map_or(&[][..], Vec::as_slice);
+                diagram.charge(parents.len().saturating_add(1))?;
+                for &(parent, scale) in parents {
                     let contribution = diagram.apply(BooleanOp::And, value, scale)?;
                     if contribution != DECISION_FALSE {
                         diagram.charge(pending.len().max(1).ilog2() as usize + 1)?;
@@ -3336,6 +3361,21 @@ mod tests {
                     .unwrap();
                 rows.push(left);
             }
+            // A local probe must not scan or allocate for unrelated tape history.
+            let limit = diagram.limits.max_steps;
+            diagram.limits.max_steps = diagram.steps() + 128;
+            assert_eq!(
+                diagram
+                    .probe_row_coefficients(&[&rows[0]], &[0, 1, 0, 2 * width + 17])
+                    .unwrap(),
+                vec![vec![
+                    DECISION_TRUE,
+                    DECISION_TRUE,
+                    DECISION_TRUE,
+                    DECISION_FALSE
+                ]],
+            );
+            diagram.limits.max_steps = limit;
             let columns = (0..width).map(|index| 2 * index).collect::<Vec<_>>();
             let before = diagram.steps();
             diagram.extend_witness_front(&columns, &mut rows).unwrap();

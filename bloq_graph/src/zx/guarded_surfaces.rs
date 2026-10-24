@@ -1540,8 +1540,20 @@ impl GuardedSurfaceSpace {
                 {
                     continue;
                 }
+                // Readiness, feedback and timing share one transient raw view;
+                // only the factored recipe survives this candidate.
+                let physical = if row.is_deferred() {
+                    self.topology
+                        .diagram
+                        .charge(row.terms().len().saturating_add(1))?;
+                    let mut physical = row.clone();
+                    physical.expand_coefficients(&mut self.topology.diagram)?;
+                    Cow::Owned(physical)
+                } else {
+                    Cow::Borrowed(&row)
+                };
                 let mut ready = true;
-                for &(_, bit) in raw_terms(&row, &mut self.topology.diagram)?.iter() {
+                for &(_, bit) in physical.terms() {
                     if !available_values.available(bit, &mut self.topology.diagram)? {
                         ready = false;
                         break;
@@ -1555,8 +1567,9 @@ impl GuardedSurfaceSpace {
                     .filter(|&&(column, _)| !unknown_columns[column - physical_columns])
                     .map(|&(column, bit)| (names[column - physical_columns].0.clone(), bit))
                     .collect();
-                let feedbacks = self.feedbacks::<RECLAIM>(&row, &actions, &feedback_columns)?;
-                let mut time = timing.row(&row, *wanted, &mut self.topology.diagram)?;
+                let feedbacks =
+                    self.feedbacks::<RECLAIM>(&physical, &actions, &feedback_columns)?;
+                let mut time = timing.row(&physical, *wanted, &mut self.topology.diagram)?;
                 for &(_, guard) in &feedbacks {
                     time = time.max(timing.decision(guard, &mut self.topology.diagram)?);
                 }
@@ -1677,7 +1690,11 @@ impl GuardedSurfaceSpace {
             if reclaim {
                 self.reclaim_readouts(&mut available_rows, &mut readout_pivots, reclaimed)?;
             }
-            if lazy {
+            // Reclaim by growth, rather than scanning all recipes on every wave.
+            if lazy
+                && (self.topology.diagram.witness_collection_work() > self.next_readout_collection
+                    || self.topology.diagram.nodes().len() > self.next_readout_collection)
+            {
                 self.compact_readout_witnesses()?;
             }
             self.check_readout_roots(
@@ -1971,6 +1988,9 @@ impl GuardedSurfaceSpace {
             let mut reduced = BooleanRowSpace::default();
             let physical = remaining.candidate_columns(&mut self.topology.diagram)?;
             for column in input_columns.into_iter().chain(physical) {
+                if remaining.is_empty() {
+                    break;
+                }
                 let pivot =
                     remaining.eliminate_column_queried(column, &mut self.topology.diagram)?;
                 reduced.reduce_column_queried(column, &pivot, &mut self.topology.diagram)?;
