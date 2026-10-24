@@ -1963,6 +1963,26 @@ impl BooleanRowSpace {
         ids.into_iter()
     }
 
+    /// Visit stable row IDs whose active support may contain `column`, in
+    /// unspecified order, without copying or sorting the posting list.
+    ///
+    /// # Errors
+    /// Returns [`BooleanResourceError`] before visiting any row if the complete
+    /// traversal exceeds the configured work allowance.
+    pub fn visit_column_rows(
+        &self,
+        column: usize,
+        diagram: &mut BooleanDecisionDiagram,
+        mut visit: impl FnMut(usize),
+    ) -> Result<(), BooleanResourceError> {
+        let rows = self.columns.get(&column);
+        diagram.charge(rows.map_or(1, |rows| rows.capacity().saturating_add(1)))?;
+        for &index in rows.into_iter().flatten() {
+            visit(index);
+        }
+        Ok(())
+    }
+
     /// Append a row after all existing rows in the pivot priority order.
     ///
     /// # Errors
@@ -3994,6 +4014,38 @@ mod tests {
                 .terms(),
             rows[1].terms()
         );
+    }
+
+    #[test]
+    fn column_visits_charge_before_exposing_row_ids() {
+        let mut rows = BooleanRowSpace::new(
+            vec![
+                BooleanRow::from_terms(DECISION_TRUE, [(0, DECISION_TRUE)]),
+                BooleanRow::from_terms(DECISION_TRUE, [(0, DECISION_TRUE), (1, DECISION_TRUE)]),
+            ],
+            &mut BooleanDecisionDiagram::default(),
+        )
+        .unwrap();
+        // Removing a row leaves a sparse posting with retained capacity.
+        rows.take(0, &mut BooleanDecisionDiagram::default())
+            .unwrap();
+        let mut visited = Vec::new();
+        let mut denied = BooleanDecisionDiagram::with_limits(BooleanLimits {
+            max_steps: 2,
+            ..BooleanLimits::DEFAULT
+        });
+        let error = rows
+            .visit_column_rows(0, &mut denied, |id| visited.push(id))
+            .unwrap_err();
+        assert_eq!(error.resource, "Boolean work steps");
+        assert!(visited.is_empty());
+        let mut allowed = BooleanDecisionDiagram::with_limits(BooleanLimits {
+            max_steps: 4,
+            ..BooleanLimits::DEFAULT
+        });
+        rows.visit_column_rows(0, &mut allowed, |id| visited.push(id))
+            .unwrap();
+        assert_eq!(visited, [1]);
     }
 
     #[test]

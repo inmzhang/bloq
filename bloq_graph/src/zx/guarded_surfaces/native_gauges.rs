@@ -1,8 +1,17 @@
 //! Checked fixed native gauges and their constant causal reference basis.
 
 use super::*;
+use std::cell::Cell;
 
 type ColumnPriority = (bool, std::cmp::Reverse<i64>, usize);
+
+#[derive(Clone, Copy, Default)]
+enum CandidateSummary {
+    #[default]
+    Unchecked,
+    Blocked,
+    Ready(i64),
+}
 
 /// Complete constant RREF, including accepted equations and physical kernels.
 pub(super) struct ConstantReadoutBasis {
@@ -10,6 +19,10 @@ pub(super) struct ConstantReadoutBasis {
     owners: HashMap<usize, usize>,
     order: Vec<ColumnPriority>,
     pending: Vec<usize>,
+    physical: usize,
+    // Frontier rows stay borrowed while other summaries are populated.
+    summaries: Vec<Cell<CandidateSummary>>,
+    queried: Cell<bool>,
 }
 
 impl ConstantReadoutBasis {
@@ -49,6 +62,9 @@ impl ConstantReadoutBasis {
             owners: HashMap::new(),
             order,
             pending,
+            physical,
+            summaries: Vec::new(),
+            queried: Cell::new(false),
         })
     }
 
@@ -82,12 +98,19 @@ impl ConstantReadoutBasis {
         else {
             return Ok(());
         };
+        self.invalidate_column(column, diagram)?;
         self.rows.reduce_column(column, &row, diagram)?;
         let owner = self
             .rows
             .insert_indexed(row, diagram)?
             .expect("nonzero pivot");
         assert!(self.owners.insert(column, owner).is_none());
+        diagram.charge(1)?;
+        if self.summaries.len() == self.summaries.capacity() {
+            diagram.charge(self.summaries.len())?;
+        }
+        debug_assert_eq!(owner, self.summaries.len());
+        self.summaries.push(Cell::default());
         Ok(())
     }
 
@@ -103,6 +126,7 @@ impl ConstantReadoutBasis {
             order >= self.order[column],
             "column priorities only move later"
         );
+        self.invalidate_column(column, diagram)?;
         self.order[column] = order;
         let Some(&owner) = self.owners.get(&column) else {
             return Ok(());
@@ -117,6 +141,7 @@ impl ConstantReadoutBasis {
             .0;
         if next != column {
             let row = self.rows.take(owner, diagram)?.expect("pivot owner exists");
+            self.invalidate_column(next, diagram)?;
             self.rows.reduce_column(next, &row, diagram)?;
             self.rows.replace(owner, row, diagram)?;
             self.owners.remove(&column);
@@ -156,6 +181,57 @@ impl ConstantReadoutBasis {
         };
         let row = self.rows.row(owner).expect("pivot owner exists");
         Ok(Some(row))
+    }
+
+    fn invalidate_column(
+        &self,
+        column: usize,
+        diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
+    ) -> Result<(), BooleanResourceError> {
+        diagram.charge(1)?;
+        if !self.queried.get() {
+            return Ok(());
+        }
+        self.rows.visit_column_rows(column, diagram, |owner| {
+            self.summaries[owner].set(CandidateSummary::Unchecked);
+        })
+    }
+
+    pub(super) fn ready_candidate(
+        &self,
+        wanted: usize,
+        unknown: &[bool],
+        times: &[i64],
+        diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
+    ) -> Result<Option<(&BooleanRow, i64)>, BooleanResourceError> {
+        let Some(row) = self.candidate(wanted, diagram)? else {
+            return Ok(None);
+        };
+        let summary = &self.summaries[self.owners[&wanted]];
+        let time = match summary.get() {
+            CandidateSummary::Blocked => return Ok(None),
+            CandidateSummary::Ready(time) => time,
+            CandidateSummary::Unchecked => {
+                diagram.charge(row.terms().len())?;
+                self.queried.set(true);
+                let mut time = i64::MIN;
+                // Certified rows and feedback guards are constant; selector
+                // readiness is already included in the cap-X column time.
+                for &(column, _) in row.terms() {
+                    if column == wanted {
+                        continue;
+                    }
+                    if column >= self.physical && unknown[column - self.physical] {
+                        summary.set(CandidateSummary::Blocked);
+                        return Ok(None);
+                    }
+                    time = time.max(times[column]);
+                }
+                summary.set(CandidateSummary::Ready(time));
+                time
+            }
+        };
+        Ok(Some((row, time)))
     }
 }
 
@@ -442,6 +518,15 @@ fn raw_releases_preserve_canonical_candidates_and_private_kernels() {
         }
         let row = raw.candidate(5, &mut diagram).unwrap().unwrap();
         assert_eq!(timing.row(row, 5, &mut diagram).unwrap(), expected_time);
+        for basis in [&raw, &projected] {
+            assert_eq!(
+                basis
+                    .ready_candidate(5, &[false, true], &timing.columns, &mut diagram)
+                    .unwrap()
+                    .map(|(_, time)| time),
+                Some(expected_time),
+            );
+        }
         if cut < constraints.len() {
             pending.remove(&constraints[cut].0);
             availability
@@ -460,14 +545,90 @@ fn raw_releases_preserve_canonical_candidates_and_private_kernels() {
     diagram
         .charge(diagram.limits().max_steps - diagram.steps())
         .unwrap();
-    assert!(raw.candidate(5, &mut diagram).is_err());
     assert!(raw.insert(BooleanRow::new(ONE), &mut diagram).is_err());
 }
 
 #[cfg(test)]
 #[test]
+fn candidate_cache_tracks_nonpivot_readiness_and_timing() {
+    let mut diagram = bloq_utils::boolean::BooleanDecisionDiagram::default();
+    let mut times = vec![i64::MAX, 1, 0, 0, i64::MAX, i64::MAX];
+    let names = [("a".into(), 4), ("b".into(), 5)];
+    let timing = ReadoutTiming::new(times.clone(), vec![], ONE, 0);
+    let mut basis = ConstantReadoutBasis::new(&timing, &names, 4, &mut diagram).unwrap();
+    basis
+        .insert(
+            BooleanRow::from_terms(ONE, [(0, ONE), (4, ONE), (5, ONE)]),
+            &mut diagram,
+        )
+        .unwrap();
+    assert!(
+        basis
+            .ready_candidate(4, &[true, true], &times, &mut diagram)
+            .unwrap()
+            .is_none()
+    );
+    basis.make_known(5, 2, &mut diagram).unwrap();
+    times[5] = 2;
+    for (column, time, expected) in [(None, 0, i64::MAX), (Some(0), 3, 3)] {
+        if let Some(column) = column {
+            basis.make_known(column, time, &mut diagram).unwrap();
+            times[column] = time;
+        }
+        let (row, actual) = basis
+            .ready_candidate(4, &[true, false], &times, &mut diagram)
+            .unwrap()
+            .unwrap();
+        assert_eq!(row.terms(), [(0, ONE), (4, ONE), (5, ONE)]);
+        assert_eq!(actual, expected);
+    }
+    basis
+        .insert(
+            BooleanRow::from_terms(ONE, [(0, ONE), (1, ONE)]),
+            &mut diagram,
+        )
+        .unwrap();
+    assert_eq!(
+        basis
+            .ready_candidate(4, &[true, false], &times, &mut diagram)
+            .unwrap()
+            .unwrap()
+            .1,
+        2
+    );
+    // Repeated unchanged queries fit a budget that cannot rescan their support.
+    diagram
+        .charge(diagram.limits().max_steps - diagram.steps() - 16)
+        .unwrap();
+    for _ in 0..8 {
+        assert_eq!(
+            basis
+                .ready_candidate(4, &[true, false], &times, &mut diagram)
+                .unwrap()
+                .unwrap()
+                .1,
+            2
+        );
+    }
+    diagram
+        .charge(diagram.limits().max_steps - diagram.steps())
+        .unwrap();
+    let error = basis
+        .ready_candidate(4, &[true, false], &times, &mut diagram)
+        .unwrap_err();
+    assert_eq!(error.resource, "Boolean work steps");
+}
+
+#[cfg(test)]
+#[test]
 fn constant_rref_updates_match_fresh_reduction() {
-    fn check(basis: &ConstantReadoutBasis, source: &[BooleanRow]) {
+    fn check(
+        basis: &ConstantReadoutBasis,
+        source: &[BooleanRow],
+        timing: &mut ReadoutTiming,
+        unknown: &[bool],
+        diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
+    ) {
         let mut columns = (0..basis.order.len()).collect::<Vec<_>>();
         columns.sort_unstable_by_key(|&column| basis.order[column]);
         let expected = reduce_boolean_rows(source.to_vec(), columns, &mut Default::default())
@@ -482,13 +643,30 @@ fn constant_rref_updates_match_fresh_reduction() {
             .map(|(_, &owner)| basis.rows.row(owner).unwrap().terms().to_vec())
             .collect::<Vec<_>>();
         assert_eq!(actual, expected);
+        for wanted in (6..9).filter(|&column| unknown[column - 6]) {
+            let expected = basis
+                .candidate(wanted, diagram)
+                .unwrap()
+                .filter(|row| {
+                    !GuardedSurfaceSpace::named_terms(row, 6, 9)
+                        .iter()
+                        .any(|&(column, _)| column != wanted && unknown[column - 6])
+                })
+                .map(|row| timing.row(row, wanted, diagram).unwrap());
+            let actual = basis
+                .ready_candidate(wanted, unknown, &timing.columns, diagram)
+                .unwrap()
+                .map(|(_, time)| time);
+            assert_eq!(actual, expected);
+        }
     }
     for seed in 0..32u64 {
         let mut diagram = bloq_utils::boolean::BooleanDecisionDiagram::default();
-        let timing = ReadoutTiming::new(vec![i64::MAX; 9], Vec::new(), ONE, 0);
+        let mut timing = ReadoutTiming::new(vec![i64::MAX; 9], Vec::new(), ONE, 0);
         let names = [("a".into(), 6), ("b".into(), 7), ("c".into(), 8)];
         let mut basis = ConstantReadoutBasis::new(&timing, &names, 6, &mut diagram).unwrap();
         let mut source = Vec::new();
+        let mut unknown = [true; 3];
         for (step, column) in [6, 0, 7, 1, 8, 2].into_iter().enumerate() {
             let mask =
                 ((seed + 1) * 0x9e37).rotate_left((step * 7) as u32) ^ (0x51a3 * (step as u64 + 1));
@@ -500,10 +678,14 @@ fn constant_rref_updates_match_fresh_reduction() {
                 );
                 basis.insert(row.clone(), &mut diagram).unwrap();
                 source.push(row);
-                check(&basis, &source);
+                check(&basis, &source, &mut timing, &unknown, &mut diagram);
             }
             basis.make_known(column, step as i64, &mut diagram).unwrap();
-            check(&basis, &source);
+            timing.columns[column] = step as i64;
+            if column >= 6 {
+                unknown[column - 6] = false;
+            }
+            check(&basis, &source, &mut timing, &unknown, &mut diagram);
         }
     }
 }

@@ -85,10 +85,13 @@ fn assert_same_reference_plan(left: &GuardedSurfaceSpace, right: &GuardedSurface
 
 #[test]
 fn native_reference_branches_preserve_spaces_and_avoid_self_wait() {
+    let feedback = include_str!("fixtures/native_t.blog")
+        .replace("resolve 5 if !t0", "resolve 5 if !t0\n  feedback X 1 -> +Z");
     for text in [
         include_str!("fixtures/native_t.blog"),
         include_str!("fixtures/native_tdg.blog"),
         include_str!("fixtures/native_mixed_t.blog"),
+        feedback.as_str(),
     ] {
         let mut actual = make_space(text);
         let gauges = actual
@@ -126,6 +129,14 @@ fn native_reference_branches_preserve_spaces_and_avoid_self_wait() {
         fallback.incremental_reference = true;
         incremental.incremental_reference = true;
         incremental.plan_causal_readouts::<true, true>().unwrap();
+        if text == feedback {
+            assert!(
+                incremental
+                    .surfaces
+                    .iter()
+                    .any(|surface| !surface.feedbacks.is_empty())
+            );
+        }
         reference.plan_causal_readouts::<true, true>().unwrap();
         assert_same_reference_plan(&incremental, &reference);
         fallback

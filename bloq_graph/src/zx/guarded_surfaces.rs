@@ -1553,12 +1553,24 @@ impl GuardedSurfaceSpace {
             let mut candidates = Vec::new();
             for (index, (name, wanted)) in unknown.iter().enumerate() {
                 self.topology.diagram.charge(1)?;
-                let row = if let Some(basis) = &reference_basis {
-                    let Some(row) = basis.candidate(*wanted, &mut self.topology.diagram)? else {
+                if let Some(basis) = &reference_basis {
+                    let Some((row, time)) = basis.ready_candidate(
+                        *wanted,
+                        &unknown_columns,
+                        &timing.columns,
+                        &mut self.topology.diagram,
+                    )?
+                    else {
                         continue;
                     };
-                    Cow::Borrowed(row)
-                } else if let Some(factored) = &mut factored {
+                    #[cfg(test)]
+                    if self.audit_reference {
+                        self.audit_reference_candidate(row, *wanted, time, &names, &readout_times)?;
+                    }
+                    candidates.push((name.clone(), Cow::Borrowed(row), None, time));
+                    continue;
+                }
+                let row = if let Some(factored) = &mut factored {
                     let Some(row) = factored[index].take() else {
                         continue;
                     };
@@ -1594,7 +1606,7 @@ impl GuardedSurfaceSpace {
                 if self.audit_reference {
                     self.audit_reference_candidate(&row, *wanted, time, &names, &readout_times)?;
                 }
-                candidates.push((name.clone(), row, feedbacks, time));
+                candidates.push((name.clone(), row, Some(feedbacks), time));
             }
             // A newly known outcome can also unlock a symbolic kernel or a
             // previously unavailable named row without releasing a site.
@@ -1676,6 +1688,10 @@ impl GuardedSurfaceSpace {
             // Freeze the complete frontier before changing any pivot priorities.
             let mut selected = Vec::with_capacity(candidates.len());
             for (name, row, feedbacks, time) in candidates {
+                let feedbacks = match feedbacks {
+                    Some(feedbacks) => feedbacks,
+                    None => self.feedbacks::<RECLAIM>(&row, &actions, &feedback_columns)?,
+                };
                 let folds =
                     Self::named_terms(&row, physical_columns, physical_columns + names.len())
                         .iter()
