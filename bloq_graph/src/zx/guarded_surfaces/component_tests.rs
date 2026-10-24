@@ -24,7 +24,7 @@ fn named_row_from_ids(
     )
     .unwrap();
     let reduced = space
-        .reduce_named_rows(rows, [column].into_iter(), &[], true, false)
+        .reduce_named_rows(rows, [column].into_iter(), &[], true)
         .unwrap();
     space.named_row(&reduced, column).unwrap()
 }
@@ -51,12 +51,12 @@ fn unrelated_kernel_does_not_reject_an_injective_named_component() {
     assert!(space.topology.diagram.nodes().len() < nodes);
     assert!(
         space
-            .injective_named_candidates(&rows, &[0, 1], &unknown, 10, 11, false)
+            .injective_named_candidates(&rows, &[0, 1], &unknown, 10, 11)
             .unwrap()
             .is_none()
     );
     let candidate = space
-        .injective_named_candidates(&rows, &selected, &unknown, 10, 11, false)
+        .injective_named_candidates(&rows, &selected, &unknown, 10, 11)
         .unwrap()
         .unwrap()
         .remove(0)
@@ -150,7 +150,7 @@ fn removed_inactive_postings_preserve_raw_rows_on_a_restricted_domain() {
     assert_eq!(selected, [0]);
     assert!(
         space
-            .injective_named_candidates(&rows, &selected, &unknown, 10, 11, false)
+            .injective_named_candidates(&rows, &selected, &unknown, 10, 11)
             .unwrap()
             .is_none()
     );

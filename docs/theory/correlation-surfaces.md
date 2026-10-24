@@ -414,15 +414,10 @@ removed from the live relation, and later readouts refer to it by name. Its
 defining relation is restored while a later readout chooses its witness, so
 that witness can move to an earlier equivalent coset through the known value.
 
-For unrestricted source domains, readout witnesses carry physical coefficients
-on a shared row-operation tape. Source and availability relations remain
-explicit, as do named and output projections.
-Causal checks inspect exact coefficients, and physical binding queries local
-support without expanding every saved row. Restricted domains retain eager
-cofactor semantics. Collection retains all owned witnesses and reclaims dead
-Boolean functions before falling back to a full-source solve. Timing is updated
-as outcomes become known; an ordered live-row index skips removed slots while
-preserving stable row IDs and source order.
+Before falling back to a full-source solve, Bloq collects dead Boolean
+functions while retaining every owned readout root. Timing persists between
+waves and refreshes unresolved or affected entries as outcomes become known;
+diagram collection invalidates caches whose decision IDs have changed.
 
 Source `z` is a preference, not a control deadline: a readout may extend above
 its controlled cap. Lowering orders the required records before the cap, and

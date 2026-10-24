@@ -324,26 +324,10 @@ impl GuardedReadoutPlan {
         let mut shared = crate::FxHashMap::default();
         let mut retained = 0usize;
         for (surface, query) in self.surfaces.iter().enumerate() {
-            let deferred = query.row.is_deferred();
-            let candidates = if deferred {
-                query
-                    .row
-                    .candidate_columns(&mut self.topology.diagram)?
-                    .into_iter()
-                    .map(|column| (column, ZERO))
-                    .collect::<Vec<_>>()
-            } else {
-                Vec::new()
-            };
-            let terms = if deferred {
-                &candidates
-            } else {
-                query.row.terms()
-            };
-            self.topology.diagram.charge(terms.len())?;
+            self.topology.diagram.charge(query.row.terms().len())?;
             let mut modules = crate::FxHashMap::<usize, Vec<_>>::default();
             if query.row.active != ZERO {
-                for &(column, coefficient) in terms {
+                for &(column, coefficient) in query.row.terms() {
                     let Some(&owner) = column_modules.get(column / 2) else {
                         continue;
                     };
@@ -366,8 +350,7 @@ impl GuardedReadoutPlan {
                     terms,
                 );
                 self.topology.diagram.charge(key.2.len())?;
-                // A deferred front does not identify its passive witness.
-                let id = if !deferred && let Some(&id) = shared.get(&key) {
+                let id = if let Some(&id) = shared.get(&key) {
                     id
                 } else {
                     let positions =
@@ -386,7 +369,7 @@ impl GuardedReadoutPlan {
                     // fragments still bind exactly, without cache admission.
                     const MAX_SHARED_TERMS: usize = 262_144;
                     let terms = key.2.len().saturating_add(1);
-                    if !deferred && terms <= MAX_SHARED_TERMS.saturating_sub(retained) {
+                    if terms <= MAX_SHARED_TERMS.saturating_sub(retained) {
                         retained += terms;
                         shared.insert(key, id);
                     }
@@ -434,20 +417,6 @@ impl GuardedReadoutPlan {
             .diagram
             .charge(row.terms().len().saturating_add(1))?;
         *row = bloq_utils::boolean::BooleanRow::new(row.active);
-        Ok(())
-    }
-
-    /// Drop witness history no longer owned by a frozen surface. Call before
-    /// collecting decisions, after every returned local case has been consumed.
-    ///
-    /// # Errors
-    /// Returns an error if tape compaction exceeds its cumulative work limit.
-    pub fn compact_witnesses(&mut self) -> Result<(), BlockGraphError> {
-        if self.topology.diagram.witness_collection_work() != 0 {
-            self.topology
-                .diagram
-                .compact_row_witnesses(self.surfaces.iter_mut().map(|surface| &mut surface.row))?;
-        }
         Ok(())
     }
 
@@ -553,19 +522,17 @@ impl GuardedReadoutPlan {
                 };
                 coordinates.push(bit);
             };
-            let columns = variant
-                .columns()
-                .flat_map(|column| [2 * column, 2 * column + 1])
-                .collect::<Vec<_>>();
-            for root in row.probe_coefficients(&columns, &mut self.topology.diagram)? {
-                if root != ZERO && support != ONE {
-                    support = if support == ZERO || support == root {
-                        root
-                    } else {
-                        ONE
-                    };
+            for column in variant.columns() {
+                for root in [row.get(2 * column), row.get(2 * column + 1)] {
+                    if root != ZERO && support != ONE {
+                        support = if support == ZERO || support == root {
+                            root
+                        } else {
+                            ONE
+                        };
+                    }
+                    push_root(root);
                 }
-                push_root(root);
             }
             // An all-I local surface contributes no physical records, boundary
             // operators, or transport sign. A shared raw root gates every
@@ -680,17 +647,20 @@ impl GuardedReadoutPlan {
         Ok(output)
     }
 
-    /// Conservative physical sites retained at freeze time. Deferred witness
-    /// cancellation can leave candidates whose exact local support is empty.
-    /// Auxiliary named-readout coordinates are never physical support.
+    /// Visit nonzero row coefficients instead of scanning the global column
+    /// table. Auxiliary named-readout coordinates are not physical support.
     pub fn support_sites(&self, surface: usize) -> BTreeSet<[i32; 3]> {
         let row = &self.surfaces[surface].row;
-        if row.active == ZERO || (!row.is_deferred() && row.terms().is_empty()) {
+        if row.active == ZERO {
             return BTreeSet::new();
         }
-        self.fragment_uses[surface]
+        row.terms()
             .iter()
-            .flat_map(|&fragment| self.fragments[fragment].1.iter().copied())
+            .filter_map(|&(column, _)| {
+                self.columns.get(column / 2).map(|column| match *column {
+                    SurfaceColumn::Node(position) | SurfaceColumn::Edge(position, _) => position,
+                })
+            })
             .collect()
     }
 
@@ -746,24 +716,15 @@ impl GuardedReadoutPlan {
     ) -> Option<Stabilizer> {
         let row = &self.surfaces[surface].row;
         evaluate(row.active).then(|| {
-            let columns = (0..2 * self.columns.len()).collect::<Vec<_>>();
-            let values = row.evaluate_coefficients(&columns, &self.topology.diagram, evaluate);
-            let row = bloq_utils::boolean::BooleanRow::from_terms(
-                ONE,
-                values
-                    .into_iter()
-                    .enumerate()
-                    .filter_map(|(column, value)| value.then_some((column, ONE))),
-            );
             let paulis = super::guarded_surfaces::materialize_row(
                 self.columns
                     .iter()
                     .copied()
                     .enumerate()
                     .map(|(index, column)| (column, index)),
-                &row,
+                row,
                 zx,
-                |root| root == ONE,
+                evaluate,
             );
             assert!(
                 zx.contains_stabilizer_support(&paulis),
@@ -789,119 +750,6 @@ mod tests {
     use crate::PauliString;
     use crate::{GalleryItem, GuardedSurfaceSpace, ModuleCertificationLimits};
     use bloq_utils::boolean::DECISION_TRUE as ONE;
-
-    #[test]
-    fn deferred_local_queries_match_explicit_rows_after_cancellation_and_collection() {
-        let source = GalleryItem::THTH.build();
-        let linked = crate::flatten_module_definition(&source, source.root(), "").unwrap();
-        let graph = linked.graph.fix_shadowed_faces();
-        let limits = ModuleCertificationLimits::DEFAULT;
-        let plan = || {
-            GuardedSurfaceSpace::new(
-                GuardedTopology::new(&graph, limits).unwrap(),
-                &linked.sites,
-                limits,
-            )
-            .unwrap()
-            .plan_readouts()
-            .unwrap()
-        };
-        let mut explicit = plan();
-        let mut deferred = plan();
-        for plan in [&mut explicit, &mut deferred] {
-            for surface in &mut plan.surfaces {
-                surface
-                    .row
-                    .expand_coefficients(&mut plan.topology.diagram)
-                    .unwrap();
-            }
-            plan.topology.diagram.finish_witness_tape();
-        }
-        deferred
-            .topology
-            .diagram
-            .start_witness_tape([], 100_000)
-            .unwrap();
-        for surface in &mut deferred.surfaces {
-            surface
-                .row
-                .defer_coefficients(&mut deferred.topology.diagram)
-                .unwrap();
-        }
-        for plan in [&mut explicit, &mut deferred] {
-            let factor = plan.topology.diagram.make_node(0, ZERO, ONE).unwrap();
-            let other = plan.surfaces[1].row.clone();
-            for _ in 0..2 {
-                plan.surfaces[0]
-                    .row
-                    .xor_scaled(&other, factor, &mut plan.topology.diagram)
-                    .unwrap();
-            }
-            let owners = plan
-                .columns
-                .iter()
-                .map(|column| {
-                    let (SurfaceColumn::Node(position) | SurfaceColumn::Edge(position, _)) = column;
-                    (*position, 0)
-                })
-                .collect();
-            plan.fragments.clear();
-            plan.fragment_uses.clear();
-            plan.share_module_queries(&owners).unwrap();
-        }
-        let signature = |plan: &GuardedReadoutPlan, cases: Vec<GuardedLocalSurface>| {
-            assert!(plan.topology.variables.len() < 10);
-            let mut values = cases
-                .into_iter()
-                .map(|case| {
-                    (
-                        (0..1usize << plan.topology.variables.len())
-                            .map(|bits| {
-                                plan.topology
-                                    .diagram
-                                    .evaluate(case.guard, |variable| bits & (1 << variable) != 0)
-                            })
-                            .collect::<Vec<_>>(),
-                        case.surface.center,
-                        case.surface.port,
-                        case.surface.edges,
-                        case.selective,
-                    )
-                })
-                .collect::<Vec<_>>();
-            values.sort_by(|left, right| left.0.cmp(&right.0));
-            values
-        };
-        for _ in 0..2 {
-            for surface in 0..explicit.surfaces.len() {
-                let sites = explicit
-                    .support_sites(surface)
-                    .union(&deferred.support_sites(surface))
-                    .copied()
-                    .collect::<Vec<_>>();
-                for position in sites.into_iter().map(IVec3::from_array) {
-                    let expected = explicit.local_cases(surface, position, ONE).unwrap();
-                    let actual = deferred.local_cases(surface, position, ONE).unwrap();
-                    assert_eq!(signature(&explicit, expected), signature(&deferred, actual));
-                }
-                for &fragment in deferred.query_fragments(surface) {
-                    assert_eq!(
-                        deferred.query_fragment(fragment).0,
-                        surface,
-                        "passive witnesses are not interned by their fronts"
-                    );
-                }
-            }
-            deferred.compact_witnesses().unwrap();
-            deferred.collect_garbage(std::iter::empty());
-        }
-        assert_eq!(
-            explicit.action_dependencies().unwrap(),
-            deferred.action_dependencies().unwrap()
-        );
-        deferred.release_query_coefficients(0).unwrap();
-        assert!(deferred.support_sites(0).is_empty());
-    }
 
     #[test]
     fn constant_action_dependencies_do_not_scan_unrelated_boolean_nodes() {
@@ -983,13 +831,10 @@ mod tests {
                         if gate == ZERO {
                             continue;
                         }
-                        let columns = variant
+                        let mut roots = variant
                             .columns()
-                            .flat_map(|column| [2 * column, 2 * column + 1])
+                            .flat_map(|column| [row.get(2 * column), row.get(2 * column + 1)])
                             .collect::<Vec<_>>();
-                        let mut roots = row
-                            .probe_coefficients(&columns, &mut plan.topology.diagram)
-                            .unwrap();
                         let raw_len = roots.len();
                         repeated += usize::from(roots.iter().enumerate().any(|(index, root)| {
                             *root != ZERO && *root != ONE && roots[..index].contains(root)
@@ -1155,15 +1000,12 @@ mod tests {
                             .unwrap();
                         let zx = &variant.zx;
                         let row = &plan.surfaces[surface].row;
-                        let coordinates = (0..2 * columns.len()).collect::<Vec<_>>();
-                        let values = row.evaluate_coefficients(
-                            &coordinates,
-                            &plan.topology.diagram,
-                            evaluate,
-                        );
                         let mut dense = PauliString::new(zx.total_ids());
                         for (&column, &index) in &columns {
-                            let value = pauli(values[2 * index], values[2 * index + 1]);
+                            let value = pauli(
+                                evaluate(row.get(2 * index)),
+                                evaluate(row.get(2 * index + 1)),
+                            );
                             match column {
                                 SurfaceColumn::Node(at) if at == position.to_array() => {
                                     dense.set(variant.node, value)
@@ -1225,14 +1067,11 @@ mod fragment_tests {
 
     #[test]
     fn shared_fragments_cover_complete_native_coefficients_after_collection() {
-        for (gallery, eager) in [
+        for gallery in [
             GalleryItem::PhaseGradientK4,
             GalleryItem::CZSpatialH,
             GalleryItem::ThreeBitAdder,
-        ]
-        .into_iter()
-        .flat_map(|gallery| [false, true].map(move |eager| (gallery, eager)))
-        {
+        ] {
             let source = gallery.build();
             let linked = crate::flatten_module_definition(&source, source.root(), "").unwrap();
             let limits = ModuleCertificationLimits::DEFAULT;
@@ -1244,37 +1083,12 @@ mod fragment_tests {
             .unwrap()
             .plan_readouts()
             .unwrap();
-            if eager {
-                for surface in &mut plan.surfaces {
-                    surface
-                        .row
-                        .expand_coefficients(&mut plan.topology.diagram)
-                        .unwrap();
-                }
-                plan.topology.diagram.finish_witness_tape();
-                plan.fragments.clear();
-                plan.fragment_uses.clear();
-                let mut modules = BTreeMap::new();
-                let owners = plan
-                    .local
-                    .keys()
-                    .map(|&position| {
-                        let path = linked
-                            .sites
-                            .get(&IVec3::from_array(position))
-                            .map_or("", |site| site.instance_path.as_str());
-                        let next = modules.len();
-                        (position, *modules.entry(path).or_insert(next))
-                    })
-                    .collect();
-                plan.share_module_queries(&owners).unwrap();
-            }
             let mut visited = BTreeSet::new();
             let mut original_sites = 0;
             for _ in 0..2 {
                 for index in 0..plan.surfaces.len() {
                     let mut support = BTreeSet::new();
-                    for id in plan.query_fragments(index).to_vec() {
+                    for &id in plan.query_fragments(index) {
                         visited.insert(id);
                         let (representative, positions) = plan.query_fragment(id);
                         assert_eq!(
@@ -1296,14 +1110,8 @@ mod fragment_tests {
                             {
                                 for bit in [2 * column, 2 * column + 1] {
                                     assert_eq!(
-                                        plan.surfaces[index]
-                                            .row
-                                            .probe_coefficients(&[bit], &mut plan.topology.diagram)
-                                            .unwrap(),
-                                        plan.surfaces[representative]
-                                            .row
-                                            .probe_coefficients(&[bit], &mut plan.topology.diagram)
-                                            .unwrap(),
+                                        plan.surfaces[index].row.get(bit),
+                                        plan.surfaces[representative].row.get(bit),
                                         "{gallery:?}: native coefficient {bit}"
                                     );
                                 }
@@ -1313,10 +1121,9 @@ mod fragment_tests {
                     assert_eq!(support, plan.support_sites(index));
                     original_sites += support.len();
                 }
-                plan.compact_witnesses().unwrap();
                 plan.collect_garbage(std::iter::empty());
             }
-            if gallery == GalleryItem::ThreeBitAdder && eager {
+            if gallery == GalleryItem::ThreeBitAdder {
                 let shared_sites = visited
                     .into_iter()
                     .map(|id| plan.query_fragment(id).1.len())
