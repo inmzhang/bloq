@@ -181,6 +181,7 @@ enum ApplyTask {
 #[derive(Debug, Clone, Default)]
 pub struct BooleanDecisionDiagram {
     nodes: Vec<DecisionNode>,
+    peak_nodes: usize,
     unique: FxHashMap<DecisionNode, DecisionId>,
     apply_cache: ComputedTable,
     apply_tasks: Vec<ApplyTask>,
@@ -280,6 +281,7 @@ impl BooleanDecisionDiagram {
             nodes: Vec::with_capacity(retained),
             unique: FxHashMap::with_capacity_and_hasher(retained, Default::default()),
             not_cache: vec![DECISION_FALSE; retained],
+            peak_nodes: self.peak_nodes,
             limits: self.limits,
             steps: self.steps,
             generation: self.generation,
@@ -535,6 +537,11 @@ impl BooleanDecisionDiagram {
     pub fn nodes(&self) -> &[DecisionNode] {
         &self.nodes
     }
+    /// Returns the peak nonterminal arena length since creation.
+    /// Cloning and collection preserve this count.
+    pub fn peak_nodes(&self) -> usize {
+        self.peak_nodes
+    }
     /// Returns the reduced node for `variable`, `low`, and `high`.
     ///
     /// # Errors
@@ -567,6 +574,7 @@ impl BooleanDecisionDiagram {
         self.charge(1)?;
         let id = DecisionId(self.nodes.len() + 2);
         self.nodes.push(node);
+        self.peak_nodes = self.peak_nodes.max(self.nodes.len());
         self.not_cache.push(DECISION_FALSE);
         self.unique.insert(node, id);
         Ok(id)
@@ -3035,6 +3043,7 @@ mod tests {
             max_nodes: 1,
             max_steps: 2,
         });
+        assert_eq!(diagram.peak_nodes(), 0);
         let mut root = diagram.make_node(0, DECISION_FALSE, DECISION_TRUE).unwrap();
         assert_eq!(
             diagram.make_node(0, DECISION_FALSE, DECISION_TRUE),
@@ -3052,12 +3061,15 @@ mod tests {
             }
         );
         assert_eq!(diagram.nodes().len(), 1);
+        assert_eq!(diagram.peak_nodes(), 1);
         let limits = diagram.limits();
         diagram.collect_garbage([&mut root]);
         diagram.collect_garbage(std::iter::empty());
         assert_eq!(diagram.limits(), limits);
         assert_eq!(diagram.steps(), 1);
+        assert_eq!(diagram.peak_nodes(), 1);
         let mut cloned = diagram.clone();
+        assert_eq!(cloned.peak_nodes(), 1);
         cloned.charge(1).unwrap();
         let error = cloned
             .make_node(1, DECISION_FALSE, DECISION_TRUE)
@@ -3072,6 +3084,7 @@ mod tests {
         );
         assert!(cloned.nodes().is_empty());
         assert_eq!(cloned.steps(), 2);
+        assert_eq!(cloned.peak_nodes(), 1);
 
         let mut diagram = BooleanDecisionDiagram::with_limits(BooleanLimits {
             max_nodes: 10,
@@ -3085,6 +3098,7 @@ mod tests {
         diagram.negate(a).unwrap_err();
         diagram.constrain(a, b).unwrap_err();
         assert_eq!(diagram.nodes().len(), 2);
+        assert_eq!(diagram.peak_nodes(), 2);
     }
 
     #[test]

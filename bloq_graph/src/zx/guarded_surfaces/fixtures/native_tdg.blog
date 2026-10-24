@@ -1,0 +1,22 @@
+BLOG 1.0
+
+module main {
+  in q0: data = 0
+  out q1: data = 2
+
+  0: Port [0, 0, 0] role=input
+  1: XZX [0, 0, 1]
+  2: Port [0, 0, 2] role=output
+  3: T [1, 0, 0]
+  4: XZX [1, 0, 1]
+  5: XY [1, 0, 2]
+  0 -> +Z
+  1 -> +Z
+  1 -> +X
+  3 -> +Z
+  4 -> +Z
+
+  t0 = measure 1 -> +X
+  resolve 5 if t0
+
+}

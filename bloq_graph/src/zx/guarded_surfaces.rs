@@ -7,6 +7,8 @@
 
 #[cfg(test)]
 mod component_tests;
+#[cfg(test)]
+mod gauge_probe;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
@@ -53,6 +55,10 @@ pub struct GuardedSurfaceSpace {
     limits: ModuleCertificationLimits,
     module_sites: BTreeMap<[i32; 3], usize>,
     next_readout_collection: usize,
+    #[cfg(test)]
+    reference_gauges: Option<Vec<gauge_probe::NativeGauge>>,
+    #[cfg(test)]
+    audit_reference: bool,
 }
 
 // Reclamation stays finite when callers raise or disable the witness quota.
@@ -649,6 +655,10 @@ impl GuardedSurfaceSpace {
             limits: self.limits,
             module_sites: BTreeMap::new(),
             next_readout_collection: self.next_readout_collection,
+            #[cfg(test)]
+            reference_gauges: None,
+            #[cfg(test)]
+            audit_reference: false,
         }
     }
 
@@ -936,6 +946,10 @@ impl GuardedSurfaceSpace {
             limits,
             module_sites,
             next_readout_collection: next_readout_collection(0, limits.max_witness_nodes),
+            #[cfg(test)]
+            reference_gauges: None,
+            #[cfg(test)]
+            audit_reference: false,
         })
     }
 
@@ -1515,6 +1529,10 @@ impl GuardedSurfaceSpace {
                 let mut time = timing.row(&row, *wanted, &mut self.topology.diagram)?;
                 for &(_, guard) in &feedbacks {
                     time = time.max(timing.decision(guard, &mut self.topology.diagram)?);
+                }
+                #[cfg(test)]
+                if self.audit_reference {
+                    self.audit_reference_candidate(&row, *wanted, time, &names, &readout_times)?;
                 }
                 candidates.push((
                     name.clone(),
@@ -2192,6 +2210,12 @@ impl GuardedSurfaceSpace {
                 timing.pending[column].guards.push(guard);
             }
         }
+        #[cfg(test)]
+        if let Some(gauges) = &self.reference_gauges {
+            for (gauge, &(_, selector)) in gauges.iter().zip(&self.topology.resolves) {
+                timing.pending[gauge.lambda].guards.push(selector);
+            }
+        }
         timing.refresh(&mut self.topology.diagram)?;
         Ok(timing)
     }
@@ -2822,6 +2846,12 @@ impl GuardedSurfaceSpace {
         index: usize,
     ) -> Result<(), BooleanResourceError> {
         let (position, selector) = self.topology.resolves[index];
+        #[cfg(test)]
+        let selector = if self.reference_gauges.is_some() {
+            ONE
+        } else {
+            selector
+        };
         let NodeKind::Selective(kind) = self.local[&position.to_array()][0]
             .zx
             .node_at(position)
