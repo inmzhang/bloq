@@ -190,20 +190,119 @@ struct GuardedPivots {
     owners: BTreeMap<usize, usize>,
 }
 
+struct ColumnTiming {
+    column: usize,
+    earliest: i64,
+    guards: Vec<DecisionId>,
+}
+
 struct ReadoutTiming {
     columns: Vec<i64>,
+    base_columns: Vec<i64>,
+    raised: Vec<usize>,
     variables: Vec<i64>,
+    outcomes: HashMap<String, (Option<usize>, usize)>,
+    branches: Vec<(usize, DecisionId)>,
+    pending: Vec<ColumnTiming>,
     domain: DecisionId,
+    generation: u64,
+    constrained: HashMap<DecisionId, DecisionId>,
     decisions: HashMap<DecisionId, i64>,
 }
 
 impl ReadoutTiming {
+    fn new(columns: Vec<i64>, variables: Vec<i64>, domain: DecisionId, generation: u64) -> Self {
+        Self {
+            base_columns: columns.clone(),
+            columns,
+            raised: Vec::new(),
+            variables,
+            outcomes: HashMap::new(),
+            branches: Vec::new(),
+            pending: Vec::new(),
+            domain,
+            generation,
+            constrained: HashMap::new(),
+            decisions: HashMap::new(),
+        }
+    }
+
+    fn refresh(
+        &mut self,
+        diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
+    ) -> Result<(), BooleanResourceError> {
+        debug_assert_eq!(self.generation, diagram.generation());
+        diagram.charge(self.raised.len() + self.branches.len() + self.pending.len())?;
+        for column in self.raised.drain(..) {
+            self.columns[column] = self.base_columns[column];
+        }
+        let mut remaining = 0;
+        for index in 0..self.branches.len() {
+            let (variable, condition) = self.branches[index];
+            let time = self.decision(condition, diagram)?;
+            self.variables[variable] = time;
+            if time == i64::MAX {
+                self.branches[remaining] = (variable, condition);
+                remaining += 1;
+            }
+        }
+        self.branches.truncate(remaining);
+        let mut pending = std::mem::take(&mut self.pending);
+        let mut remaining = 0;
+        for index in 0..pending.len() {
+            let column = pending[index].column;
+            let mut time = pending[index].earliest;
+            diagram.charge(pending[index].guards.len())?;
+            for &guard in &pending[index].guards {
+                time = time.max(self.decision(guard, diagram)?);
+            }
+            self.base_columns[column] = time;
+            self.columns[column] = time;
+            if time == i64::MAX {
+                pending.swap(index, remaining);
+                remaining += 1;
+            }
+        }
+        pending.truncate(remaining);
+        self.pending = pending;
+        Ok(())
+    }
+
+    fn learn<'a>(
+        &mut self,
+        outcomes: impl IntoIterator<Item = (&'a str, i64)>,
+        diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
+    ) -> Result<(), BooleanResourceError> {
+        debug_assert_eq!(self.generation, diagram.generation());
+        for (name, time) in outcomes {
+            diagram.charge(1)?;
+            let (variable, column) = self.outcomes[name];
+            if let Some(variable) = variable {
+                self.variables[variable] = time;
+            }
+            self.base_columns[column] = time;
+            self.columns[column] = time;
+        }
+        // Finite times depend only on outcomes whose fixed times are already known.
+        diagram.charge(self.decisions.len())?;
+        self.decisions.retain(|_, time| *time != i64::MAX);
+        Ok(())
+    }
+
     fn decision(
         &mut self,
         root: DecisionId,
         diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
     ) -> Result<i64, BooleanResourceError> {
-        let root = diagram.constrain(root, self.domain)?;
+        debug_assert_eq!(self.generation, diagram.generation());
+        let root = if let Some(&constrained) = self.constrained.get(&root) {
+            constrained
+        } else {
+            diagram.charge(1)?;
+            let constrained = diagram.constrain(root, self.domain)?;
+            self.constrained.insert(root, constrained);
+            constrained
+        };
         let cached = |values: &HashMap<DecisionId, i64>, root: DecisionId| {
             if root == ZERO || root == ONE {
                 Some(i64::MIN)
@@ -275,6 +374,9 @@ impl ReadoutTiming {
         // another term in that same row has a constant coefficient.
         diagram.charge(columns.len())?;
         for column in columns {
+            if control > self.columns[column] && self.columns[column] == self.base_columns[column] {
+                self.raised.push(column);
+            }
             self.columns[column] = self.columns[column].max(control);
         }
         Ok(())
@@ -1068,8 +1170,11 @@ impl GuardedSurfaceSpace {
             .iter()
             .map(|name| (name.clone(), i64::MIN))
             .collect::<HashMap<_, _>>();
+        let mut readout_timing: Option<ReadoutTiming> = None;
+        self.topology.diagram.charge(names.len())?;
+        let mut unknown = names.iter().collect::<Vec<_>>();
         let mut incremental = RECLAIM;
-        while names.iter().any(|(name, _)| !known.contains(name)) {
+        while !unknown.is_empty() {
             crate::CancellationToken::checkpoint()?;
             if incremental && self.topology.diagram.nodes().len() > reclaim_limit {
                 // Dead reduction products must not disable incremental solving.
@@ -1097,7 +1202,19 @@ impl GuardedSurfaceSpace {
                     incremental = false;
                 }
             }
-            let mut timing = self.readout_timing(&names, &readout_times, &actions)?;
+            // Decision-id caches do not own roots across the collection boundary.
+            if readout_timing
+                .as_ref()
+                .is_none_or(|timing| timing.generation != self.topology.diagram.generation())
+            {
+                readout_timing = Some(self.readout_timing(&names, &readout_times, &actions)?);
+            } else {
+                readout_timing
+                    .as_mut()
+                    .expect("timing initialized")
+                    .refresh(&mut self.topology.diagram)?;
+            }
+            let timing = readout_timing.as_mut().expect("timing initialized");
             if available_values.is_none() {
                 self.topology.diagram.charge(
                     self.topology
@@ -1268,10 +1385,6 @@ impl GuardedSurfaceSpace {
                     available_rows = rows;
                 }
             }
-            let unknown = names
-                .iter()
-                .filter(|(name, _)| !known.contains(name))
-                .collect::<Vec<_>>();
             let mut unknown_columns = vec![false; names.len()];
             for (_, column) in &unknown {
                 unknown_columns[*column - physical_columns] = true;
@@ -1494,6 +1607,12 @@ impl GuardedSurfaceSpace {
                 candidates.retain(|(_, _, time)| *time <= cutoff);
             }
             let reclaim = incremental && candidates.len() < unknown.len();
+            readout_timing.as_mut().expect("timing initialized").learn(
+                candidates
+                    .iter()
+                    .map(|(name, _, time)| (name.as_str(), *time)),
+                &mut self.topology.diagram,
+            )?;
             let mut reclaimed = Vec::new();
             for (name, surface, time) in candidates {
                 readout_times.insert(name.clone(), time);
@@ -1508,6 +1627,8 @@ impl GuardedSurfaceSpace {
                 }
                 self.surfaces.push(surface);
             }
+            self.topology.diagram.charge(unknown.len())?;
+            unknown.retain(|(name, _)| !known.contains(name));
             if reclaim {
                 self.reclaim_readouts(&mut available_rows, &mut readout_pivots, reclaimed)?;
             }
@@ -1531,6 +1652,7 @@ impl GuardedSurfaceSpace {
             available_rows,
             readout_pivots,
             available_values,
+            readout_timing,
         ));
         let (input_nodes, resource_nodes) = authored_boundary_columns(&zx);
         let mut output_ports = zx.output_ports();
@@ -1956,8 +2078,9 @@ impl GuardedSurfaceSpace {
             self.topology
                 .variables
                 .len()
-                .saturating_add(names.len())
-                .saturating_add(self.columns.len().saturating_mul(2)),
+                .saturating_mul(3)
+                .saturating_add(names.len().saturating_mul(4))
+                .saturating_add(self.columns.len().saturating_mul(9)),
         )?;
         let outcome_time = |name: &str| known.get(name).copied().unwrap_or(i64::MAX);
         let variables = self
@@ -1969,36 +2092,61 @@ impl GuardedSurfaceSpace {
                 crate::GuardedVariable::Branch { .. } => i64::MAX,
             })
             .collect();
-        let mut timing = ReadoutTiming {
-            columns: vec![i64::MIN; 2 * self.columns.len() + names.len()],
+        let mut timing = ReadoutTiming::new(
+            vec![i64::MIN; 2 * self.columns.len() + names.len()],
             variables,
-            domain: self.topology.domain,
-            decisions: HashMap::new(),
-        };
+            self.topology.domain,
+            self.topology.diagram.generation(),
+        );
+        let outcomes = self
+            .topology
+            .variables
+            .iter()
+            .enumerate()
+            .filter_map(|(index, variable)| match variable {
+                crate::GuardedVariable::Outcome(name) => Some((name, index)),
+                crate::GuardedVariable::Branch { .. } => None,
+            })
+            .collect::<HashMap<_, _>>();
+        timing.outcomes = names
+            .iter()
+            .map(|(name, column)| (name.clone(), (outcomes.get(name).copied(), *column)))
+            .collect();
         // Structural choices require their source conditions, not a clock
         // inferred from the branch variable's numeric index.
         for (index, variable) in self.topology.variables.iter().enumerate() {
             if let crate::GuardedVariable::Branch { condition, .. } = variable {
-                timing.variables[index] =
-                    timing.decision(*condition, &mut self.topology.diagram)?;
+                timing.branches.push((index, *condition));
             }
         }
+        timing.pending = (0..2 * self.columns.len())
+            .map(|column| ColumnTiming {
+                column,
+                earliest: i64::MIN,
+                guards: Vec::new(),
+            })
+            .collect();
         for (&column, &index) in &self.columns {
             let (left, right) = match column {
                 SurfaceColumn::Node(position) => (position, position),
                 SurfaceColumn::Edge(left, right) => (left, right),
             };
-            let mut time = i64::from(left[2].max(right[2]));
+            let time = i64::from(left[2].max(right[2]));
             for position in [left, right] {
+                self.topology
+                    .diagram
+                    .charge(self.local[&position].len().saturating_mul(2))?;
                 for variant in &self.local[&position] {
-                    time = time.max(timing.decision(variant.guard, &mut self.topology.diagram)?);
+                    timing.pending[2 * index].guards.push(variant.guard);
+                    timing.pending[2 * index + 1].guards.push(variant.guard);
                 }
             }
-            timing.columns[2 * index] = time;
-            timing.columns[2 * index + 1] = time;
+            timing.pending[2 * index].earliest = time;
+            timing.pending[2 * index + 1].earliest = time;
         }
         for (name, column) in names {
             timing.columns[*column] = outcome_time(name);
+            timing.base_columns[*column] = outcome_time(name);
         }
         self.topology.diagram.charge(actions.len())?;
         for action in actions {
@@ -2041,10 +2189,10 @@ impl GuardedSurfaceSpace {
                     .topology
                     .diagram
                     .apply(BooleanOp::And, coefficient, condition)?;
-                timing.columns[column] =
-                    timing.columns[column].max(timing.decision(guard, &mut self.topology.diagram)?);
+                timing.pending[column].guards.push(guard);
             }
         }
+        timing.refresh(&mut self.topology.diagram)?;
         Ok(timing)
     }
 
@@ -3939,6 +4087,123 @@ mod tests {
     }
 
     #[test]
+    fn readout_timing_learns_fixed_times_and_resets_after_collection() {
+        let program = crate::parse_blog_program_to_ast(include_str!(
+            "../../../docs/fixtures/conditional_cz_strip.blog"
+        ))
+        .unwrap();
+        let program = crate::lower_blog_graph_ast_deferred(&program).unwrap();
+        let linked = crate::flatten_module_definition(&program, program.root(), "").unwrap();
+        let limits = ModuleCertificationLimits::DEFAULT;
+        let mut space = GuardedSurfaceSpace::new(
+            GuardedTopology::new(&linked.graph.fix_shadowed_faces(), limits).unwrap(),
+            &linked.sites,
+            limits,
+        )
+        .unwrap();
+        let names = space
+            .topology
+            .variables
+            .iter()
+            .filter_map(|variable| match variable {
+                crate::GuardedVariable::Outcome(name) => Some(name.clone()),
+                crate::GuardedVariable::Branch { .. } => None,
+            })
+            .enumerate()
+            .map(|(index, name)| (name, 2 * space.columns.len() + index))
+            .collect::<Vec<_>>();
+        let a = space
+            .topology
+            .condition(&crate::Expr::Var(names[0].0.clone()));
+        let b = space
+            .topology
+            .condition(&crate::Expr::Var(names[1].0.clone()));
+        let different = space.topology.diagram.apply(BooleanOp::Xor, a, b).unwrap();
+        let same = space.topology.diagram.negate(different).unwrap();
+        space.topology.domain = space
+            .topology
+            .diagram
+            .apply(BooleanOp::And, space.topology.domain, same)
+            .unwrap();
+        let target = crate::FeedbackTarget {
+            pauli: PauliBasis::X,
+            target: IVec3::new(0, 0, -1),
+            direction: None,
+        };
+        let mut actions = space.topology.source.actions();
+        actions.push(Action::Feedback {
+            targets: vec![target],
+            condition: Some(crate::Expr::Var(names[0].0.clone())),
+        });
+        let mut doubled = actions.clone();
+        doubled.push(Action::Feedback {
+            targets: vec![target, target],
+            condition: Some(crate::Expr::Var(names[2].0.clone())),
+        });
+        let mut known = HashMap::new();
+        let mut cached: Option<ReadoutTiming> = None;
+        for step in 0..=names.len() {
+            if cached
+                .as_ref()
+                .is_none_or(|timing| timing.generation != space.topology.diagram.generation())
+            {
+                cached = Some(space.readout_timing(&names, &known, &doubled).unwrap());
+            } else {
+                cached
+                    .as_mut()
+                    .unwrap()
+                    .refresh(&mut space.topology.diagram)
+                    .unwrap();
+            }
+            let cached = cached.as_mut().unwrap();
+            let mut fresh = space.readout_timing(&names, &known, &actions).unwrap();
+            assert_eq!(cached.variables, fresh.variables);
+            assert_eq!(cached.columns, fresh.columns, "step {step}");
+            for row in &space.rows {
+                cached.include(row, &mut space.topology.diagram).unwrap();
+                fresh.include(row, &mut space.topology.diagram).unwrap();
+                assert_eq!(
+                    cached
+                        .row(row, names[0].1, &mut space.topology.diagram)
+                        .unwrap(),
+                    fresh
+                        .row(row, names[0].1, &mut space.topology.diagram)
+                        .unwrap(),
+                );
+            }
+            assert_eq!(cached.columns, fresh.columns);
+            let root = space
+                .local
+                .values()
+                .flatten()
+                .find(|site| site.guard != ONE)
+                .unwrap()
+                .guard;
+            cached.decision(root, &mut space.topology.diagram).unwrap();
+            let spent = space.topology.diagram.steps();
+            cached.decision(root, &mut space.topology.diagram).unwrap();
+            assert_eq!(
+                space.topology.diagram.steps(),
+                spent,
+                "cached domain restriction"
+            );
+            if let Some((name, _)) = names.get(step) {
+                let time = [7, 3, 11][step];
+                cached
+                    .learn([(name.as_str(), time)], &mut space.topology.diagram)
+                    .unwrap();
+                known.insert(name.clone(), time);
+            }
+            if step == 1 {
+                space.topology.diagram.make_node(99, ZERO, ONE).unwrap();
+                let generation = space.topology.diagram.generation();
+                space.collect_readout_roots(std::iter::empty()).unwrap();
+                assert_ne!(space.topology.diagram.generation(), generation);
+            }
+        }
+    }
+
+    #[test]
     fn readout_control_times_determine_live_coefficients_on_the_source_domain() {
         use bloq_utils::boolean::BooleanDecisionDiagram;
 
@@ -3959,12 +4224,12 @@ mod tests {
                     let row =
                         BooleanRow::from_terms(functions[active], [(0, functions[coefficient])]);
                     for variables in [[1, 2], [2, 1], [i64::MIN, i64::MAX]] {
-                        let mut timing = ReadoutTiming {
-                            columns: Vec::new(),
-                            variables: variables.to_vec(),
-                            domain: functions[domain],
-                            decisions: HashMap::new(),
-                        };
+                        let mut timing = ReadoutTiming::new(
+                            Vec::new(),
+                            variables.to_vec(),
+                            functions[domain],
+                            diagram.generation(),
+                        );
                         let result = timing.controls(&row, &mut diagram).unwrap();
                         let care = domain & active;
                         if care == 0 {
