@@ -7,6 +7,8 @@ use bloq_utils::boolean::{
     BooleanDecisionDiagram, BooleanLimits, BooleanOp, DECISION_FALSE, DECISION_TRUE, DecisionId,
 };
 
+type CoexistenceQuery = (Vec<ValueRef>, Vec<Vec<ValueRef>>);
+
 /// Cached Boolean queries over one immutable graph level.
 ///
 /// Shared Compute ancestry preserves correlated guards. The graph must be
@@ -22,6 +24,7 @@ pub struct PredicateAnalysis<'a> {
     aliases: FxMap<ValueRef, (ValueRef, bool)>,
     implications: FxMap<(Option<ValueRef>, ValueRef), bool>,
     overlaps: FxMap<(Option<ValueRef>, Option<ValueRef>), bool>,
+    coexistence: FxMap<CoexistenceQuery, bool>,
 }
 
 /// One exhaustive, mutually exclusive member choice and its known guard inputs.
@@ -91,6 +94,7 @@ impl<'a> PredicateAnalysis<'a> {
             aliases: FxMap::default(),
             implications: FxMap::default(),
             overlaps: FxMap::default(),
+            coexistence: FxMap::default(),
         }
     }
 
@@ -166,19 +170,30 @@ impl<'a> PredicateAnalysis<'a> {
             required
                 .len()
                 .saturating_add(excluded.len())
+                .saturating_add(
+                    excluded
+                        .iter()
+                        .fold(0usize, |work, clause| work.saturating_add(clause.len())),
+                )
                 .saturating_add(1),
         )?;
+        // Physical qubits at one lifetime boundary repeat the same guard query.
+        let key = (required.to_vec(), excluded.to_vec());
+        if let Some(&result) = self.coexistence.get(&key) {
+            return Ok(result);
+        }
         let mut domain = self.conjunction(required)?;
         for conjunction in excluded {
-            self.charge(conjunction.len())?;
             let active = self.conjunction(conjunction)?;
             let inactive = self.diagram.negate(active)?;
             domain = self.diagram.apply(BooleanOp::And, domain, inactive)?;
             if domain == DECISION_FALSE {
-                return Ok(false);
+                break;
             }
         }
-        Ok(domain != DECISION_FALSE)
+        let result = domain != DECISION_FALSE;
+        self.coexistence.insert(key, result);
+        Ok(result)
     }
 
     fn conjunction(&mut self, predicates: &[ValueRef]) -> Result<DecisionId, Error> {
@@ -1638,6 +1653,30 @@ mod tests {
                 .unwrap()
         );
         assert!(!predicates.coexist_without(&[], &[vec![]]).unwrap());
+        let mut cached = PredicateAnalysis::with_limits(
+            &graph,
+            BooleanLimits {
+                max_steps: 1_000,
+                ..BooleanLimits::DEFAULT
+            },
+        );
+        for _ in 0..64 {
+            assert!(
+                cached
+                    .coexist_without(&[a.into()], &[vec![a.into(), b.into()]])
+                    .unwrap()
+            );
+            assert!(
+                !cached
+                    .coexist_without(&[a.into(), b.into()], &[vec![a.into(), b.into()]])
+                    .unwrap()
+            );
+        }
+        cached.charge(1_000 - cached.steps()).unwrap();
+        assert!(matches!(
+            cached.coexist_without(&[a.into()], &[vec![a.into(), b.into()]]),
+            Err(Error::BooleanResource(_))
+        ));
         let mut limited = PredicateAnalysis::with_limits(
             &graph,
             BooleanLimits {
