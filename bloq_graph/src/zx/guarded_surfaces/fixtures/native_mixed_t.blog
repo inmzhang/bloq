@@ -1,0 +1,78 @@
+BLOG 1.0
+
+module main {
+  in q0: data = 2
+  out q1: data = 9
+  in q2: data = 20
+  out q3: data = 27
+
+  0: ZXX [0, -1, 3]
+  1: XZX [0, -1, 4]
+  2: Port [0, 0, 0] role=input
+  3: XZX [0, 0, 1]
+  4: XZZ [0, 0, 2]
+  5: ZXX [0, 0, 3]
+  6: ZXX [0, 0, 4]
+  7: ZXX [0, 0, 5]
+  8: XZX [0, 0, 6]
+  9: Port [0, 0, 7] role=output
+  10: T [0, 1, 4]
+  11: ZXX [0, 1, 5]
+  12: XY [0, 1, 6]
+  13: XZX [1, -1, 4]
+  14: T [1, 0, 5]
+  15: XZX [1, 0, 6]
+  16: XY [1, 0, 7]
+  17: XZX [2, -1, 4]
+  18: XZX [3, -1, 4]
+  19: ZZX [4, -1, 4]
+  20: Port [4, 0, 0] role=input
+  21: XZX [4, 0, 1]
+  22: XZZ [4, 0, 2]
+  23: XZZ [4, 0, 3]
+  24: ZXX [4, 0, 4]
+  25: ZXX [4, 0, 5]
+  26: XZX [4, 0, 6]
+  27: Port [4, 0, 7] role=output
+  28: T [5, 0, 5]
+  29: XZX [5, 0, 6]
+  30: XY [5, 0, 7]
+  0 -H> +Z
+  1 -> +X
+  2 -> +Z
+  3 -> +Z
+  4 -H> +Z
+  5 -> -Y
+  5 -> +Z
+  6 -> +Z
+  7 -H> +Z
+  7 -> +Y
+  8 -> +Z
+  8 -> +X
+  10 -> +Z
+  11 -> +Z
+  13 -> +X
+  14 -> +Z
+  15 -> +Z
+  17 -> +X
+  18 -> +X
+  19 -> +Y
+  20 -> +Z
+  21 -> +Z
+  22 -> +Z
+  23 -H> +Z
+  24 -> +Z
+  25 -H> +Z
+  26 -> +Z
+  26 -> +X
+  28 -> +Z
+  29 -> +Z
+
+  t0 = measure 7 -> +Y
+  resolve 12 if !t0
+  t2 = measure 8 -> +X
+  resolve 16 if !t2
+  t4 = measure 26 -> +X
+  resolve 30 if t4
+
+}

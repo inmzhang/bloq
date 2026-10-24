@@ -59,6 +59,8 @@ pub struct GuardedSurfaceSpace {
     reference_gauges: Option<Vec<gauge_probe::NativeGauge>>,
     #[cfg(test)]
     audit_reference: bool,
+    #[cfg(test)]
+    incremental_reference: bool,
 }
 
 // Reclamation stays finite when callers raise or disable the witness quota.
@@ -659,6 +661,8 @@ impl GuardedSurfaceSpace {
             reference_gauges: None,
             #[cfg(test)]
             audit_reference: false,
+            #[cfg(test)]
+            incremental_reference: false,
         }
     }
 
@@ -950,6 +954,8 @@ impl GuardedSurfaceSpace {
             reference_gauges: None,
             #[cfg(test)]
             audit_reference: false,
+            #[cfg(test)]
+            incremental_reference: false,
         })
     }
 
@@ -1188,6 +1194,8 @@ impl GuardedSurfaceSpace {
         self.topology.diagram.charge(names.len())?;
         let mut unknown = names.iter().collect::<Vec<_>>();
         let mut incremental = RECLAIM;
+        #[cfg(test)]
+        let mut reference_basis: Option<gauge_probe::ConstantReadoutBasis> = None;
         while !unknown.is_empty() {
             crate::CancellationToken::checkpoint()?;
             if incremental && self.topology.diagram.nodes().len() > reclaim_limit {
@@ -1380,6 +1388,8 @@ impl GuardedSurfaceSpace {
                     constraints.push((AvailabilityKey::Feedback(ordinal), terms));
                 }
             }
+            #[cfg(test)]
+            let first_new_row = available_rows.indexed_slot_count();
             if incremental {
                 if let Some(availability) = &mut availability {
                     availability.release(
@@ -1399,25 +1409,51 @@ impl GuardedSurfaceSpace {
                     available_rows = rows;
                 }
             }
+            #[cfg(test)]
+            if self.incremental_reference {
+                assert!(incremental && self.topology.domain == ONE);
+                if reference_basis.is_none() {
+                    reference_basis = Some(gauge_probe::ConstantReadoutBasis::new(
+                        timing,
+                        &names,
+                        physical_columns,
+                        &mut self.topology.diagram,
+                    )?);
+                }
+                let basis = reference_basis
+                    .as_mut()
+                    .expect("reference basis initialized");
+                basis.refresh(timing, &mut self.topology.diagram)?;
+                for id in first_new_row..available_rows.indexed_slot_count() {
+                    if let Some(row) = available_rows.row(id) {
+                        basis.insert(row, &mut self.topology.diagram)?;
+                    }
+                }
+            }
+            #[cfg(test)]
+            let cached_reference = reference_basis.is_some();
+            #[cfg(not(test))]
+            let cached_reference = false;
             let mut unknown_columns = vec![false; names.len()];
             for (_, column) in &unknown {
                 unknown_columns[*column - physical_columns] = true;
             }
             // The quotient alone fixes an arbitrary physical coset. Restore
             // accepted relations before choosing an early equivalent witness.
-            let mut restored = if incremental && !readout_pivots.rows.is_empty() {
-                let rows = available_rows
-                    .rows()
-                    .chain(readout_pivots.rows.rows())
-                    .cloned()
-                    .collect::<Vec<_>>();
-                self.charge_row_copy(&rows)?;
-                Some(BooleanRowSpace::new(rows, &mut self.topology.diagram)?)
-            } else {
-                None
-            };
+            let mut restored =
+                if !cached_reference && incremental && !readout_pivots.rows.is_empty() {
+                    let rows = available_rows
+                        .rows()
+                        .chain(readout_pivots.rows.rows())
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    self.charge_row_copy(&rows)?;
+                    Some(BooleanRowSpace::new(rows, &mut self.topology.diagram)?)
+                } else {
+                    None
+                };
             let source_rows = restored.as_ref().unwrap_or(&available_rows);
-            let relevant = if incremental && FACTORED {
+            let relevant = if !cached_reference && incremental && FACTORED {
                 Some(self.named_component_rows(source_rows, &unknown)?)
             } else {
                 None
@@ -1439,7 +1475,7 @@ impl GuardedSurfaceSpace {
                 && relevant
                     .as_ref()
                     .is_some_and(|ids| ids.len() == source_rows.len());
-            let reduced = if factored.is_some() {
+            let reduced = if cached_reference || factored.is_some() {
                 BooleanRowSpace::default()
             } else {
                 let allowed = if reuse_restored {
@@ -1493,7 +1529,17 @@ impl GuardedSurfaceSpace {
             let mut candidates = Vec::new();
             for (index, (name, wanted)) in unknown.iter().enumerate() {
                 self.topology.diagram.charge(1)?;
-                let row = if let Some(factored) = &mut factored {
+                #[cfg(test)]
+                let cached = reference_basis
+                    .as_ref()
+                    .map(|basis| basis.candidate(*wanted, &mut self.topology.diagram))
+                    .transpose()?;
+                #[cfg(not(test))]
+                let cached: Option<Option<BooleanRow>> = None;
+                let row = if let Some(cached) = cached {
+                    let Some(row) = cached else { continue };
+                    row
+                } else if let Some(factored) = &mut factored {
                     let Some(row) = factored[index].take() else {
                         continue;
                     };
@@ -1625,6 +1671,17 @@ impl GuardedSurfaceSpace {
                 candidates.retain(|(_, _, time)| *time <= cutoff);
             }
             let reclaim = incremental && candidates.len() < unknown.len();
+            #[cfg(test)]
+            if reclaim && let Some(basis) = &mut reference_basis {
+                for (name, _, time) in &candidates {
+                    let column = readout_timing
+                        .as_ref()
+                        .expect("timing initialized")
+                        .outcomes[name]
+                        .1;
+                    basis.make_known(column, *time, &mut self.topology.diagram)?;
+                }
+            }
             readout_timing.as_mut().expect("timing initialized").learn(
                 candidates
                     .iter()
@@ -1664,6 +1721,8 @@ impl GuardedSurfaceSpace {
                     ),
             )?;
         }
+        #[cfg(test)]
+        drop(reference_basis);
         drop((
             causal_basis,
             availability,
