@@ -73,6 +73,7 @@ fn canonical(rows: Vec<BooleanRow>, columns: usize) -> Vec<Vec<(usize, DecisionI
 }
 
 fn assert_same_reference_plan(left: &GuardedSurfaceSpace, right: &GuardedSurfaceSpace) {
+    assert_eq!(left.reference_frontiers, right.reference_frontiers);
     assert_eq!(left.surfaces.len(), right.surfaces.len());
     for (left, right) in left.surfaces.iter().zip(&right.surfaces) {
         assert_eq!(left.kind, right.kind);
@@ -121,10 +122,16 @@ fn native_reference_branches_preserve_spaces_and_avoid_self_wait() {
         actual.fill_selective(&mut actual_rows, &resolved).unwrap();
         reference.audit_reference = true;
         let mut incremental = reference.clone();
+        let mut fallback = reference.clone();
+        fallback.incremental_reference = true;
         incremental.incremental_reference = true;
         incremental.plan_causal_readouts::<true, true>().unwrap();
         reference.plan_causal_readouts::<true, true>().unwrap();
         assert_same_reference_plan(&incremental, &reference);
+        fallback
+            .plan_causal_readouts_with_fast_path::<true, true, true>(0)
+            .unwrap();
+        assert_same_reference_plan(&fallback, &reference);
         let physical = 2 * actual.columns.len();
         for assignment in 0..1usize << actual.topology.variables.len() {
             let evaluate = |root| {

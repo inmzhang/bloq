@@ -11,6 +11,7 @@ mod component_tests;
 mod gauge_probe;
 mod native_gauges;
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
@@ -63,6 +64,8 @@ pub struct GuardedSurfaceSpace {
     audit_reference: bool,
     #[cfg(test)]
     incremental_reference: bool,
+    #[cfg(test)]
+    reference_frontiers: Vec<Vec<(String, i64)>>,
 }
 
 // Reclamation stays finite when callers raise or disable the witness quota.
@@ -581,9 +584,11 @@ impl GuardedAvailability {
     fn release(
         &mut self,
         pending: &BTreeSet<AvailabilityKey>,
-        readouts: &GuardedPivots,
-        available: &mut BooleanRowSpace,
         diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
+        mut released: impl FnMut(
+            BooleanRow,
+            &mut bloq_utils::boolean::BooleanDecisionDiagram,
+        ) -> Result<(), BooleanResourceError>,
     ) -> Result<(), BooleanResourceError> {
         diagram.charge(self.groups.len())?;
         for (_, columns) in self.groups.extract_if(.., |key, _| !pending.contains(key)) {
@@ -615,9 +620,8 @@ impl GuardedAvailability {
                     let active = row.active;
                     diagram.charge(row.terms().len())?;
                     row.map_coefficients(|value| diagram.apply(BooleanOp::And, active, value))?;
-                    readouts.project(&mut row, diagram)?;
                     if !row.terms().is_empty() {
-                        available.push(row, diagram)?;
+                        released(row, diagram)?;
                     }
                 }
             }
@@ -664,6 +668,8 @@ impl GuardedSurfaceSpace {
             audit_reference: false,
             #[cfg(test)]
             incremental_reference: false,
+            #[cfg(test)]
+            reference_frontiers: Vec::new(),
         }
     }
 
@@ -956,6 +962,8 @@ impl GuardedSurfaceSpace {
             audit_reference: false,
             #[cfg(test)]
             incremental_reference: false,
+            #[cfg(test)]
+            reference_frontiers: Vec::new(),
         })
     }
 
@@ -1399,26 +1407,6 @@ impl GuardedSurfaceSpace {
                     constraints.push((AvailabilityKey::Feedback(ordinal), terms));
                 }
             }
-            let first_new_row = available_rows.indexed_slot_count();
-            if incremental {
-                if let Some(availability) = &mut availability {
-                    availability.release(
-                        &pending,
-                        &readout_pivots,
-                        &mut available_rows,
-                        &mut self.topology.diagram,
-                    )?;
-                } else {
-                    let (state, rows) = GuardedAvailability::new(
-                        std::mem::take(&mut causal_basis),
-                        &constraints,
-                        physical_columns + names.len(),
-                        &mut self.topology.diagram,
-                    )?;
-                    availability = Some(state);
-                    available_rows = rows;
-                }
-            }
             if use_native && incremental {
                 debug_assert_eq!(self.topology.domain, ONE);
                 if reference_basis.is_none() {
@@ -1429,13 +1417,43 @@ impl GuardedSurfaceSpace {
                         &mut self.topology.diagram,
                     )?);
                 }
-                let basis = reference_basis
+                reference_basis
                     .as_mut()
-                    .expect("reference basis initialized");
-                basis.refresh(timing, &mut self.topology.diagram)?;
-                for id in first_new_row..available_rows.indexed_slot_count() {
-                    if let Some(row) = available_rows.row(id) {
-                        basis.insert(row, &mut self.topology.diagram)?;
+                    .expect("reference basis initialized")
+                    .refresh(timing, &mut self.topology.diagram)?;
+            }
+            if incremental {
+                if let Some(availability) = &mut availability {
+                    availability.release(
+                        &pending,
+                        &mut self.topology.diagram,
+                        |mut row, diagram| {
+                            if let Some(basis) = &mut reference_basis {
+                                // Accepted equations already remain in this complete RREF.
+                                basis.insert(row, diagram)
+                            } else {
+                                readout_pivots.project(&mut row, diagram)?;
+                                if !row.terms().is_empty() {
+                                    available_rows.push(row, diagram)?;
+                                }
+                                Ok(())
+                            }
+                        },
+                    )?;
+                } else {
+                    let (state, rows) = GuardedAvailability::new(
+                        std::mem::take(&mut causal_basis),
+                        &constraints,
+                        physical_columns + names.len(),
+                        &mut self.topology.diagram,
+                    )?;
+                    availability = Some(state);
+                    if let Some(basis) = &mut reference_basis {
+                        for row in rows.into_rows(&mut self.topology.diagram)? {
+                            basis.insert(row, &mut self.topology.diagram)?;
+                        }
+                    } else {
+                        available_rows = rows;
                     }
                 }
             }
@@ -1535,20 +1553,18 @@ impl GuardedSurfaceSpace {
             let mut candidates = Vec::new();
             for (index, (name, wanted)) in unknown.iter().enumerate() {
                 self.topology.diagram.charge(1)?;
-                let cached = reference_basis
-                    .as_ref()
-                    .map(|basis| basis.candidate(*wanted, &mut self.topology.diagram))
-                    .transpose()?;
-                let row = if let Some(cached) = cached {
-                    let Some(row) = cached else { continue };
-                    row
+                let row = if let Some(basis) = &reference_basis {
+                    let Some(row) = basis.candidate(*wanted, &mut self.topology.diagram)? else {
+                        continue;
+                    };
+                    Cow::Borrowed(row)
                 } else if let Some(factored) = &mut factored {
                     let Some(row) = factored[index].take() else {
                         continue;
                     };
-                    row
+                    Cow::Owned(row)
                 } else {
-                    self.named_row(&reduced, *wanted)?
+                    Cow::Owned(self.named_row(&reduced, *wanted)?)
                 };
                 let named =
                     Self::named_terms(&row, physical_columns, physical_columns + names.len());
@@ -1569,11 +1585,6 @@ impl GuardedSurfaceSpace {
                 if !ready {
                     continue;
                 }
-                let folds = named
-                    .iter()
-                    .filter(|&&(column, _)| !unknown_columns[column - physical_columns])
-                    .map(|&(column, bit)| (names[column - physical_columns].0.clone(), bit))
-                    .collect();
                 let feedbacks = self.feedbacks::<RECLAIM>(&row, &actions, &feedback_columns)?;
                 let mut time = timing.row(&row, *wanted, &mut self.topology.diagram)?;
                 for &(_, guard) in &feedbacks {
@@ -1583,18 +1594,7 @@ impl GuardedSurfaceSpace {
                 if self.audit_reference {
                     self.audit_reference_candidate(&row, *wanted, time, &names, &readout_times)?;
                 }
-                candidates.push((
-                    name.clone(),
-                    GuardedSurface {
-                        kind: GuardedSurfaceKind::Readout {
-                            name: name.clone(),
-                            folds,
-                        },
-                        feedbacks,
-                        row,
-                    },
-                    time,
-                ));
+                candidates.push((name.clone(), row, feedbacks, time));
             }
             // A newly known outcome can also unlock a symbolic kernel or a
             // previously unavailable named row without releasing a site.
@@ -1633,13 +1633,13 @@ impl GuardedSurfaceSpace {
                 if !pending_controls.is_empty() {
                     let earliest = candidates
                         .iter()
-                        .map(|(_, _, time)| *time)
+                        .map(|(_, _, _, time)| *time)
                         .min()
                         .expect("nonempty candidates checked above");
-                    candidates.retain(|(_, _, time)| *time == earliest);
+                    candidates.retain(|(_, _, _, time)| *time == earliest);
                 }
                 available_values.learn(
-                    candidates.iter().map(|(name, _, _)| name.as_str()),
+                    candidates.iter().map(|(name, _, _, _)| name.as_str()),
                     &mut self.topology.diagram,
                 )?;
             } else {
@@ -1649,7 +1649,7 @@ impl GuardedSurfaceSpace {
                     .charge(count.saturating_mul(count.ilog2() as usize + 1))?;
                 let mut tiers = candidates
                     .iter()
-                    .map(|(name, _, time)| (*time, name.as_str()))
+                    .map(|(name, _, _, time)| (*time, name.as_str()))
                     .collect::<Vec<_>>();
                 tiers.sort_unstable_by_key(|&(time, _)| time);
                 let mut cutoff = i64::MAX;
@@ -1671,9 +1671,44 @@ impl GuardedSurfaceSpace {
                         break;
                     }
                 }
-                candidates.retain(|(_, _, time)| *time <= cutoff);
+                candidates.retain(|(_, _, _, time)| *time <= cutoff);
             }
+            // Freeze the complete frontier before changing any pivot priorities.
+            let mut selected = Vec::with_capacity(candidates.len());
+            for (name, row, feedbacks, time) in candidates {
+                let folds =
+                    Self::named_terms(&row, physical_columns, physical_columns + names.len())
+                        .iter()
+                        .filter(|&&(column, _)| !unknown_columns[column - physical_columns])
+                        .map(|&(column, bit)| (names[column - physical_columns].0.clone(), bit))
+                        .collect();
+                let row = match row {
+                    Cow::Borrowed(row) => {
+                        self.topology.diagram.charge(row.terms().len())?;
+                        row.clone()
+                    }
+                    Cow::Owned(row) => row,
+                };
+                let surface = GuardedSurface {
+                    kind: GuardedSurfaceKind::Readout {
+                        name: name.clone(),
+                        folds,
+                    },
+                    feedbacks,
+                    row,
+                };
+                selected.push((name, surface, time));
+            }
+            let candidates = selected;
+            #[cfg(test)]
+            self.reference_frontiers.push(
+                candidates
+                    .iter()
+                    .map(|(name, _, time)| (name.clone(), *time))
+                    .collect(),
+            );
             let reclaim = incremental && candidates.len() < unknown.len();
+            let reclaim_quotient = reclaim && reference_basis.is_none();
             if reclaim && let Some(basis) = &mut reference_basis {
                 for (name, _, time) in &candidates {
                     let column = readout_timing
@@ -1694,7 +1729,7 @@ impl GuardedSurfaceSpace {
             for (name, surface, time) in candidates {
                 readout_times.insert(name.clone(), time);
                 known.insert(name);
-                if reclaim {
+                if reclaim_quotient {
                     self.topology.diagram.charge(surface.row.terms().len())?;
                     let mut row = surface.row.clone();
                     // Candidate coefficients were simplified on the source
@@ -1706,7 +1741,7 @@ impl GuardedSurfaceSpace {
             }
             self.topology.diagram.charge(unknown.len())?;
             unknown.retain(|(name, _)| !known.contains(name));
-            if reclaim {
+            if reclaim_quotient {
                 self.reclaim_readouts(&mut available_rows, &mut readout_pivots, reclaimed)?;
             }
             self.check_readout_roots(
@@ -4002,7 +4037,13 @@ mod tests {
                     if cut < 4 {
                         pending.remove(&AvailabilityKey::Feedback(order[cut]));
                         state
-                            .release(&pending, &readouts, &mut available, &mut diagram)
+                            .release(&pending, &mut diagram, |mut row, diagram| {
+                                readouts.project(&mut row, diagram)?;
+                                if !row.terms().is_empty() {
+                                    available.push(row, diagram)?;
+                                }
+                                Ok(())
+                            })
                             .unwrap();
                     }
                 }

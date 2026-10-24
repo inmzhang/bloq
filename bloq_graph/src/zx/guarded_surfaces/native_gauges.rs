@@ -54,17 +54,15 @@ impl ConstantReadoutBasis {
 
     pub(super) fn insert(
         &mut self,
-        source: &BooleanRow,
+        mut row: BooleanRow,
         diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
     ) -> Result<(), BooleanResourceError> {
-        diagram.charge(source.terms().len().saturating_mul(3).saturating_add(1))?;
-        assert_eq!(source.active, ONE);
-        assert!(source.terms().iter().all(|&(_, bit)| bit == ONE));
-        let mut row = source.clone();
-        let mut pivots = Vec::with_capacity(source.terms().len());
+        diagram.charge(row.terms().len().saturating_mul(3).saturating_add(1))?;
+        assert_eq!(row.active, ONE);
+        assert!(row.terms().iter().all(|&(_, bit)| bit == ONE));
+        let mut pivots = Vec::with_capacity(row.terms().len());
         pivots.extend(
-            source
-                .terms()
+            row.terms()
                 .iter()
                 .filter_map(|&(column, _)| self.owners.get(&column).copied()),
         );
@@ -151,14 +149,13 @@ impl ConstantReadoutBasis {
         &self,
         wanted: usize,
         diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
-    ) -> Result<Option<BooleanRow>, BooleanResourceError> {
+    ) -> Result<Option<&BooleanRow>, BooleanResourceError> {
         diagram.charge(1)?;
         let Some(&owner) = self.owners.get(&wanted) else {
             return Ok(None);
         };
         let row = self.rows.row(owner).expect("pivot owner exists");
-        diagram.charge(row.terms().len())?;
-        Ok(Some(row.clone()))
+        Ok(Some(row))
     }
 }
 
@@ -399,6 +396,76 @@ fn has_local_z_pair(center: &SurfaceTopology, cap: [i32; 3], source: [i32; 3]) -
 
 #[cfg(test)]
 #[test]
+fn raw_releases_preserve_canonical_candidates_and_private_kernels() {
+    let mut diagram = bloq_utils::boolean::BooleanDecisionDiagram::default();
+    let mut timing = ReadoutTiming::new(vec![9, 1, 6, 0, i64::MAX, i64::MAX], vec![], ONE, 0);
+    let names = [("first".into(), 4), ("second".into(), 5)];
+    let mut raw = ConstantReadoutBasis::new(&timing, &names, 4, &mut diagram).unwrap();
+    let mut projected = ConstantReadoutBasis::new(&timing, &names, 4, &mut diagram).unwrap();
+    let rows = [[0, 4].as_slice(), &[0, 1], &[1, 2, 5], &[2, 3]]
+        .into_iter()
+        .map(|columns| BooleanRow::from_terms(ONE, columns.iter().map(|&column| (column, ONE))))
+        .collect();
+    let constraints = [
+        (AvailabilityKey::Feedback(0), vec![(1, ONE)]),
+        (AvailabilityKey::Feedback(1), vec![(3, ONE)]),
+    ];
+    let (mut availability, available) =
+        GuardedAvailability::new(rows, &constraints, 6, &mut diagram).unwrap();
+    for row in available.into_rows(&mut diagram).unwrap() {
+        raw.insert(row.clone(), &mut diagram).unwrap();
+        projected.insert(row, &mut diagram).unwrap();
+    }
+    let first = raw.candidate(4, &mut diagram).unwrap().unwrap().clone();
+    let columns = first
+        .terms()
+        .iter()
+        .map(|&(column, _)| column)
+        .collect::<Vec<_>>();
+    let mut accepted = GuardedPivots::default();
+    accepted
+        .insert_residual::<false>(first, columns.into_iter(), &mut diagram)
+        .unwrap();
+    raw.make_known(4, 9, &mut diagram).unwrap();
+    projected.make_known(4, 9, &mut diagram).unwrap();
+    timing.columns[4] = 9;
+    let mut pending = constraints
+        .iter()
+        .map(|&(key, _)| key)
+        .collect::<BTreeSet<_>>();
+    let mut changed_releases = 0;
+    for (cut, expected_time) in [9, 6, 1].into_iter().enumerate() {
+        for column in 0..6 {
+            let left = raw.candidate(column, &mut diagram).unwrap();
+            let right = projected.candidate(column, &mut diagram).unwrap();
+            assert_eq!(left.map(BooleanRow::terms), right.map(BooleanRow::terms));
+        }
+        let row = raw.candidate(5, &mut diagram).unwrap().unwrap();
+        assert_eq!(timing.row(row, 5, &mut diagram).unwrap(), expected_time);
+        if cut < constraints.len() {
+            pending.remove(&constraints[cut].0);
+            availability
+                .release(&pending, &mut diagram, |row, diagram| {
+                    raw.insert(row.clone(), diagram)?;
+                    let mut row = row;
+                    let before = row.terms().to_vec();
+                    accepted.project(&mut row, diagram)?;
+                    changed_releases += usize::from(row.terms() != before);
+                    projected.insert(row, diagram)
+                })
+                .unwrap();
+        }
+    }
+    assert!(changed_releases > 0);
+    diagram
+        .charge(diagram.limits().max_steps - diagram.steps())
+        .unwrap();
+    assert!(raw.candidate(5, &mut diagram).is_err());
+    assert!(raw.insert(BooleanRow::new(ONE), &mut diagram).is_err());
+}
+
+#[cfg(test)]
+#[test]
 fn constant_rref_updates_match_fresh_reduction() {
     fn check(basis: &ConstantReadoutBasis, source: &[BooleanRow]) {
         let mut columns = (0..basis.order.len()).collect::<Vec<_>>();
@@ -431,7 +498,7 @@ fn constant_rref_updates_match_fresh_reduction() {
                     (0..9)
                         .filter_map(|column| (bits & (1 << column) != 0).then_some((column, ONE))),
                 );
-                basis.insert(&row, &mut diagram).unwrap();
+                basis.insert(row.clone(), &mut diagram).unwrap();
                 source.push(row);
                 check(&basis, &source);
             }

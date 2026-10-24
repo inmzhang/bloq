@@ -343,6 +343,9 @@ Bloq imposes this constraint by the same elimination as a seam.
 
 For certified fixed native T gadgets, Bloq first plans in the constant X-cap
 reference relation and retains a complete GF(2) basis between causal waves.
+Released availability directions enter this basis directly, including accepted
+equations and private physical kernels; no separate available quotient is kept.
+Candidate witnesses are borrowed until their complete frontier is selected.
 The cap-X coordinate alone inherits the selector's availability time. Before
 physical lowering, each complete witness is lifted into the original X/Y
 relation; the existing signed binder receives that whole local tuple. The
