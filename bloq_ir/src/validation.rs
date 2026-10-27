@@ -978,7 +978,7 @@ impl Bloq {
                     let level = self.level_at(&path).expect("cut owner ancestor");
                     let node = &level[segment.region];
                     let relation = predicates.entry(path.clone()).or_insert_with(|| {
-                        crate::membership::PredicateAnalysis::with_limits(
+                        crate::membership::PredicateAnalysis::for_membership_references(
                             level,
                             options.boolean_limits(),
                         )
@@ -1014,7 +1014,7 @@ impl Bloq {
             }
             if let Some((path, guard)) = availability.get(&instance) {
                 let relation = predicates.entry(path.clone()).or_insert_with(|| {
-                    crate::membership::PredicateAnalysis::with_limits(
+                    crate::membership::PredicateAnalysis::for_membership_references(
                         self.level_at(path).expect("owner level"),
                         options.boolean_limits(),
                     )
@@ -1066,7 +1066,7 @@ impl Bloq {
                         }
                     }
                     let relation = predicates.entry(owner_path.clone()).or_insert_with(|| {
-                        crate::membership::PredicateAnalysis::with_limits(
+                        crate::membership::PredicateAnalysis::for_membership_references(
                             self.level_at(owner_path).expect("registered owner level"),
                             options.boolean_limits(),
                         )

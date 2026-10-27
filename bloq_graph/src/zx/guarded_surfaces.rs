@@ -1096,6 +1096,7 @@ impl GuardedSurfaceSpace {
                 .diagram
                 .charge(pending_resolves.len() + pending_sites.len() + pending_feedbacks.len())?;
             let mut newly_resolved = BTreeSet::new();
+            let mut pending_controls = Vec::new();
             let mut pending_count = 0;
             for index in 0..pending_resolves.len() {
                 let ordinal = pending_resolves[index];
@@ -1105,6 +1106,7 @@ impl GuardedSurfaceSpace {
                         newly_resolved.insert(position.to_array());
                     }
                 } else {
+                    pending_controls.push(root);
                     pending_resolves[pending_count] = ordinal;
                     pending_count += 1;
                 }
@@ -1116,6 +1118,7 @@ impl GuardedSurfaceSpace {
                 let mut ready = true;
                 for variant in &self.local[&position] {
                     if !available_values.available(variant.guard, &mut self.topology.diagram)? {
+                        pending_controls.push(variant.guard);
                         ready = false;
                         break;
                     }
@@ -1147,6 +1150,7 @@ impl GuardedSurfaceSpace {
                 };
                 let root = self.topology.condition(condition);
                 if !available_values.available(root, &mut self.topology.diagram)? {
+                    pending_controls.push(root);
                     pending_feedbacks[pending_count] = ordinal;
                     pending_count += 1;
                 }
@@ -1360,6 +1364,22 @@ impl GuardedSurfaceSpace {
                     time,
                 ));
             }
+            // A newly known outcome can also unlock a symbolic kernel or a
+            // previously unavailable named row without releasing a site.
+            let mut batch_ready = candidates.len() == unknown.len();
+            if batch_ready && !pending_controls.is_empty() {
+                'rows: for row in source_rows.rows().chain(causal_basis.iter()) {
+                    for root in
+                        std::iter::once(row.active).chain(row.terms().iter().map(|&(_, bit)| bit))
+                    {
+                        self.topology.diagram.charge(1)?;
+                        if !available_values.available(root, &mut self.topology.diagram)? {
+                            batch_ready = false;
+                            break 'rows;
+                        }
+                    }
+                }
+            }
             // The final budget check may remap the diagram. Query images and
             // unselected local candidate rows cannot retain unlisted roots.
             drop((factored, reduced, restored, timing));
@@ -1370,10 +1390,52 @@ impl GuardedSurfaceSpace {
                 }
                 .into());
             }
-            available_values.learn(
-                candidates.iter().map(|(name, _, _)| name.as_str()),
-                &mut self.topology.diagram,
-            )?;
+            // Recompute when a newly available control can unlock a shorter
+            // witness. Unrelated early tiers need no separate matrix solve.
+            if pending_controls.is_empty() || !batch_ready {
+                if !pending_controls.is_empty() {
+                    let earliest = candidates
+                        .iter()
+                        .map(|(_, _, time)| *time)
+                        .min()
+                        .expect("nonempty candidates checked above");
+                    candidates.retain(|(_, _, time)| *time == earliest);
+                }
+                available_values.learn(
+                    candidates.iter().map(|(name, _, _)| name.as_str()),
+                    &mut self.topology.diagram,
+                )?;
+            } else {
+                let count = candidates.len();
+                self.topology
+                    .diagram
+                    .charge(count.saturating_mul(count.ilog2() as usize + 1))?;
+                let mut tiers = candidates
+                    .iter()
+                    .map(|(name, _, time)| (*time, name.as_str()))
+                    .collect::<Vec<_>>();
+                tiers.sort_unstable_by_key(|&(time, _)| time);
+                let mut cutoff = i64::MAX;
+                for tier in tiers.chunk_by(|left, right| left.0 == right.0) {
+                    available_values.learn(
+                        tier.iter().map(|&(_, name)| name),
+                        &mut self.topology.diagram,
+                    )?;
+                    let mut unlocked = false;
+                    for &root in &pending_controls {
+                        self.topology.diagram.charge(1)?;
+                        if available_values.available(root, &mut self.topology.diagram)? {
+                            unlocked = true;
+                            break;
+                        }
+                    }
+                    if unlocked {
+                        cutoff = tier[0].0;
+                        break;
+                    }
+                }
+                candidates.retain(|(_, _, time)| *time <= cutoff);
+            }
             let reclaim = RECLAIM && candidates.len() < unknown.len();
             let mut reclaimed = Vec::new();
             for (name, surface, time) in candidates {
@@ -3816,6 +3878,128 @@ mod tests {
             assert_eq!(available.len(), 1);
             assert_eq!(available.rows().next().unwrap().terms(), commuting.terms());
         }
+    }
+
+    #[test]
+    fn early_readout_unlocks_a_shorter_witness_before_late_candidates_are_committed() {
+        for (condition, symbolic_kernel) in [("a", false), ("a ^ c", false), ("a ^ c", true)] {
+            let other_time = if symbolic_kernel { 20 } else { 1 };
+            let mut source = String::from("BLOG 1.0\nmodule main {\n");
+            for (index, (x, z, kind)) in [
+                (0, 0, "X"),
+                (2, 1, "X"),
+                (4, 10, "X"),
+                (6, 2, "XY"),
+                (8, other_time, "X"),
+                (10, 2, "X"),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let id = 2 * index;
+                source += &format!(
+                    "in p{index}: data = {id}\n{id}: Port [{x},0,{}] role=input\n{}: {kind} [{x},0,{z}]\n{id} -> +Z\n",
+                    z - 1,
+                    id + 1,
+                );
+            }
+            source += &format!(
+                "a = measure 1\nb = measure 3\nc = measure 9\nresolve 7 if {condition}\n}}\n"
+            );
+            let ast = crate::parse_blog_program_to_ast(&source).unwrap();
+            let graph = crate::lower_blog_graph_ast_deferred(&ast).unwrap();
+            let limits = ModuleCertificationLimits::DEFAULT;
+            let mut space = GuardedSurfaceSpace::new(
+                GuardedTopology::new(&graph, limits).unwrap(),
+                &HashMap::new(),
+                limits,
+            )
+            .unwrap();
+            let guard = if symbolic_kernel {
+                space.topology.condition(&crate::Expr::Var("a".into()))
+            } else {
+                space.topology.resolves[0].1
+            };
+            let absent = space.topology.diagram.negate(guard).unwrap();
+            let column = |position| space.node_components(position)[0][0].0;
+            let early = column([0, 0, 0]);
+            let measured = column([2, 0, 1]);
+            let late = column([4, 0, 10]);
+            let selective = column(if symbolic_kernel {
+                [10, 0, 2]
+            } else {
+                [6, 0, 2]
+            });
+            let other = column([8, 0, other_time]);
+            // b's late witness shortens when a control or kernel coefficient becomes known.
+            space.rows = vec![
+                BooleanRow::from_terms(ONE, [(early, ONE)]),
+                BooleanRow::from_terms(ONE, [(other, ONE)]),
+                BooleanRow::from_terms(ONE, [(measured, ONE), (late, ONE)]),
+                BooleanRow::from_terms(
+                    ONE,
+                    [(late, ONE), (selective, ONE), (selective + 1, absent)],
+                ),
+            ];
+            space.plan_causal_readouts::<true, true>().unwrap();
+            let b = space
+                .surfaces
+                .iter()
+                .find(|surface| {
+                    matches!(
+                        &surface.kind, GuardedSurfaceKind::Readout { name, .. } if name == "b"
+                    )
+                })
+                .unwrap();
+            assert_eq!(
+                b.row.get(late),
+                ZERO,
+                "b must use the newly unlocked early witness"
+            );
+            assert_eq!(b.row.get(selective), ONE, "condition {condition}");
+        }
+    }
+
+    #[test]
+    fn unrelated_readout_tiers_do_not_repeat_matrix_solves() {
+        fn plan_steps(count: usize, staggered: bool) -> usize {
+            let mut source = String::from("BLOG 1.0\nmodule main {\n");
+            for index in 0..=count {
+                let x = 2 * index;
+                let z = if staggered { index } else { 0 };
+                let kind = if index == count { "XY" } else { "X" };
+                source += &format!(
+                    "in p{index}: data = {}\n{}: Port [{x},0,{}] role=input\n{}: {kind} [{x},0,{z}]\n{} -> +Z\n",
+                    2 * index,
+                    2 * index,
+                    z as i64 - 1,
+                    2 * index + 1,
+                    2 * index,
+                );
+                if index < count {
+                    source += &format!("m{index} = measure {}\n", 2 * index + 1);
+                }
+            }
+            source += &format!("resolve {} if m{}\n}}\n", 2 * count + 1, count - 1);
+            let ast = crate::parse_blog_program_to_ast(&source).unwrap();
+            let graph = crate::lower_blog_graph_ast_deferred(&ast).unwrap();
+            let limits = ModuleCertificationLimits::DEFAULT;
+            let mut space = GuardedSurfaceSpace::new(
+                GuardedTopology::new(&graph, limits).unwrap(),
+                &HashMap::new(),
+                limits,
+            )
+            .unwrap();
+            let before = space.topology.diagram.steps();
+            space.plan_causal_readouts::<true, true>().unwrap();
+            space.topology.diagram.steps() - before
+        }
+        let same_time = plan_steps(32, false);
+        let different_times = plan_steps(32, true);
+        assert!(
+            different_times < 2 * same_time,
+            "unrelated time tiers inflated planning work: {same_time} -> {different_times}"
+        );
     }
 
     #[test]

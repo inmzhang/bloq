@@ -1084,7 +1084,8 @@ impl SubGraph {
     /// Search a consumer's ancestors without walking its producers' other
     /// descendants. Quantum measurement dependencies often precede large
     /// classical fanouts, which cannot help establish the required order.
-    pub(crate) fn has_path_backwards_with_scratch(
+    /// Returns the same result as [`Self::has_path_with_scratch`].
+    pub fn has_path_backwards_with_scratch(
         &self,
         from: BloqNodeId,
         to: BloqNodeId,

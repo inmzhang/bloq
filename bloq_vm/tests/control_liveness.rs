@@ -11,6 +11,47 @@ use quizx::circuit::Circuit;
 mod common;
 use common::choi::exact::{BellOutcomes, ExactChoi};
 
+#[test]
+fn a_late_control_can_reorder_complete_data_lifetimes() {
+    let graph = BlockGraph::from_blog_text(include_str!(
+        "../../bloq_compile/tests/data/late_control_t.blog"
+    ))
+    .unwrap();
+    let inputs = [ivec3(2, 0, 6), ivec3(0, -1, 3)];
+    let outputs = [ivec3(2, 0, 8), ivec3(-1, -1, 1)];
+    let mut circuit = Circuit::new(2);
+    circuit.add_gate("cx", vec![0, 1]);
+    circuit.add_gate("t", vec![1]);
+    LogicalVerifier::with_boundaries_and_internal_measurements(
+        &graph,
+        BoundaryOrder::new(inputs.to_vec(), outputs.to_vec()),
+    )
+    .unwrap()
+    .verify(&circuit.to_graph(), 16, 7)
+    .unwrap();
+    let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true))
+        .compile_and_validate(&graph)
+        .unwrap()
+        .bloq;
+    let oracle = ExactChoi::new(&inputs, &outputs, |sim| {
+        sim.cx(0, 1)?;
+        sim.t(1)?;
+        Ok(())
+    });
+    let mut choices = std::collections::BTreeSet::new();
+    let report = oracle.run(&bloq, 32, 0x1A7E, |_, context| {
+        choices.extend(
+            context
+                .named_branch_selectors
+                .iter()
+                .filter_map(|(name, value)| name.starts_with("selective ").then_some(*value)),
+        );
+        Ok(())
+    });
+    assert!(report.all_detectors_constant());
+    assert_eq!(choices, std::collections::BTreeSet::from([false, true]));
+}
+
 #[rstest::rstest]
 #[case(false)]
 #[case(true)]
