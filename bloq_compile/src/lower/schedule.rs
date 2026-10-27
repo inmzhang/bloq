@@ -482,15 +482,6 @@ struct EraOrder {
     qubit: glam::IVec2,
 }
 
-/// The graph-independent part of an era reversal, in discovery order.
-///
-/// Exploring guards needs only live supports and predicates, so the same
-/// obligations stay valid while unrelated order edges are inserted. Only
-/// [`resolve_era_reversal`] reads graph paths.
-struct EraReversalPlan {
-    orders: Vec<EraOrder>,
-}
-
 enum EraReversal {
     Feasible(Vec<(bloq_ir::BloqNodeId, bloq_ir::BloqNodeId)>),
     Cyclic,
@@ -627,6 +618,11 @@ fn walk_live_era(
 }
 
 /// Reverse complete eras atomically: the new terminal frontier must precede the old initial one.
+/// The graph-independent orders of an era reversal, in discovery order.
+///
+/// Exploring guards needs only live supports and predicates, so the same
+/// obligations stay valid while unrelated order edges are inserted. Only
+/// [`resolve_era_reversal`] reads graph paths.
 fn plan_live_era_reversal(
     bloq: &Bloq,
     from: bloq_ir::BloqNodeId,
@@ -634,7 +630,7 @@ fn plan_live_era_reversal(
     neighbors: &EraNeighbors,
     supports: &mut LiveSupportCache,
     predicates: &mut bloq_ir::lowering::PredicateAnalysis<'_>,
-) -> Result<EraReversalPlan, crate::CompileError> {
+) -> Result<Vec<EraOrder>, crate::CompileError> {
     let mut orders = Vec::new();
     let initials = walk_live_era(
         bloq,
@@ -690,13 +686,13 @@ fn plan_live_era_reversal(
             });
         }
     }
-    Ok(EraReversalPlan { orders })
+    Ok(orders)
 }
 
 /// Check a reversal plan against the current graph and collect its missing edges.
 fn resolve_era_reversal(
     bloq: &Bloq,
-    plan: &EraReversalPlan,
+    plan: &[EraOrder],
     scratch: &mut bloq_ir::PathScratch,
 ) -> Result<EraReversal, crate::CompileError> {
     let mut paths = crate::FxMap::default();
@@ -706,7 +702,7 @@ fn resolve_era_reversal(
             .or_insert_with(|| bloq.has_path_backwards_with_scratch(from, to, scratch))
     };
     let mut edges = crate::FxSet::default();
-    for order in &plan.orders {
+    for order in plan {
         if has_path(order.after, order.before) {
             return Err(crate::CompileError::LiveQubitReuse {
                 producer: order.producer,
@@ -735,11 +731,11 @@ fn resolve_era_reversal(
 /// the graph and the plan's earlier edges.
 fn cyclic_reversal_error(
     bloq: &Bloq,
-    plan: &EraReversalPlan,
+    plan: &[EraOrder],
     scratch: &mut bloq_ir::PathScratch,
 ) -> crate::CompileError {
     let mut edges = Vec::new();
-    for order in &plan.orders {
+    for order in plan {
         let edge = (order.before, order.after);
         if edges.contains(&edge) || bloq.has_path_backwards_with_scratch(edge.0, edge.1, scratch) {
             continue;
@@ -877,7 +873,6 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
             .map(|(_, layer)| *layer)
             .max()
             .expect("z_min proved the member list is non-empty");
-        let member_columns: crate::FxSet<_> = positions.iter().map(|(p, _)| p.truncate()).collect();
         let endpoints = |direction| {
             seam_edges(bloq, id, direction)
                 .filter_map(|edge| match edge.edge {
@@ -893,9 +888,13 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
         let endpoints: SmallVec<[glam::IVec3; 4]> = endpoints(Dir::Incoming)
             .chain(endpoints(Dir::Outgoing))
             .collect();
-        let moving = endpoints
-            .iter()
-            .any(|p| !member_columns.contains(&p.truncate()));
+        let moving = !endpoints.is_empty() && {
+            let member_columns: crate::FxSet<_> =
+                positions.iter().map(|(p, _)| p.truncate()).collect();
+            endpoints
+                .iter()
+                .any(|p| !member_columns.contains(&p.truncate()))
+        };
         if moving {
             // The displaced output face can outlive the block's origin layer.
             for endpoint in endpoints {
@@ -1068,19 +1067,16 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
         successors: neighbor_ids(&outgoing_neighbor_slots),
     };
     let mut boundary_checks = Vec::new();
+    // Conditional users can disappear; moving users may only touch transit qubits.
+    let transparent =
+        |slot: u32| conditional_members[slot as usize] || footprints[slot as usize].moving;
     let mut candidate_slots = occupancy_pairs(events, |lower, upper, users, user_slots, span| {
-        let needs_boundary_check = users
-            .iter()
-            .any(|&slot| conditional_members[slot as usize] || footprints[slot as usize].moving);
+        let needs_boundary_check = users.iter().any(|&slot| transparent(slot));
         if needs_boundary_check && lower == users[0] {
-            // Conditional users can disappear; moving users may only touch transit
-            // qubits. Look through these runs so neither hides a later era boundary.
+            // Look through transparent runs so none hides a later era boundary.
             for (index, &lower) in users.iter().enumerate() {
                 for upper_index in index + 1..users.len() {
-                    if upper_index > index + 1
-                        && !conditional_members[users[upper_index - 1] as usize]
-                        && !footprints[users[upper_index - 1] as usize].moving
-                    {
+                    if upper_index > index + 1 && !transparent(users[upper_index - 1]) {
                         break;
                     }
                     let upper = users[upper_index];
@@ -1105,16 +1101,10 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
             let qubit = glam::IVec2::new((2 * x + i64::from(span.parity)) as i32, span.y);
             if guarded_era_boundary(
                 bloq,
-                [
-                    (
-                        footprints[lower as usize].id,
-                        footprints[lower as usize].moving,
-                    ),
-                    (
-                        footprints[upper as usize].id,
-                        footprints[upper as usize].moving,
-                    ),
-                ],
+                [lower, upper].map(|slot| {
+                    let footprint = &footprints[slot as usize];
+                    (footprint.id, footprint.moving)
+                }),
                 qubit,
                 false,
                 &neighbors,
