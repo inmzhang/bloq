@@ -1364,20 +1364,34 @@ impl GuardedSurfaceSpace {
                     time,
                 ));
             }
-            // A newly known outcome can also unlock a symbolic kernel or a
-            // previously unavailable named row without releasing a site.
-            let mut batch_ready = candidates.len() == unknown.len();
-            if batch_ready && !pending_controls.is_empty() {
-                'rows: for row in source_rows.rows().chain(causal_basis.iter()) {
+            // A newly known outcome can unlock a shorter witness through a
+            // pending control, a symbolic kernel or a previously unavailable
+            // named row. Rows outside the unknown names' components cannot
+            // join their witnesses, so only component coefficients can block.
+            let mut blocking = pending_controls;
+            if !blocking.is_empty() {
+                let mut block = |row: &BooleanRow| -> Result<(), BooleanResourceError> {
                     for root in
                         std::iter::once(row.active).chain(row.terms().iter().map(|&(_, bit)| bit))
                     {
                         self.topology.diagram.charge(1)?;
                         if !available_values.available(root, &mut self.topology.diagram)? {
-                            batch_ready = false;
-                            break 'rows;
+                            blocking.push(root);
                         }
                     }
+                    Ok(())
+                };
+                if let Some(ids) = &relevant {
+                    for &id in ids {
+                        block(source_rows.row(id).expect("selected row exists"))?;
+                    }
+                } else {
+                    for row in source_rows.rows() {
+                        block(row)?;
+                    }
+                }
+                for row in &causal_basis {
+                    block(row)?;
                 }
             }
             // The final budget check may remap the diagram. Query images and
@@ -1390,17 +1404,9 @@ impl GuardedSurfaceSpace {
                 }
                 .into());
             }
-            // Recompute when a newly available control can unlock a shorter
-            // witness. Unrelated early tiers need no separate matrix solve.
-            if pending_controls.is_empty() || !batch_ready {
-                if !pending_controls.is_empty() {
-                    let earliest = candidates
-                        .iter()
-                        .map(|(_, _, time)| *time)
-                        .min()
-                        .expect("nonempty candidates checked above");
-                    candidates.retain(|(_, _, time)| *time == earliest);
-                }
+            // Recompute after the first tier that unblocks a root. Unrelated
+            // tiers need no separate matrix solve.
+            if blocking.is_empty() {
                 available_values.learn(
                     candidates.iter().map(|(name, _, _)| name.as_str()),
                     &mut self.topology.diagram,
@@ -1422,7 +1428,7 @@ impl GuardedSurfaceSpace {
                         &mut self.topology.diagram,
                     )?;
                     let mut unlocked = false;
-                    for &root in &pending_controls {
+                    for &root in &blocking {
                         self.topology.diagram.charge(1)?;
                         if available_values.available(root, &mut self.topology.diagram)? {
                             unlocked = true;

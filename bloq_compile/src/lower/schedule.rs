@@ -721,11 +721,40 @@ fn resolve_era_reversal(
     }
     let mut edges = edges.into_iter().collect::<Vec<_>>();
     edges.sort_unstable();
-    Ok(if edges.is_empty() || bloq.is_acyclic_with_edges(&edges) {
+    // One new edge closes a cycle only through the reverse path rejected above.
+    Ok(if edges.len() < 2 || bloq.is_acyclic_with_edges(&edges) {
         EraReversal::Feasible(edges)
     } else {
         EraReversal::Cyclic
     })
+}
+
+/// The live reuse that a cyclic reversal plan cannot schedule.
+///
+/// Blames the first order, in discovery order, whose edge closes a cycle with
+/// the graph and the plan's earlier edges.
+fn cyclic_reversal_error(
+    bloq: &Bloq,
+    plan: &EraReversalPlan,
+    scratch: &mut bloq_ir::PathScratch,
+) -> crate::CompileError {
+    let mut edges = Vec::new();
+    for order in &plan.orders {
+        let edge = (order.before, order.after);
+        if edges.contains(&edge) || bloq.has_path_backwards_with_scratch(edge.0, edge.1, scratch) {
+            continue;
+        }
+        edges.push(edge);
+        if !bloq.is_acyclic_with_edges(&edges) {
+            return crate::CompileError::LiveQubitReuse {
+                producer: order.producer,
+                consumer: order.consumer,
+                reuser: order.reuser,
+                qubit: order.qubit,
+            };
+        }
+    }
+    bloq_ir::BloqValidationError::CyclicGraph.into()
 }
 
 /// Induce occupancy `Order` edges between physical-qubit eras: a terminating
@@ -1204,7 +1233,7 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
             };
             let EraReversal::Feasible(edges) = resolve_era_reversal(bloq, &plan, &mut scratch)?
             else {
-                return Err(bloq_ir::BloqValidationError::CyclicGraph.into());
+                return Err(cyclic_reversal_error(bloq, &plan, &mut scratch));
             };
             for (before, after) in edges {
                 bloq.add_edge(before, after, BloqEdge::Order);

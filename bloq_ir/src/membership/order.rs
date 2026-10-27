@@ -37,16 +37,25 @@ impl<'a> PredicateAnalysis<'a> {
         .then_some(value))
     }
 
+    /// Recover the emitted decision order at most once, before the first
+    /// implication fallback. A failed attempt is not retried or charged again.
     pub(super) fn prepare_membership_order(
         &mut self,
         roots: &[ValueRef],
         target: ValueRef,
     ) -> Result<(), Error> {
-        if !self.membership_order_pending {
+        if !std::mem::take(&mut self.membership_order_pending) {
             return Ok(());
         }
+        self.recover_membership_order(roots, target)
+    }
+
+    fn recover_membership_order(
+        &mut self,
+        roots: &[ValueRef],
+        target: ValueRef,
+    ) -> Result<(), Error> {
         if !self.variables.is_empty() || !self.diagram.nodes().is_empty() {
-            self.membership_order_pending = false;
             return Ok(());
         }
         use petgraph::{algo::toposort, graph::DiGraph};
@@ -157,12 +166,10 @@ impl<'a> PredicateAnalysis<'a> {
             }
         }
         if !has_constraints {
-            self.membership_order_pending = false;
             return Ok(());
         }
         self.charge(order.node_count().saturating_add(order.edge_count()))?;
         let Ok(sorted) = toposort(&order, None) else {
-            self.membership_order_pending = false;
             return Ok(());
         };
         self.charge(sorted.len().saturating_add(atoms.len()))?;
@@ -175,7 +182,6 @@ impl<'a> PredicateAnalysis<'a> {
         assert_eq!(variables.len(), atoms.len());
         assert!(self.variables.is_empty());
         self.variables = variables;
-        self.membership_order_pending = false;
         Ok(())
     }
 }

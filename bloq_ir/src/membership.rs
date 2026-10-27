@@ -215,11 +215,6 @@ impl<'a> PredicateAnalysis<'a> {
             required
                 .len()
                 .saturating_add(excluded.len())
-                .saturating_add(
-                    excluded
-                        .iter()
-                        .fold(0usize, |work, clause| work.saturating_add(clause.len())),
-                )
                 .saturating_add(1),
         )?;
         // Physical qubits at one lifetime boundary repeat the same guard query.
@@ -234,6 +229,8 @@ impl<'a> PredicateAnalysis<'a> {
         }
         let mut domain = self.conjunction(required)?;
         for conjunction in excluded {
+            // Clauses after an empty domain are neither lowered nor charged.
+            self.charge(conjunction.len())?;
             let active = self.conjunction(conjunction)?;
             let inactive = self.diagram.negate(active)?;
             domain = self.diagram.apply(BooleanOp::And, domain, inactive)?;
