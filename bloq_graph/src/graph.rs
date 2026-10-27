@@ -1236,6 +1236,11 @@ impl BlockGraph {
     }
 
     fn refresh_action_graph_after_mutation(&mut self) {
+        // Geometry cannot invalidate an inputs-only DAG; rebuilding it clones
+        // every declared input name after each block or pipe edit.
+        if !self.has_actions() && self.action_graph_error.is_none() {
+            return;
+        }
         // A mutation can leave the actions inconsistent with the new topology.
         // These `()`-returning mutators cannot surface that error, so the
         // lenient rebuild keeps the actions and records the failure in
@@ -3600,29 +3605,59 @@ mod tests {
     }
 
     #[test]
-    fn position_transforms_preserve_external_action_inputs() {
+    fn inputs_only_geometry_edits_preserve_declared_inputs() {
         let mut graph = BlockGraph::new();
-        graph.add_block(Block::new(
-            glam::ivec3(0, 0, 3),
-            BlockKind::Cube(CubeKind::ZXZ),
-        ));
         graph
-            .set_actions_with_inputs(
-                vec![Action::DiscardIf(crate::Expr::Var("enabled".into()))],
-                ["enabled".to_string()],
-            )
+            .set_actions_with_inputs(Vec::new(), ["enabled".to_string()])
             .unwrap();
+        let left = glam::ivec3(0, 0, 3);
+        let right = left + IVec3::Z;
+        for position in [left, right] {
+            graph.add_block(Block::new(position, BlockKind::Cube(CubeKind::ZXZ)));
+        }
+        graph.add_pipe(Pipe::new(left, crate::Direction::ZPLUS));
+        graph.validate().unwrap();
 
-        for transformed in [
-            graph.shift_positions(glam::ivec3(1, 0, 0)).unwrap(),
-            graph.with_zero_min_z().unwrap(),
+        assert!(graph.actions().is_empty());
+        assert!(graph.action_graph_error().is_none());
+        assert_eq!(
+            graph.action_graph().inputs().collect::<Vec<_>>(),
+            ["enabled"]
+        );
+        let actions = vec![Action::DiscardIf(crate::Expr::Var("enabled".into()))];
+        graph.set_actions_deferred(actions.clone()).unwrap();
+        assert_eq!(graph.actions(), actions);
+    }
+
+    #[test]
+    fn position_transforms_preserve_external_action_inputs() {
+        for actions in [
+            Vec::new(),
+            vec![Action::DiscardIf(crate::Expr::Var("enabled".into()))],
         ] {
-            assert!(transformed.action_graph_error().is_none());
-            assert_eq!(
-                transformed.action_graph().inputs().collect::<Vec<_>>(),
-                ["enabled"]
-            );
-            transformed.validate().unwrap();
+            let mut graph = BlockGraph::new();
+            graph.add_block(Block::new(
+                glam::ivec3(0, 0, 3),
+                BlockKind::Cube(CubeKind::ZXZ),
+            ));
+            graph
+                .set_actions_with_inputs(actions.clone(), ["enabled".to_string()])
+                .unwrap();
+
+            for transformed in [
+                graph.shift_positions(glam::ivec3(1, 0, 0)).unwrap(),
+                graph.rotate_about_origin_lenient(UDirection::Z, 1).unwrap(),
+                graph.with_zero_min_z().unwrap(),
+                graph.project_branches_deferred([]).unwrap(),
+            ] {
+                assert!(transformed.action_graph_error().is_none());
+                assert_eq!(transformed.actions(), actions);
+                assert_eq!(
+                    transformed.action_graph().inputs().collect::<Vec<_>>(),
+                    ["enabled"]
+                );
+                transformed.validate().unwrap();
+            }
         }
     }
 

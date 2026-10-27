@@ -10,7 +10,9 @@ use std::sync::Arc;
 use bloq_utils::boolean::{BooleanOp, DECISION_FALSE as ZERO, DECISION_TRUE as ONE, DecisionId};
 use glam::IVec3;
 
-use super::guarded_surfaces::{GuardedSurface, GuardedSurfaceKind, SurfaceColumn};
+use super::guarded_surfaces::{
+    GuardedSurface, GuardedSurfaceKind, SurfaceColumn, SurfaceCoordinates,
+};
 use super::{NodeKind, Stabilizer, StabilizerGenerator, StabilizerRowKind, ZXGraph};
 use crate::{BlockGraphError, GuardedTopology, Pauli, StabilizerError};
 
@@ -288,6 +290,7 @@ pub struct GuardedReadoutPlan {
     pub topology: GuardedTopology,
     pub surfaces: Vec<GuardedSurface>,
     pub(super) columns: Vec<SurfaceColumn>,
+    pub(super) coordinates: SurfaceCoordinates,
     pub(super) local: BTreeMap<[i32; 3], Vec<LocalTopology>>,
     pub(super) max_witness_nodes: usize,
     // Cleared whenever the owning physical stage jointly remaps its live ids.
@@ -313,62 +316,129 @@ impl GuardedReadoutPlan {
         module_sites: &BTreeMap<[i32; 3], usize>,
     ) -> Result<(), BlockGraphError> {
         self.topology.diagram.charge(self.columns.len())?;
-        let column_modules = self
+        self.topology.diagram.charge(module_sites.len())?;
+        // Split a single owner by x to reuse query pieces in the same site order.
+        let mut owners = module_sites.values();
+        let first_owner = owners.next();
+        let mut split_owner = first_owner.is_some();
+        for owner in owners {
+            crate::CancellationToken::checkpoint()?;
+            if Some(owner) != first_owner {
+                split_owner = false;
+                break;
+            }
+        }
+        let column_groups = self
             .columns
             .iter()
             .map(|column| {
-                let (SurfaceColumn::Node(position) | SurfaceColumn::Edge(position, _)) = column;
-                module_sites[position]
+                let position = column.source_position();
+                (module_sites[&position], split_owner.then_some(position[0]))
             })
             .collect::<Vec<_>>();
+        let mut coordinate_groups =
+            crate::FxHashMap::<usize, BTreeMap<(usize, Option<i32>), Vec<[i32; 3]>>>::default();
+        if !self.coordinates.is_identity() {
+            self.topology
+                .diagram
+                .charge(column_groups.len().saturating_mul(4))?;
+            for (column, &owner) in column_groups.iter().enumerate() {
+                crate::CancellationToken::checkpoint()?;
+                let position = self.columns[column].source_position();
+                for original in [2 * column, 2 * column + 1] {
+                    if let Some(coordinate) = self.coordinates.bit(original) {
+                        coordinate_groups
+                            .entry(coordinate)
+                            .or_default()
+                            .entry(owner)
+                            .or_default()
+                            .push(position);
+                    }
+                }
+            }
+            for owners in coordinate_groups.values_mut() {
+                for positions in owners.values_mut() {
+                    crate::CancellationToken::checkpoint()?;
+                    let incidences = positions.len();
+                    self.topology.diagram.charge(
+                        incidences.saturating_mul(incidences.max(1).ilog2() as usize + 2),
+                    )?;
+                    positions.sort_unstable();
+                    positions.dedup();
+                    crate::CancellationToken::checkpoint()?;
+                }
+            }
+        }
         let mut shared = crate::FxHashMap::default();
         let mut retained = 0usize;
         for (surface, query) in self.surfaces.iter().enumerate() {
             self.topology.diagram.charge(query.row.terms().len())?;
-            let mut modules = crate::FxHashMap::<usize, Vec<_>>::default();
+            let mut groups = crate::FxHashMap::<(usize, Option<i32>), Vec<_>>::default();
             if query.row.active != ZERO {
                 for &(column, coefficient) in query.row.terms() {
-                    let Some(&owner) = column_modules.get(column / 2) else {
-                        continue;
-                    };
-                    modules
-                        .entry(owner)
-                        .or_default()
-                        .push((column, coefficient));
+                    if self.coordinates.is_identity() {
+                        let Some(&owner) = column_groups.get(column / 2) else {
+                            continue;
+                        };
+                        groups.entry(owner).or_default().push((column, coefficient));
+                    } else if let Some(owners) = coordinate_groups.get(&column) {
+                        self.topology.diagram.charge(owners.len())?;
+                        for &owner in owners.keys() {
+                            groups.entry(owner).or_default().push((column, coefficient));
+                        }
+                    }
                 }
             }
             let mut uses = Vec::new();
-            let mut modules = modules.into_iter().collect::<Vec<_>>();
-            modules.sort_unstable_by_key(|(owner, _)| *owner);
-            for (_, terms) in modules {
-                // Include activation and gateway role, all native half-edge
-                // coefficients, and the actual instance's columns. Missing
-                // coefficients are zero. Never equate output-only summaries.
+            let mut groups = groups.into_iter().collect::<Vec<_>>();
+            crate::CancellationToken::checkpoint()?;
+            let group_count = groups.len();
+            self.topology
+                .diagram
+                .charge(group_count.saturating_mul(group_count.max(1).ilog2() as usize + 1))?;
+            groups.sort_unstable_by_key(|(owner, _)| *owner);
+            crate::CancellationToken::checkpoint()?;
+            for (owner, terms) in groups {
+                // Exact coefficients, original owner and contiguous x-slab determine
+                // every native half-edge coefficient. Missing coefficients are
+                // zero; activation and gateway role also distinguish queries.
                 let key = (
+                    owner,
                     query.row.active,
                     matches!(query.kind, super::GuardedSurfaceKind::Readout { .. }),
                     terms,
                 );
-                self.topology.diagram.charge(key.2.len())?;
+                self.topology
+                    .diagram
+                    .charge(key.3.len().saturating_add(usize::from(split_owner)))?;
                 let id = if let Some(&id) = shared.get(&key) {
                     id
                 } else {
-                    let positions =
-                        key.2
-                            .iter()
-                            .map(|&(column, _)| match self.columns[column / 2] {
-                                SurfaceColumn::Node(position)
-                                | SurfaceColumn::Edge(position, _) => position,
-                            })
-                            .collect::<BTreeSet<_>>();
+                    crate::CancellationToken::checkpoint()?;
+                    let mut positions = Vec::new();
+                    for &(coordinate, _) in &key.3 {
+                        if self.coordinates.is_identity() {
+                            positions.push(self.columns[coordinate / 2].source_position());
+                        } else {
+                            let owned = &coordinate_groups[&coordinate][&owner];
+                            self.topology.diagram.charge(owned.len())?;
+                            positions.extend_from_slice(owned);
+                        }
+                    }
+                    crate::CancellationToken::checkpoint()?;
+                    let incidences = positions.len();
+                    self.topology.diagram.charge(
+                        incidences.saturating_mul(incidences.max(1).ilog2() as usize + 2),
+                    )?;
+                    positions.sort_unstable();
+                    positions.dedup();
+                    crate::CancellationToken::checkpoint()?;
                     self.topology.diagram.charge(positions.len())?;
                     let id = self.fragments.len();
-                    self.fragments
-                        .push((surface, positions.into_iter().collect()));
-                    // ponytail: cap optional interning; uncommon oversized
-                    // fragments still bind exactly, without cache admission.
+                    self.fragments.push((surface, positions.into()));
+                    // Bound optional interning for large physical fragments.
                     const MAX_SHARED_TERMS: usize = 262_144;
-                    let terms = key.2.len().saturating_add(1);
+                    let terms = key.3.len().saturating_add(1 + usize::from(split_owner));
                     if terms <= MAX_SHARED_TERMS.saturating_sub(retained) {
                         retained += terms;
                         shared.insert(key, id);
@@ -523,7 +593,10 @@ impl GuardedReadoutPlan {
                 coordinates.push(bit);
             };
             for column in variant.columns() {
-                for root in [row.get(2 * column), row.get(2 * column + 1)] {
+                for root in [
+                    self.coordinates.get(row, 2 * column),
+                    self.coordinates.get(row, 2 * column + 1),
+                ] {
                     if root != ZERO && support != ONE {
                         support = if support == ZERO || support == root {
                             root
@@ -560,8 +633,7 @@ impl GuardedReadoutPlan {
                         .iter()
                         .map(|(values, _)| values.len() + 1)
                         .sum::<usize>();
-                // ponytail: bound retained coordinates; clear-on-full can be
-                // replaced by eviction if measured query churn warrants it.
+                // Bound retained query data; oversized cases bypass the cache.
                 const MAX_CACHED_TERMS: usize = 262_144;
                 if terms <= MAX_CACHED_TERMS {
                     if self.query_cache_terms + terms > MAX_CACHED_TERMS {
@@ -647,8 +719,8 @@ impl GuardedReadoutPlan {
         Ok(output)
     }
 
-    /// Visit nonzero row coefficients instead of scanning the global column
-    /// table. Auxiliary named-readout coordinates are not physical support.
+    /// Expand nonzero compact coordinates to their original owners without
+    /// scanning the global table. Named-readout coordinates are not physical support.
     pub fn support_sites(&self, surface: usize) -> BTreeSet<[i32; 3]> {
         let row = &self.surfaces[surface].row;
         if row.active == ZERO {
@@ -656,10 +728,11 @@ impl GuardedReadoutPlan {
         }
         row.terms()
             .iter()
-            .filter_map(|&(column, _)| {
-                self.columns.get(column / 2).map(|column| match *column {
-                    SurfaceColumn::Node(position) | SurfaceColumn::Edge(position, _) => position,
-                })
+            .flat_map(|&(coordinate, _)| self.coordinates.sources(coordinate))
+            .filter_map(|column| {
+                self.columns
+                    .get(column / 2)
+                    .map(|column| column.source_position())
             })
             .collect()
     }
@@ -722,6 +795,7 @@ impl GuardedReadoutPlan {
                     .copied()
                     .enumerate()
                     .map(|(index, column)| (column, index)),
+                &self.coordinates,
                 row,
                 zx,
                 evaluate,
@@ -745,11 +819,311 @@ fn pauli(x: bool, z: bool) -> Pauli {
 }
 
 #[cfg(test)]
+fn assert_original_fragment_positions(
+    plan: &GuardedReadoutPlan,
+    owners: &BTreeMap<[i32; 3], usize>,
+) {
+    for (surface, query) in plan.surfaces.iter().enumerate() {
+        let mut expected = BTreeMap::<usize, BTreeSet<[i32; 3]>>::new();
+        if query.row.active != ZERO {
+            for (column, original) in plan.columns.iter().enumerate() {
+                if [2 * column, 2 * column + 1]
+                    .into_iter()
+                    .any(|bit| plan.coordinates.get(&query.row, bit) != ZERO)
+                {
+                    let position = original.source_position();
+                    expected
+                        .entry(owners[&position])
+                        .or_default()
+                        .insert(position);
+                }
+            }
+        }
+        let expected = expected
+            .into_iter()
+            .flat_map(|(owner, positions)| {
+                positions.into_iter().map(move |position| (owner, position))
+            })
+            .collect::<Vec<_>>();
+        let actual = plan
+            .query_fragments(surface)
+            .iter()
+            .flat_map(|&id| {
+                let (_, positions) = plan.query_fragment(id);
+                let owner = owners[positions.first().expect("a fragment has physical support")];
+                assert!(positions.iter().all(|position| owners[position] == owner));
+                positions
+                    .iter()
+                    .map(|&position| (owner, position))
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            actual, expected,
+            "surface {surface}: exact original owner/site order"
+        );
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::PauliString;
     use crate::{GalleryItem, GuardedSurfaceSpace, ModuleCertificationLimits};
-    use bloq_utils::boolean::DECISION_TRUE as ONE;
+    use bloq_utils::boolean::{BooleanRow, DECISION_TRUE as ONE};
+
+    #[test]
+    fn aliased_queries_keep_original_crossing_support_and_module_owners() {
+        let source = crate::BlockGraph::from_text(
+            "BLOG 1.0\nmodule main {\n0: ZXZ [0,0,0]\nm = measure 0\n}",
+        )
+        .unwrap()
+        .flatten()
+        .unwrap();
+        let limits = ModuleCertificationLimits::DEFAULT;
+        let mut plan = GuardedSurfaceSpace::new(
+            GuardedTopology::new(&source, limits).unwrap(),
+            &Default::default(),
+            limits,
+        )
+        .unwrap()
+        .plan_readouts()
+        .unwrap();
+        let alpha = plan.topology.diagram.make_node(0, ZERO, ONE).unwrap();
+        let beta = plan.topology.diagram.make_node(1, ZERO, ONE).unwrap();
+        let [center, a, b, isolated] = [IVec3::ZERO, IVec3::NEG_X, IVec3::X, IVec3::Z];
+        let positions = [center, a, b, isolated].map(|position| position.to_array());
+        plan.columns = vec![
+            SurfaceColumn::Edge(positions[0], positions[1]),
+            SurfaceColumn::Edge(positions[0], positions[2]),
+            SurfaceColumn::Edge(positions[1], positions[0]),
+            SurfaceColumn::Edge(positions[2], positions[0]),
+            SurfaceColumn::Node(positions[3]),
+        ];
+        // Reverse endpoints own the representatives; the second edge has H.
+        plan.coordinates = SurfaceCoordinates::new(vec![
+            Some(4),
+            None,
+            Some(7),
+            None,
+            Some(4),
+            None,
+            None,
+            Some(7),
+            None,
+            None,
+        ]);
+        plan.local = [
+            (
+                center,
+                NodeKind::X,
+                None,
+                vec![(0, a, false, false), (1, b, false, true)],
+            ),
+            (a, NodeKind::Port, None, vec![(2, center, true, false)]),
+            (b, NodeKind::Port, None, vec![(3, center, true, true)]),
+            (isolated, NodeKind::Z, Some(4), Vec::new()),
+        ]
+        .into_iter()
+        .map(|(position, kind, center, arms)| {
+            (
+                position.to_array(),
+                vec![LocalTopology {
+                    guard: ONE,
+                    kind,
+                    center,
+                    arms: arms
+                        .into_iter()
+                        .map(|(column, target, reversed, hadamard)| LocalArm {
+                            column,
+                            target,
+                            reversed,
+                            hadamard,
+                        })
+                        .collect(),
+                    selector: None,
+                }],
+            )
+        })
+        .collect();
+        let single = GuardedSurface {
+            kind: GuardedSurfaceKind::LogicalReadout,
+            feedbacks: Vec::new(),
+            row: BooleanRow::from_terms(ONE, [(4, alpha)]),
+        };
+        plan.surfaces = vec![
+            GuardedSurface {
+                // The unchanged auxiliary coordinate has no physical owner.
+                row: BooleanRow::from_terms(ONE, [(4, alpha), (7, beta), (10, ONE)]),
+                ..single.clone()
+            },
+            single.clone(),
+            single.clone(),
+            GuardedSurface {
+                row: BooleanRow::from_terms(ZERO, [(4, alpha), (7, beta), (10, ONE)]),
+                ..single
+            },
+        ];
+        assert_eq!(
+            plan.support_sites(0),
+            BTreeSet::from([positions[0], positions[1], positions[2]])
+        );
+        assert_eq!(
+            plan.support_sites(1),
+            BTreeSet::from([positions[0], positions[1]])
+        );
+        assert!(plan.local_cases(0, isolated, ONE).unwrap().is_empty());
+        let cases = plan.local_cases(0, center, ONE).unwrap();
+        for values in [[false, false], [false, true], [true, false], [true, true]] {
+            let case = cases
+                .iter()
+                .find(|case| {
+                    plan.topology
+                        .diagram
+                        .evaluate(case.guard, |bit| values[bit])
+                })
+                .unwrap();
+            assert_eq!(
+                case.surface.center,
+                if values[0] || values[1] {
+                    Pauli::X
+                } else {
+                    Pauli::I
+                }
+            );
+            let expected = [(a, values[0]), (b, values[1])]
+                .into_iter()
+                .filter(|&(_, supported)| supported)
+                .map(|(target, _)| ((center, target), Pauli::X))
+                .collect::<Vec<_>>();
+            assert_eq!(case.surface.edges, expected);
+        }
+        for case in plan.local_cases(0, b, ONE).unwrap() {
+            assert_eq!(case.surface.port_pauli(b), Pauli::Z);
+            assert_eq!(case.surface.edges, vec![((center, b), Pauli::X)]);
+        }
+        plan.fragments.clear();
+        plan.fragment_uses.clear();
+        let owners = BTreeMap::from([
+            (positions[0], 0),
+            (positions[1], 1),
+            (positions[2], 2),
+            (positions[3], 0),
+        ]);
+        plan.share_module_queries(&owners).unwrap();
+        assert_original_fragment_positions(&plan, &owners);
+        assert_eq!(plan.query_fragments(1), plan.query_fragments(2));
+        assert_eq!(plan.query_fragments(1).len(), 2);
+        let owners = plan
+            .query_fragments(1)
+            .iter()
+            .map(|&fragment| plan.query_fragment(fragment).1.to_vec())
+            .collect::<Vec<_>>();
+        assert_eq!(owners, vec![vec![positions[0]], vec![positions[1]]]);
+        for surface in 0..plan.surfaces.len() {
+            let support = plan
+                .query_fragments(surface)
+                .iter()
+                .flat_map(|&fragment| plan.query_fragment(fragment).1.to_vec())
+                .collect::<BTreeSet<_>>();
+            assert_eq!(support, plan.support_sites(surface));
+        }
+
+        // Refine one original owner without losing aliases in other x-slabs.
+        let mut coordinates = (0..2 * plan.columns.len())
+            .map(|bit| plan.coordinates.bit(bit))
+            .collect::<Vec<_>>();
+        coordinates[8] = Some(8);
+        plan.coordinates = SurfaceCoordinates::new(coordinates);
+        let first = GuardedSurface {
+            row: BooleanRow::from_terms(ONE, [(4, alpha), (7, beta), (8, ONE)]),
+            ..plan.surfaces[1].clone()
+        };
+        plan.surfaces = vec![
+            first.clone(),
+            GuardedSurface {
+                row: BooleanRow::from_terms(ONE, [(4, alpha), (7, ONE), (8, ONE)]),
+                ..first.clone()
+            },
+            GuardedSurface {
+                row: BooleanRow::from_terms(beta, [(4, alpha), (7, beta), (8, ONE)]),
+                ..first.clone()
+            },
+            GuardedSurface {
+                kind: GuardedSurfaceKind::Readout {
+                    name: "named".to_owned(),
+                    folds: Vec::new(),
+                },
+                ..first
+            },
+        ];
+        plan.fragments.clear();
+        plan.fragment_uses.clear();
+        let owners = positions
+            .into_iter()
+            .map(|position| (position, 0))
+            .collect();
+        plan.share_module_queries(&owners).unwrap();
+        let shared_sites = plan
+            .query_fragments(0)
+            .iter()
+            .filter(|id| plan.query_fragments(1).contains(id))
+            .flat_map(|&id| plan.query_fragment(id).1.to_vec())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(shared_sites, BTreeSet::from([a.to_array()]));
+        for distinct in [2, 3] {
+            assert!(
+                plan.query_fragments(0)
+                    .iter()
+                    .all(|id| !plan.query_fragments(distinct).contains(id))
+            );
+        }
+        let signature = |cases: Vec<GuardedLocalSurface>| {
+            cases
+                .into_iter()
+                .map(|case| {
+                    (
+                        case.guard,
+                        case.surface.center,
+                        case.surface.port,
+                        case.surface.edges,
+                        case.selective,
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        for _ in 0..2 {
+            assert_original_fragment_positions(&plan, &owners);
+            for surface in 0..plan.surfaces.len() {
+                for id in plan.query_fragments(surface).to_vec() {
+                    let (representative, positions) = plan.query_fragment(id);
+                    for &position in positions.iter() {
+                        for column in plan.local[&position]
+                            .iter()
+                            .flat_map(LocalTopology::columns)
+                        {
+                            for bit in [2 * column, 2 * column + 1] {
+                                assert_eq!(
+                                    plan.coordinates.get(&plan.surfaces[surface].row, bit),
+                                    plan.coordinates
+                                        .get(&plan.surfaces[representative].row, bit)
+                                );
+                            }
+                        }
+                        let position = IVec3::from_array(position);
+                        assert_eq!(
+                            signature(plan.local_cases(surface, position, ONE).unwrap()),
+                            signature(plan.local_cases(representative, position, ONE).unwrap())
+                        );
+                    }
+                }
+            }
+            let isolated_cases = plan.local_cases(0, isolated, ONE).unwrap();
+            assert_eq!(isolated_cases.len(), 1);
+            assert_eq!(isolated_cases[0].surface.center, Pauli::X);
+            plan.collect_garbage(std::iter::empty());
+        }
+    }
 
     #[test]
     fn constant_action_dependencies_do_not_scan_unrelated_boolean_nodes() {
@@ -833,7 +1207,12 @@ mod tests {
                         }
                         let mut roots = variant
                             .columns()
-                            .flat_map(|column| [row.get(2 * column), row.get(2 * column + 1)])
+                            .flat_map(|column| {
+                                [
+                                    plan.coordinates.get(row, 2 * column),
+                                    plan.coordinates.get(row, 2 * column + 1),
+                                ]
+                            })
                             .collect::<Vec<_>>();
                         let raw_len = roots.len();
                         repeated += usize::from(roots.iter().enumerate().any(|(index, root)| {
@@ -1003,8 +1382,8 @@ mod tests {
                         let mut dense = PauliString::new(zx.total_ids());
                         for (&column, &index) in &columns {
                             let value = pauli(
-                                evaluate(row.get(2 * index)),
-                                evaluate(row.get(2 * index + 1)),
+                                evaluate(plan.coordinates.get(row, 2 * index)),
+                                evaluate(plan.coordinates.get(row, 2 * index + 1)),
                             );
                             match column {
                                 SurfaceColumn::Node(at) if at == position.to_array() => {
@@ -1067,12 +1446,22 @@ mod fragment_tests {
 
     #[test]
     fn shared_fragments_cover_complete_native_coefficients_after_collection() {
-        for gallery in [
+        let conditional = crate::lower_blog_graph_ast_deferred(
+            &crate::parse_blog_program_to_ast(include_str!(
+                "../../../docs/fixtures/conditional_cz_strip.blog"
+            ))
+            .unwrap(),
+        )
+        .unwrap();
+        for (gallery, source) in [
             GalleryItem::PhaseGradientK4,
             GalleryItem::CZSpatialH,
             GalleryItem::ThreeBitAdder,
-        ] {
-            let source = gallery.build();
+        ]
+        .map(|gallery| (Some(gallery), gallery.build()))
+        .into_iter()
+        .chain([(None, conditional)])
+        {
             let linked = crate::flatten_module_definition(&source, source.root(), "").unwrap();
             let limits = ModuleCertificationLimits::DEFAULT;
             let mut plan = GuardedSurfaceSpace::new(
@@ -1083,9 +1472,23 @@ mod fragment_tests {
             .unwrap()
             .plan_readouts()
             .unwrap();
+            let mut scope_ids = std::collections::HashMap::new();
+            let owners = plan
+                .local
+                .keys()
+                .map(|&position| {
+                    let path = linked
+                        .sites
+                        .get(&IVec3::from_array(position))
+                        .map_or("", |site| site.instance_path.as_str());
+                    let next = scope_ids.len();
+                    (position, *scope_ids.entry(path).or_insert(next))
+                })
+                .collect();
             let mut visited = BTreeSet::new();
             let mut original_sites = 0;
             for _ in 0..2 {
+                assert_original_fragment_positions(&plan, &owners);
                 for index in 0..plan.surfaces.len() {
                     let mut support = BTreeSet::new();
                     for &id in plan.query_fragments(index) {
@@ -1110,8 +1513,9 @@ mod fragment_tests {
                             {
                                 for bit in [2 * column, 2 * column + 1] {
                                     assert_eq!(
-                                        plan.surfaces[index].row.get(bit),
-                                        plan.surfaces[representative].row.get(bit),
+                                        plan.coordinates.get(&plan.surfaces[index].row, bit),
+                                        plan.coordinates
+                                            .get(&plan.surfaces[representative].row, bit),
                                         "{gallery:?}: native coefficient {bit}"
                                     );
                                 }
@@ -1123,7 +1527,7 @@ mod fragment_tests {
                 }
                 plan.collect_garbage(std::iter::empty());
             }
-            if gallery == GalleryItem::ThreeBitAdder {
+            if gallery == Some(GalleryItem::ThreeBitAdder) {
                 let shared_sites = visited
                     .into_iter()
                     .map(|id| plan.query_fragment(id).1.len())

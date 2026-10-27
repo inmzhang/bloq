@@ -119,9 +119,8 @@ impl SymbolicOutputCorrection {
     }
 }
 
-/// Output-pivot dense stabilizer rows and retain only the compact correction
-/// equation plus its source row. Runtime derivation materializes the dense row
-/// only for the verifier; static and compiler paths consume the compact half.
+/// Pivot output corrections while retaining each compact equation and original
+/// raw row. Callers choose which physical support they need to materialize.
 pub(super) fn pivot_output_correction_rows(
     mut rows: Vec<PauliString>,
     mut coeffs: Vec<CoeffVec>,

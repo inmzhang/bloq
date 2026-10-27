@@ -1,6 +1,7 @@
 //! Selective-site support constraints.
 
 use glam::IVec3;
+use std::ops::BitXorAssign;
 
 use bloq_utils::{Pauli, PauliString};
 
@@ -48,25 +49,41 @@ pub(crate) fn collect_selective_constraints(zx: &ZXGraph) -> Vec<SelectiveConstr
 /// stays in lockstep with the rows.
 pub(crate) fn normalize_selective_support_in_place(
     rows: &mut [PauliString],
-    mut coeffs: Option<&mut [CoeffVec]>,
+    coeffs: Option<&mut [CoeffVec]>,
     constraints: &[SelectiveConstraint],
 ) -> Result<(), StabilizerError> {
+    normalize_selective_support_with(rows, coeffs, constraints, PauliString::get)
+}
+
+pub(crate) fn normalize_selective_support_with<R>(
+    rows: &mut [R],
+    mut coeffs: Option<&mut [CoeffVec]>,
+    constraints: &[SelectiveConstraint],
+    get: impl Fn(&R, usize) -> Pauli,
+) -> Result<(), StabilizerError>
+where
+    R: Clone + for<'a> BitXorAssign<&'a R>,
+{
     for constraint in constraints {
-        normalize_one_selective(rows, coeffs.as_deref_mut(), *constraint)?;
+        normalize_one_selective(rows, coeffs.as_deref_mut(), *constraint, &get)?;
     }
     Ok(())
 }
 
-fn normalize_one_selective(
-    rows: &mut [PauliString],
+fn normalize_one_selective<R>(
+    rows: &mut [R],
     coeffs: Option<&mut [CoeffVec]>,
     constraint: SelectiveConstraint,
-) -> Result<(), StabilizerError> {
+    get: &impl Fn(&R, usize) -> Pauli,
+) -> Result<(), StabilizerError>
+where
+    R: Clone + for<'a> BitXorAssign<&'a R>,
+{
     let mut allowed_pivot = None;
     let mut forbidden_indices = Vec::new();
 
     for (index, row) in rows.iter().enumerate() {
-        let pauli = row.get(constraint.col);
+        let pauli = get(row, constraint.col);
         if pauli == Pauli::I {
             continue;
         }
@@ -85,7 +102,7 @@ fn normalize_one_selective(
         xor_pivot_into(rows, coeffs, pivot_index, &forbidden_indices);
         debug_assert!(
             rows.iter()
-                .all(|row| row.get(constraint.col) != constraint.forbidden)
+                .all(|row| get(row, constraint.col) != constraint.forbidden)
         );
         return Ok(());
     }
@@ -99,12 +116,14 @@ fn normalize_one_selective(
     })
 }
 
-fn xor_pivot_into(
-    rows: &mut [PauliString],
+fn xor_pivot_into<R>(
+    rows: &mut [R],
     mut coeffs: Option<&mut [CoeffVec]>,
     pivot_index: usize,
     targets: &[usize],
-) {
+) where
+    R: Clone + for<'a> BitXorAssign<&'a R>,
+{
     let pivot = rows[pivot_index].clone();
     let pivot_coeff = coeffs.as_deref().map(|c| c[pivot_index].clone());
     for &index in targets {

@@ -121,13 +121,21 @@ outcome. If one selector is $a$ and another is $\neg a$, the planner does not
 treat all four joint choices as reachable.
 
 The composed-surface planner reuses compatible definition relations and closes
-parent seams with Boolean-guarded coefficients. Public module summaries derive
-their signed presentation from the same complete relation; production prepares
-the factored relation directly without computing certificate phases. Signed
-summary construction and placement map raw support directly and replay exact
-local witnesses for phases. Public boundary rows share the complete certificate's
-storage. After composition, the planner selects named readouts in causal waves
-and derives terminal frame equations:
+parent seams with Boolean-guarded coefficients. For fixed topologies without
+module scopes, it first simplifies the complete parity relation. Completed module
+and conditional relations retain rows in equality coordinates through parent
+seams, readout planning, and certificate views, with queries and physical support
+mapped back to the original diagram.
+
+Public module summaries derive their signed presentation from the same complete
+relation; production prepares the factored relation directly without computing
+certificate phases. For compositor-owned unsigned support, packed certificate
+elimination preserves the original boundary elimination trace, freezes its prefix,
+and canonicalizes only the closed suffix. Each final row is lifted once and
+certified by the original witness and phase machinery. Existing signed paths and
+paths using installed phase authorities remain unchanged. Public boundary rows
+share the complete certificate's storage. After composition, the planner selects
+named readouts in causal waves and derives terminal frame equations:
 
 | Recipe | Contents |
 | --- | --- |
@@ -282,10 +290,11 @@ and causal readout planning, and reports computed and reused seam equations:
 cargo run --release --locked -p bloq_graph --example profile_source_planner -- 32
 ```
 
-The argument selects an adder width. Use `yoke:32` for a flat-graph control or
-`file:program.blog` for an authored hierarchy. Definition preparation is reported
-separately; the uncached reference excludes definition certification, so its
-total is not a complete cold-compiler baseline.
+The argument selects an adder width. Use `file:program.blog` for an authored
+hierarchy, or add `--flat --samples 3` to solve the flattened source without
+module relations.
+Definition preparation is reported separately; the uncached reference excludes
+definition certification, so its total is not a complete cold-compiler baseline.
 
 The selective inventory benchmark compares cold compilation, warm block
 templates, and reused definitions under changed parent bindings:
