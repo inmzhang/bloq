@@ -1082,7 +1082,11 @@ impl PredicateAnalysis<'_> {
         )
     }
 
-    fn can_coexist_values(&mut self, predicates: &[ValueRef]) -> Result<bool, Error> {
+    /// Whether all selected output guards can hold together.
+    ///
+    /// # Errors
+    /// Returns an error for malformed predicates or exhausted Boolean resources.
+    pub fn can_coexist_values(&mut self, predicates: &[ValueRef]) -> Result<bool, Error> {
         if predicates.len() <= 2 {
             return self.overlap_values(predicates.first().copied(), predicates.get(1).copied());
         }

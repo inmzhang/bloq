@@ -183,30 +183,29 @@ fn cache_live_uses(
     id: bloq_ir::BloqNodeId,
 ) -> Result<(), crate::CompileError> {
     if let Entry::Vacant(entry) = supports.nodes.entry(id) {
-        let support =
-            if let Some(quantum) = bloq[id].try_quantum() {
-                let guards = instance_guards(bloq.top(), id);
-                let key = quantum
-                    .instances
-                    .iter()
-                    .map(|instance| {
-                        (
-                            instance.template_id,
-                            instance.offset,
-                            guards.get(&instance.id).copied(),
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                // Time and instance IDs do not change a quantum node's physical support.
-                match supports.placements.entry(key) {
-                    Entry::Occupied(entry) => Rc::clone(entry.get()),
-                    Entry::Vacant(entry) => Rc::clone(
-                        entry.insert(Rc::new(live_qubit_uses_in_level(bloq, bloq.top(), id, id)?)),
-                    ),
+        let support = if let Some(quantum) = bloq[id].try_quantum() {
+            let guards = instance_guards(bloq.top(), id);
+            let key = quantum
+                .instances
+                .iter()
+                .map(|instance| {
+                    (
+                        instance.template_id,
+                        instance.offset,
+                        guards.get(&instance.id).copied(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            // Time and instance IDs do not change a quantum node's physical support.
+            match supports.placements.entry(key) {
+                Entry::Occupied(entry) => Rc::clone(entry.get()),
+                Entry::Vacant(entry) => {
+                    Rc::clone(entry.insert(Rc::new(quantum_live_uses(bloq, quantum, &guards)?)))
                 }
-            } else {
-                Rc::new(live_qubit_uses_in_level(bloq, bloq.top(), id, id)?)
-            };
+            }
+        } else {
+            Rc::new(live_qubit_uses_in_level(bloq, bloq.top(), id, id)?)
+        };
         entry.insert(support);
     }
     Ok(())
@@ -285,7 +284,15 @@ fn live_qubit_uses_in_level(
     let Some(quantum) = level[id].try_quantum() else {
         return Ok(result);
     };
-    let guards = instance_guards(level, id);
+    quantum_live_uses(bloq, quantum, &instance_guards(level, id))
+}
+
+fn quantum_live_uses(
+    bloq: &Bloq,
+    quantum: &bloq_ir::QuantumNode,
+    guards: &crate::FxMap<bloq_ir::lowering::TemplateInstanceId, bloq_ir::ValueRef>,
+) -> Result<LiveQubitUses, crate::CompileError> {
+    let mut result = LiveQubitUses::default();
     for instance in &quantum.instances {
         let guard = guards.get(&instance.id).copied();
         let template = &bloq.templates()[instance.template_id];
@@ -387,22 +394,7 @@ fn guarded_era_boundary(
                 .chain(right_guard)
                 .copied()
                 .collect::<Vec<_>>();
-            // A required continuation rules out an era boundary without lowering its guards.
-            if continuing
-                .iter()
-                .any(|clause| clause.iter().all(|guard| required.contains(guard)))
-            {
-                continue;
-            }
-            if !predicates
-                .coexist_without(&required, &continuing)
-                .map_err(
-                    |source| bloq_ir::BloqValidationError::InvalidInstanceMergeStructure {
-                        node: left,
-                        source,
-                    },
-                )?
-            {
+            if !coexists_outside(predicates, left, &required, &continuing)? {
                 continue;
             }
             if !require_live {
@@ -422,20 +414,51 @@ fn guarded_era_boundary(
                     return Ok(true);
                 };
                 required.push(*guard);
-                let live =
-                    predicates
-                        .coexist_without(&required, &continuing)
-                        .map_err(|source| {
-                            bloq_ir::BloqValidationError::InvalidInstanceMergeStructure {
-                                node: left,
-                                source,
-                            }
-                        })?;
+                let live = coexists_outside(predicates, left, &required, &continuing)?;
                 required.pop();
                 if live {
                     return Ok(true);
                 }
             }
+        }
+    }
+    Ok(false)
+}
+
+/// Whether a candidate pair orders a data-bearing era boundary on some shared qubit.
+fn shares_live_boundary(
+    bloq: &Bloq,
+    endpoints: [(bloq_ir::BloqNodeId, bool); 2],
+    neighbors: &EraNeighbors,
+    supports: &mut LiveSupportCache,
+    predicates: &mut bloq_ir::lowering::PredicateAnalysis<'_>,
+) -> Result<bool, crate::CompileError> {
+    let [(from, _), (to, _)] = endpoints;
+    cache_live_uses(bloq, supports, from)?;
+    cache_live_uses(bloq, supports, to)?;
+    let (a, b) = (&supports.nodes[&from], &supports.nodes[&to]);
+    let mut qubits = a
+        .inputs
+        .keys()
+        .chain(a.outputs.keys())
+        .filter(|q| b.uses.contains_key(*q))
+        .chain(
+            b.inputs
+                .keys()
+                .chain(b.outputs.keys())
+                .filter(|q| a.uses.contains_key(*q)),
+        )
+        .copied()
+        .collect::<Vec<_>>();
+    qubits.sort_unstable_by_key(glam::IVec2::to_array);
+    qubits.dedup();
+    // Shared live support alone is not a witness: that qubit may still
+    // continue through a seam while only reset ancillas justify this pair.
+    for qubit in qubits {
+        if guarded_era_boundary(
+            bloq, endpoints, qubit, true, neighbors, supports, predicates,
+        )? {
+            return Ok(true);
         }
     }
     Ok(false)
@@ -448,10 +471,24 @@ struct EraFrontier {
     excluded: Vec<Vec<bloq_ir::ValueRef>>,
 }
 
-#[derive(Default)]
-struct EraPlan {
-    edges: crate::FxSet<(bloq_ir::BloqNodeId, bloq_ir::BloqNodeId)>,
-    frontiers: Vec<EraFrontier>,
+/// One live-era ordering obligation: `before` must precede `after`.
+struct EraOrder {
+    before: bloq_ir::BloqNodeId,
+    after: bloq_ir::BloqNodeId,
+    /// The `LiveQubitReuse` reported when the graph already orders `after` first.
+    producer: bloq_ir::BloqNodeId,
+    consumer: bloq_ir::BloqNodeId,
+    reuser: bloq_ir::BloqNodeId,
+    qubit: glam::IVec2,
+}
+
+/// The graph-independent part of an era reversal, in discovery order.
+///
+/// Exploring guards needs only live supports and predicates, so the same
+/// obligations stay valid while unrelated order edges are inserted. Only
+/// [`resolve_era_reversal`] reads graph paths.
+struct EraReversalPlan {
+    orders: Vec<EraOrder>,
 }
 
 enum EraReversal {
@@ -459,19 +496,21 @@ enum EraReversal {
     Cyclic,
 }
 
-fn frontier_domain(
-    bloq: &Bloq,
+/// Whether `required` can hold while every `excluded` clause fails.
+fn coexists_outside(
+    predicates: &mut bloq_ir::lowering::PredicateAnalysis<'_>,
     node: bloq_ir::BloqNodeId,
     required: &[bloq_ir::ValueRef],
     excluded: &[Vec<bloq_ir::ValueRef>],
 ) -> Result<bool, crate::CompileError> {
+    // A required exclusion rules out the domain without lowering its guards.
     if excluded
         .iter()
         .any(|clause| clause.iter().all(|guard| required.contains(guard)))
     {
         return Ok(false);
     }
-    Ok(bloq_ir::lowering::PredicateAnalysis::new(bloq.top())
+    Ok(predicates
         .coexist_without(required, excluded)
         .map_err(
             |source| bloq_ir::BloqValidationError::InvalidInstanceMergeStructure { node, source },
@@ -479,6 +518,10 @@ fn frontier_domain(
 }
 
 /// Follow one side of a live era, retaining the guards under which its outer boundary ends.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one era side shares the caller's support, predicate, and order state"
+)]
 fn walk_live_era(
     bloq: &Bloq,
     endpoint: bloq_ir::BloqNodeId,
@@ -486,42 +529,40 @@ fn walk_live_era(
     neighbors: &crate::FxMap<bloq_ir::BloqNodeId, Vec<bloq_ir::BloqNodeId>>,
     direction: LiveDirection,
     supports: &mut LiveSupportCache,
-    scratch: &mut bloq_ir::PathScratch,
-) -> Result<EraPlan, crate::CompileError> {
+    predicates: &mut bloq_ir::lowering::PredicateAnalysis<'_>,
+    orders: &mut Vec<EraOrder>,
+) -> Result<Vec<EraFrontier>, crate::CompileError> {
     use bloq_utils::boolean::BooleanDecisionDiagram;
 
     for id in [endpoint, reuser] {
         cache_live_uses(bloq, supports, id)?;
     }
+    let (endpoint_support, reuser_support) = (
+        Rc::clone(&supports.nodes[&endpoint]),
+        Rc::clone(&supports.nodes[&reuser]),
+    );
     let mut qubits = direction
-        .entry(&supports.nodes[&endpoint])
+        .entry(&endpoint_support)
         .keys()
-        .filter(|qubit| supports.nodes[&reuser].uses.contains_key(qubit))
+        .filter(|qubit| reuser_support.uses.contains_key(qubit))
         .copied()
         .collect::<Vec<_>>();
     qubits.sort_unstable_by_key(glam::IVec2::to_array);
     let mut work = BooleanDecisionDiagram::default();
-    let mut plan = EraPlan::default();
-    let mut paths = crate::FxMap::default();
-    let mut has_path = |from, to| {
-        *paths
-            .entry((from, to))
-            .or_insert_with(|| bloq.has_path_backwards_with_scratch(from, to, scratch))
-    };
-    let coexist = |guards: &[bloq_ir::ValueRef]| {
-        bloq.top()
-            .predicates_can_coexist_values(guards)
-            .map_err(
-                |source| bloq_ir::BloqValidationError::InvalidInstanceMergeStructure {
-                    node: endpoint,
-                    source,
-                },
-            )
+    let mut frontiers = Vec::new();
+    let coexist = |predicates: &mut bloq_ir::lowering::PredicateAnalysis<'_>,
+                   guards: &[bloq_ir::ValueRef]| {
+        predicates.can_coexist_values(guards).map_err(|source| {
+            bloq_ir::BloqValidationError::InvalidInstanceMergeStructure {
+                node: endpoint,
+                source,
+            }
+        })
     };
     for qubit in qubits {
         let mut pending = Vec::new();
-        for input in &direction.entry(&supports.nodes[&endpoint])[&qubit] {
-            for usage in &supports.nodes[&reuser].uses[&qubit] {
+        for input in &direction.entry(&endpoint_support)[&qubit] {
+            for usage in &reuser_support.uses[&qubit] {
                 pending.push((
                     endpoint,
                     input.iter().chain(usage).copied().collect::<Vec<_>>(),
@@ -533,21 +574,21 @@ fn walk_live_era(
             work.charge(guards.len().saturating_add(1))?;
             guards.sort_unstable();
             guards.dedup();
-            if !visited.insert((current, guards.clone())) || !coexist(&guards)? {
+            if !visited.insert((current, guards.clone())) || !coexist(predicates, &guards)? {
                 continue;
             }
             let mut continuing = Vec::new();
+            let current_support = Rc::clone(&supports.nodes[&current]);
             let entries = direction
-                .entry(&supports.nodes[&current])
+                .entry(&current_support)
                 .get(&qubit)
-                .cloned()
-                .unwrap_or_default();
+                .map_or(&[][..], Vec::as_slice);
             for &next in neighbors.get(&current).into_iter().flatten() {
                 cache_live_uses(bloq, supports, next)?;
                 let Some(outputs) = direction.exit(&supports.nodes[&next]).get(&qubit) else {
                     continue;
                 };
-                for input in &entries {
+                for input in entries {
                     for output in outputs {
                         let clause = input.iter().chain(output).copied().collect::<Vec<_>>();
                         let mut path_guards = guards.clone();
@@ -555,28 +596,25 @@ fn walk_live_era(
                         work.charge(path_guards.len().saturating_add(1))?;
                         // Reaching the opposite endpoint continues this same era, not a frontier.
                         continuing.push(clause);
-                        if !coexist(&path_guards)? || next == reuser {
+                        if !coexist(predicates, &path_guards)? || next == reuser {
                             continue;
                         }
-                        let (from, to) = direction.orient(next, reuser);
-                        if has_path(to, from) {
-                            let (producer, consumer) = direction.orient(endpoint, next);
-                            return Err(crate::CompileError::LiveQubitReuse {
-                                producer,
-                                consumer,
-                                reuser,
-                                qubit,
-                            });
-                        }
-                        if !has_path(from, to) {
-                            plan.edges.insert((from, to));
-                        }
+                        let (before, after) = direction.orient(next, reuser);
+                        let (producer, consumer) = direction.orient(endpoint, next);
+                        orders.push(EraOrder {
+                            before,
+                            after,
+                            producer,
+                            consumer,
+                            reuser,
+                            qubit,
+                        });
                         pending.push((next, path_guards));
                     }
                 }
             }
-            if frontier_domain(bloq, endpoint, &guards, &continuing)? {
-                plan.frontiers.push(EraFrontier {
+            if coexists_outside(predicates, endpoint, &guards, &continuing)? {
+                frontiers.push(EraFrontier {
                     node: current,
                     qubit,
                     required: guards,
@@ -585,43 +623,46 @@ fn walk_live_era(
             }
         }
     }
-    Ok(plan)
+    Ok(frontiers)
 }
 
 /// Reverse complete eras atomically: the new terminal frontier must precede the old initial one.
-fn plan_live_era_reordering(
+fn plan_live_era_reversal(
     bloq: &Bloq,
     from: bloq_ir::BloqNodeId,
     to: bloq_ir::BloqNodeId,
     neighbors: &EraNeighbors,
     supports: &mut LiveSupportCache,
-    scratch: &mut bloq_ir::PathScratch,
-) -> Result<EraReversal, crate::CompileError> {
-    let mut before = walk_live_era(
+    predicates: &mut bloq_ir::lowering::PredicateAnalysis<'_>,
+) -> Result<EraReversalPlan, crate::CompileError> {
+    let mut orders = Vec::new();
+    let initials = walk_live_era(
         bloq,
         from,
         to,
         &neighbors.predecessors,
         LiveDirection::BeforeInputs,
         supports,
-        scratch,
+        predicates,
+        &mut orders,
     )?;
-    let after = walk_live_era(
+    let finals = walk_live_era(
         bloq,
         to,
         from,
         &neighbors.successors,
         LiveDirection::AfterOutputs,
         supports,
-        scratch,
+        predicates,
+        &mut orders,
     )?;
-    before.edges.extend(after.edges);
     let mut terminals: crate::FxMap<_, Vec<_>> = crate::FxMap::default();
-    for terminal in &after.frontiers {
+    for terminal in &finals {
         terminals.entry(terminal.qubit).or_default().push(terminal);
     }
     let mut work = bloq_utils::boolean::BooleanDecisionDiagram::default();
-    for initial in &before.frontiers {
+    let mut excluded = Vec::new();
+    for initial in &initials {
         for terminal in terminals.get(&initial.qubit).into_iter().flatten() {
             work.charge(1)?;
             if initial.node == terminal.node {
@@ -633,30 +674,52 @@ fn plan_live_era_reordering(
                 .chain(&terminal.required)
                 .copied()
                 .collect::<Vec<_>>();
-            let excluded = initial
-                .excluded
-                .iter()
-                .chain(&terminal.excluded)
-                .cloned()
-                .collect::<Vec<_>>();
+            excluded.clear();
+            excluded.extend(initial.excluded.iter().chain(&terminal.excluded).cloned());
             work.charge(required.len().saturating_add(excluded.len()))?;
-            if !frontier_domain(bloq, from, &required, &excluded)? {
+            if !coexists_outside(predicates, from, &required, &excluded)? {
                 continue;
             }
-            if bloq.has_path_backwards_with_scratch(initial.node, terminal.node, scratch) {
-                return Err(crate::CompileError::LiveQubitReuse {
-                    producer: to,
-                    consumer: terminal.node,
-                    reuser: initial.node,
-                    qubit: initial.qubit,
-                });
-            }
-            if !bloq.has_path_backwards_with_scratch(terminal.node, initial.node, scratch) {
-                before.edges.insert((terminal.node, initial.node));
-            }
+            orders.push(EraOrder {
+                before: terminal.node,
+                after: initial.node,
+                producer: to,
+                consumer: terminal.node,
+                reuser: initial.node,
+                qubit: initial.qubit,
+            });
         }
     }
-    let mut edges = before.edges.into_iter().collect::<Vec<_>>();
+    Ok(EraReversalPlan { orders })
+}
+
+/// Check a reversal plan against the current graph and collect its missing edges.
+fn resolve_era_reversal(
+    bloq: &Bloq,
+    plan: &EraReversalPlan,
+    scratch: &mut bloq_ir::PathScratch,
+) -> Result<EraReversal, crate::CompileError> {
+    let mut paths = crate::FxMap::default();
+    let mut has_path = |from, to| {
+        *paths
+            .entry((from, to))
+            .or_insert_with(|| bloq.has_path_backwards_with_scratch(from, to, scratch))
+    };
+    let mut edges = crate::FxSet::default();
+    for order in &plan.orders {
+        if has_path(order.after, order.before) {
+            return Err(crate::CompileError::LiveQubitReuse {
+                producer: order.producer,
+                consumer: order.consumer,
+                reuser: order.reuser,
+                qubit: order.qubit,
+            });
+        }
+        if !has_path(order.before, order.after) {
+            edges.insert((order.before, order.after));
+        }
+    }
+    let mut edges = edges.into_iter().collect::<Vec<_>>();
     edges.sort_unstable();
     Ok(if edges.is_empty() || bloq.is_acyclic_with_edges(&edges) {
         EraReversal::Feasible(edges)
@@ -1077,70 +1140,42 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
     // Reset-only overlaps are preferences; settle data-bearing boundaries first.
     let mut pairs = Vec::with_capacity(candidate_pairs.len());
     let mut scratch = bloq.path_scratch();
+    let mut reversals = crate::FxMap::default();
     for (from, to) in candidate_pairs {
         let live = !batch_acyclic
-            && (bloq[from].try_region().is_some() || bloq[to].try_region().is_some() || {
-                cache_live_uses(bloq, &mut live_supports, from)?;
-                cache_live_uses(bloq, &mut live_supports, to)?;
-                let (a, b) = (&live_supports.nodes[&from], &live_supports.nodes[&to]);
-                let mut qubits = a
-                    .inputs
-                    .keys()
-                    .chain(a.outputs.keys())
-                    .filter(|q| b.uses.contains_key(*q))
-                    .chain(
-                        b.inputs
-                            .keys()
-                            .chain(b.outputs.keys())
-                            .filter(|q| a.uses.contains_key(*q)),
-                    )
-                    .copied()
-                    .collect::<Vec<_>>();
-                qubits.sort_unstable_by_key(glam::IVec2::to_array);
-                qubits.dedup();
-                // Shared live support alone is not a witness: that qubit may still
-                // continue through a seam while only reset ancillas justify this pair.
-                let endpoints = [from, to].map(|id| (id, footprints[slot_by_id[&id]].moving));
-                let mut live = false;
-                for qubit in qubits {
-                    if guarded_era_boundary(
-                        bloq,
-                        endpoints,
-                        qubit,
-                        true,
-                        &neighbors,
-                        &mut live_supports,
-                        &mut predicates,
-                    )? {
-                        live = true;
-                        break;
-                    }
-                }
-                live
-            });
+            && (bloq[from].try_region().is_some()
+                || bloq[to].try_region().is_some()
+                || shares_live_boundary(
+                    bloq,
+                    [from, to].map(|id| (id, footprints[slot_by_id[&id]].moving)),
+                    &neighbors,
+                    &mut live_supports,
+                    &mut predicates,
+                )?);
         let forward = rank[from.0 as usize] < rank[to.0 as usize];
         // Prove required orientations before committing unrelated source-time preferences.
         let reversal_blocked = if live && !forward {
-            match plan_live_era_reordering(
+            let plan = plan_live_era_reversal(
                 bloq,
                 from,
                 to,
                 &neighbors,
                 &mut live_supports,
-                &mut scratch,
-            ) {
+                &mut predicates,
+            )?;
+            let blocked = match resolve_era_reversal(bloq, &plan, &mut scratch) {
                 Ok(EraReversal::Feasible(_)) => false,
                 Ok(EraReversal::Cyclic) | Err(crate::CompileError::LiveQubitReuse { .. }) => true,
                 Err(error) => return Err(error),
-            }
+            };
+            reversals.insert((from, to), plan);
+            blocked
         } else {
             false
         };
         pairs.push((!live, !reversal_blocked, !forward, from, to));
     }
-    pairs.sort_unstable_by_key(|&(optional, reversible, backward, from, to)| {
-        (optional, reversible, backward, from.0, to.0)
-    });
+    pairs.sort_unstable();
     // Forward edges cannot close a cycle until a backward edge is inserted.
     let mut ranked = true;
     for (_, _, backward, from, to) in pairs {
@@ -1155,14 +1190,19 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
             ranked &= !backward;
         } else {
             ranked = false;
-            let EraReversal::Feasible(edges) = plan_live_era_reordering(
-                bloq,
-                from,
-                to,
-                &neighbors,
-                &mut live_supports,
-                &mut scratch,
-            )?
+            // Inserted edges only change graph paths, so a probed plan stays valid.
+            let plan = match reversals.remove(&(from, to)) {
+                Some(plan) => plan,
+                None => plan_live_era_reversal(
+                    bloq,
+                    from,
+                    to,
+                    &neighbors,
+                    &mut live_supports,
+                    &mut bloq_ir::lowering::PredicateAnalysis::new(bloq.top()),
+                )?,
+            };
+            let EraReversal::Feasible(edges) = resolve_era_reversal(bloq, &plan, &mut scratch)?
             else {
                 return Err(bloq_ir::BloqValidationError::CyclicGraph.into());
             };
