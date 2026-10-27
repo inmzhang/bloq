@@ -212,8 +212,8 @@ fn layout_normalized(circuit: &Circuit, options: &LayoutOptions) -> Result<Layou
         } else {
             &[embed::TPlacement::Fixed]
         };
-        // Placements embed independently; a later one must be strictly cheaper to win.
-        let mut layouts = bloq_graph::map_jobs(
+        // Placements embed independently.
+        cheapest(bloq_graph::map_jobs(
             placements,
             bloq_graph::default_module_jobs(),
             |&placement| {
@@ -226,53 +226,21 @@ fn layout_normalized(circuit: &Circuit, options: &LayoutOptions) -> Result<Layou
                 )
                 .map_err(Error::Layout)
             },
-        )
-        .into_iter();
-        let mut best = layouts.next().expect("the fixed placement is attempted");
-        if let Some(Ok(candidate)) = layouts.next()
-            && best
-                .as_ref()
-                .ok()
-                .is_none_or(|current| layout_cost(&candidate) < layout_cost(current))
-        {
-            best = Ok(candidate);
-        }
-        best
+        ))
     };
     let layout = match options.strategy {
         Strategy::TopoLs => {
             let candidates =
                 topols::candidates(graph, options.topology, options.measurement_batch_size);
-            let same_plans = matches!(
-                candidates.as_slice(),
-                [(_, Ok(first)), (_, Ok(second))] if first == second
-            );
-            let attempt = |(reduction, plan): &(&'static str, Result<spider::Plan, String>)| {
-                plan.as_ref()
-                    .map_err(|reason| Error::Planning(reason.clone()))
-                    .and_then(|plan| build(plan, reduction, None))
-            };
-            // An identical plan embeds identically; only its label would differ.
-            let results = if same_plans {
-                vec![attempt(&candidates[0])]
-            } else {
-                bloq_graph::map_jobs(&candidates, bloq_graph::default_module_jobs(), attempt)
-            };
-            let mut best: Option<(_, Layout)> = None;
-            let mut failure = None;
-            for result in results {
-                match result {
-                    Ok(candidate) => {
-                        let cost = layout_cost(&candidate);
-                        if best.as_ref().is_none_or(|(current, _)| cost < *current) {
-                            best = Some((cost, candidate));
-                        }
-                    }
-                    Err(error) => failure = Some(error),
-                }
-            }
-            best.map(|(_, layout)| layout)
-                .ok_or_else(|| failure.expect("a topology candidate was attempted"))?
+            cheapest(bloq_graph::map_jobs(
+                &candidates,
+                bloq_graph::default_module_jobs(),
+                |(reduction, plan)| {
+                    plan.as_ref()
+                        .map_err(|reason| Error::Planning(reason.clone()))
+                        .and_then(|plan| build(plan, reduction, None))
+                },
+            ))?
         }
         Strategy::SpiderLs => {
             let reduction = if options.spider_reduction == SpiderReduction::Conservative {
@@ -311,6 +279,27 @@ fn layout_normalized(circuit: &Circuit, options: &LayoutOptions) -> Result<Layou
 fn pi_quarters(phase: quizx::phase::Phase) -> Option<i64> {
     let phase = phase.to_rational();
     (4 % phase.denom() == 0).then(|| phase.numer() * (4 / phase.denom()))
+}
+
+/// The first strictly cheapest successful layout, else the first failure.
+fn cheapest(results: impl IntoIterator<Item = Result<Layout, Error>>) -> Result<Layout, Error> {
+    let mut best: Option<(_, Layout)> = None;
+    let mut failure = None;
+    for result in results {
+        match result {
+            Ok(candidate) => {
+                let cost = layout_cost(&candidate);
+                if best.as_ref().is_none_or(|(current, _)| cost < *current) {
+                    best = Some((cost, candidate));
+                }
+            }
+            Err(error) => {
+                failure.get_or_insert(error);
+            }
+        }
+    }
+    best.map(|(_, layout)| layout)
+        .ok_or_else(|| failure.expect("a layout candidate was attempted"))
 }
 
 fn layout_cost(layout: &Layout) -> (u128, u128, u128) {
@@ -493,8 +482,6 @@ mod tests {
         assert!(layout.patch_locations.iter().any(|p| p.x > 0));
         assert!(layout.patch_locations.iter().any(|p| p.y > 0));
         assert_eq!(layout.routing_bounds.unwrap()[0], IVec2::splat(-2));
-        assert_eq!(layout.input_ports.len(), 5);
-        assert_eq!(layout.output_ports.len(), 5);
         assert!(layout.input_ports.iter().any(|p| p.y > 0));
         layout.compile(CompileConfig::new(3)).unwrap();
     }

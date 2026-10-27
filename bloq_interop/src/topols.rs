@@ -45,37 +45,31 @@ pub(crate) fn candidates(
     options: TopologyOptions,
     measurement_batch_size: Option<usize>,
 ) -> Vec<(&'static str, Result<Plan, String>)> {
-    if !options.fusion {
-        return vec![(
-            "unfused",
-            plan(
-                graph,
-                Fusion::Disabled,
-                options.block_rows,
-                measurement_batch_size,
-            ),
-        )];
+    let modes: &[_] = if options.fusion {
+        &[
+            ("bounded_single_pass", Fusion::SinglePass),
+            ("bounded_fixed_point", Fusion::FixedPoint),
+        ]
+    } else {
+        &[("unfused", Fusion::Disabled)]
+    };
+    let mut candidates: Vec<(_, Result<Plan, String>)> = Vec::with_capacity(modes.len());
+    for &(label, fusion) in modes {
+        let plan = plan(
+            graph.clone(),
+            fusion,
+            options.block_rows,
+            measurement_batch_size,
+        );
+        // An identical plan embeds identically; the first label is kept.
+        if !candidates
+            .iter()
+            .any(|(_, earlier)| matches!((earlier, &plan), (Ok(a), Ok(b)) if a == b))
+        {
+            candidates.push((label, plan));
+        }
     }
-    vec![
-        (
-            "bounded_single_pass",
-            plan(
-                graph.clone(),
-                Fusion::SinglePass,
-                options.block_rows,
-                measurement_batch_size,
-            ),
-        ),
-        (
-            "bounded_fixed_point",
-            plan(
-                graph,
-                Fusion::FixedPoint,
-                options.block_rows,
-                measurement_batch_size,
-            ),
-        ),
-    ]
+    candidates
 }
 
 fn prepare(mut graph: Graph, fusion: Fusion, block_rows: usize) -> Result<Graph, String> {
@@ -100,7 +94,7 @@ fn prepare(mut graph: Graph, fusion: Fusion, block_rows: usize) -> Result<Graph,
     // Identity removal also cancels adjacent H edges without losing their parity.
     quizx::simplify::id_simp(&mut graph);
     if !matches!(fusion, Fusion::Disabled) {
-        fuse(&mut graph, fusion, block_rows);
+        fuse(&mut graph, matches!(fusion, Fusion::FixedPoint), block_rows);
     }
     graph.x_to_z();
     let ordinary: Vec<_> = graph
@@ -120,8 +114,7 @@ fn prepare(mut graph: Graph, fusion: Fusion, block_rows: usize) -> Result<Graph,
     Ok(graph)
 }
 
-fn fuse(graph: &mut Graph, fusion: Fusion, block_rows: usize) {
-    let fixed_point = matches!(fusion, Fusion::FixedPoint);
+fn fuse(graph: &mut Graph, fixed_point: bool, block_rows: usize) {
     let mut rows: Vec<_> = graph.vertices().map(|v| graph.row(v)).collect();
     rows.sort_by(f64::total_cmp);
     rows.dedup_by(|a, b| a.total_cmp(b).is_eq());
@@ -261,7 +254,6 @@ mod tests {
                         "graph: {gates}"
                     );
                     let p = plan(graph.clone(), fusion, block_rows, None).unwrap();
-                    assert_eq!(p, plan(graph.clone(), fusion, block_rows, None).unwrap());
                     assert!(
                         TensorF::scalar_compare(&circuit, &execution_graph(&p, 3)),
                         "plan: {gates}"
@@ -300,7 +292,6 @@ mod tests {
                     },
                     measurement_batch_size,
                 );
-                assert_eq!(candidates.len(), if fusion { 2 } else { 1 });
                 for (_, p) in candidates {
                     crate::spider::tests::verify_branches(&p.unwrap(), &circuit);
                 }

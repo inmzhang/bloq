@@ -189,9 +189,10 @@ pub(crate) fn optimize(graph: BlockGraph) -> Result<BlockGraph, String> {
     let mut optimized = BlockGraph::new();
     for (index, block) in blocks.iter().enumerate() {
         let block = if flips[index] {
-            let BlockKind::Cube(_) = block.kind() else {
-                unreachable!("fixed non-cube frame cannot flip")
-            };
+            debug_assert!(
+                matches!(block.kind(), BlockKind::Cube(_)),
+                "only cubes flip"
+            );
             let mut changed = Block::new(block.pos(), block.kind().flip_xz_basis())
                 .with_height(block.height())
                 .map_err(|error| error.to_string())?;
