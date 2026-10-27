@@ -11,7 +11,40 @@ mod order;
 #[cfg(test)]
 mod order_tests;
 
-type CoexistenceQuery = (Vec<ValueRef>, Vec<Vec<ValueRef>>);
+/// Required predicates and excluded conjunctions of one coexistence query.
+type CoexistenceQuery = (Box<[ValueRef]>, Box<[Vec<ValueRef>]>);
+
+/// Results keyed by borrowed slice queries; a key is copied only on insertion.
+#[derive(Debug)]
+struct SliceCache<K> {
+    buckets: FxMap<u64, Vec<(K, bool)>>,
+}
+
+impl<K> Default for SliceCache<K> {
+    fn default() -> Self {
+        Self {
+            buckets: FxMap::default(),
+        }
+    }
+}
+
+impl<K> SliceCache<K> {
+    fn hash(query: &impl std::hash::Hash) -> u64 {
+        use std::hash::BuildHasher;
+        rustc_hash::FxBuildHasher.hash_one(query)
+    }
+
+    fn get(&self, hash: u64, matches: impl Fn(&K) -> bool) -> Option<bool> {
+        self.buckets
+            .get(&hash)?
+            .iter()
+            .find_map(|(key, result)| matches(key).then_some(*result))
+    }
+
+    fn insert(&mut self, hash: u64, key: K, result: bool) {
+        self.buckets.entry(hash).or_default().push((key, result));
+    }
+}
 
 const PREDICATE_COLLECTION_FLOOR: usize = 65_536;
 
@@ -32,7 +65,8 @@ pub struct PredicateAnalysis<'a> {
     aliases: FxMap<ValueRef, (ValueRef, bool)>,
     implications: FxMap<(Option<ValueRef>, ValueRef), bool>,
     overlaps: FxMap<(Option<ValueRef>, Option<ValueRef>), bool>,
-    coexistence: FxMap<CoexistenceQuery, bool>,
+    coexistence: SliceCache<CoexistenceQuery>,
+    joint_implications: SliceCache<(Box<[ValueRef]>, ValueRef)>,
 }
 
 /// One exhaustive, mutually exclusive member choice and its known guard inputs.
@@ -104,7 +138,8 @@ impl<'a> PredicateAnalysis<'a> {
             aliases: FxMap::default(),
             implications: FxMap::default(),
             overlaps: FxMap::default(),
-            coexistence: FxMap::default(),
+            coexistence: SliceCache::default(),
+            joint_implications: SliceCache::default(),
         }
     }
 
@@ -188,8 +223,13 @@ impl<'a> PredicateAnalysis<'a> {
                 .saturating_add(1),
         )?;
         // Physical qubits at one lifetime boundary repeat the same guard query.
-        let key = (required.to_vec(), excluded.to_vec());
-        if let Some(&result) = self.coexistence.get(&key) {
+        let hash = SliceCache::<()>::hash(&(required, excluded));
+        if let Some(result) = self
+            .coexistence
+            .get(hash, |(cached_required, cached_excluded)| {
+                **cached_required == *required && **cached_excluded == *excluded
+            })
+        {
             return Ok(result);
         }
         let mut domain = self.conjunction(required)?;
@@ -202,7 +242,8 @@ impl<'a> PredicateAnalysis<'a> {
             }
         }
         let result = domain != DECISION_FALSE;
-        self.coexistence.insert(key, result);
+        self.coexistence
+            .insert(hash, (required.into(), excluded.into()), result);
         Ok(result)
     }
 
@@ -273,10 +314,18 @@ impl<'a> PredicateAnalysis<'a> {
             return self.implies_values(left.first().copied(), right);
         }
         self.charge(left.len())?;
-        if self.proves_conjunct(left, right)? || self.proves_cofactor(left, right)? {
-            return Ok(true);
+        let hash = SliceCache::<()>::hash(&(left, right));
+        if let Some(result) = self.joint_implications.get(hash, |(cached, target)| {
+            **cached == *left && *target == right
+        }) {
+            return Ok(result);
         }
-        self.solve_implication(left, right)
+        let result = self.proves_conjunct(left, right)?
+            || self.proves_cofactor(left, right)?
+            || self.solve_implication(left, right)?;
+        self.joint_implications
+            .insert(hash, (left.into(), right), result);
+        Ok(result)
     }
 
     fn solve_implication(&mut self, left: &[ValueRef], right: ValueRef) -> Result<bool, Error> {
@@ -444,7 +493,8 @@ impl<'a> PredicateAnalysis<'a> {
             Node(ValueRef),
             Store(ValueRef),
             Expr(BloqNodeId, &'a ClassicalExpr),
-            Reduce(&'a ClassicalExpr),
+            /// Combine the last `usize` operand cofactors.
+            Reduce(&'a ClassicalExpr, usize),
             Activate,
         }
         if roots.is_empty() {
@@ -497,56 +547,21 @@ impl<'a> PredicateAnalysis<'a> {
                         }
                         ClassicalExpr::Parity { inputs, .. } => {
                             self.charge(inputs.len())?;
-                            pending.push(Task::Reduce(expr));
+                            pending.push(Task::Reduce(expr, inputs.len()));
                             for &slot in inputs.iter().rev() {
                                 pending.push(Task::Node(self.input(node, slot)?));
                             }
                         }
                         _ => {
-                            self.charge(expr.operands().len())?;
-                            pending.push(Task::Reduce(expr));
-                            pending
-                                .extend(expr.operands().iter().rev().map(|e| Task::Expr(node, e)));
+                            let operands = expr.operands();
+                            self.charge(operands.len())?;
+                            pending.push(Task::Reduce(expr, operands.len()));
+                            pending.extend(operands.iter().rev().map(|e| Task::Expr(node, e)));
                         }
                     },
-                    Task::Reduce(expr) => {
-                        let count = match expr {
-                            ClassicalExpr::Parity { inputs, .. } => inputs.len(),
-                            _ => expr.operands().len(),
-                        };
+                    Task::Reduce(expr, count) => {
                         let start = values.len() - count;
-                        let operands = &values[start..];
-                        let bit = match expr {
-                            ClassicalExpr::Not(_) => operands[0].map(|bit| !bit),
-                            ClassicalExpr::And(_) => {
-                                if operands.contains(&Some(false)) {
-                                    Some(false)
-                                } else {
-                                    (!operands.contains(&None)).then_some(true)
-                                }
-                            }
-                            ClassicalExpr::Or(_) => {
-                                if operands.contains(&Some(true)) {
-                                    Some(true)
-                                } else {
-                                    (!operands.contains(&None)).then_some(false)
-                                }
-                            }
-                            ClassicalExpr::Xor(_) | ClassicalExpr::Parity { .. } => {
-                                let initial =
-                                    matches!(expr, ClassicalExpr::Parity { constant: true, .. });
-                                operands
-                                    .iter()
-                                    .copied()
-                                    .try_fold(initial, |a, b| Some(a ^ b?))
-                            }
-                            ClassicalExpr::Select(_) => match operands[0] {
-                                Some(condition) => operands[1 + usize::from(condition)],
-                                None if operands[1] == operands[2] => operands[1],
-                                None => None,
-                            },
-                            _ => unreachable!("leaf cofactors need no reduction"),
-                        };
+                        let bit = expr.combine_kleene(&values[start..]);
                         values.truncate(start);
                         values.push(bit);
                     }

@@ -382,6 +382,45 @@ impl ClassicalExpr {
         }
     }
 
+    /// Combine evaluated operands under Kleene logic: unlike [`Self::eval`], a
+    /// known `false` decides `And` and a known `true` decides `Or` beside
+    /// unknown operands, and `Select` with an unknown condition is known when
+    /// both arms agree. `operands` holds the input values for `In` and
+    /// `Parity`, and the operand values otherwise.
+    #[must_use]
+    pub fn combine_kleene(&self, operands: &[Option<bool>]) -> Option<bool> {
+        match self {
+            Self::In(_) => operands[0],
+            Self::Const(bit) => Some(*bit),
+            Self::Not(_) => operands[0].map(|bit| !bit),
+            Self::And(_) => {
+                if operands.contains(&Some(false)) {
+                    Some(false)
+                } else {
+                    (!operands.contains(&None)).then_some(true)
+                }
+            }
+            Self::Or(_) => {
+                if operands.contains(&Some(true)) {
+                    Some(true)
+                } else {
+                    (!operands.contains(&None)).then_some(false)
+                }
+            }
+            Self::Xor(_) => operands
+                .iter()
+                .try_fold(false, |value, &bit| Some(value ^ bit?)),
+            Self::Parity { constant, .. } => operands
+                .iter()
+                .try_fold(*constant, |value, &bit| Some(value ^ bit?)),
+            Self::Select(_) => match operands[0] {
+                Some(condition) => operands[1 + usize::from(condition)],
+                None if operands[1] == operands[2] => operands[1],
+                None => None,
+            },
+        }
+    }
+
     /// Visit every `In(slot)` leaf, left to right.
     pub fn for_each_input(&self, f: &mut impl FnMut(u32)) {
         match self {
