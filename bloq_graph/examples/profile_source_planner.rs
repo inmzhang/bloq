@@ -1,4 +1,4 @@
-//! Compare planning: `profile_source_planner WIDTH|yoke:WIDTH|file:PATH [--samples N]`.
+//! Compare planning: `profile_source_planner WIDTH|file:PATH [--samples N]`.
 //! Add `--flat` to run only an explicitly flattened solve with no module-site
 //! metadata or prepared relations, e.g. `profile_source_planner 3 --flat --samples 3`.
 //! Samples rebuild planners in one process; source construction and flattening run once.
@@ -12,7 +12,7 @@ use bloq_graph::{GuardedSurfaceSpace, GuardedTopology, ModuleCertificationLimits
 
 fn main() {
     let mut args = std::env::args().skip(1);
-    let case = args.next().expect("width, yoke:width or file:path");
+    let case = args.next().expect("width or file:path");
     let mut flat = false;
     let mut samples = 1;
     while let Some(arg) = args.next() {
@@ -35,13 +35,6 @@ fn main() {
             "authored_file",
             0,
             bloq_graph::BlockGraph::from_text(&source).expect("authored source"),
-        )
-    } else if let Some(width) = case.strip_prefix("yoke:") {
-        let width = width.parse().expect("yoke width");
-        (
-            "yoked_memory",
-            width,
-            bloq_test::benchmark::yoked_memory(width),
         )
     } else {
         let bits = case.parse().expect("adder width");

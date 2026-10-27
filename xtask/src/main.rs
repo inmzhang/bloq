@@ -5,7 +5,7 @@ use std::env;
 use color_eyre::eyre::{Result, bail};
 
 use bloq_test::{
-    benchmark::{DEFAULT_COMPILE_DISTANCES, benchmark_value, case_slug},
+    benchmark::{DEFAULT_COMPILE_DISTANCES, benchmark_fixture, benchmark_value, case_slug},
     compile_ready_test_cases, find_test_case,
 };
 
@@ -55,6 +55,16 @@ fn run() -> Result<()> {
             }
             Ok(())
         }
+        Some("list-benchmark-cases") => {
+            let args = args.collect::<Vec<_>>();
+            let filter = parse_optional_flag(&args, "--filter")?;
+            for case in compile_ready_test_cases(filter)? {
+                if benchmark_fixture(&case).is_some() {
+                    println!("{}", case_slug(case.id()));
+                }
+            }
+            Ok(())
+        }
         Some("show-case") => {
             let Some(name) = args.next() else {
                 bail!("usage: cargo run -p xtask -- show-case <exact-case-name>");
@@ -67,7 +77,7 @@ fn run() -> Result<()> {
         }
         _ => {
             bail!(
-                "usage: cargo run -p xtask -- <list-scenarios|list-cases|show-case> [--filter <scenario-id-substring>] [--case-query <fuzzy-case-query>] [--compile-ready] [--slugs] [args]"
+                "usage: cargo run -p xtask -- <list-scenarios|list-cases|list-benchmark-cases|show-case> [--filter <scenario-id-substring|fuzzy-case-query>] [--case-query <fuzzy-case-query>] [--compile-ready] [--slugs] [args]"
             )
         }
     }

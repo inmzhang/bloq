@@ -2,7 +2,8 @@
 
 Measure compilation or Stim emission with the shared workloads before adding a
 new benchmark. Workloads live in crate `benches/` and `examples/` directories
-and `bloq_test::benchmark`; measurements and profiles stay local.
+and `bloq_test::benchmark`; measurements and profiles stay local. Yoked layouts
+remain in the correctness corpus and are excluded from the benchmark suites.
 
 ## Choose a workload
 

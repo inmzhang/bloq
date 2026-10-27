@@ -15,8 +15,8 @@ use bloq_graph::{
 use glam::IVec3;
 
 use crate::{
-    COMPILE_BENCH_CORE_ALIAS, TestCase, TestCaseError, compile_fixtures, compile_ready_test_cases,
-    required_compile_ready_test_cases,
+    COMPILE_BENCH_CORE_ALIAS, GalleryCategory, TestCase, TestCaseError, TestFixture,
+    compile_fixtures, compile_ready_test_cases, required_compile_ready_test_cases,
 };
 
 /// Default code-distance ladder for aggregate benchmarks.
@@ -51,9 +51,29 @@ pub fn benchmark_value(case_query: Option<&str>, distance: u32) -> String {
 ///
 /// # Errors
 ///
-/// Returns a [`TestCaseError`] if the query selects no compile-ready cases.
+/// Returns a [`TestCaseError`] if the query selects no cases eligible for benchmarking.
 pub fn benchmark_workload_cases(case_query: Option<&str>) -> Result<Vec<TestCase>, TestCaseError> {
-    required_compile_ready_test_cases(Some(benchmark_case_query(case_query)))
+    let query = benchmark_case_query(case_query);
+    let mut cases = required_compile_ready_test_cases(Some(query))?;
+    cases.retain(|case| benchmark_fixture(case).is_some());
+    if cases.is_empty() {
+        return Err(TestCaseError(format!(
+            "not found: benchmark case query {query:?} selected only yoked layouts"
+        )));
+    }
+    Ok(cases)
+}
+
+/// The fixture a compile-ready case is benchmarked under, or `None` when only
+/// yoked layouts, which benchmarks exclude, make it compile-ready.
+pub fn benchmark_fixture(case: &TestCase) -> Option<TestFixture> {
+    case.metadata
+        .origins
+        .iter()
+        .map(|origin| origin.fixture)
+        .find(|&fixture| {
+            fixture != TestFixture::OneDYoked && !fixture.in_category(GalleryCategory::AnalysisOnly)
+        })
 }
 
 /// Independent terminal branches for projection-scaling benchmarks.
@@ -102,7 +122,7 @@ pub fn structural_branch_workload(branches: usize) -> BlockGraph {
     graph
 }
 
-/// A wider version of the gallery's one-dimensional yoked memory.
+/// A wider version of the gallery's one-dimensional yoked memory for correctness tests.
 ///
 /// # Panics
 ///
@@ -194,7 +214,7 @@ pub fn case_bench_distances() -> Result<Vec<u32>, TestCaseError> {
 
 /// Benchmark cases grouped by source fixture, in fixture declaration order.
 /// Cases whose graphs deduplicated across fixtures are attributed to the
-/// fixture of their first recorded origin.
+/// first recorded origin that participates in benchmarks.
 ///
 /// # Errors
 ///
@@ -215,12 +235,9 @@ pub fn fixture_case_groups(
         .collect::<Vec<_>>();
 
     for case in compile_ready_test_cases(Some(benchmark_case_query(case_query)))? {
-        let fixture = case
-            .metadata
-            .origins
-            .first()
-            .expect("every test case records at least one origin")
-            .fixture;
+        let Some(fixture) = benchmark_fixture(&case) else {
+            continue;
+        };
         let group = groups
             .iter_mut()
             .find(|group| group.fixture_id == fixture.id())
@@ -292,6 +309,23 @@ mod tests {
                 .unwrap()
                 .action_graph()
                 .is_analyzed()
+        );
+    }
+
+    #[test]
+    fn yoked_memory_stays_in_correctness_cases_but_out_of_benchmarks() {
+        assert!(
+            !compile_ready_test_cases(Some("1d_yoked"))
+                .unwrap()
+                .is_empty()
+        );
+        benchmark_workload_cases(Some("1d_yoked")).unwrap_err();
+        assert!(fixture_case_groups(Some("1d_yoked")).unwrap().is_empty());
+        assert!(
+            fixture_case_groups(None)
+                .unwrap()
+                .iter()
+                .all(|group| group.fixture_id != TestFixture::OneDYoked.id())
         );
     }
 

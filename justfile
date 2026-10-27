@@ -83,7 +83,7 @@ bench-all:
 # list the case slugs used in per-case benchmark IDs and profile paths
 [group('benchmark')]
 bench-case-list:
-    cargo run -q -p xtask -- list-cases --compile-ready --slugs
+    cargo run -q -p xtask -- list-benchmark-cases
 
 # perf-record one case (slug from `just bench-case-list`, or `all`) and emit
 # target/benchmark/profiles/<stage>/<case>-d<distance>/{flamegraph.svg,report.txt}
@@ -107,7 +107,7 @@ profile-case-samply case="all" stage="compile" distance="11" duration="5" warmup
 profile-all stage="compile" distance="11" duration="5":
     #!/usr/bin/env bash
     set -euo pipefail
-    for slug in $(cargo run -q -p xtask -- list-cases --compile-ready --slugs) all; do
+    for slug in $(cargo run -q -p xtask -- list-benchmark-cases) all; do
         just profile-case "$slug" {{ stage }} {{ distance }} {{ duration }}
     done
 

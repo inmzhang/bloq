@@ -235,7 +235,7 @@ fn resolve_case_workloads(case: &str) -> Vec<BlockGraph> {
             || spec.case_name == case
             || spec.case.aliases().iter().any(|alias| alias == case)
     }) else {
-        eprintln!("no compile-ready case matched {case:?}; available slugs:");
+        eprintln!("no benchmark case matched {case:?}; yoked layouts are excluded; candidates:");
         for spec in &specs {
             eprintln!("  {}", spec.case_slug);
         }
