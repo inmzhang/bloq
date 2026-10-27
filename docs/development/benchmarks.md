@@ -24,6 +24,21 @@ Criterion output can contain old workloads. Use a fresh `CARGO_TARGET_DIR` for
 an isolated run.
 :::
 
+## Measure flat interop compilation
+
+Use a frozen synthesized Clifford+T OpenQASM 2 file as `circuit.qasm`:
+
+```sh
+cargo build --release --locked -p bloq-interop --example compile_qasm
+target/release/examples/compile_qasm circuit.qasm topols new-result-directory 3
+```
+
+The final argument selects code distance. Choose a new output directory for
+each sample; its parent must exist. The example reports layout and native
+compilation times separately and writes the BLOG layout, validated binary IR,
+and `result.json`. It uses ideal T-source proxies and checks the persisted
+BLOG and IR round trips.
+
 ## Compare a change
 
 Keep the workload, code distance, feature flags, and resource settings fixed.

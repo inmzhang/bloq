@@ -2225,6 +2225,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "bloq-interop"
+version = "0.1.2-dev"
+dependencies = [
+ "bloq_compile",
+ "bloq_graph",
+ "bloq_ir",
+ "glam",
+ "quizx",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "bloq_circuit"
 version = "0.1.2-dev"
 dependencies = [
@@ -2402,6 +2415,7 @@ dependencies = [
 name = "bloq_vm"
 version = "0.1.2-dev"
 dependencies = [
+ "bloq-interop",
  "bloq_compile",
  "bloq_graph",
  "bloq_ir",

@@ -292,7 +292,8 @@ cargo run --release --locked -p bloq_graph --example profile_source_planner -- 3
 
 The argument selects an adder width. Use `file:program.blog` for an authored
 hierarchy, or add `--flat --samples 3` to solve the flattened source without
-module relations.
+module relations. See [flat interop compilation](../development/benchmarks.md#measure-flat-interop-compilation)
+for end-to-end measurements from a frozen synthesized QASM circuit.
 Definition preparation is reported separately; the uncached reference excludes
 definition certification, so its total is not a complete cold-compiler baseline.
 
