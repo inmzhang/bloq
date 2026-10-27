@@ -1,15 +1,16 @@
 //! Direct surgery construction with explicit patch frames and disjoint lifetimes.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 
 use bloq_graph::{
     Action, Block, BlockGraph, BlockKind, CubeHeight, CubeKind, Direction, Expr, FeedbackTarget,
     MAX_CUBE_HEIGHT_CELLS, MeasureTarget, PauliBasis, Pipe, PortRole, SelectiveKind,
 };
 use glam::{IVec2, IVec3};
+use rustc_hash::FxHashMap;
 
 use crate::spider::{Instruction, Plan};
-use crate::{GridOptions, LayoutOptions, grid::Grid};
+use crate::{Layout, LayoutOptions, grid::Grid};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TPlacement {
@@ -36,14 +37,41 @@ impl Patch {
     }
 }
 
+/// Free patch locations and when each becomes ready, indexed by readiness.
+#[derive(Default)]
+struct FreeSlots {
+    ready: BTreeMap<usize, i32>,
+    order: BTreeSet<(i32, usize)>,
+}
+
+impl FreeSlots {
+    fn release(&mut self, slot: usize, ready: i32) {
+        if let Some(old) = self.ready.insert(slot, ready) {
+            self.order.remove(&(old, slot));
+        }
+        self.order.insert((ready, slot));
+    }
+
+    /// The earliest-ready location, lowest index first.
+    fn earliest(&self) -> Option<usize> {
+        self.order.first().map(|&(_, slot)| slot)
+    }
+
+    fn take(&mut self, slot: usize) -> Option<i32> {
+        let ready = self.ready.remove(&slot)?;
+        self.order.remove(&(ready, slot));
+        Some(ready)
+    }
+}
+
 struct Builder {
     graph: BlockGraph,
     live: Vec<Option<Patch>>,
     actions: Vec<Action>,
     time: i32,
-    available: BTreeMap<usize, i32>,
+    available: FreeSlots,
     release_times: BTreeMap<usize, i32>,
-    occupied_until: HashMap<IVec2, i32>,
+    occupied_until: FxHashMap<IVec2, i32>,
     max_blocks: usize,
     max_temporal_extent: Option<u32>,
     grid: Option<Grid>,
@@ -379,20 +407,14 @@ impl Builder {
     }
 }
 
-pub(crate) struct Embedding {
-    pub graph: BlockGraph,
-    pub input_ports: Vec<IVec3>,
-    pub output_ports: Vec<IVec3>,
-    pub grid: Option<GridOptions>,
-    pub patch_locations: Vec<IVec2>,
-    pub routing_bounds: Option<[IVec2; 2]>,
-}
-
+/// Embed a plan, recording the reduction that produced it.
 pub(crate) fn embed(
     plan: &Plan,
     options: &LayoutOptions,
     t_placement: TPlacement,
-) -> Result<Embedding, String> {
+    reduction: &'static str,
+    reduction_fallback: Option<String>,
+) -> Result<Layout, String> {
     let extra_patches = options.extra_patches;
     // More locations than preparations cannot be used, even with an unbounded request.
     let preparations = plan
@@ -414,14 +436,17 @@ pub(crate) fn embed(
         live: vec![None; plan.peak_patches],
         actions: Vec::new(),
         time: 0,
-        available: (0..slots).map(|slot| (slot, 0)).collect(),
+        available: FreeSlots::default(),
         release_times: BTreeMap::new(),
-        occupied_until: HashMap::default(),
+        occupied_until: FxHashMap::default(),
         max_blocks: options.max_blocks,
         max_temporal_extent: options.max_temporal_extent,
         grid,
         t_placement,
     };
+    for slot in 0..slots {
+        b.available.release(slot, 0);
+    }
     let patch_locations = (0..locations)
         .map(|slot| b.home(slot))
         .collect::<Result<Vec<_>, _>>()?;
@@ -437,13 +462,9 @@ pub(crate) fn embed(
                 let slot = if extra_patches == 0 {
                     patch
                 } else {
-                    *b.available
-                        .iter()
-                        .min_by_key(|&(slot, ready)| (*ready, *slot))
-                        .ok_or("no free patch location")?
-                        .0
+                    b.available.earliest().ok_or("no free patch location")?
                 };
-                let ready = b.available.remove(&slot).ok_or("patch location is live")?;
+                let ready = b.available.take(slot).ok_or("patch location is live")?;
                 used_slots = used_slots.max(slot + 1);
                 let end = b.home(slot)?.extend(Builder::after(ready, 1)?);
                 if let Some(input) = input {
@@ -464,13 +485,10 @@ pub(crate) fn embed(
                 b.time = b.time.max(end.z);
             }
             Instruction::Cz { patches: [a, c] } => b.cz(a, c)?,
-            Instruction::Phase { patch, phase } => {
-                let r = phase.to_rational();
-                if 4 % r.denom() != 0 {
-                    return Err("only Clifford+T phases can be embedded".into());
-                }
-                b.phase(patch, r.numer() * (4 / r.denom()))?;
-            }
+            Instruction::Phase { patch, phase } => b.phase(
+                patch,
+                crate::pi_quarters(phase).ok_or("only Clifford+T phases can be embedded")?,
+            )?,
             Instruction::Hadamard { patch } => b.hadamard(patch)?,
             Instruction::Release { patch, vertex } => {
                 let live = b.patch(patch)?;
@@ -479,7 +497,7 @@ pub(crate) fn embed(
                     .end;
                 b.release_times.insert(vertex, end.z);
                 b.live[patch] = None;
-                b.available.insert(live.slot, Builder::after(end.z, 1)?);
+                b.available.release(live.slot, Builder::after(end.z, 1)?);
                 b.time = b.time.max(end.z);
             }
             Instruction::Feedback {
@@ -522,10 +540,12 @@ pub(crate) fn embed(
         .map_err(|e| e.to_string())?;
     b.graph = crate::hadamard::optimize(b.graph)?;
     b.graph.validate_source().map_err(|e| e.to_string())?;
-    Ok(Embedding {
+    Ok(Layout {
         graph: b.graph,
         input_ports: inputs.into_iter().map(|(_, p)| p).collect(),
         output_ports: outputs.into_iter().map(|(_, p)| p).collect(),
+        reduction,
+        reduction_fallback,
         grid: b.grid.as_ref().map(Grid::options),
         patch_locations,
         routing_bounds: b.grid.as_ref().map(Grid::bounds),
@@ -553,6 +573,8 @@ mod tests {
                 ..Default::default()
             },
             TPlacement::Fixed,
+            "test",
+            None,
         )
         .map(|e| (e.graph, e.input_ports, e.output_ports))
     }
@@ -608,12 +630,12 @@ mod tests {
             ..Default::default()
         };
         let times = [TPlacement::Fixed, TPlacement::Available].map(|placement| {
-            let Embedding {
+            let Layout {
                 graph,
                 input_ports: inputs,
                 output_ports: outputs,
                 ..
-            } = super::embed(&plan, &options, placement).unwrap();
+            } = super::embed(&plan, &options, placement, "test", None).unwrap();
             assert_eq!(
                 graph.blocks().filter(|b| b.kind() == BlockKind::T).count(),
                 9
@@ -719,12 +741,12 @@ mod tests {
                             grid,
                             ..Default::default()
                         };
-                        let Embedding {
+                        let Layout {
                             graph,
                             input_ports,
                             output_ports,
                             ..
-                        } = super::embed(&plan, &options, placement).unwrap();
+                        } = super::embed(&plan, &options, placement, "test", None).unwrap();
                         assert!(
                             graph
                                 .blocks()
@@ -793,7 +815,7 @@ mod tests {
             }),
         ] {
             let metrics = [0, 1, usize::MAX].map(|extra| {
-                let Embedding {
+                let Layout {
                     graph,
                     input_ports: inputs,
                     output_ports: outputs,
@@ -807,6 +829,8 @@ mod tests {
                         ..Default::default()
                     },
                     TPlacement::Fixed,
+                    "test",
+                    None,
                 )
                 .unwrap();
                 assert_eq!(patch_locations.len(), if extra == 0 { 4 } else { 5 });

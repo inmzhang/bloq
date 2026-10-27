@@ -119,7 +119,7 @@ pub(crate) fn interface(graph: &Graph) -> Result<Interface, String> {
         match graph.vertex_type(v) {
             VType::Z => {
                 if graph.vars(v) != Default::default()
-                    || !matches!(*graph.phase(v).to_rational().denom(), 1 | 2 | 4)
+                    || crate::pi_quarters(graph.phase(v)).is_none()
                 {
                     return Err(format!("spider {v} has a non-static Clifford+T phase"));
                 }
@@ -338,11 +338,11 @@ impl Frontier<'_> {
 /// The batch cap splits each causal layer, allowing released patches to be reused.
 pub(crate) fn causal_plan(
     graph: &Graph,
+    interface: Interface,
     order: &[V],
     measurement_batch_size: Option<usize>,
 ) -> Result<Plan, String> {
-    let interface = interface(graph)?;
-    let flow = crate::flow::xy_gflow(graph)?;
+    let flow = crate::flow::xy_gflow(graph, &interface)?;
     let mut f = Frontier {
         graph,
         rank: order.iter().enumerate().map(|(i, &v)| (v, i)).collect(),
@@ -374,7 +374,7 @@ pub(crate) fn causal_plan(
                 .push(Instruction::Hadamard { patch: f.live[&v] });
         }
     }
-    for layer in flow.layers {
+    for layer in flow {
         for batch in layer.chunks(measurement_batch_size.unwrap_or(layer.len())) {
             let mut measurements = Vec::with_capacity(batch.len());
             for correction in batch {
@@ -443,18 +443,22 @@ pub(crate) fn causal_plan(
 
 /// Reduce externally with QuiZX, then execute its graph using a causal frontier.
 pub(crate) fn plan(graph: &Graph, measurement_batch_size: Option<usize>) -> Result<Plan, String> {
+    let interface = interface(graph)?;
     let mut vertices: Vec<_> = graph
         .vertices()
         .filter(|&v| graph.vertex_type(v) == VType::Z)
         .collect();
-    vertices.sort_by(|&a, &b| {
-        graph
-            .row(a)
-            .total_cmp(&graph.row(b))
-            .then_with(|| graph.qubit(a).total_cmp(&graph.qubit(b)))
-            .then(a.cmp(&b))
-    });
-    causal_plan(graph, &vertices, measurement_batch_size)
+    vertices.sort_by(|&a, &b| vertex_order(graph, a, b));
+    causal_plan(graph, interface, &vertices, measurement_batch_size)
+}
+
+/// Deterministic row, qubit, then id order shared by the causal planners.
+pub(crate) fn vertex_order(graph: &Graph, a: V, b: V) -> std::cmp::Ordering {
+    graph
+        .row(a)
+        .total_cmp(&graph.row(b))
+        .then_with(|| graph.qubit(a).total_cmp(&graph.qubit(b)))
+        .then(a.cmp(&b))
 }
 
 #[cfg(test)]

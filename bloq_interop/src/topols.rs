@@ -10,7 +10,7 @@ use quizx::graph::{EType, GraphLike, V, VType};
 use quizx::phase::Phase;
 use quizx::vec_graph::Graph;
 
-use crate::spider::{Plan, causal_plan, interface};
+use crate::spider::{Plan, causal_plan, interface, vertex_order};
 
 /// Bounded ZX-fusion settings for the TopoLS-style planner.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -78,19 +78,11 @@ pub(crate) fn candidates(
     ]
 }
 
-fn vertex_order(graph: &Graph, a: V, b: V) -> std::cmp::Ordering {
-    graph
-        .row(a)
-        .total_cmp(&graph.row(b))
-        .then_with(|| graph.qubit(a).total_cmp(&graph.qubit(b)))
-        .then(a.cmp(&b))
-}
-
 fn prepare(mut graph: Graph, fusion: Fusion, block_rows: usize) -> Result<Graph, String> {
     for v in graph.vertices() {
         if !matches!(graph.vertex_type(v), VType::B | VType::X | VType::Z)
             || graph.vars(v) != Default::default()
-            || !matches!(*graph.phase(v).to_rational().denom(), 1 | 2 | 4)
+            || crate::pi_quarters(graph.phase(v)).is_none()
             || !graph.row(v).is_finite()
             || !graph.qubit(v).is_finite()
         {
@@ -213,6 +205,8 @@ fn plan(
     vertices.sort_by(|&a, &b| vertex_order(&graph, a, b));
     let mut layers: BTreeMap<V, usize> = interface.inputs.iter().map(|&(_, v, _)| (v, 0)).collect();
     let mut queue: VecDeque<_> = layers.keys().copied().collect();
+    // Layered vertices stay layered, so each component root search resumes here.
+    let mut unlayered = vertices.iter();
     loop {
         while let Some(v) = queue.pop_front() {
             let next_layer = layers[&v] + 1;
@@ -226,7 +220,7 @@ fn plan(
                 }
             }
         }
-        let Some(&root) = vertices.iter().find(|v| !layers.contains_key(v)) else {
+        let Some(&root) = unlayered.find(|v| !layers.contains_key(v)) else {
             break;
         };
         layers.insert(root, 0);
@@ -237,7 +231,7 @@ fn plan(
             .cmp(&layers[&b])
             .then_with(|| vertex_order(&graph, a, b))
     });
-    causal_plan(&graph, &vertices, measurement_batch_size)
+    causal_plan(&graph, interface, &vertices, measurement_batch_size)
 }
 
 #[cfg(test)]

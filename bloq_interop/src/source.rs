@@ -105,7 +105,7 @@ pub(crate) fn normalize(circuit: &Circuit) -> Result<Circuit, String> {
         {
             return Err(format!("gate {index} has invalid or repeated operands"));
         }
-        if 4 % gate.phase.to_rational().denom() != 0 {
+        if crate::pi_quarters(gate.phase).is_none() {
             return Err(format!(
                 "gate {index} has a non-Clifford+T phase {}",
                 gate.phase

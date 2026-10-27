@@ -6,6 +6,8 @@ use quizx::graph::{GraphLike, V, VType};
 use quizx::linalg::{Mat2, RowOps};
 use quizx::vec_graph::Graph;
 
+use crate::spider::Interface;
+
 /// Corrections applied after the X measurement following this vertex's phase.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Correction {
@@ -14,11 +16,8 @@ pub(crate) struct Correction {
     pub z: Vec<V>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct Flow {
-    /// Execution order; vertices in one layer have no mutual dependencies.
-    pub layers: Vec<Vec<Correction>>,
-}
+/// Correction layers in execution order; vertices in one layer have no mutual dependencies.
+pub(crate) type Flow = Vec<Vec<Correction>>;
 
 // Keep the same QuiZX row operations while packing their identity transform.
 struct PackedTransform {
@@ -61,8 +60,7 @@ impl RowOps for PackedTransform {
 }
 
 /// Solve Odd(g(v)) intersect unmeasured = {v}, with g(v) in future minus inputs.
-pub(crate) fn xy_gflow(graph: &Graph) -> Result<Flow, String> {
-    let interface = crate::spider::interface(graph)?;
+pub(crate) fn xy_gflow(graph: &Graph, interface: &Interface) -> Result<Flow, String> {
     let inputs: BTreeSet<_> = interface.inputs.iter().map(|&(_, v, _)| v).collect();
     let outputs: BTreeSet<_> = interface.outputs.iter().map(|&(_, v, _)| v).collect();
     let mut remaining: BTreeSet<_> = graph
@@ -70,7 +68,7 @@ pub(crate) fn xy_gflow(graph: &Graph) -> Result<Flow, String> {
         .filter(|&v| graph.vertex_type(v) == VType::Z && !outputs.contains(&v))
         .collect();
     let mut future: BTreeSet<_> = outputs.difference(&inputs).copied().collect();
-    let mut flow = Flow::default();
+    let mut flow = Flow::new();
     while !remaining.is_empty() {
         // Only the live adjacency cut contributes to this layer's linear system.
         future.retain(|&v| graph.neighbors(v).any(|u| remaining.contains(&u)));
@@ -139,9 +137,9 @@ pub(crate) fn xy_gflow(graph: &Graph) -> Result<Flow, String> {
                 future.insert(correction.vertex);
             }
         }
-        flow.layers.push(layer);
+        flow.push(layer);
     }
-    flow.layers.reverse();
+    flow.reverse();
     Ok(flow)
 }
 
@@ -152,6 +150,10 @@ mod tests {
     use quizx::graph::EType;
     use quizx::tensor::{CompareTensors, TensorF};
     use std::collections::BTreeMap;
+
+    fn gflow(graph: &Graph) -> Result<Flow, String> {
+        xy_gflow(graph, &crate::spider::interface(graph)?)
+    }
 
     #[test]
     fn packed_transform_matches_byte_row_operations_and_elimination() {
@@ -218,7 +220,7 @@ mod tests {
             }
         }
         let mut live = mapping.clone();
-        for (index, correction) in flow.layers.iter().flatten().enumerate() {
+        for (index, correction) in flow.iter().flatten().enumerate() {
             let v = correction.vertex;
             let measured = graph.add_vertex_with_phase(VType::Z, source.phase(v));
             graph.add_edge(live[&v], measured);
@@ -264,13 +266,13 @@ mod tests {
             let mut graph: Graph = circuit.to_graph();
             quizx::simplify::full_simp(&mut graph);
             if !full {
-                assert!(xy_gflow(&graph).unwrap_err().contains("no causal XY gflow"));
+                assert!(gflow(&graph).unwrap_err().contains("no causal XY gflow"));
                 graph = circuit.to_graph();
                 quizx::simplify::flow_simp(&mut graph);
             }
-            let flow = xy_gflow(&graph).unwrap_or_else(|e| panic!("{gates}: {e}"));
-            assert_eq!(flow, xy_gflow(&graph).unwrap());
-            let count: usize = flow.layers.iter().map(Vec::len).sum();
+            let flow = gflow(&graph).unwrap_or_else(|e| panic!("{gates}: {e}"));
+            assert_eq!(flow, gflow(&graph).unwrap());
+            let count: usize = flow.iter().map(Vec::len).sum();
             assert!(count < 10);
             for outcomes in 0..1 << count {
                 assert!(
@@ -302,9 +304,9 @@ mod tests {
         graph.set_inputs(inputs);
         graph.set_outputs(outputs);
         // The maximal first backward layer has g(v)={a}, g(w)={a,b}.
-        let flow = xy_gflow(&graph).unwrap();
-        assert_eq!(flow.layers.len(), 2);
-        for layer in &flow.layers {
+        let flow = gflow(&graph).unwrap();
+        assert_eq!(flow.len(), 2);
+        for layer in &flow {
             assert_eq!(layer.len(), 1);
             assert_eq!(layer[0].x.len(), 1);
         }
@@ -334,15 +336,15 @@ mod tests {
         }
         graph.set_inputs(inputs);
         graph.set_outputs(outputs);
-        let flow = xy_gflow(&graph).unwrap();
-        assert_eq!(flow.layers.len(), 1);
-        assert_eq!(flow.layers[0].len(), 2);
-        for correction in &flow.layers[0] {
+        let flow = gflow(&graph).unwrap();
+        assert_eq!(flow.len(), 1);
+        assert_eq!(flow[0].len(), 2);
+        for correction in &flow[0] {
             assert_eq!(correction.x.len(), 1);
             assert!(correction.z.is_empty());
             assert!(graph.connected(correction.vertex, correction.x[0]));
         }
         graph.add_vertex(VType::Z);
-        assert!(xy_gflow(&graph).unwrap_err().contains("no causal XY gflow"));
+        assert!(gflow(&graph).unwrap_err().contains("no causal XY gflow"));
     }
 }

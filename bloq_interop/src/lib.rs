@@ -202,26 +202,34 @@ fn layout_normalized(circuit: &Circuit, options: &LayoutOptions) -> Result<Layou
         ));
     }
     let mut graph: Graph = circuit.to_graph();
-    let build = |plan: spider::Plan, reduction, reduction_fallback: Option<String>| {
-        let emit = |placement| {
-            let embedded = embed::embed(&plan, options, placement).map_err(Error::Layout)?;
-            Ok(Layout {
-                graph: embedded.graph,
-                input_ports: embedded.input_ports,
-                output_ports: embedded.output_ports,
-                reduction,
-                reduction_fallback: reduction_fallback.clone(),
-                grid: embedded.grid,
-                patch_locations: embedded.patch_locations,
-                routing_bounds: embedded.routing_bounds,
-            })
+    let build = |plan: &spider::Plan, reduction, reduction_fallback: Option<String>| {
+        let has_t = options.grid.is_some()
+            && plan.instructions.iter().any(|instruction| {
+                matches!(instruction, spider::Instruction::Phase { phase, .. } if phase.is_t())
+            });
+        let placements: &[_] = if has_t {
+            &[embed::TPlacement::Fixed, embed::TPlacement::Available]
+        } else {
+            &[embed::TPlacement::Fixed]
         };
-        let has_t = options.grid.is_some() && plan.instructions.iter().any(|instruction| {
-            matches!(instruction, spider::Instruction::Phase { phase, .. } if *phase.to_rational().denom() == 4)
-        });
-        let mut best = emit(embed::TPlacement::Fixed);
-        if has_t
-            && let Ok(candidate) = emit(embed::TPlacement::Available)
+        // Placements embed independently; a later one must be strictly cheaper to win.
+        let mut layouts = bloq_graph::map_jobs(
+            placements,
+            bloq_graph::default_module_jobs(),
+            |&placement| {
+                embed::embed(
+                    plan,
+                    options,
+                    placement,
+                    reduction,
+                    reduction_fallback.clone(),
+                )
+                .map_err(Error::Layout)
+            },
+        )
+        .into_iter();
+        let mut best = layouts.next().expect("the fixed placement is attempted");
+        if let Some(Ok(candidate)) = layouts.next()
             && best
                 .as_ref()
                 .ok()
@@ -233,49 +241,52 @@ fn layout_normalized(circuit: &Circuit, options: &LayoutOptions) -> Result<Layou
     };
     let layout = match options.strategy {
         Strategy::TopoLs => {
-            let mut best: Option<Layout> = None;
-            let mut failure = None;
             let candidates =
                 topols::candidates(graph, options.topology, options.measurement_batch_size);
             let same_plans = matches!(
                 candidates.as_slice(),
                 [(_, Ok(first)), (_, Ok(second))] if first == second
             );
-            for (index, (reduction, plan)) in candidates.into_iter().enumerate() {
-                // An identical plan ties the first fully validated successful layout.
-                if index == 1 && same_plans && best.is_some() {
-                    continue;
-                }
-                match plan
-                    .map_err(Error::Planning)
+            let attempt = |(reduction, plan): &(&'static str, Result<spider::Plan, String>)| {
+                plan.as_ref()
+                    .map_err(|reason| Error::Planning(reason.clone()))
                     .and_then(|plan| build(plan, reduction, None))
-                {
+            };
+            // An identical plan ties the first fully validated successful layout.
+            let mut results = if same_plans {
+                vec![attempt(&candidates[0])]
+            } else {
+                bloq_graph::map_jobs(&candidates, bloq_graph::default_module_jobs(), attempt)
+            };
+            if same_plans && results[0].is_err() {
+                results.extend(candidates[1..].iter().map(attempt));
+            }
+            let mut best: Option<(_, Layout)> = None;
+            let mut failure = None;
+            for result in results {
+                match result {
                     Ok(candidate) => {
-                        if best
-                            .as_ref()
-                            .is_none_or(|current| layout_cost(&candidate) < layout_cost(current))
-                        {
-                            best = Some(candidate);
+                        let cost = layout_cost(&candidate);
+                        if best.as_ref().is_none_or(|(current, _)| cost < *current) {
+                            best = Some((cost, candidate));
                         }
                     }
                     Err(error) => failure = Some(error),
                 }
             }
-            best.ok_or_else(|| failure.expect("a topology candidate was attempted"))?
+            best.map(|(_, layout)| layout)
+                .ok_or_else(|| failure.expect("a topology candidate was attempted"))?
         }
         Strategy::SpiderLs => {
-            if options.spider_reduction == SpiderReduction::Conservative {
-                quizx::simplify::flow_simp(&mut graph);
-            } else {
-                quizx::simplify::full_simp(&mut graph);
-            }
             let reduction = if options.spider_reduction == SpiderReduction::Conservative {
+                quizx::simplify::flow_simp(&mut graph);
                 "flow"
             } else {
+                quizx::simplify::full_simp(&mut graph);
                 "full"
             };
             match spider::plan(&graph, options.measurement_batch_size) {
-                Ok(plan) => build(plan, reduction, None)?,
+                Ok(plan) => build(&plan, reduction, None)?,
                 Err(reason) if options.spider_reduction == SpiderReduction::Auto => {
                     // Full reduction may introduce phase gadgets without XY
                     // gflow. Replan the same exact source with causal reduction.
@@ -283,7 +294,7 @@ fn layout_normalized(circuit: &Circuit, options: &LayoutOptions) -> Result<Layou
                     quizx::simplify::flow_simp(&mut conservative);
                     let plan = spider::plan(&conservative, options.measurement_batch_size)
                         .map_err(Error::Planning)?;
-                    build(plan, "flow", Some(reason))?
+                    build(&plan, "flow", Some(reason))?
                 }
                 Err(reason) => return Err(Error::Planning(reason)),
             }
@@ -297,6 +308,12 @@ fn layout_normalized(circuit: &Circuit, options: &LayoutOptions) -> Result<Layou
         ));
     }
     Ok(layout)
+}
+
+/// The multiple of pi/4 in an exact static Clifford+T phase, or `None` for any other phase.
+fn pi_quarters(phase: quizx::phase::Phase) -> Option<i64> {
+    let phase = phase.to_rational();
+    (4 % phase.denom() == 0).then(|| phase.numer() * (4 / phase.denom()))
 }
 
 fn layout_cost(layout: &Layout) -> (u128, u128, u128) {

@@ -14,6 +14,7 @@ bloq_graph.workspace = true
 bloq_compile.workspace = true
 glam.workspace = true
 quizx.workspace = true
+rustc-hash.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]

@@ -1,9 +1,11 @@
 //! Fixed patch islands and bounded, deterministic planar routing.
 
+use std::cell::RefCell;
 use std::cmp::Reverse;
-use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::collections::BinaryHeap;
 
 use glam::IVec2;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 /// Two-dimensional data-patch placement and routing bounds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,10 +48,12 @@ impl GridOptions {
 
 pub(crate) struct Grid {
     homes: Vec<IVec2>,
-    islands: HashSet<IVec2>,
+    islands: FxHashSet<IVec2>,
     min: IVec2,
     max: IVec2,
     options: GridOptions,
+    /// Route-search maps, cleared but not reallocated between routes.
+    search: RefCell<(FxHashMap<IVec2, i64>, FxHashMap<IVec2, IVec2>)>,
 }
 
 impl Grid {
@@ -69,7 +73,7 @@ impl Grid {
                 .ok_or_else(|| "grid exceeds spatial coordinate range".to_string())
         };
         let mut homes = Vec::with_capacity(slots);
-        let mut islands = HashSet::new();
+        let mut islands = FxHashSet::default();
         let mut max = IVec2::ZERO;
         for slot in 0..slots {
             let home = IVec2::new(
@@ -103,6 +107,7 @@ impl Grid {
             min: IVec2::splat(-margin),
             max,
             options,
+            search: RefCell::default(),
         })
     }
 
@@ -136,8 +141,11 @@ impl Grid {
             from.x,
             from.y,
         ))]);
-        let mut costs = HashMap::from([(from, 0_i64)]);
-        let mut parents = HashMap::new();
+        let mut search = self.search.borrow_mut();
+        let (costs, parents) = &mut *search;
+        costs.clear();
+        parents.clear();
+        costs.insert(from, 0_i64);
         let mut expanded = 0;
         while let Some(Reverse((_, _, cost, x, y))) = frontier.pop() {
             let current = IVec2::new(x, y);
