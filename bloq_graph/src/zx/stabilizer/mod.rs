@@ -18,7 +18,8 @@ use thiserror::Error;
 #[cfg(feature = "verify")]
 pub(crate) use basis::CoeffFactorization;
 pub(crate) use basis::{
-    CoeffVec, axis_pivot_constraints, gaussian_elimination_with_tracking, reduce_to_basis,
+    CoeffVec, PauliSpan, axis_pivot_constraints, gaussian_elimination_with_tracking,
+    reduce_to_basis,
 };
 pub(crate) use selective::{
     SelectiveConstraint, collect_selective_constraints, normalize_selective_support_in_place,

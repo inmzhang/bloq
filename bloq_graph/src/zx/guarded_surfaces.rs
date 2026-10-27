@@ -2116,7 +2116,7 @@ impl GuardedSurfaceSpace {
                     if self.audit_reference {
                         self.audit_reference_candidate(row, *wanted, time, &names, &readout_times)?;
                     }
-                    candidates.push((name.clone(), Cow::Borrowed(row), None, time));
+                    candidates.push((name.clone(), *wanted, Cow::Borrowed(row), None, time));
                     continue;
                 }
                 let row = if let Some(factored) = &mut factored {
@@ -2155,7 +2155,7 @@ impl GuardedSurfaceSpace {
                 if self.audit_reference {
                     self.audit_reference_candidate(&row, *wanted, time, &names, &readout_times)?;
                 }
-                candidates.push((name.clone(), row, Some(feedbacks), time));
+                candidates.push((name.clone(), *wanted, row, Some(feedbacks), time));
             }
             // A newly known outcome can unlock a shorter witness through a
             // pending control, a symbolic kernel or a previously unavailable
@@ -2202,7 +2202,7 @@ impl GuardedSurfaceSpace {
             }
             // The final budget check may remap the diagram. Query images and
             // unselected local candidate rows cannot retain unlisted roots.
-            drop((factored, reduced, restored, timing));
+            drop((factored, reduced, restored));
             if candidates.is_empty() {
                 return Err(StabilizerError::UnavailableControlParity {
                     mvar: unknown[0].0.clone(),
@@ -2214,7 +2214,7 @@ impl GuardedSurfaceSpace {
             // tiers need no separate matrix solve.
             if blocking.is_empty() {
                 available_values.learn(
-                    candidates.iter().map(|(name, _, _, _)| name.as_str()),
+                    candidates.iter().map(|(name, _, _, _, _)| name.as_str()),
                     &mut self.topology.diagram,
                 )?;
             } else {
@@ -2224,7 +2224,7 @@ impl GuardedSurfaceSpace {
                     .charge(count.saturating_mul(count.ilog2() as usize + 1))?;
                 let mut tiers = candidates
                     .iter()
-                    .map(|(name, _, _, time)| (*time, name.as_str()))
+                    .map(|(name, _, _, _, time)| (*time, name.as_str()))
                     .collect::<Vec<_>>();
                 tiers.sort_unstable_by_key(|&(time, _)| time);
                 let mut cutoff = i64::MAX;
@@ -2246,11 +2246,11 @@ impl GuardedSurfaceSpace {
                         break;
                     }
                 }
-                candidates.retain(|(_, _, _, time)| *time <= cutoff);
+                candidates.retain(|(_, _, _, _, time)| *time <= cutoff);
             }
             // Freeze the complete frontier before changing any pivot priorities.
             let mut selected = Vec::with_capacity(candidates.len());
-            for (name, row, feedbacks, time) in candidates {
+            for (name, column, row, feedbacks, time) in candidates {
                 let feedbacks = match feedbacks {
                     Some(feedbacks) => feedbacks,
                     None => self.feedbacks::<RECLAIM>(&row, &actions, &feedback_columns)?,
@@ -2276,7 +2276,7 @@ impl GuardedSurfaceSpace {
                     feedbacks,
                     row,
                 };
-                selected.push((name, surface, time));
+                selected.push((name, column, surface, time));
             }
             let candidates = selected;
             #[cfg(test)]
@@ -2284,40 +2284,30 @@ impl GuardedSurfaceSpace {
                 self.reference_frontiers.push(
                     candidates
                         .iter()
-                        .map(|(name, _, time)| (name.clone(), *time))
+                        .map(|(name, _, _, time)| (name.clone(), *time))
                         .collect(),
                 );
             }
             let reclaim = incremental && candidates.len() < unknown.len();
             let reclaim_quotient = reclaim && reference_basis.is_none();
             if reclaim && let Some(basis) = &mut reference_basis {
-                for (name, _, time) in &candidates {
-                    let column = readout_timing
-                        .as_ref()
-                        .expect("timing initialized")
-                        .outcomes[name]
-                        .1;
+                for &(_, column, _, time) in &candidates {
                     basis.make_known(
                         column,
-                        (*time, std::cmp::Reverse(column)),
+                        (time, std::cmp::Reverse(column)),
                         &mut self.topology.diagram,
                     )?;
                 }
             }
-            readout_timing.as_mut().expect("timing initialized").learn(
+            timing.learn(
                 candidates
                     .iter()
-                    .map(|(name, _, time)| (name.as_str(), *time)),
+                    .map(|(name, _, _, time)| (name.as_str(), *time)),
                 &mut self.topology.diagram,
             )?;
             let mut reclaimed = Vec::new();
             self.topology.diagram.charge(candidates.len())?;
-            for (name, surface, time) in candidates {
-                let column = readout_timing
-                    .as_ref()
-                    .expect("timing initialized")
-                    .outcomes[&name]
-                    .1;
+            for (name, column, surface, time) in candidates {
                 unknown_columns[column - physical_columns] = false;
                 readout_times.insert(name.clone(), time);
                 known.insert(name);
@@ -2999,10 +2989,11 @@ impl GuardedSurfaceSpace {
         let mut rows = HashSet::new();
         let mut pending = Vec::new();
         // Seed every name first so injective spaces need no physical walk.
+        // The result is sorted below, so postings are walked unsorted.
         for (_, column) in unknown {
             self.topology.diagram.charge(1)?;
             columns.insert(*column);
-            for id in available.row_ids_with_column(*column) {
+            for id in available.row_ids_with_column_unordered(*column) {
                 self.topology.diagram.charge(1)?;
                 if rows.insert(id) {
                     pending.push(id);
@@ -3016,7 +3007,7 @@ impl GuardedSurfaceSpace {
             for &(column, _) in row.terms() {
                 if columns.insert(column) {
                     // Removed postings have zero support on their activation.
-                    for id in available.row_ids_with_column(column) {
+                    for id in available.row_ids_with_column_unordered(column) {
                         self.topology.diagram.charge(1)?;
                         if rows.insert(id) {
                             pending.push(id);
