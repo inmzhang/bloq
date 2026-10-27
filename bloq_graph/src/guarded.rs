@@ -236,10 +236,18 @@ fn visit_image_state(visited: &mut usize, limit: usize) -> Result<(), BlockGraph
 fn boolean_image_component(
     source: &BooleanDecisionDiagram,
     output: &mut BooleanDecisionDiagram,
-    roots: Vec<(usize, DecisionId)>,
+    mut roots: Vec<(usize, DecisionId)>,
     visited: &mut usize,
     limit: usize,
 ) -> Result<DecisionId, BlockGraphError> {
+    output.charge(
+        roots
+            .len()
+            .saturating_mul(roots.len().max(1).ilog2() as usize + 2),
+    )?;
+    // Descending output slots let fixed literals prepend an ordered cube.
+    roots.sort_unstable_by_key(|&(index, _)| std::cmp::Reverse(index));
+    let distinct_outputs = roots.windows(2).all(|pair| pair[0].0 != pair[1].0);
     enum Step {
         Visit(Vec<(usize, DecisionId)>),
         Join {
@@ -267,12 +275,23 @@ fn boolean_image_component(
         let mut remaining = Vec::new();
         for (index, root) in roots {
             if root.0 < 2 {
-                let value = if root == DECISION_TRUE {
-                    output.make_node(index, DECISION_FALSE, DECISION_TRUE)?
+                // Topology assigns distinct slots; duplicate-slot helper inputs
+                // retain the exact conjunction, including contradictory literals.
+                let tail = if distinct_outputs {
+                    fixed
                 } else {
-                    output.make_node(index, DECISION_TRUE, DECISION_FALSE)?
+                    DECISION_TRUE
                 };
-                fixed = output.apply(BooleanOp::And, fixed, value)?;
+                let value = if root == DECISION_TRUE {
+                    output.make_node(index, DECISION_FALSE, tail)?
+                } else {
+                    output.make_node(index, tail, DECISION_FALSE)?
+                };
+                fixed = if distinct_outputs {
+                    value
+                } else {
+                    output.apply(BooleanOp::And, fixed, value)?
+                };
             } else {
                 remaining.push((index, root));
             }
@@ -1018,9 +1037,12 @@ impl GuardedTopology {
         // Global planning needs this one reference anyway. Unchanged local
         // contexts borrow it instead of retaining another copy of every halo.
         let reference = self.project(DECISION_TRUE)?;
+        // The domain and decision IDs stay fixed until every site is populated.
+        // An unrestricted domain already makes constrain a constant-time return.
+        let mut constrained = (self.domain != DECISION_TRUE).then(HashMap::new);
         for &position in geometry.blocks_at.keys() {
             let pos = IVec3::from_array(position);
-            let variants = self.site_variants(&geometry, pos, &reference)?;
+            let variants = self.site_variants(&geometry, pos, &reference, constrained.as_mut())?;
             self.sites.insert(position, variants);
         }
         self.deferred_sites = false;
@@ -1032,9 +1054,10 @@ impl GuardedTopology {
         geometry: &AuthoredGeometry,
         position: IVec3,
         reference: &Arc<BlockGraph>,
+        constrained: Option<&mut HashMap<DecisionId, DecisionId>>,
     ) -> Result<Vec<GuardedProjection>, BlockGraphError> {
         let roots = geometry.roots(position);
-        let cases = self.cases(&roots, DECISION_TRUE)?;
+        let cases = self.cases_with_constrain_cache(&roots, DECISION_TRUE, constrained)?;
         let mut variants = Vec::new();
         for (values, guard) in cases {
             let choices = roots.iter().copied().zip(values).collect::<LocalChoices>();
@@ -1081,6 +1104,16 @@ impl GuardedTopology {
         roots: &[DecisionId],
         enabled: DecisionId,
     ) -> Result<Vec<(Vec<bool>, DecisionId)>, BlockGraphError> {
+        self.cases_with_constrain_cache(roots, enabled, None)
+    }
+
+    // Only site population shares this memo, with a fixed domain and no collection.
+    fn cases_with_constrain_cache(
+        &mut self,
+        roots: &[DecisionId],
+        enabled: DecisionId,
+        mut constrained: Option<&mut HashMap<DecisionId, DecisionId>>,
+    ) -> Result<Vec<(Vec<bool>, DecisionId)>, BlockGraphError> {
         let limit = self.limits.max_guarded_domain_size;
         self.diagram.charge(roots.len().saturating_add(1))?;
         let enabled = self.diagram.apply(BooleanOp::And, enabled, self.domain)?;
@@ -1125,7 +1158,17 @@ impl GuardedTopology {
         }
         for (_, guard) in &mut cases {
             self.diagram.charge(1)?;
-            *guard = self.diagram.constrain(*guard, self.domain)?;
+            *guard = if let Some(cache) = constrained.as_deref_mut() {
+                if let Some(&value) = cache.get(guard) {
+                    value
+                } else {
+                    let value = self.diagram.constrain(*guard, self.domain)?;
+                    cache.insert(*guard, value);
+                    value
+                }
+            } else {
+                self.diagram.constrain(*guard, self.domain)?
+            };
         }
         if cases.len() > limit {
             return Err(StabilizerError::ResourceLimited {
@@ -1688,6 +1731,78 @@ module main {{
     }
 
     #[test]
+    fn selector_image_preserves_duplicate_slots_and_repeated_source_roots() {
+        let mut source = BooleanDecisionDiagram::default();
+        let a = source.make_node(0, DECISION_FALSE, DECISION_TRUE).unwrap();
+        let b = source.make_node(1, DECISION_FALSE, DECISION_TRUE).unwrap();
+        let not_a = source.negate(a).unwrap();
+        let parity = source.apply(BooleanOp::Xor, a, b).unwrap();
+        const OUTPUTS: [usize; 6] = [1, 2, 4, 7, 10, 13];
+
+        for (label, duplicate, expected_count) in [
+            ("conditionally consistent", b, 2),
+            ("always contradictory", not_a, 0),
+        ] {
+            // Shuffled output slots; slot 7 occurs twice and source a is reused.
+            let roots = vec![
+                (7, a),
+                (1, parity),
+                (7, duplicate),
+                (10, not_a),
+                (4, DECISION_TRUE),
+                (13, DECISION_FALSE),
+                (2, a),
+            ];
+            let mut output = BooleanDecisionDiagram::default();
+            let image = boolean_image(&source, &mut output, roots.clone(), 100).unwrap();
+            let mut reachable = 0;
+            for assignment in 0..(1usize << OUTPUTS.len()) {
+                let selected = |index| {
+                    let slot = OUTPUTS.binary_search(&index).expect("declared output slot");
+                    assignment & (1 << slot) != 0
+                };
+                // Independent existential specification: enumerate source assignments,
+                // then require every authored output equation simultaneously.
+                let expected = (0..4usize).any(|source_assignment| {
+                    roots.iter().all(|&(index, root)| {
+                        selected(index)
+                            == source
+                                .evaluate(root, |variable| source_assignment & (1 << variable) != 0)
+                    })
+                });
+                reachable += usize::from(expected);
+                assert_eq!(
+                    output.evaluate(image, selected),
+                    expected,
+                    "{label}: output assignment {assignment:06b}",
+                );
+            }
+            assert_eq!(reachable, expected_count, "{label}");
+        }
+    }
+
+    // Resource regression: the relation has only two reachable output vectors.
+    // The node cap rejects quadratic temporary cubes without asserting arena layout.
+    #[test]
+    fn repeated_selector_image_fits_a_linear_node_budget() {
+        const COPIES: usize = 256;
+        let mut source = BooleanDecisionDiagram::default();
+        let selector = source.make_node(0, DECISION_FALSE, DECISION_TRUE).unwrap();
+        let mut output = BooleanDecisionDiagram::with_limits(bloq_utils::boolean::BooleanLimits {
+            max_nodes: 3 * COPIES,
+            max_steps: 32 * COPIES,
+        });
+        let roots = (0..COPIES).map(|index| (index, selector)).collect();
+        let image = boolean_image(&source, &mut output, roots, 1).unwrap();
+        assert!(output.evaluate(image, |_| false));
+        assert!(output.evaluate(image, |_| true));
+        for changed in [0, COPIES / 2, COPIES - 1] {
+            assert!(!output.evaluate(image, |index| index == changed));
+            assert!(!output.evaluate(image, |index| index != changed));
+        }
+    }
+
+    #[test]
     fn selector_image_shares_witness_and_work_limits_across_components() {
         let mut source = BooleanDecisionDiagram::default();
         let a = source.make_node(0, DECISION_FALSE, DECISION_TRUE).unwrap();
@@ -1832,6 +1947,98 @@ module main {{
             ))
         ));
         assert!(topology.cases(&roots, DECISION_FALSE).unwrap().is_empty());
+    }
+
+    #[test]
+    fn cached_local_cases_preserve_raw_guards_and_limits() {
+        let mut topology =
+            GuardedTopology::new(&BlockGraph::new(), ModuleCertificationLimits::DEFAULT).unwrap();
+        let [a, b, c] = [0, 1, 2].map(|index| {
+            topology
+                .diagram
+                .make_node(index, DECISION_FALSE, DECISION_TRUE)
+                .unwrap()
+        });
+        topology.domain = topology.diagram.apply(BooleanOp::Xor, a, b).unwrap();
+        let roots = [DECISION_TRUE, c, a, c];
+        let mut reference = topology.clone();
+        let mut constrained = HashMap::new();
+        for _ in 0..2 {
+            for enabled in [DECISION_TRUE, b, DECISION_FALSE] {
+                let expected = reference.cases(&roots, enabled).unwrap();
+                let actual = topology
+                    .cases_with_constrain_cache(&roots, enabled, Some(&mut constrained))
+                    .unwrap();
+                assert_eq!(actual.len(), expected.len());
+                for ((values, guard), (expected_values, expected_guard)) in
+                    actual.iter().zip(&expected)
+                {
+                    assert_eq!(values, expected_values);
+                    for assignment in 0..8 {
+                        let outcome = |index| assignment & (1 << index) != 0;
+                        assert_eq!(
+                            topology.diagram.evaluate(*guard, outcome),
+                            reference.diagram.evaluate(*expected_guard, outcome),
+                            "raw guard equality also holds outside the domain",
+                        );
+                    }
+                }
+            }
+        }
+        topology.limits.max_guarded_domain_size = 3;
+        assert!(matches!(
+            topology.cases_with_constrain_cache(&roots, DECISION_TRUE, Some(&mut constrained)),
+            Err(BlockGraphError::Stabilizer(
+                StabilizerError::ResourceLimited {
+                    phase: "local structural patterns",
+                    ..
+                }
+            ))
+        ));
+        topology.limits.max_guarded_domain_size = 4;
+        let remaining = topology.diagram.limits().max_steps - topology.diagram.steps();
+        topology.diagram.charge(remaining).unwrap();
+        assert!(matches!(
+            topology.cases_with_constrain_cache(&roots, DECISION_TRUE, Some(&mut constrained)),
+            Err(BlockGraphError::Stabilizer(
+                StabilizerError::ResourceLimited {
+                    phase: "Boolean work steps",
+                    ..
+                }
+            ))
+        ));
+    }
+
+    #[test]
+    fn correlated_site_population_preserves_limits_and_cancellation() {
+        let source = include_str!("../../docs/fixtures/conditional_cz_strip.blog")
+            .replace("resolve cz1 if enable1", "resolve cz1 if enable0")
+            .replace("resolve cz2 if enable2", "resolve cz2 if !enable0");
+        let ast = crate::parse_blog_program_to_ast(&source).unwrap();
+        let program = crate::lower_blog_graph_ast_deferred(&ast).unwrap();
+        let graph = program.materialize_flat_graph().unwrap();
+        let limits = ModuleCertificationLimits {
+            max_guarded_domain_size: 1,
+            ..ModuleCertificationLimits::DEFAULT
+        };
+        assert!(matches!(
+            GuardedTopology::new(&graph, limits),
+            Err(BlockGraphError::Stabilizer(
+                StabilizerError::ResourceLimited {
+                    phase: "local structural patterns",
+                    ..
+                }
+            ))
+        ));
+        let token = crate::CancellationToken::new();
+        let result = token.scope(|| {
+            token.cancel();
+            GuardedTopology::new(&graph, ModuleCertificationLimits::DEFAULT)
+        });
+        assert!(matches!(
+            result,
+            Err(BlockGraphError::Stabilizer(StabilizerError::Cancelled(_)))
+        ));
     }
 
     #[test]

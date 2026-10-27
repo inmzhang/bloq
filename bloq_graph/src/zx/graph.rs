@@ -2,10 +2,10 @@
 
 use super::ZXLayerView;
 use super::modular::StabilizerPhaseBasis;
-use super::stabilizer::{SearchBudget, Stabilizer, StabilizerError, contracted_sign};
+use super::stabilizer::{Stabilizer, contracted_sign};
 use crate::{
     Action, ActionDag, BlockGraphError, CubeKind, FeedbackTarget, MeasureTarget,
-    MeasurementObservable, ModuleCertificationLimits, SelectiveKind,
+    MeasurementObservable, SelectiveKind,
 };
 use bloq_utils::{Pauli, PauliBasis, PauliString};
 use glam::IVec3;
@@ -371,6 +371,11 @@ impl ZXGraph {
     /// Returns all edges.
     pub fn edges(&self) -> &[ZXEdge] {
         &self.edges
+    }
+
+    #[cfg(feature = "verify")]
+    pub(crate) fn has_parallel_edges(&self) -> bool {
+        self.adjacency.has_parallel_edges()
     }
 
     /// Returns the neighbor node ids of `node_id`, if the node exists.
@@ -849,8 +854,8 @@ impl ZXGraph {
             .collect()
     }
 
-    pub(crate) fn reconstruct_cross_center(&self, table: &mut [PauliString]) {
-        let incident = self.cross_incident.get_or_init(|| {
+    fn cross_incidence(&self) -> &[CrossIncident] {
+        self.cross_incident.get_or_init(|| {
             self.nodes
                 .iter()
                 .map(|node| {
@@ -863,11 +868,49 @@ impl ZXGraph {
                 })
                 .collect::<Vec<_>>()
                 .into()
-        });
+        })
+    }
+
+    // A zero center with zero owned arms contributes no local tensor phase.
+    // The same superset stays valid after crossing centers are reconstructed.
+    pub(super) fn phase_node_candidates(&self, row: &PauliString) -> Option<SmallVec<[usize; 32]>> {
+        // Keep width failures and dense rows on the existing full scan.
+        if row.len() != self.total_ids || row.weight() > self.total_ids / 2 {
+            return None;
+        }
+        let mut present = vec![0u64; self.nodes.len().div_ceil(64)];
+        let mut count = 0;
+        for (column, _) in row.iter_support() {
+            let node = if column < self.nodes.len() {
+                column
+            } else {
+                self.edges[column - self.nodes.len()].n1
+            };
+            let bit = 1u64 << (node % 64);
+            let word = &mut present[node / 64];
+            if *word & bit == 0 {
+                *word |= bit;
+                count += 1;
+                if count > self.nodes.len() / 2 {
+                    return None;
+                }
+            }
+        }
+        let mut nodes = SmallVec::with_capacity(count);
+        for (word, mut bits) in present.into_iter().enumerate() {
+            while bits != 0 {
+                nodes.push(64 * word + bits.trailing_zeros() as usize);
+                bits &= bits - 1;
+            }
+        }
+        Some(nodes)
+    }
+
+    pub(crate) fn reconstruct_cross_center(&self, table: &mut [PauliString]) {
+        let incident = self.cross_incidence();
         let mut candidates = SmallVec::<[usize; 32]>::new();
         for row in table {
-            // ponytail: retain the dense walk above this conservative density;
-            // tune only if paired profiles show sparse gathering wins there too.
+            // Dense rows avoid gathering and sorting their supported node ids.
             if row.weight() < self.nodes.len() / 4 {
                 candidates.clear();
                 candidates.extend(row.iter_support().map(|(col, _)| {
@@ -920,19 +963,28 @@ impl ZXGraph {
         }
     }
 
-    /// Materializes a Pauli row into graph-position support for rendering and
-    /// lowering. Row role and measurement identity live on
-    /// [`StabilizerGenerator`](super::StabilizerGenerator), not this algebraic
-    /// support value.
-    pub(crate) fn pauli_string_to_stabilizer(&self, ps: PauliString) -> Stabilizer {
-        let row_phase = self.stabilizer_row_phases(std::slice::from_ref(&ps))[0];
-        self.pauli_string_to_stabilizer_with_row_phase(ps, row_phase)
-    }
-
-    /// Rebuild cross centers before materializing a dense row.
+    /// Materializes graph-position support, reconstructing crossing centers and the sign.
+    /// Row roles and measurement identity remain on
+    /// [`StabilizerGenerator`](super::StabilizerGenerator).
     pub fn materialize_stabilizer(&self, mut ps: PauliString) -> Stabilizer {
-        self.reconstruct_cross_center(std::slice::from_mut(&mut ps));
-        self.pauli_string_to_stabilizer(ps)
+        let candidates = if self.stabilizer_phase_basis.get().is_none()
+            && !self.adjacency.has_parallel_edges()
+        {
+            self.phase_node_candidates(&ps)
+        } else {
+            None
+        };
+        if let Some(nodes) = &candidates {
+            self.reconstruct_cross_centers_at(
+                &mut ps,
+                self.cross_incidence(),
+                nodes.iter().copied(),
+            );
+        } else {
+            self.reconstruct_cross_center(std::slice::from_mut(&mut ps));
+        }
+        let row_phase = self.materialized_row_phase(&ps, candidates.as_deref());
+        self.pauli_string_to_stabilizer_with_row_phase(ps, row_phase)
     }
 
     /// Rebuild cross centers while preserving an already-derived sign.
@@ -1039,36 +1091,6 @@ impl ZXGraph {
     /// Returns whether the graph has any open port node.
     pub fn is_open(&self) -> bool {
         self.nodes.iter().any(|node| node.kind.is_port())
-    }
-
-    pub(crate) fn check_external_table_limits(
-        &self,
-        limits: ModuleCertificationLimits,
-    ) -> Result<(), StabilizerError> {
-        SearchBudget::with_limits(limits).check_matrix(
-            // A phase query retains its input and scratch rows alongside the
-            // external phase basis; each rank is bounded by the source rows.
-            self.external_source_row_count().saturating_mul(3),
-            self.total_ids,
-            0,
-            0,
-        )
-    }
-
-    fn external_source_row_count(&self) -> usize {
-        self.nodes
-            .iter()
-            .map(|node| {
-                let degree = self.neighbor_ids(node.id).len();
-                match node.kind {
-                    NodeKind::X | NodeKind::Z => degree.max(1),
-                    NodeKind::Y => usize::from(degree != 0),
-                    NodeKind::Port | NodeKind::T | NodeKind::Selective(_) => {
-                        2 * usize::from(degree != 0)
-                    }
-                }
-            })
-            .fold(0, usize::saturating_add)
     }
 }
 
@@ -1202,6 +1224,16 @@ mod tests {
                 assert_eq!(
                     zx.contains_stabilizer_support(&row),
                     reference.contains_stabilizer_support(&row)
+                );
+            }
+            for signed_row in &signed {
+                let mut row = signed_row.paulis.clone();
+                zx.reconstruct_cross_center(std::slice::from_mut(&mut row));
+                let phase = reference.stabilizer_row_phases(std::slice::from_ref(&row))[0];
+                let expected = zx.pauli_string_to_stabilizer_with_row_phase(row, phase);
+                assert_eq!(
+                    zx.materialize_stabilizer(signed_row.paulis.clone()),
+                    expected
                 );
             }
         }

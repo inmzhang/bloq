@@ -7,7 +7,11 @@
 
 #[cfg(test)]
 mod component_tests;
+mod native_gauges;
+#[cfg(test)]
+mod native_tests;
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
@@ -16,6 +20,8 @@ use bloq_utils::boolean::{
     DECISION_TRUE as ONE, DecisionId, eliminate_boolean_rows, reduce_boolean_rows,
 };
 use glam::IVec3;
+
+use native_gauges::{ConstantReadoutBasis, NativeGauge};
 
 use super::guarded_readouts::{GuardedReadoutPlan, LocalArm, LocalTopology};
 use super::runtime_basis::authored_boundary_columns;
@@ -33,11 +39,120 @@ pub(crate) enum SurfaceColumn {
     Edge([i32; 3], [i32; 3]),
 }
 
+impl SurfaceColumn {
+    pub(super) fn source_position(self) -> [i32; 3] {
+        match self {
+            Self::Node(position) | Self::Edge(position, _) => position,
+        }
+    }
+}
+
+/// Exact equality coordinates, with queries and physical ownership in the
+/// original half-edge namespace. An empty map is the unreduced representation.
+#[derive(Debug, Clone, Default)]
+pub(super) struct SurfaceCoordinates {
+    aliases: Vec<Option<usize>>,
+    sources: BTreeMap<usize, Vec<usize>>,
+}
+
+impl SurfaceCoordinates {
+    pub(super) fn is_identity(&self) -> bool {
+        self.aliases.is_empty()
+    }
+
+    pub(super) fn new(aliases: Vec<Option<usize>>) -> Self {
+        let mut sources = BTreeMap::<_, Vec<_>>::new();
+        for (original, &coordinate) in aliases.iter().enumerate() {
+            if let Some(coordinate) = coordinate {
+                sources.entry(coordinate).or_default().push(original);
+            }
+        }
+        Self { aliases, sources }
+    }
+
+    pub(super) fn bit(&self, original: usize) -> Option<usize> {
+        self.aliases
+            .get(original)
+            .copied()
+            .unwrap_or(Some(original))
+    }
+
+    pub(super) fn get(&self, row: &BooleanRow, original: usize) -> DecisionId {
+        self.bit(original).map_or(ZERO, |bit| row.get(bit))
+    }
+
+    pub(super) fn sources(&self, coordinate: usize) -> impl Iterator<Item = usize> + '_ {
+        std::iter::once(coordinate)
+            .filter(move |_| coordinate >= self.aliases.len())
+            .chain(self.sources.get(&coordinate).into_iter().flatten().copied())
+    }
+
+    fn support_weights(
+        &self,
+        diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
+    ) -> Result<Vec<usize>, BooleanResourceError> {
+        diagram.charge(self.aliases.len().saturating_add(self.sources.len()))?;
+        let mut weights = vec![1; self.aliases.len()];
+        for (&column, originals) in &self.sources {
+            weights[column] = originals.len();
+        }
+        Ok(weights)
+    }
+
+    #[cfg(test)]
+    fn expand(&self, row: &BooleanRow) -> BooleanRow {
+        if self.aliases.is_empty() {
+            return row.clone();
+        }
+        let mut terms = row
+            .terms()
+            .iter()
+            .flat_map(|&(coordinate, value)| {
+                self.sources(coordinate)
+                    .map(move |original| (original, value))
+            })
+            .collect::<Vec<_>>();
+        terms.sort_unstable_by_key(|&(column, _)| column);
+        BooleanRow::from_terms(row.active, terms)
+    }
+}
+
+fn resolve_alias(
+    aliases: &mut [Option<usize>],
+    original: usize,
+    diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
+) -> Result<Option<usize>, BooleanResourceError> {
+    let mut column = original;
+    let root = loop {
+        diagram.charge(1)?;
+        match aliases[column] {
+            None => break None,
+            Some(next) if next == column => break Some(column),
+            Some(next) => column = next,
+        }
+    };
+    let mut column = original;
+    while aliases[column] != root {
+        diagram.charge(1)?;
+        let next = aliases[column].expect("a nonterminal alias has a parent");
+        aliases[column] = root;
+        column = next;
+    }
+    Ok(root)
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct SurfaceTopology {
     pub guard: DecisionId,
     pub zx: Arc<ZXGraph>,
     pub node: usize,
+}
+
+struct FixedRelation {
+    coordinates: SurfaceCoordinates,
+    rows: Vec<BooleanRow>,
+    projection: Arc<crate::BlockGraph>,
+    zx: Arc<ZXGraph>,
 }
 
 /// One factored, complete module correlation space. No row-space product is
@@ -49,10 +164,20 @@ pub struct GuardedSurfaceSpace {
     pub(crate) columns: BTreeMap<SurfaceColumn, usize>,
     pub(crate) local: BTreeMap<[i32; 3], Vec<SurfaceTopology>>,
     pub(crate) rows: Vec<BooleanRow>,
+    pub(super) coordinates: SurfaceCoordinates,
+    // Keep the validated original projection only until readout planning consumes it.
+    representative_zx: Option<(Arc<crate::BlockGraph>, Arc<ZXGraph>)>,
     surfaces: Vec<GuardedSurface>,
     limits: ModuleCertificationLimits,
     module_sites: BTreeMap<[i32; 3], usize>,
     next_readout_collection: usize,
+    native_gauges: Option<Vec<NativeGauge>>,
+    #[cfg(test)]
+    audit_reference: bool,
+    #[cfg(test)]
+    fresh_reference: bool,
+    #[cfg(test)]
+    reference_frontiers: Vec<Vec<(String, i64)>>,
 }
 
 // Reclamation stays finite when callers raise or disable the witness quota.
@@ -190,21 +315,145 @@ struct GuardedPivots {
     owners: BTreeMap<usize, usize>,
 }
 
+struct ColumnTiming {
+    column: usize,
+    original: usize,
+    earliest: i64,
+    guards: Vec<DecisionId>,
+}
+
+// Maximum completion time, then the first original column attaining that time.
+type ColumnTime = (i64, std::cmp::Reverse<usize>);
+
 struct ReadoutTiming {
-    columns: Vec<i64>,
+    columns: Vec<ColumnTime>,
+    base_columns: Vec<ColumnTime>,
+    fixed_columns: Vec<ColumnTime>,
+    raised: Vec<usize>,
     variables: Vec<i64>,
+    outcomes: HashMap<String, (Option<usize>, usize)>,
+    branches: Vec<(usize, DecisionId)>,
+    pending: Vec<ColumnTiming>,
     domain: DecisionId,
-    decisions: HashMap<DecisionId, i64>,
+    generation: u64,
+    constrained: crate::FxHashMap<DecisionId, DecisionId>,
+    decisions: crate::FxHashMap<DecisionId, i64>,
 }
 
 impl ReadoutTiming {
+    fn new(columns: Vec<i64>, variables: Vec<i64>, domain: DecisionId, generation: u64) -> Self {
+        let columns = columns
+            .into_iter()
+            .enumerate()
+            .map(|(column, time)| (time, std::cmp::Reverse(column)))
+            .collect::<Vec<_>>();
+        Self {
+            base_columns: columns.clone(),
+            fixed_columns: columns.clone(),
+            columns,
+            raised: Vec::new(),
+            variables,
+            outcomes: HashMap::new(),
+            branches: Vec::new(),
+            pending: Vec::new(),
+            domain,
+            generation,
+            constrained: crate::FxHashMap::default(),
+            decisions: crate::FxHashMap::default(),
+        }
+    }
+
+    fn refresh(
+        &mut self,
+        diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
+    ) -> Result<(), BooleanResourceError> {
+        debug_assert_eq!(self.generation, diagram.generation());
+        diagram.charge(self.raised.len() + self.branches.len() + self.pending.len())?;
+        for column in self.raised.drain(..) {
+            self.columns[column] = self.base_columns[column];
+        }
+        let mut remaining = 0;
+        for index in 0..self.branches.len() {
+            let (variable, condition) = self.branches[index];
+            let time = self.decision(condition, diagram)?;
+            self.variables[variable] = time;
+            if time == i64::MAX {
+                self.branches[remaining] = (variable, condition);
+                remaining += 1;
+            }
+        }
+        self.branches.truncate(remaining);
+        let mut pending = std::mem::take(&mut self.pending);
+        let mut remaining = 0;
+        let mut previous = None;
+        for index in 0..pending.len() {
+            let column = pending[index].column;
+            // Profiles stay grouped by class, including after finite ones retire.
+            if previous != Some(column) {
+                self.base_columns[column] = self.fixed_columns[column];
+                previous = Some(column);
+            }
+            let mut time = pending[index].earliest;
+            diagram.charge(pending[index].guards.len())?;
+            for &guard in &pending[index].guards {
+                time = time.max(self.decision(guard, diagram)?);
+            }
+            let priority = (time, std::cmp::Reverse(pending[index].original));
+            self.base_columns[column] = self.base_columns[column].max(priority);
+            self.columns[column] = self.base_columns[column];
+            if time == i64::MAX {
+                pending.swap(index, remaining);
+                remaining += 1;
+            } else {
+                self.fixed_columns[column] = self.fixed_columns[column].max(priority);
+            }
+        }
+        pending.truncate(remaining);
+        self.pending = pending;
+        Ok(())
+    }
+
+    fn learn<'a>(
+        &mut self,
+        outcomes: impl IntoIterator<Item = (&'a str, i64)>,
+        diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
+    ) -> Result<(), BooleanResourceError> {
+        debug_assert_eq!(self.generation, diagram.generation());
+        for (name, time) in outcomes {
+            diagram.charge(1)?;
+            let (variable, column) = self.outcomes[name];
+            if let Some(variable) = variable {
+                self.variables[variable] = time;
+            }
+            let priority = (time, std::cmp::Reverse(column));
+            self.base_columns[column] = priority;
+            self.fixed_columns[column] = priority;
+            self.columns[column] = priority;
+        }
+        // Finite times depend only on outcomes whose fixed times are already known.
+        diagram.charge(self.decisions.len())?;
+        self.decisions.retain(|_, time| *time != i64::MAX);
+        Ok(())
+    }
+
     fn decision(
         &mut self,
         root: DecisionId,
         diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
     ) -> Result<i64, BooleanResourceError> {
-        let root = diagram.constrain(root, self.domain)?;
-        let cached = |values: &HashMap<DecisionId, i64>, root: DecisionId| {
+        debug_assert_eq!(self.generation, diagram.generation());
+        diagram.charge(1)?;
+        if root == ZERO || root == ONE {
+            return Ok(i64::MIN);
+        }
+        let root = if let Some(&constrained) = self.constrained.get(&root) {
+            constrained
+        } else {
+            let constrained = diagram.constrain(root, self.domain)?;
+            self.constrained.insert(root, constrained);
+            constrained
+        };
+        let cached = |values: &crate::FxHashMap<DecisionId, i64>, root: DecisionId| {
             if root == ZERO || root == ONE {
                 Some(i64::MIN)
             } else {
@@ -252,7 +501,8 @@ impl ReadoutTiming {
         let mut columns = Vec::new();
         diagram.charge(row.terms().len())?;
         for &(column, value) in row.terms() {
-            let value = diagram.constrain(value, care)?;
+            // Activation is already timed; its live product determines each active coefficient.
+            let value = diagram.apply(BooleanOp::And, value, care)?;
             if value == ZERO {
                 continue;
             }
@@ -274,7 +524,12 @@ impl ReadoutTiming {
         // another term in that same row has a constant coefficient.
         diagram.charge(columns.len())?;
         for column in columns {
-            self.columns[column] = self.columns[column].max(control);
+            let priority = (control, std::cmp::Reverse(column));
+            if priority > self.columns[column] && self.columns[column] == self.base_columns[column]
+            {
+                self.raised.push(column);
+            }
+            self.columns[column] = self.columns[column].max(priority);
         }
         Ok(())
     }
@@ -291,7 +546,7 @@ impl ReadoutTiming {
         Ok(columns
             .into_iter()
             .filter(|&column| column != own)
-            .fold(control, |time, column| time.max(self.columns[column])))
+            .fold(control, |time, column| time.max(self.columns[column].0)))
     }
 }
 
@@ -398,6 +653,7 @@ impl GuardedAvailability {
         mut rows: Vec<BooleanRow>,
         constraints: &[(AvailabilityKey, Vec<(usize, DecisionId)>)],
         auxiliary_start: usize,
+        weights: &[usize],
         diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
     ) -> Result<(Self, BooleanRowSpace), BooleanResourceError> {
         let mut groups = BTreeMap::<_, Vec<_>>::new();
@@ -433,7 +689,7 @@ impl GuardedAvailability {
         let active =
             (auxiliary_start..auxiliary_start + constraints.len()).collect::<BTreeSet<_>>();
         for &column in &active {
-            let pivot = remaining.eliminate_column_sparse(column, diagram)?;
+            let pivot = remaining.eliminate_column_sparse_weighted(column, weights, diagram)?;
             if pivot.active != ZERO {
                 pivots.rows.reduce_column(column, &pivot, diagram)?;
                 let owner = pivots
@@ -468,9 +724,11 @@ impl GuardedAvailability {
     fn release(
         &mut self,
         pending: &BTreeSet<AvailabilityKey>,
-        readouts: &GuardedPivots,
-        available: &mut BooleanRowSpace,
         diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
+        mut released: impl FnMut(
+            BooleanRow,
+            &mut bloq_utils::boolean::BooleanDecisionDiagram,
+        ) -> Result<(), BooleanResourceError>,
     ) -> Result<(), BooleanResourceError> {
         diagram.charge(self.groups.len())?;
         for (_, columns) in self.groups.extract_if(.., |key, _| !pending.contains(key)) {
@@ -502,9 +760,8 @@ impl GuardedAvailability {
                     let active = row.active;
                     diagram.charge(row.terms().len())?;
                     row.map_coefficients(|value| diagram.apply(BooleanOp::And, active, value))?;
-                    readouts.project(&mut row, diagram)?;
                     if !row.terms().is_empty() {
-                        available.push(row, diagram)?;
+                        released(row, diagram)?;
                     }
                 }
             }
@@ -542,10 +799,19 @@ impl GuardedSurfaceSpace {
             columns: self.columns.clone(),
             local: BTreeMap::new(),
             rows: self.rows.clone(),
+            coordinates: self.coordinates.clone(),
+            representative_zx: None,
             surfaces: Vec::new(),
             limits: self.limits,
             module_sites: BTreeMap::new(),
             next_readout_collection: self.next_readout_collection,
+            native_gauges: None,
+            #[cfg(test)]
+            audit_reference: false,
+            #[cfg(test)]
+            fresh_reference: false,
+            #[cfg(test)]
+            reference_frontiers: Vec::new(),
         }
     }
 
@@ -567,6 +833,15 @@ impl GuardedSurfaceSpace {
     }
 
     pub(crate) fn with_relations(
+        topology: GuardedTopology,
+        sites: &HashMap<IVec3, MaterializedModuleSite>,
+        limits: ModuleCertificationLimits,
+        relations: &HashMap<String, Arc<crate::summary::relations::ModuleRelations>>,
+    ) -> Result<Self, BlockGraphError> {
+        Self::build::<true>(topology, sites, limits, relations)
+    }
+
+    fn build<const REDUCE: bool>(
         mut topology: GuardedTopology,
         sites: &HashMap<IVec3, MaterializedModuleSite>,
         limits: ModuleCertificationLimits,
@@ -759,9 +1034,7 @@ impl GuardedSurfaceSpace {
         )?;
         let mut ordered = columns.iter_mut().collect::<Vec<_>>();
         ordered.sort_unstable_by_key(|(key, old)| {
-            let position = match key {
-                SurfaceColumn::Node(position) | SurfaceColumn::Edge(position, _) => position,
-            };
+            let position = key.source_position();
             (
                 std::cmp::Reverse(position[2]),
                 axes.map(|axis| position[axis]),
@@ -797,6 +1070,32 @@ impl GuardedSurfaceSpace {
             column_rank[column] = rank;
         }
         let mut root = Vec::new();
+        let reduced = if REDUCE
+            && scopes.nodes.len() == 1
+            && local
+                .values()
+                .all(|variants| variants.len() == 1 && variants[0].guard == ONE)
+        {
+            Self::reduce_fixed_relation(&mut topology, &columns, &groups[0], limits)?
+        } else {
+            None
+        };
+        let mut representative_zx = None;
+        let mut coordinates = if let Some(reduced) = reduced {
+            root = reduced.rows;
+            representative_zx = Some((reduced.projection, reduced.zx));
+            scope_order.clear();
+            reduced.coordinates
+        } else {
+            SurfaceCoordinates::default()
+        };
+        let width = columns.len().saturating_mul(2);
+        let mut aliases = if REDUCE && !scope_order.is_empty() {
+            topology.diagram.charge(width)?;
+            (0..width).map(Some).collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
         for owner in scope_order {
             let rows = std::mem::take(&mut groups[owner]);
             let mut edges = std::mem::take(&mut seams[owner])
@@ -813,8 +1112,43 @@ impl GuardedSurfaceSpace {
                 })
                 .collect::<Vec<_>>();
             let cache = relations.get(scopes.nodes[owner].path);
-            let rows = if let Some(cache) = cache {
-                cache.reduce(rows, seams, &column_rank, &mut topology.diagram, limits)?
+            let rows = if REDUCE {
+                topology.diagram.charge(seams.len().saturating_mul(8))?;
+                let mut equations = crate::summary::relations::seam_equations(&seams);
+                for terms in &mut equations {
+                    let mut mapped = Vec::with_capacity(terms.len());
+                    for &(column, weight) in terms.iter() {
+                        if let Some(column) =
+                            resolve_alias(&mut aliases, column, &mut topology.diagram)?
+                        {
+                            mapped.push((column, weight));
+                        }
+                    }
+                    *terms = mapped;
+                }
+                let reduced = if let Some(cache) = cache {
+                    cache.reduce_compact(
+                        rows,
+                        equations,
+                        &column_rank,
+                        &mut topology.diagram,
+                        limits,
+                    )?
+                } else {
+                    crate::summary::relations::close_relation(
+                        rows,
+                        &equations,
+                        &mut topology.diagram,
+                        limits,
+                    )?
+                };
+                topology.diagram.charge(reduced.aliases.len())?;
+                // Only completed child relations use these classes; fresh tensors
+                // occupy disjoint source-half-edge namespaces.
+                for (column, alias) in reduced.aliases {
+                    aliases[column] = alias;
+                }
+                reduced.rows
             } else {
                 crate::summary::relations::close_seams(rows, &seams, &mut topology.diagram, limits)?
             };
@@ -824,16 +1158,358 @@ impl GuardedSurfaceSpace {
                 root = rows;
             }
         }
+        if !aliases.is_empty() {
+            topology
+                .diagram
+                .charge(root.iter().map(|row| row.terms().len()).sum())?;
+            let live = root
+                .iter()
+                .flat_map(BooleanRow::terms)
+                .map(|&(column, _)| column)
+                .collect::<HashSet<_>>();
+            for column in 0..width {
+                crate::CancellationToken::checkpoint()?;
+                let root = resolve_alias(&mut aliases, column, &mut topology.diagram)?;
+                aliases[column] = root.filter(|root| live.contains(root));
+            }
+            topology
+                .diagram
+                .charge(width.saturating_mul(width.max(1).ilog2() as usize + 1))?;
+            coordinates = SurfaceCoordinates::new(aliases);
+        }
         Ok(Self {
             topology,
             columns,
             local,
             rows: root,
+            coordinates,
+            representative_zx,
             surfaces: Vec::new(),
             limits,
             module_sites,
             next_readout_collection: next_readout_collection(0, limits.max_witness_nodes),
+            native_gauges: None,
+            #[cfg(test)]
+            audit_reference: false,
+            #[cfg(test)]
+            fresh_reference: false,
+            #[cfg(test)]
+            reference_frontiers: Vec::new(),
         })
+    }
+
+    fn reduce_fixed_relation(
+        topology: &mut GuardedTopology,
+        columns: &BTreeMap<SurfaceColumn, usize>,
+        source_rows: &[BooleanRow],
+        limits: ModuleCertificationLimits,
+    ) -> Result<Option<FixedRelation>, BlockGraphError> {
+        let representative = topology.project(ONE)?;
+        let zx = Arc::new(ZXGraph::from_block_graph_for_analysis(&representative)?);
+        // A bounded caller may admit half-edges but not an additional raw table.
+        if zx.total_ids() > limits.max_local_columns {
+            return Ok(None);
+        }
+        let Some(reduced) =
+            super::reduction::CorrelationReduction::new(&zx, &mut topology.diagram, limits)?
+        else {
+            return Ok(None);
+        };
+        let width = 2 * columns.len();
+        topology
+            .diagram
+            .charge(width.saturating_mul(width.max(1).ilog2() as usize + 4))?;
+        let mut aliases = vec![None; width];
+        let mut representatives = vec![usize::MAX; reduced.class_count()];
+        for (&column, &index) in columns {
+            let source = match column {
+                SurfaceColumn::Node(position) => {
+                    zx.node_at(IVec3::from_array(position))
+                        .expect("original isolated site")
+                        .id
+                }
+                SurfaceColumn::Edge(left, right) => {
+                    let left = zx
+                        .node_at(IVec3::from_array(left))
+                        .expect("original source")
+                        .id;
+                    let right = zx
+                        .node_at(IVec3::from_array(right))
+                        .expect("original target")
+                        .id;
+                    zx.edge_between(left, right)
+                        .expect("original directed arm")
+                        .id
+                }
+            };
+            for (axis, pauli) in [Pauli::X, Pauli::Z].into_iter().enumerate() {
+                if let Some(class) = reduced.native_bit(source, pauli) {
+                    let bit = 2 * index + axis;
+                    aliases[bit] = Some(class);
+                    representatives[class] = representatives[class].min(bit);
+                }
+            }
+        }
+        assert!(
+            representatives.iter().all(|&bit| bit != usize::MAX),
+            "every compact class has an original query"
+        );
+        let normalized = Self::restore_source_basis(
+            &zx,
+            columns,
+            &aliases,
+            source_rows,
+            reduced.rows,
+            limits.max_matrix_words,
+            &mut topology.diagram,
+        )?;
+        for class in aliases.iter_mut().flatten() {
+            *class = representatives[*class];
+        }
+        let mut rows = Vec::with_capacity(normalized.len());
+        for row in normalized {
+            topology.diagram.charge(
+                row.terms()
+                    .len()
+                    .saturating_mul(row.terms().len().max(1).ilog2() as usize + 1),
+            )?;
+            let mut terms = row
+                .into_terms()
+                .into_iter()
+                .map(|(class, value)| (representatives[class], value))
+                .collect::<Vec<_>>();
+            terms.sort_unstable_by_key(|&(bit, _)| bit);
+            rows.push(BooleanRow::from_terms(ONE, terms));
+        }
+        Ok(Some(FixedRelation {
+            coordinates: SurfaceCoordinates::new(aliases),
+            rows,
+            projection: representative,
+            zx,
+        }))
+    }
+
+    fn take_representative_zx(&mut self) -> Result<Arc<ZXGraph>, BlockGraphError> {
+        let representative = self.topology.project(ONE)?;
+        crate::CancellationToken::checkpoint()?;
+        if let Some((projection, zx)) = self.representative_zx.take()
+            && Arc::ptr_eq(&projection, &representative)
+        {
+            return Ok(zx);
+        }
+        Ok(Arc::new(ZXGraph::from_block_graph_for_analysis(
+            &representative,
+        )?))
+    }
+
+    fn restore_source_basis(
+        zx: &ZXGraph,
+        columns: &BTreeMap<SurfaceColumn, usize>,
+        aliases: &[Option<usize>],
+        source_rows: &[BooleanRow],
+        rows: Vec<BooleanRow>,
+        matrix_limit: usize,
+        diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
+    ) -> Result<Vec<BooleanRow>, BlockGraphError> {
+        diagram.charge(source_rows.len().saturating_mul(2))?;
+        let mut queries = HashMap::with_capacity(source_rows.len());
+        let mut record = |mut signature: Vec<usize>, query: Vec<usize>| {
+            signature.sort_unstable();
+            let mut query = query
+                .into_iter()
+                .filter_map(|bit| aliases[bit])
+                .collect::<Vec<_>>();
+            query.sort_unstable();
+            queries.insert(
+                signature,
+                query
+                    .chunk_by(|left, right| left == right)
+                    .filter(|group| group.len() % 2 == 1)
+                    .map(|group| (group[0], ONE))
+                    .collect::<Vec<_>>(),
+            );
+        };
+        for node in zx.nodes() {
+            crate::CancellationToken::checkpoint()?;
+            let degree = zx.neighbor_ids(node.id).len();
+            diagram.charge(
+                degree
+                    .saturating_mul(degree.saturating_add(8))
+                    .saturating_add(8),
+            )?;
+            let mut arms = zx
+                .neighbor_edges(node.id)
+                .map(|(neighbor, _)| {
+                    let position = zx.nodes()[neighbor].pos.to_array();
+                    (
+                        position,
+                        columns[&SurfaceColumn::Edge(node.pos.to_array(), position)],
+                    )
+                })
+                .collect::<Vec<_>>();
+            arms.sort_unstable();
+            let arms = arms
+                .into_iter()
+                .map(|(_, column)| [2 * column, 2 * column + 1])
+                .collect::<Vec<_>>();
+            match node.kind {
+                NodeKind::X | NodeKind::Z => {
+                    let cross = usize::from(node.kind == NodeKind::Z);
+                    let broadcast = 1 - cross;
+                    for (index, pair) in arms.windows(2).enumerate() {
+                        record(
+                            vec![pair[0][cross], pair[1][cross]],
+                            arms[..=index].iter().map(|bits| bits[cross]).collect(),
+                        );
+                    }
+                    let signature = if arms.is_empty() {
+                        vec![2 * columns[&SurfaceColumn::Node(node.pos.to_array())] + broadcast]
+                    } else {
+                        arms.iter().map(|bits| bits[broadcast]).collect::<Vec<_>>()
+                    };
+                    let query = vec![signature[0]];
+                    record(signature, query);
+                }
+                NodeKind::Y => record(arms[0].to_vec(), vec![arms[0][0]]),
+                NodeKind::Port | NodeKind::T | NodeKind::Selective(_) => {
+                    for bit in arms[0] {
+                        record(vec![bit], vec![bit]);
+                    }
+                }
+            }
+        }
+        diagram.charge(aliases.len())?;
+        let width = aliases.iter().flatten().max().map_or(0, |&bit| bit + 1);
+        Self::restore_source_basis_packed(rows, source_rows, &queries, width, matrix_limit, diagram)
+    }
+
+    fn restore_source_basis_packed(
+        rows: Vec<BooleanRow>,
+        source_rows: &[BooleanRow],
+        queries: &HashMap<Vec<usize>, Vec<(usize, DecisionId)>>,
+        width: usize,
+        matrix_limit: usize,
+        diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
+    ) -> Result<Vec<BooleanRow>, BlockGraphError> {
+        crate::CancellationToken::checkpoint()?;
+        diagram.charge(rows.len())?;
+        let words = width.div_ceil(64);
+        let sparse_words = rows
+            .iter()
+            .fold(0usize, |sum, row| sum.saturating_add(row.terms().len()))
+            .saturating_mul(2);
+        // Choose storage before allocating; disconnected sparse modes need no dense table.
+        if rows
+            .len()
+            .checked_mul(words)
+            .is_none_or(|words| words > matrix_limit || words > sparse_words)
+        {
+            return Self::restore_source_basis_sparse(rows, source_rows, queries, diagram);
+        }
+        let mut packed = Vec::with_capacity(rows.len());
+        for row in rows {
+            crate::CancellationToken::checkpoint()?;
+            assert_eq!(row.active, ONE);
+            diagram.charge(words.saturating_add(row.terms().len()))?;
+            let mut bits = super::CoeffVec::zeros(width);
+            for &(column, value) in row.terms() {
+                assert_eq!(value, ONE);
+                bits.set_bit(column, true);
+            }
+            packed.push(bits);
+        }
+        // Full RREF under the original source functionals fixes the same reference section.
+        let mut solved = 0;
+        let mut seen = rustc_hash::FxHashSet::default();
+        for source in source_rows.iter().rev() {
+            crate::CancellationToken::checkpoint()?;
+            if solved == packed.len() {
+                break;
+            }
+            diagram.charge(source.terms().len())?;
+            let signature = source
+                .terms()
+                .iter()
+                .map(|&(bit, _)| bit)
+                .collect::<Vec<_>>();
+            let query = &queries[&signature];
+            diagram.charge(query.len().saturating_mul(2).saturating_add(1))?;
+            if query.is_empty() || !seen.insert(query.as_slice()) {
+                continue;
+            }
+            let budget = std::cell::RefCell::new(&mut *diagram);
+            solved = super::modular::try_signed_gaussian_elimination_from(
+                &mut packed,
+                solved,
+                [query.as_slice()],
+                |row, query| {
+                    budget.borrow_mut().charge(query.len().saturating_add(1))?;
+                    Ok::<_, BlockGraphError>(
+                        query
+                            .iter()
+                            .fold(false, |value, &(bit, _)| value ^ row.bit(bit)),
+                    )
+                },
+                || {
+                    crate::CancellationToken::checkpoint()?;
+                    budget.borrow_mut().charge(words.saturating_add(1))?;
+                    Ok::<_, BlockGraphError>(())
+                },
+            )?;
+        }
+        assert_eq!(
+            solved,
+            packed.len(),
+            "original tensor coefficients span the complete relation"
+        );
+        packed.reverse();
+        let mut rows = Vec::with_capacity(packed.len());
+        for row in packed {
+            crate::CancellationToken::checkpoint()?;
+            diagram.charge(words)?;
+            let mut terms = Vec::new();
+            for column in row.iter_ones() {
+                diagram.charge(2)?;
+                terms.push((column, ONE));
+            }
+            rows.push(BooleanRow::from_terms(ONE, terms));
+        }
+        Ok(rows)
+    }
+
+    fn restore_source_basis_sparse(
+        rows: Vec<BooleanRow>,
+        source_rows: &[BooleanRow],
+        queries: &HashMap<Vec<usize>, Vec<(usize, DecisionId)>>,
+        diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
+    ) -> Result<Vec<BooleanRow>, BlockGraphError> {
+        let mut canonical = BooleanRowSpace::default();
+        let mut remaining = BooleanRowSpace::new(rows, diagram)?;
+        for source in source_rows.iter().rev() {
+            crate::CancellationToken::checkpoint()?;
+            if remaining.is_empty() {
+                break;
+            }
+            diagram.charge(source.terms().len())?;
+            let signature = source
+                .terms()
+                .iter()
+                .map(|&(bit, _)| bit)
+                .collect::<Vec<_>>();
+            let query = &queries[&signature];
+            let pivot = remaining.eliminate_linear(query, diagram)?;
+            if pivot.active != ZERO {
+                canonical.reduce_linear(query, &pivot, diagram)?;
+                canonical.push(pivot, diagram)?;
+            }
+        }
+        assert!(
+            remaining.is_empty(),
+            "original tensor coefficients span the complete relation"
+        );
+        let mut rows = canonical.into_rows(diagram)?;
+        rows.reverse();
+        Ok(rows)
     }
 
     /// Freeze causal named readouts, then derive terminal corrections from that
@@ -841,12 +1517,16 @@ impl GuardedSurfaceSpace {
     /// explicit folds; their physical member rows are never expanded again.
     /// Consumes the working relation before sharing decision ids with physical
     /// lowering. The result retains local incidence instead of full ZX graphs.
+    /// Certified fixed native T gadgets use a constant reference relation;
+    /// complete witnesses are lifted back before the signed physical queries.
     ///
     /// # Errors
     ///
     /// Returns an error if causal readout planning or resource accounting fails.
     pub fn plan_readouts(mut self) -> Result<GuardedReadoutPlan, BlockGraphError> {
+        self.native_gauges = self.certify_native_gauges()?;
         self.plan_causal_readouts::<true, true>()?;
+        self.lift_native_surfaces()?;
         self.into_readout_plan()
     }
 
@@ -901,6 +1581,7 @@ impl GuardedSurfaceSpace {
             topology: self.topology,
             surfaces: self.surfaces,
             columns,
+            coordinates: self.coordinates,
             local,
             max_witness_nodes: self.limits.max_witness_nodes,
             query_cache: Default::default(),
@@ -916,7 +1597,15 @@ impl GuardedSurfaceSpace {
     fn plan_causal_readouts<const RECLAIM: bool, const DEFER_WITNESSES: bool>(
         &mut self,
     ) -> Result<(), BlockGraphError> {
-        self.plan_causal_readouts_with_fast_path::<RECLAIM, DEFER_WITNESSES, true>()
+        // Bound symbolic history; a full source solve retains the same relation.
+        let reclaim_limit = self
+            .topology
+            .diagram
+            .nodes()
+            .len()
+            .saturating_mul(4)
+            .max(65_536);
+        self.plan_causal_readouts_with_fast_path::<RECLAIM, DEFER_WITNESSES, true>(reclaim_limit)
     }
 
     fn plan_causal_readouts_with_fast_path<
@@ -925,11 +1614,11 @@ impl GuardedSurfaceSpace {
         const FACTORED: bool,
     >(
         &mut self,
+        reclaim_limit: usize,
     ) -> Result<(), BlockGraphError> {
         let actions = self.topology.source.actions();
         let feedback_columns = self.index_feedbacks(&actions)?;
-        let representative = self.topology.project(ONE)?;
-        let zx = ZXGraph::from_block_graph_for_analysis(&representative)?;
+        let zx = self.take_representative_zx()?;
         let mut names = Vec::new();
         let mut crossing = None;
         let mut basis = std::mem::take(&mut self.rows);
@@ -1027,10 +1716,10 @@ impl GuardedSurfaceSpace {
         self.topology.diagram.charge(self.columns.len())?;
         let mut columns_by_site = HashMap::<[i32; 3], Vec<usize>>::new();
         for (&column, &index) in &self.columns {
-            let position = match column {
-                SurfaceColumn::Node(pos) | SurfaceColumn::Edge(pos, _) => pos,
-            };
-            columns_by_site.entry(position).or_default().push(index);
+            columns_by_site
+                .entry(column.source_position())
+                .or_default()
+                .push(index);
         }
         let names_set = names
             .iter()
@@ -1047,6 +1736,13 @@ impl GuardedSurfaceSpace {
                 _ => None,
             })
             .collect::<BTreeSet<_>>();
+        // Persistent sparse representatives feed conservative timing before named RREF.
+        let column_weights = if RECLAIM && !names.is_empty() {
+            self.coordinates
+                .support_weights(&mut self.topology.diagram)?
+        } else {
+            Vec::new()
+        };
         let mut availability: Option<GuardedAvailability> = None;
         let mut available_values = None;
         let mut pending_resolves = Vec::new();
@@ -1058,9 +1754,56 @@ impl GuardedSurfaceSpace {
             .iter()
             .map(|name| (name.clone(), i64::MIN))
             .collect::<HashMap<_, _>>();
-        while names.iter().any(|(name, _)| !known.contains(name)) {
+        let mut readout_timing: Option<ReadoutTiming> = None;
+        self.topology.diagram.charge(names.len())?;
+        let mut unknown = names.iter().collect::<Vec<_>>();
+        let mut incremental = RECLAIM;
+        let mut reference_basis: Option<ConstantReadoutBasis> = None;
+        let use_native = self.native_gauges.is_some();
+        #[cfg(test)]
+        let use_native = use_native && !self.fresh_reference;
+        while !unknown.is_empty() {
             crate::CancellationToken::checkpoint()?;
-            let mut timing = self.readout_timing(&names, &readout_times, &actions)?;
+            if incremental && self.topology.diagram.nodes().len() > reclaim_limit {
+                // Dead reduction products must not disable incremental solving.
+                self.collect_readout_roots(
+                    basis
+                        .iter_mut()
+                        .chain(causal_basis.iter_mut())
+                        .flat_map(BooleanRow::decisions_mut)
+                        .chain(available_rows.decisions_mut())
+                        .chain(readout_pivots.rows.decisions_mut())
+                        .chain(
+                            availability
+                                .iter_mut()
+                                .flat_map(|state| state.pivots.rows.decisions_mut()),
+                        ),
+                )?;
+                if self.topology.diagram.nodes().len() > reclaim_limit {
+                    self.charge_row_copy(&basis)?;
+                    causal_basis = basis.clone();
+                    self.exclude_outputs(&mut causal_basis, &zx)?;
+                    self.fill_selective(&mut causal_basis, &all_resolved)?;
+                    availability = None;
+                    available_rows = BooleanRowSpace::default();
+                    readout_pivots = GuardedPivots::default();
+                    incremental = false;
+                    reference_basis = None;
+                }
+            }
+            // Decision-id caches do not own roots across the collection boundary.
+            if readout_timing
+                .as_ref()
+                .is_none_or(|timing| timing.generation != self.topology.diagram.generation())
+            {
+                readout_timing = Some(self.readout_timing(&names, &readout_times, &actions)?);
+            } else {
+                readout_timing
+                    .as_mut()
+                    .expect("timing initialized")
+                    .refresh(&mut self.topology.diagram)?;
+            }
+            let timing = readout_timing.as_mut().expect("timing initialized");
             if available_values.is_none() {
                 self.topology.diagram.charge(
                     self.topology
@@ -1172,7 +1915,7 @@ impl GuardedSurfaceSpace {
                 )
                 .collect::<BTreeSet<_>>();
             let mut constraints = Vec::new();
-            if !RECLAIM || availability.is_none() {
+            if !incremental || availability.is_none() {
                 let mut blocked_columns = Vec::new();
                 for position in unavailable {
                     let columns = &columns_by_site[&position];
@@ -1184,10 +1927,10 @@ impl GuardedSurfaceSpace {
                     for axis in 0..2 {
                         // Multiplex permits Z on its live output, but its
                         // physical arms still require known local geometry.
-                        constraints.push((
-                            AvailabilityKey::Site(position),
-                            vec![(2 * index + axis, ONE)],
-                        ));
+                        if let Some(column) = self.coordinates.bit(2 * index + axis) {
+                            constraints
+                                .push((AvailabilityKey::Site(position), vec![(column, ONE)]));
+                        }
                     }
                 }
                 for &ordinal in feedback_absent {
@@ -1212,48 +1955,78 @@ impl GuardedSurfaceSpace {
                     constraints.push((AvailabilityKey::Feedback(ordinal), terms));
                 }
             }
-            if RECLAIM {
+            if use_native && incremental {
+                debug_assert_eq!(self.topology.domain, ONE);
+                if reference_basis.is_none() {
+                    reference_basis = Some(ConstantReadoutBasis::new(
+                        timing,
+                        &names,
+                        physical_columns,
+                        &mut self.topology.diagram,
+                    )?);
+                }
+                reference_basis
+                    .as_mut()
+                    .expect("reference basis initialized")
+                    .refresh(timing, &mut self.topology.diagram)?;
+            }
+            if incremental {
                 if let Some(availability) = &mut availability {
                     availability.release(
                         &pending,
-                        &readout_pivots,
-                        &mut available_rows,
                         &mut self.topology.diagram,
+                        |mut row, diagram| {
+                            if let Some(basis) = &mut reference_basis {
+                                // Accepted equations already remain in this complete RREF.
+                                basis.insert(row, diagram)
+                            } else {
+                                readout_pivots.project(&mut row, diagram)?;
+                                if !row.terms().is_empty() {
+                                    available_rows.push(row, diagram)?;
+                                }
+                                Ok(())
+                            }
+                        },
                     )?;
                 } else {
                     let (state, rows) = GuardedAvailability::new(
                         std::mem::take(&mut causal_basis),
                         &constraints,
                         physical_columns + names.len(),
+                        &column_weights,
                         &mut self.topology.diagram,
                     )?;
                     availability = Some(state);
-                    available_rows = rows;
+                    if let Some(basis) = &mut reference_basis {
+                        for row in rows.into_rows(&mut self.topology.diagram)? {
+                            basis.insert(row, &mut self.topology.diagram)?;
+                        }
+                    } else {
+                        available_rows = rows;
+                    }
                 }
             }
-            let unknown = names
-                .iter()
-                .filter(|(name, _)| !known.contains(name))
-                .collect::<Vec<_>>();
+            let cached_reference = reference_basis.is_some();
             let mut unknown_columns = vec![false; names.len()];
             for (_, column) in &unknown {
                 unknown_columns[*column - physical_columns] = true;
             }
             // The quotient alone fixes an arbitrary physical coset. Restore
             // accepted relations before choosing an early equivalent witness.
-            let restored = if RECLAIM && !readout_pivots.rows.is_empty() {
-                let rows = available_rows
-                    .rows()
-                    .chain(readout_pivots.rows.rows())
-                    .cloned()
-                    .collect::<Vec<_>>();
-                self.charge_row_copy(&rows)?;
-                Some(BooleanRowSpace::new(rows, &mut self.topology.diagram)?)
-            } else {
-                None
-            };
+            let mut restored =
+                if !cached_reference && incremental && !readout_pivots.rows.is_empty() {
+                    let rows = available_rows
+                        .rows()
+                        .chain(readout_pivots.rows.rows())
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    self.charge_row_copy(&rows)?;
+                    Some(BooleanRowSpace::new(rows, &mut self.topology.diagram)?)
+                } else {
+                    None
+                };
             let source_rows = restored.as_ref().unwrap_or(&available_rows);
-            let relevant = if RECLAIM && FACTORED {
+            let relevant = if !cached_reference && incremental && FACTORED {
                 Some(self.named_component_rows(source_rows, &unknown)?)
             } else {
                 None
@@ -1270,10 +2043,24 @@ impl GuardedSurfaceSpace {
             } else {
                 None
             };
-            let reduced = if factored.is_some() {
+            let reuse_restored = FACTORED
+                && restored.is_some()
+                && relevant
+                    .as_ref()
+                    .is_some_and(|ids| ids.len() == source_rows.len());
+            let reduced = if cached_reference || factored.is_some() {
                 BooleanRowSpace::default()
             } else {
-                let allowed = if RECLAIM {
+                let allowed = if reuse_restored {
+                    for row in source_rows.rows() {
+                        timing.include(row, &mut self.topology.diagram)?;
+                    }
+                    // Every live row is selected in its existing source order.
+                    // Reuse the charged index instead of copying and indexing it again.
+                    restored
+                        .take()
+                        .expect("the complete restored space is present")
+                } else if incremental {
                     let rows = if let Some(ids) = &relevant {
                         let mut rows = Vec::with_capacity(ids.len());
                         for &id in ids {
@@ -1305,22 +2092,40 @@ impl GuardedSurfaceSpace {
                 };
                 // Keep only named pivots. Physical kernel pivots normalize
                 // those rows, but their own forms are never used here.
-                self.reduce_named_rows::<RECLAIM>(
+                self.reduce_named_rows(
                     allowed,
                     unknown.iter().map(|(_, column)| *column),
                     &timing.columns,
+                    incremental,
                 )?
             };
             let mut candidates = Vec::new();
             for (index, (name, wanted)) in unknown.iter().enumerate() {
                 self.topology.diagram.charge(1)?;
+                if let Some(basis) = &reference_basis {
+                    let Some((row, time)) = basis.ready_candidate(
+                        *wanted,
+                        &unknown_columns,
+                        &timing.columns,
+                        &mut self.topology.diagram,
+                    )?
+                    else {
+                        continue;
+                    };
+                    #[cfg(test)]
+                    if self.audit_reference {
+                        self.audit_reference_candidate(row, *wanted, time, &names, &readout_times)?;
+                    }
+                    candidates.push((name.clone(), Cow::Borrowed(row), None, time));
+                    continue;
+                }
                 let row = if let Some(factored) = &mut factored {
                     let Some(row) = factored[index].take() else {
                         continue;
                     };
-                    row
+                    Cow::Owned(row)
                 } else {
-                    self.named_row(&reduced, *wanted)?
+                    Cow::Owned(self.named_row(&reduced, *wanted)?)
                 };
                 let named =
                     Self::named_terms(&row, physical_columns, physical_columns + names.len());
@@ -1341,28 +2146,16 @@ impl GuardedSurfaceSpace {
                 if !ready {
                     continue;
                 }
-                let folds = named
-                    .iter()
-                    .filter(|&&(column, _)| !unknown_columns[column - physical_columns])
-                    .map(|&(column, bit)| (names[column - physical_columns].0.clone(), bit))
-                    .collect();
                 let feedbacks = self.feedbacks::<RECLAIM>(&row, &actions, &feedback_columns)?;
                 let mut time = timing.row(&row, *wanted, &mut self.topology.diagram)?;
                 for &(_, guard) in &feedbacks {
                     time = time.max(timing.decision(guard, &mut self.topology.diagram)?);
                 }
-                candidates.push((
-                    name.clone(),
-                    GuardedSurface {
-                        kind: GuardedSurfaceKind::Readout {
-                            name: name.clone(),
-                            folds,
-                        },
-                        feedbacks,
-                        row,
-                    },
-                    time,
-                ));
+                #[cfg(test)]
+                if self.audit_reference {
+                    self.audit_reference_candidate(&row, *wanted, time, &names, &readout_times)?;
+                }
+                candidates.push((name.clone(), row, Some(feedbacks), time));
             }
             // A newly known outcome can unlock a shorter witness through a
             // pending control, a symbolic kernel or a previously unavailable
@@ -1381,13 +2174,26 @@ impl GuardedSurfaceSpace {
                     }
                     Ok(())
                 };
-                if let Some(ids) = &relevant {
-                    for &id in ids {
-                        block(source_rows.row(id).expect("selected row exists"))?;
+                // Component ids index the restored space while it is still owned.
+                match (&relevant, &restored) {
+                    (Some(ids), Some(rows)) => {
+                        for &id in ids {
+                            block(rows.row(id).expect("selected row exists"))?;
+                        }
                     }
-                } else {
-                    for row in source_rows.rows() {
-                        block(row)?;
+                    (Some(ids), None) if !reuse_restored => {
+                        for &id in ids {
+                            block(available_rows.row(id).expect("selected row exists"))?;
+                        }
+                    }
+                    // These owners retain the same live rows used to build restoration.
+                    _ => {
+                        for row in available_rows
+                            .rows()
+                            .chain(readout_pivots.rows.rows().filter(|_| incremental))
+                        {
+                            block(row)?;
+                        }
                     }
                 }
                 for row in &causal_basis {
@@ -1408,7 +2214,7 @@ impl GuardedSurfaceSpace {
             // tiers need no separate matrix solve.
             if blocking.is_empty() {
                 available_values.learn(
-                    candidates.iter().map(|(name, _, _)| name.as_str()),
+                    candidates.iter().map(|(name, _, _, _)| name.as_str()),
                     &mut self.topology.diagram,
                 )?;
             } else {
@@ -1418,7 +2224,7 @@ impl GuardedSurfaceSpace {
                     .charge(count.saturating_mul(count.ilog2() as usize + 1))?;
                 let mut tiers = candidates
                     .iter()
-                    .map(|(name, _, time)| (*time, name.as_str()))
+                    .map(|(name, _, _, time)| (*time, name.as_str()))
                     .collect::<Vec<_>>();
                 tiers.sort_unstable_by_key(|&(time, _)| time);
                 let mut cutoff = i64::MAX;
@@ -1440,14 +2246,82 @@ impl GuardedSurfaceSpace {
                         break;
                     }
                 }
-                candidates.retain(|(_, _, time)| *time <= cutoff);
+                candidates.retain(|(_, _, _, time)| *time <= cutoff);
             }
-            let reclaim = RECLAIM && candidates.len() < unknown.len();
+            // Freeze the complete frontier before changing any pivot priorities.
+            let mut selected = Vec::with_capacity(candidates.len());
+            for (name, row, feedbacks, time) in candidates {
+                let feedbacks = match feedbacks {
+                    Some(feedbacks) => feedbacks,
+                    None => self.feedbacks::<RECLAIM>(&row, &actions, &feedback_columns)?,
+                };
+                let folds =
+                    Self::named_terms(&row, physical_columns, physical_columns + names.len())
+                        .iter()
+                        .filter(|&&(column, _)| !unknown_columns[column - physical_columns])
+                        .map(|&(column, bit)| (names[column - physical_columns].0.clone(), bit))
+                        .collect();
+                let row = match row {
+                    Cow::Borrowed(row) => {
+                        self.topology.diagram.charge(row.terms().len())?;
+                        row.clone()
+                    }
+                    Cow::Owned(row) => row,
+                };
+                let surface = GuardedSurface {
+                    kind: GuardedSurfaceKind::Readout {
+                        name: name.clone(),
+                        folds,
+                    },
+                    feedbacks,
+                    row,
+                };
+                selected.push((name, surface, time));
+            }
+            let candidates = selected;
+            #[cfg(test)]
+            if self.audit_reference {
+                self.reference_frontiers.push(
+                    candidates
+                        .iter()
+                        .map(|(name, _, time)| (name.clone(), *time))
+                        .collect(),
+                );
+            }
+            let reclaim = incremental && candidates.len() < unknown.len();
+            let reclaim_quotient = reclaim && reference_basis.is_none();
+            if reclaim && let Some(basis) = &mut reference_basis {
+                for (name, _, time) in &candidates {
+                    let column = readout_timing
+                        .as_ref()
+                        .expect("timing initialized")
+                        .outcomes[name]
+                        .1;
+                    basis.make_known(
+                        column,
+                        (*time, std::cmp::Reverse(column)),
+                        &mut self.topology.diagram,
+                    )?;
+                }
+            }
+            readout_timing.as_mut().expect("timing initialized").learn(
+                candidates
+                    .iter()
+                    .map(|(name, _, time)| (name.as_str(), *time)),
+                &mut self.topology.diagram,
+            )?;
             let mut reclaimed = Vec::new();
+            self.topology.diagram.charge(candidates.len())?;
             for (name, surface, time) in candidates {
+                let column = readout_timing
+                    .as_ref()
+                    .expect("timing initialized")
+                    .outcomes[&name]
+                    .1;
+                unknown_columns[column - physical_columns] = false;
                 readout_times.insert(name.clone(), time);
                 known.insert(name);
-                if reclaim {
+                if reclaim_quotient {
                     self.topology.diagram.charge(surface.row.terms().len())?;
                     let mut row = surface.row.clone();
                     // Candidate coefficients were simplified on the source
@@ -1457,8 +2331,15 @@ impl GuardedSurfaceSpace {
                 }
                 self.surfaces.push(surface);
             }
-            if reclaim {
-                self.reclaim_readouts(&mut available_rows, &mut readout_pivots, reclaimed)?;
+            self.topology.diagram.charge(unknown.len())?;
+            unknown.retain(|(_, column)| unknown_columns[*column - physical_columns]);
+            if reclaim_quotient {
+                self.reclaim_readouts(
+                    &mut available_rows,
+                    &mut readout_pivots,
+                    reclaimed,
+                    &column_weights,
+                )?;
             }
             self.check_readout_roots(
                 basis
@@ -1474,12 +2355,15 @@ impl GuardedSurfaceSpace {
                     ),
             )?;
         }
+        drop(reference_basis);
         drop((
             causal_basis,
             availability,
             available_rows,
             readout_pivots,
             available_values,
+            readout_timing,
+            column_weights,
         ));
         let (input_nodes, resource_nodes) = authored_boundary_columns(&zx);
         let mut output_ports = zx.output_ports();
@@ -1602,9 +2486,14 @@ impl GuardedSurfaceSpace {
             )?;
             output_ports.sort_unstable_by_key(|port| {
                 std::cmp::Reverse(
-                    self.node_components(port.to_array())
+                    [Pauli::X, Pauli::Z]
                         .into_iter()
-                        .flatten()
+                        .flat_map(|axis| {
+                            self.original_component_terms(
+                                SurfaceColumn::Node(port.to_array()),
+                                axis,
+                            )
+                        })
                         .map(|(column, _)| column)
                         .min(),
                 )
@@ -1905,8 +2794,9 @@ impl GuardedSurfaceSpace {
             self.topology
                 .variables
                 .len()
-                .saturating_add(names.len())
-                .saturating_add(self.columns.len().saturating_mul(2)),
+                .saturating_mul(3)
+                .saturating_add(names.len().saturating_mul(4))
+                .saturating_add(self.columns.len().saturating_mul(9)),
         )?;
         let outcome_time = |name: &str| known.get(name).copied().unwrap_or(i64::MAX);
         let variables = self
@@ -1918,36 +2808,64 @@ impl GuardedSurfaceSpace {
                 crate::GuardedVariable::Branch { .. } => i64::MAX,
             })
             .collect();
-        let mut timing = ReadoutTiming {
-            columns: vec![i64::MIN; 2 * self.columns.len() + names.len()],
+        let mut timing = ReadoutTiming::new(
+            vec![i64::MIN; 2 * self.columns.len() + names.len()],
             variables,
-            domain: self.topology.domain,
-            decisions: HashMap::new(),
-        };
+            self.topology.domain,
+            self.topology.diagram.generation(),
+        );
+        let outcomes = self
+            .topology
+            .variables
+            .iter()
+            .enumerate()
+            .filter_map(|(index, variable)| match variable {
+                crate::GuardedVariable::Outcome(name) => Some((name, index)),
+                crate::GuardedVariable::Branch { .. } => None,
+            })
+            .collect::<HashMap<_, _>>();
+        timing.outcomes = names
+            .iter()
+            .map(|(name, column)| (name.clone(), (outcomes.get(name).copied(), *column)))
+            .collect();
         // Structural choices require their source conditions, not a clock
         // inferred from the branch variable's numeric index.
         for (index, variable) in self.topology.variables.iter().enumerate() {
             if let crate::GuardedVariable::Branch { condition, .. } = variable {
-                timing.variables[index] =
-                    timing.decision(*condition, &mut self.topology.diagram)?;
+                timing.branches.push((index, *condition));
             }
         }
+        timing.pending = (0..2 * self.columns.len())
+            .map(|column| ColumnTiming {
+                column,
+                original: column,
+                earliest: i64::MIN,
+                guards: Vec::new(),
+            })
+            .collect();
         for (&column, &index) in &self.columns {
             let (left, right) = match column {
                 SurfaceColumn::Node(position) => (position, position),
                 SurfaceColumn::Edge(left, right) => (left, right),
             };
-            let mut time = i64::from(left[2].max(right[2]));
+            let time = i64::from(left[2].max(right[2]));
             for position in [left, right] {
+                self.topology
+                    .diagram
+                    .charge(self.local[&position].len().saturating_mul(2))?;
                 for variant in &self.local[&position] {
-                    time = time.max(timing.decision(variant.guard, &mut self.topology.diagram)?);
+                    timing.pending[2 * index].guards.push(variant.guard);
+                    timing.pending[2 * index + 1].guards.push(variant.guard);
                 }
             }
-            timing.columns[2 * index] = time;
-            timing.columns[2 * index + 1] = time;
+            timing.pending[2 * index].earliest = time;
+            timing.pending[2 * index + 1].earliest = time;
         }
         for (name, column) in names {
-            timing.columns[*column] = outcome_time(name);
+            let priority = (outcome_time(name), std::cmp::Reverse(*column));
+            timing.columns[*column] = priority;
+            timing.base_columns[*column] = priority;
+            timing.fixed_columns[*column] = priority;
         }
         self.topology.diagram.charge(actions.len())?;
         for action in actions {
@@ -1965,7 +2883,7 @@ impl GuardedSurfaceSpace {
                     .diagram
                     .charge(self.local[&target.target.to_array()].len())?;
                 for variant in &self.local[&target.target.to_array()] {
-                    let support = self.feedback_support(target, variant)?;
+                    let support = self.original_feedback_support(target, variant)?;
                     self.topology.diagram.charge(support.len())?;
                     for column in support {
                         let guard = target_columns.entry(column).or_insert(ZERO);
@@ -1990,22 +2908,46 @@ impl GuardedSurfaceSpace {
                     .topology
                     .diagram
                     .apply(BooleanOp::And, coefficient, condition)?;
-                timing.columns[column] =
-                    timing.columns[column].max(timing.decision(guard, &mut self.topology.diagram)?);
+                timing.pending[column].guards.push(guard);
             }
         }
+        if let Some(gauges) = &self.native_gauges {
+            for (gauge, &(_, selector)) in gauges.iter().zip(&self.topology.resolves) {
+                timing.pending[gauge.generator[0] - 1].guards.push(selector);
+            }
+        }
+        if !self.coordinates.aliases.is_empty() {
+            self.topology.diagram.charge(
+                timing
+                    .pending
+                    .len()
+                    .saturating_mul(timing.pending.len().max(1).ilog2() as usize + 2),
+            )?;
+            timing.pending.retain_mut(|profile| {
+                let Some(column) = self.coordinates.bit(profile.original) else {
+                    return false;
+                };
+                profile.column = column;
+                true
+            });
+            timing
+                .pending
+                .sort_unstable_by_key(|profile| profile.column);
+        }
+        timing.refresh(&mut self.topology.diagram)?;
         Ok(timing)
     }
 
-    fn reduce_named_rows<const SPARSE: bool>(
+    fn reduce_named_rows(
         &mut self,
         mut remaining: BooleanRowSpace,
         names: impl Iterator<Item = usize>,
-        timing: &[i64],
+        timing: &[ColumnTime],
+        sparse: bool,
     ) -> Result<BooleanRowSpace, BooleanResourceError> {
         let mut named = BooleanRowSpace::default();
         for column in names {
-            let pivot = if SPARSE {
+            let pivot = if sparse {
                 remaining.eliminate_column_sparse(column, &mut self.topology.diagram)?
             } else {
                 remaining.eliminate_column(column, &mut self.topology.diagram)?
@@ -2024,16 +2966,18 @@ impl GuardedSurfaceSpace {
             .charge(columns.saturating_mul(columns.max(1).ilog2() as usize + 2))?;
         let mut physical_and_known = remaining.columns().collect::<Vec<_>>();
         physical_and_known.sort_unstable_by_key(|&column| {
-            (
-                std::cmp::Reverse(timing.get(column).copied().unwrap_or(i64::MIN)),
-                column,
+            std::cmp::Reverse(
+                timing
+                    .get(column)
+                    .copied()
+                    .unwrap_or((i64::MIN, std::cmp::Reverse(column))),
             )
         });
         for column in physical_and_known {
             if remaining.is_empty() {
                 break;
             }
-            let pivot = if SPARSE {
+            let pivot = if sparse {
                 remaining.eliminate_column_sparse(column, &mut self.topology.diagram)?
             } else {
                 remaining.eliminate_column(column, &mut self.topology.diagram)?
@@ -2212,6 +3156,7 @@ impl GuardedSurfaceSpace {
         remaining: &mut BooleanRowSpace,
         pivots: &mut GuardedPivots,
         readouts: Vec<BooleanRow>,
+        column_weights: &[usize],
     ) -> Result<(), BooleanResourceError> {
         // Each accepted relation satisfies every later availability constraint.
         // Quotienting along its physical-then-known-name pivots therefore
@@ -2233,9 +3178,10 @@ impl GuardedSurfaceSpace {
                 &mut self.topology.diagram,
             )?;
             for (column, active) in added {
-                remaining.eliminate_column_when_sparse(
+                remaining.eliminate_column_when_sparse_weighted(
                     column,
                     active,
+                    column_weights,
                     &mut self.topology.diagram,
                 )?;
             }
@@ -2272,15 +3218,57 @@ impl GuardedSurfaceSpace {
             .into());
         }
         rows = reduce_boolean_rows(rows, 0..physical_columns, &mut self.topology.diagram)?;
-        zx.check_external_table_limits(self.limits)?;
-        let raw = rows
-            .iter()
-            .map(|row| self.materialize_row(row, zx, |bit| bit == ONE))
-            .collect::<Vec<_>>();
+        let mut packed_columns = crate::FxHashMap::default();
+        for row in &rows {
+            crate::CancellationToken::checkpoint()?;
+            self.topology.diagram.charge(row.terms().len())?;
+            for &(column, _) in row.terms() {
+                let next = packed_columns.len();
+                packed_columns.entry(column).or_insert(next);
+            }
+        }
+        super::stabilizer::SearchBudget::with_limits(self.limits).check_matrix(
+            rows.len().saturating_mul(2),
+            packed_columns.len(),
+            rows.len().saturating_add(1),
+            rows.len(),
+        )?;
+        self.topology.diagram.charge(
+            rows.len()
+                .saturating_mul(packed_columns.len().div_ceil(512).saturating_mul(16)),
+        )?;
+        // X-only storage preserves XOR and bit queries; these are not Pauli factors.
+        let mut packed = Vec::with_capacity(rows.len());
+        for row in &rows {
+            crate::CancellationToken::checkpoint()?;
+            self.topology
+                .diagram
+                .charge(row.terms().len().saturating_add(1))?;
+            packed.push(crate::PauliString::from_terms(
+                packed_columns.len(),
+                row.terms()
+                    .iter()
+                    .map(|&(column, _)| (packed_columns[&column], Pauli::X)),
+            ));
+        }
         let mut prefix = Vec::new();
         for (name, coordinate) in names {
             self.topology.diagram.charge(rows.len())?;
-            let combination = readable_representative(zx, &raw, name)?;
+            let columns = &self.columns;
+            let coordinates = &self.coordinates;
+            let combination = readable_representative(
+                zx,
+                &packed,
+                name,
+                |column, axis| {
+                    let original = original_readout_bit(zx, columns, column, axis)?;
+                    let compact = coordinates.bit(original)?;
+                    packed_columns
+                        .get(&compact)
+                        .map(|&column| (column, Pauli::X))
+                },
+                &mut self.topology.diagram,
+            )?;
             let mut row = BooleanRow::default();
             for index in combination.iter_ones() {
                 row.xor_scaled(&rows[index], ONE, &mut self.topology.diagram)?;
@@ -2434,6 +3422,17 @@ impl GuardedSurfaceSpace {
     /// degree-zero variant owns an independent center coordinate. Crossing
     /// support is reconstructed after evaluating the arms, never XORed here.
     fn component_terms(&self, column: SurfaceColumn, axis: Pauli) -> Vec<(usize, DecisionId)> {
+        self.original_component_terms(column, axis)
+            .into_iter()
+            .filter_map(|(original, guard)| self.coordinates.bit(original).map(|bit| (bit, guard)))
+            .collect()
+    }
+
+    fn original_component_terms(
+        &self,
+        column: SurfaceColumn,
+        axis: Pauli,
+    ) -> Vec<(usize, DecisionId)> {
         let offset = usize::from(axis == Pauli::Z);
         let SurfaceColumn::Node(position) = column else {
             return vec![(2 * self.columns[&column] + offset, ONE)];
@@ -2463,20 +3462,8 @@ impl GuardedSurfaceSpace {
 
     fn component(&self, row: &BooleanRow, column: SurfaceColumn, axis: Pauli) -> DecisionId {
         let index = self.columns[&column];
-        row.get(2 * index + usize::from(axis == Pauli::Z))
-    }
-
-    #[cfg(test)]
-    fn linear_value(
-        row: &BooleanRow,
-        terms: &[(usize, DecisionId)],
-        diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
-    ) -> Result<DecisionId, BooleanResourceError> {
-        diagram.charge(terms.len())?;
-        terms.iter().try_fold(ZERO, |value, &(column, weight)| {
-            let term = diagram.apply(BooleanOp::And, weight, row.get(column))?;
-            diagram.apply(BooleanOp::Xor, value, term)
-        })
+        self.coordinates
+            .get(row, 2 * index + usize::from(axis == Pauli::Z))
     }
 
     fn index_output_axes(
@@ -2622,6 +3609,11 @@ impl GuardedSurfaceSpace {
         index: usize,
     ) -> Result<(), BooleanResourceError> {
         let (position, selector) = self.topology.resolves[index];
+        let selector = if self.native_gauges.is_some() {
+            ONE
+        } else {
+            selector
+        };
         let NodeKind::Selective(kind) = self.local[&position.to_array()][0]
             .zx
             .node_at(position)
@@ -2703,6 +3695,18 @@ impl GuardedSurfaceSpace {
     }
 
     fn feedback_support(
+        &self,
+        target: &crate::FeedbackTarget,
+        variant: &SurfaceTopology,
+    ) -> Result<Vec<usize>, BlockGraphError> {
+        Ok(self
+            .original_feedback_support(target, variant)?
+            .into_iter()
+            .filter_map(|bit| self.coordinates.bit(bit))
+            .collect())
+    }
+
+    fn original_feedback_support(
         &self,
         target: &crate::FeedbackTarget,
         variant: &SurfaceTopology,
@@ -2805,10 +3809,79 @@ impl GuardedSurfaceSpace {
     ) -> crate::PauliString {
         materialize_row(
             self.columns.iter().map(|(&column, &index)| (column, index)),
+            &self.coordinates,
             row,
             zx,
             evaluate,
         )
+    }
+
+    pub(crate) fn compact_relation(
+        &self,
+        zx: &ZXGraph,
+        boundary_width: usize,
+        evaluate: impl Fn(DecisionId) -> bool,
+    ) -> Result<Option<super::modular::CompactSurfaceRelation>, BlockGraphError> {
+        if zx.adjacency.has_parallel_edges() || zx.stabilizer_phase_basis.get().is_some() {
+            return Ok(None);
+        }
+        let mut packed = HashMap::new();
+        let mut queries = Vec::with_capacity(zx.total_ids());
+        for column in 0..zx.total_ids() {
+            crate::CancellationToken::checkpoint()?;
+            queries.push([Pauli::X, Pauli::Z].map(|axis| {
+                let original = original_readout_bit(zx, &self.columns, column, axis)?;
+                let coordinate = self.coordinates.bit(original)?;
+                let next = packed.len();
+                Some(*packed.entry(coordinate).or_insert(next))
+            }));
+        }
+        let width = packed.len();
+        let count = self.rows.iter().filter(|row| evaluate(row.active)).count();
+        // Retain packed rows and port-width results while replay holds the
+        // expected original row, its accumulator, and one local source row.
+        let words = count
+            .checked_mul(width.div_ceil(64))
+            .and_then(|words| {
+                count
+                    .checked_mul(boundary_width.div_ceil(512).checked_mul(16)?)?
+                    .checked_add(words)
+            })
+            .and_then(|words| {
+                zx.total_ids()
+                    .div_ceil(512)
+                    .checked_mul(if count == 0 { 0 } else { 48 })?
+                    .checked_add(words)
+            });
+        if words.is_none_or(|words| words > self.limits.max_matrix_words) {
+            return Err(StabilizerError::ResourceLimited {
+                phase: "compact certificate matrix words",
+                observed: words.unwrap_or(usize::MAX),
+                limit: self.limits.max_matrix_words,
+            }
+            .into());
+        }
+        let mut rows = Vec::with_capacity(count);
+        for source in self.rows.iter().filter(|row| evaluate(row.active)) {
+            crate::CancellationToken::checkpoint()?;
+            let mut row = super::CoeffVec::zeros(width);
+            for &(column, value) in source.terms() {
+                if evaluate(value) {
+                    let Some(&column) = packed.get(&column) else {
+                        return Ok(None);
+                    };
+                    row.set_bit(column, true);
+                }
+            }
+            if row.iter_ones().next().is_some() {
+                rows.push(row);
+            }
+        }
+        Ok(Some(super::modular::CompactSurfaceRelation {
+            rows,
+            queries,
+            width,
+        }))
     }
 
     pub(crate) fn materialize_relation(
@@ -2844,6 +3917,35 @@ impl GuardedSurfaceSpace {
     }
 }
 
+/// Pull a raw-table component back to its original native half-edge coordinate.
+fn original_readout_bit(
+    zx: &ZXGraph,
+    columns: &BTreeMap<SurfaceColumn, usize>,
+    column: usize,
+    mut axis: Pauli,
+) -> Option<usize> {
+    let key = if let Some(node) = zx.nodes().get(column) {
+        if let Some((neighbor, _)) = zx.neighbor_edges(node.id).next() {
+            if matches!(node.kind, NodeKind::X | NodeKind::Z) && node.kind.cross_pauli() == axis {
+                return None;
+            }
+            SurfaceColumn::Edge(node.pos.to_array(), zx.nodes()[neighbor].pos.to_array())
+        } else {
+            SurfaceColumn::Node(node.pos.to_array())
+        }
+    } else {
+        let edge = zx.edge_by_id(column);
+        if edge.hadamard && edge.n1 > edge.n2 {
+            axis = axis.flip();
+        }
+        SurfaceColumn::Edge(
+            zx.nodes()[edge.n1].pos.to_array(),
+            zx.nodes()[edge.n2].pos.to_array(),
+        )
+    };
+    Some(2 * columns[&key] + usize::from(axis == Pauli::Z))
+}
+
 /// A combination of `rows` that reads record `name`, preferring one that
 /// conflicts with no other record. Each condition is linear in the arm
 /// components, so the admissible rows are a kernel searched for a reader.
@@ -2851,7 +3953,9 @@ fn readable_representative(
     zx: &ZXGraph,
     rows: &[crate::PauliString],
     name: &str,
-) -> Result<crate::zx::CoeffVec, StabilizerError> {
+    map_component: impl Fn(usize, Pauli) -> Option<(usize, Pauli)>,
+    diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
+) -> Result<crate::zx::CoeffVec, BlockGraphError> {
     let unavailable = || StabilizerError::MeasurementSurfaceUnavailable {
         mvar: name.to_owned(),
     };
@@ -2859,6 +3963,8 @@ fn readable_representative(
     let mut others = Vec::new();
     let mut readable = Vec::new();
     for node in zx.action_graph().ordered_nodes() {
+        crate::CancellationToken::checkpoint()?;
+        diagram.charge(1)?;
         let Action::Measure {
             name: record,
             target,
@@ -2873,9 +3979,16 @@ fn readable_representative(
             MeasurementObservable::Concrete(PauliBasis::Y)
             | MeasurementObservable::Selective(_) => Pauli::Y,
         };
+        diagram.charge(
+            zx.nodes()
+                .get(column)
+                .map_or(1, |node| zx.neighbor_ids(node.id).len().max(1))
+                .saturating_mul(4),
+        )?;
         let components = basis
             .iter_xz()
             .flat_map(|axis| zx.readout_components(column, axis))
+            .map(|(column, axis)| map_component(column, axis))
             .collect::<Vec<_>>();
         if record != name {
             others.extend(components);
@@ -2884,39 +3997,61 @@ fn readable_representative(
         readable = components;
         // A node record reads exactly its measured axis.
         if basis != Pauli::Y && matches!(target, MeasureTarget::Node(_)) {
-            exact.extend(zx.readout_components(column, basis.flip()));
+            exact.extend(
+                zx.readout_components(column, basis.flip())
+                    .into_iter()
+                    .map(|(column, axis)| map_component(column, axis)),
+            );
         }
     }
+    diagram.charge(exact.len().saturating_add(others.len()))?;
     let isolated = exact.iter().chain(&others).copied().collect::<Vec<_>>();
-    [isolated, exact]
-        .into_iter()
-        .find_map(|constraints| {
-            let mut kernel = rows.to_vec();
-            let mut combinations = (0..rows.len())
-                .map(|index| crate::zx::CoeffVec::singleton(index, rows.len()))
-                .collect::<Vec<_>>();
-            let pivots = crate::zx::gaussian_elimination_with_tracking(
-                &mut kernel,
-                &mut combinations,
-                constraints,
-                |row, &(column, axis)| row.get(column) & axis,
-                None,
-            );
-            kernel[pivots..]
-                .iter()
-                .zip(&combinations[pivots..])
-                .find(|(row, _)| {
-                    readable
-                        .iter()
-                        .any(|&(column, axis)| row.get(column) & axis)
-                })
-                .map(|(_, combination)| combination.clone())
-        })
-        .ok_or_else(unavailable)
+    let present = |row: &crate::PauliString, component: &Option<(usize, Pauli)>| {
+        component.is_some_and(|(column, axis)| row.get(column) & axis)
+    };
+    for constraints in [isolated, exact] {
+        crate::CancellationToken::checkpoint()?;
+        let row_words = rows
+            .first()
+            .map_or(0, |row| row.x_words().len() + row.z_words().len());
+        let coefficient_words = rows.len().div_ceil(64);
+        let words = row_words.saturating_add(coefficient_words);
+        // Bound scans, scratch allocation and XORs before the infallible kernel.
+        diagram.charge(
+            rows.len().saturating_mul(
+                words
+                    .saturating_add(constraints.len().saturating_mul(2))
+                    .saturating_add(constraints.len().min(rows.len()).saturating_mul(words))
+                    .saturating_add(readable.len()),
+            ),
+        )?;
+        let mut kernel = rows.to_vec();
+        let mut combinations = (0..rows.len())
+            .map(|index| crate::zx::CoeffVec::singleton(index, rows.len()))
+            .collect::<Vec<_>>();
+        let pivots = crate::zx::gaussian_elimination_with_tracking(
+            &mut kernel,
+            &mut combinations,
+            constraints,
+            present,
+            None,
+        );
+        crate::CancellationToken::checkpoint()?;
+        if let Some((_, combination)) = kernel[pivots..]
+            .iter()
+            .zip(&combinations[pivots..])
+            .find(|(row, _)| readable.iter().any(|component| present(row, component)))
+        {
+            diagram.charge(coefficient_words)?;
+            return Ok(combination.clone());
+        }
+    }
+    Err(unavailable().into())
 }
 
 pub(super) fn materialize_row(
     columns: impl IntoIterator<Item = (SurfaceColumn, usize)>,
+    coordinates: &SurfaceCoordinates,
     row: &BooleanRow,
     zx: &ZXGraph,
     evaluate: impl Fn(DecisionId) -> bool,
@@ -2924,8 +4059,8 @@ pub(super) fn materialize_row(
     let mut paulis = crate::PauliString::new(zx.total_ids());
     for (column, index) in columns {
         let value = match (
-            evaluate(row.get(2 * index)),
-            evaluate(row.get(2 * index + 1)),
+            evaluate(coordinates.get(row, 2 * index)),
+            evaluate(coordinates.get(row, 2 * index + 1)),
         ) {
             (false, false) => Pauli::I,
             (true, false) => Pauli::X,
@@ -2973,6 +4108,234 @@ pub(super) fn materialize_row(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn packed_crossing_readers_match_exact_dense_choices_and_original_queries() {
+        let isolated = crate::BlockGraph::from_text(
+            "BLOG 1.0\nmodule main {\n0: XZX [0,0,0]\n1: ZXZ [2,0,0]\n}",
+        )
+        .unwrap()
+        .flatten()
+        .unwrap();
+        let cases = [
+            (
+                crate::GalleryItem::CZSpatialH
+                    .build()
+                    .materialize_root_graph()
+                    .unwrap(),
+                IVec3::new(1, 0, 1),
+                IVec3::new(0, 0, 1),
+            ),
+            (
+                crate::GalleryItem::S
+                    .build()
+                    .materialize_root_graph()
+                    .unwrap(),
+                IVec3::new(1, 0, 2),
+                IVec3::new(0, 0, 1),
+            ),
+            (isolated, IVec3::ZERO, IVec3::new(2, 0, 0)),
+        ];
+        let limits = ModuleCertificationLimits::DEFAULT;
+        let mut saw_reverse_h = false;
+        let mut saw_y = false;
+        for (case, (mut source, read, other)) in cases.into_iter().enumerate() {
+            source
+                .set_actions_lenient(vec![
+                    Action::Measure {
+                        name: "read".into(),
+                        target: MeasureTarget::Node(read),
+                    },
+                    Action::Measure {
+                        name: "other".into(),
+                        target: MeasureTarget::Node(other),
+                    },
+                ])
+                .unwrap();
+            let source = source.fix_shadowed_faces();
+            let zx = ZXGraph::from_block_graph_for_analysis(&source).unwrap();
+            saw_reverse_h |= zx
+                .edges()
+                .iter()
+                .any(|edge| edge.hadamard && edge.n1 > edge.n2);
+            saw_y |= zx.nodes().iter().any(|node| node.kind == NodeKind::Y);
+            let mut space = GuardedSurfaceSpace::new(
+                GuardedTopology::new(&source, limits).unwrap(),
+                &HashMap::new(),
+                limits,
+            )
+            .unwrap();
+            for order in 0..3 {
+                let mut rows = space.rows.clone();
+                if case == 2 {
+                    let read = rows
+                        .iter()
+                        .find(|row| {
+                            space.coordinates.get(
+                                row,
+                                2 * space.columns[&SurfaceColumn::Node(read.to_array())],
+                            ) == ONE
+                        })
+                        .unwrap()
+                        .clone();
+                    let other = rows
+                        .iter()
+                        .find(|row| {
+                            space.coordinates.get(
+                                row,
+                                2 * space.columns[&SurfaceColumn::Node(other.to_array())] + 1,
+                            ) == ONE
+                        })
+                        .unwrap()
+                        .clone();
+                    // The last row pivots into the prefix; its old first row
+                    // moves behind the duplicate reader in the surviving suffix.
+                    rows = vec![read.clone(), read, other];
+                }
+                if order == 1 {
+                    rows.reverse();
+                }
+                if order == 2 && rows.len() >= 2 {
+                    let mut dependent = rows[0].clone();
+                    dependent
+                        .xor_scaled(&rows[1], ONE, &mut space.topology.diagram)
+                        .unwrap();
+                    rows.insert(0, dependent);
+                }
+                let ordinals = rows
+                    .iter()
+                    .flat_map(|row| row.terms().iter().map(|&(column, _)| column))
+                    .collect::<BTreeSet<_>>()
+                    .into_iter()
+                    .enumerate()
+                    .map(|(ordinal, column)| (column, ordinal))
+                    .collect::<BTreeMap<_, _>>();
+                let packed = rows
+                    .iter()
+                    .map(|row| {
+                        crate::PauliString::from_terms(
+                            ordinals.len(),
+                            row.terms()
+                                .iter()
+                                .map(|&(column, _)| (ordinals[&column], Pauli::X)),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                let raw = rows
+                    .iter()
+                    .map(|row| space.materialize_row(row, &zx, |bit| bit == ONE))
+                    .collect::<Vec<_>>();
+                let mapped = |column, axis| {
+                    let original = original_readout_bit(&zx, &space.columns, column, axis)?;
+                    let compact = space.coordinates.bit(original)?;
+                    ordinals.get(&compact).map(|&column| (column, Pauli::X))
+                };
+                for (raw, packed) in raw.iter().zip(&packed) {
+                    for column in 0..zx.total_ids() {
+                        for axis in [Pauli::X, Pauli::Z] {
+                            assert_eq!(
+                                raw.get(column) & axis,
+                                mapped(column, axis)
+                                    .is_some_and(|(column, axis)| packed.get(column) & axis)
+                            );
+                        }
+                    }
+                }
+                for name in ["read", "other"] {
+                    let expected = readable_representative(
+                        &zx,
+                        &raw,
+                        name,
+                        |column, axis| Some((column, axis)),
+                        &mut Default::default(),
+                    );
+                    let actual = readable_representative(
+                        &zx,
+                        &packed,
+                        name,
+                        mapped,
+                        &mut Default::default(),
+                    );
+                    let signature = |result: Result<crate::zx::CoeffVec, BlockGraphError>| {
+                        result
+                            .map(|coefficients| coefficients.to_indices())
+                            .map_err(|error| format!("{error:?}"))
+                    };
+                    assert_eq!(
+                        signature(actual),
+                        signature(expected),
+                        "case {case}, order {order}, {name}"
+                    );
+                    if case == 2 && order == 0 && name == "read" {
+                        assert_eq!(
+                            readable_representative(
+                                &zx,
+                                &packed,
+                                name,
+                                mapped,
+                                &mut Default::default()
+                            )
+                            .unwrap()
+                            .to_indices(),
+                            [1]
+                        );
+                    }
+                }
+            }
+        }
+        assert!(saw_reverse_h && saw_y);
+    }
+
+    #[test]
+    fn crossing_reader_budgets_use_packed_storage_and_keep_conditional_refusal() {
+        let mut source = crate::GalleryItem::CZSpatialH
+            .build()
+            .materialize_root_graph()
+            .unwrap();
+        source
+            .set_actions_lenient(vec![Action::Measure {
+                name: "crossing".into(),
+                target: MeasureTarget::Node(IVec3::new(1, 0, 1)),
+            }])
+            .unwrap();
+        let source = source.fix_shadowed_faces();
+        let zx = ZXGraph::from_block_graph_for_analysis(&source).unwrap();
+        let mut space = GuardedSurfaceSpace::new(
+            GuardedTopology::new(&source, ModuleCertificationLimits::DEFAULT).unwrap(),
+            &HashMap::new(),
+            ModuleCertificationLimits::DEFAULT,
+        )
+        .unwrap();
+        let rows = space.rows.clone();
+        let packed_width = rows
+            .iter()
+            .flat_map(|row| row.terms().iter().map(|&(column, _)| column))
+            .collect::<BTreeSet<_>>()
+            .len();
+        let matrix_words = 2 * rows.len() * packed_width.div_ceil(512) * 16
+            + (rows.len() + 1) * rows.len().div_ceil(64);
+        let names = [("crossing".into(), 2 * space.columns.len())];
+        space.limits.max_matrix_words = matrix_words;
+        space
+            .crossing_readout_coordinates(rows.clone(), &zx, &names, "crossing")
+            .unwrap();
+        space.limits.max_matrix_words = matrix_words - 1;
+        assert!(matches!(
+            space.crossing_readout_coordinates(rows.clone(), &zx, &names, "crossing"),
+            Err(BlockGraphError::Stabilizer(
+                StabilizerError::ResourceLimited {
+                    phase: "dense matrix words",
+                    ..
+                }
+            ))
+        ));
+        let selector = space.topology.diagram.make_node(0, ZERO, ONE).unwrap();
+        let mut conditional = rows;
+        conditional[0].active = selector;
+        assert!(
+            matches!(space.crossing_readout_coordinates(conditional, &zx, &names, "crossing"), Err(BlockGraphError::Stabilizer(StabilizerError::MeasurementSurfaceUnavailable { mvar })) if mvar == "crossing")
+        );
+    }
 
     #[test]
     fn gc_policy_graph_remaps_pending_roots_and_keeps_explicit_quota_checks() {
@@ -3042,17 +4405,20 @@ mod tests {
         assert_eq!(actual.columns, expected.columns);
         assert_eq!(remap[actual.topology.domain.0], expected.topology.domain);
         assert_eq!(actual.surfaces.len(), expected.surfaces.len());
-        for (actual, expected) in actual.surfaces.iter().zip(&expected.surfaces) {
-            assert_eq!(remap[actual.row.active.0], expected.row.active);
+        for (actual_surface, expected_surface) in actual.surfaces.iter().zip(&expected.surfaces) {
+            let actual_row = actual.coordinates.expand(&actual_surface.row);
+            let expected_row = expected.coordinates.expand(&expected_surface.row);
+            let (actual, expected) = (actual_surface, expected_surface);
+            assert_eq!(remap[actual_row.active.0], expected_row.active);
             assert_eq!(
-                actual
-                    .row
+                actual_row
                     .terms()
                     .iter()
                     .map(|&(column, value)| (column, remap[value.0]))
                     .collect::<Vec<_>>(),
-                expected.row.terms(),
-                "complete raw witness, including off-domain coefficients"
+                expected_row.terms(),
+                "complete raw witness, including off-domain coefficients: {:?}",
+                actual.kind
             );
             assert_eq!(
                 actual
@@ -3077,6 +4443,484 @@ mod tests {
                 GuardedSurfaceKind::LogicalReadout => {}
             }
             assert_eq!(kind, expected.kind, "ordered role, label, and folds");
+        }
+    }
+
+    #[test]
+    fn packed_source_normalization_matches_sparse_original_queries() {
+        let row = |bits: &[usize]| BooleanRow::from_terms(ONE, bits.iter().map(|&bit| (bit, ONE)));
+        let source_rows = vec![row(&[0]), row(&[2]), row(&[4]), row(&[6]), row(&[0, 2])];
+        let queries = HashMap::from([
+            (vec![0], vec![(0, ONE)]),
+            (vec![2], vec![(0, ONE), (2, ONE)]),
+            (vec![4], vec![(2, ONE), (4, ONE)]),
+            (vec![6], vec![(4, ONE), (6, ONE)]),
+            (vec![0, 2], vec![(4, ONE), (6, ONE)]),
+        ]);
+        let width = 8;
+        let mut compared = 0;
+        for bits in 0..4096usize {
+            let vectors = [bits & 15, (bits >> 4) & 15, (bits >> 8) & 15];
+            if (1..8).any(|selection| {
+                vectors.iter().enumerate().fold(0, |sum, (index, &row)| {
+                    sum ^ if selection & (1 << index) != 0 {
+                        row
+                    } else {
+                        0
+                    }
+                }) == 0
+            }) {
+                continue;
+            }
+            compared += 1;
+            let rows = (0..3)
+                .map(|index| {
+                    BooleanRow::from_terms(
+                        ONE,
+                        (0..4).filter_map(|column| {
+                            (bits & (1 << (4 * index + column)) != 0).then_some((2 * column, ONE))
+                        }),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let expected = GuardedSurfaceSpace::restore_source_basis_sparse(
+                rows.clone(),
+                &source_rows,
+                &queries,
+                &mut Default::default(),
+            )
+            .unwrap();
+            let actual = GuardedSurfaceSpace::restore_source_basis_packed(
+                rows,
+                &source_rows,
+                &queries,
+                width,
+                usize::MAX,
+                &mut Default::default(),
+            )
+            .unwrap();
+            assert_eq!(
+                actual
+                    .into_iter()
+                    .map(BooleanRow::into_terms)
+                    .collect::<Vec<_>>(),
+                expected
+                    .into_iter()
+                    .map(BooleanRow::into_terms)
+                    .collect::<Vec<_>>()
+            );
+        }
+        assert_eq!(compared, 2520);
+        let mut limited = bloq_utils::boolean::BooleanDecisionDiagram::with_limits(
+            bloq_utils::boolean::BooleanLimits {
+                max_nodes: 0,
+                max_steps: 0,
+            },
+        );
+        assert!(matches!(
+            GuardedSurfaceSpace::restore_source_basis_packed(
+                vec![row(&[0])],
+                &source_rows,
+                &queries,
+                width,
+                usize::MAX,
+                &mut limited
+            ),
+            Err(BlockGraphError::Stabilizer(
+                StabilizerError::ResourceLimited {
+                    phase: "Boolean work steps",
+                    ..
+                }
+            ))
+        ));
+        let token = crate::CancellationToken::new();
+        token.scope(|| {
+            token.cancel();
+            assert!(matches!(
+                GuardedSurfaceSpace::restore_source_basis_packed(
+                    vec![row(&[0])],
+                    &source_rows,
+                    &queries,
+                    width,
+                    usize::MAX,
+                    &mut Default::default()
+                ),
+                Err(BlockGraphError::Stabilizer(StabilizerError::Cancelled(_)))
+            ));
+        });
+    }
+
+    #[test]
+    fn sparse_source_modes_respect_the_packed_matrix_cap_without_expansion() {
+        let rows = (0..128)
+            .map(|index| BooleanRow::from_terms(ONE, [(1024 * index, ONE)]))
+            .collect::<Vec<_>>();
+        let queries = (0..128)
+            .map(|index| (vec![1024 * index], vec![(1024 * index, ONE)]))
+            .collect::<HashMap<_, _>>();
+        for width in [128 * 1024, usize::MAX] {
+            let mut diagram = bloq_utils::boolean::BooleanDecisionDiagram::with_limits(
+                bloq_utils::boolean::BooleanLimits {
+                    max_nodes: 0,
+                    max_steps: 20_000,
+                },
+            );
+            let actual = GuardedSurfaceSpace::restore_source_basis_packed(
+                rows.clone(),
+                &rows,
+                &queries,
+                width,
+                0,
+                &mut diagram,
+            )
+            .unwrap();
+            assert_eq!(
+                actual.iter().map(BooleanRow::terms).collect::<Vec<_>>(),
+                rows.iter().map(BooleanRow::terms).collect::<Vec<_>>()
+            );
+        }
+        let small = vec![
+            BooleanRow::from_terms(ONE, [(0, ONE)]),
+            BooleanRow::from_terms(ONE, [(1, ONE)]),
+        ];
+        let queries = HashMap::from([(vec![0], vec![(0, ONE)]), (vec![1], vec![(1, ONE)])]);
+        for limit in [1, 2] {
+            let actual = GuardedSurfaceSpace::restore_source_basis_packed(
+                small.clone(),
+                &small,
+                &queries,
+                64,
+                limit,
+                &mut Default::default(),
+            )
+            .unwrap();
+            assert_eq!(
+                actual.iter().map(BooleanRow::terms).collect::<Vec<_>>(),
+                small.iter().map(BooleanRow::terms).collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn source_reference_section_is_independent_of_reduced_basis() {
+        let mut graph = crate::BlockGraph::new();
+        for x in 0..4 {
+            graph.add_block(crate::Block::new(
+                IVec3::new(2 * x, 0, 0),
+                crate::BlockKind::Cube(crate::CubeKind::ZXX),
+            ));
+        }
+        let limits = ModuleCertificationLimits::DEFAULT;
+        let mut space = GuardedSurfaceSpace::build::<false>(
+            GuardedTopology::new(&graph, limits).unwrap(),
+            &HashMap::new(),
+            limits,
+            &HashMap::new(),
+        )
+        .unwrap();
+        let zx = ZXGraph::from_block_graph_for_analysis(&graph).unwrap();
+        let row = |bits: &[usize]| {
+            BooleanRow::from_terms(ONE, bits.iter().copied().map(|bit| (bit, ONE)))
+        };
+        let mut oracle =
+            BooleanRowSpace::new(space.rows.clone(), &mut space.topology.diagram).unwrap();
+        for query in [vec![(4, ONE)], vec![(0, ONE), (2, ONE), (6, ONE)]] {
+            oracle
+                .eliminate_linear(&query, &mut space.topology.diagram)
+                .unwrap();
+        }
+        let expected = oracle
+            .into_rows(&mut space.topology.diagram)
+            .unwrap()
+            .into_iter()
+            .map(BooleanRow::into_terms)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            expected,
+            [row(&[0, 2]).into_terms(), row(&[0, 6]).into_terms()]
+        );
+        let aliases = [Some(0), None, Some(2), None, Some(4), None, Some(6), None];
+        for basis in [
+            vec![row(&[2, 6]), row(&[0, 2])],
+            vec![row(&[0, 2]), row(&[2, 6])],
+            vec![row(&[0, 6]), row(&[2, 6])],
+        ] {
+            let actual = GuardedSurfaceSpace::restore_source_basis(
+                &zx,
+                &space.columns,
+                &aliases,
+                &space.rows,
+                basis,
+                limits.max_matrix_words,
+                &mut space.topology.diagram,
+            )
+            .unwrap();
+            assert_eq!(
+                actual
+                    .into_iter()
+                    .map(BooleanRow::into_terms)
+                    .collect::<Vec<_>>(),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn representative_zx_reuse_preserves_plans_and_cancellation() {
+        for gallery in [
+            crate::GalleryItem::CNOT,
+            crate::GalleryItem::CZSpatialH,
+            crate::GalleryItem::THTH,
+        ] {
+            let source = gallery
+                .build()
+                .materialize_root_graph()
+                .unwrap()
+                .fix_shadowed_faces();
+            let limits = ModuleCertificationLimits::DEFAULT;
+            let mut cached = GuardedSurfaceSpace::new(
+                GuardedTopology::new(&source, limits).unwrap(),
+                &HashMap::new(),
+                limits,
+            )
+            .unwrap();
+            assert!(cached.representative_zx.is_some());
+            let token = crate::CancellationToken::new();
+            token.scope(|| {
+                token.cancel();
+                assert!(matches!(
+                    cached.take_representative_zx(),
+                    Err(BlockGraphError::Stabilizer(StabilizerError::Cancelled(_)))
+                ));
+            });
+            let mut uncached = cached.clone();
+            uncached.representative_zx = None;
+            let mut replaced = cached.clone();
+            replaced.topology = GuardedTopology::new(&source, limits).unwrap();
+            let mut collected = cached.clone();
+            collected.collect_readout_roots(std::iter::empty()).unwrap();
+            for space in [&mut cached, &mut uncached, &mut replaced, &mut collected] {
+                space.native_gauges = space.certify_native_gauges().unwrap();
+                space.plan_causal_readouts::<true, true>().unwrap();
+                space.lift_native_surfaces().unwrap();
+            }
+            for actual in [&cached, &replaced, &collected] {
+                assert_same_raw_plan(actual, &uncached);
+            }
+        }
+    }
+
+    #[test]
+    fn equality_reduction_preserves_original_readout_and_frame_queries() {
+        for gallery in [
+            crate::GalleryItem::CNOT,
+            crate::GalleryItem::CZSpatialH,
+            crate::GalleryItem::CZTemporalH,
+            crate::GalleryItem::S,
+            crate::GalleryItem::T,
+            crate::GalleryItem::TWithPreparedY,
+            crate::GalleryItem::THTH,
+            crate::GalleryItem::XMemory,
+            crate::GalleryItem::YMemory,
+            crate::GalleryItem::Stability,
+            crate::GalleryItem::GHZSlideThenGlide,
+        ] {
+            let source = gallery
+                .build()
+                .materialize_root_graph()
+                .unwrap()
+                .fix_shadowed_faces();
+            let limits = ModuleCertificationLimits::DEFAULT;
+            let topology = GuardedTopology::new(&source, limits).unwrap();
+            let mut actual = GuardedSurfaceSpace::build::<true>(
+                topology.clone(),
+                &HashMap::new(),
+                limits,
+                &HashMap::new(),
+            )
+            .unwrap();
+            let mut expected = GuardedSurfaceSpace::build::<false>(
+                topology,
+                &HashMap::new(),
+                limits,
+                &HashMap::new(),
+            )
+            .unwrap();
+            assert!(!actual.coordinates.is_identity(), "{gallery:?}");
+            assert_eq!(
+                actual
+                    .rows
+                    .iter()
+                    .map(|row| actual.coordinates.expand(row).into_terms())
+                    .collect::<Vec<_>>(),
+                expected
+                    .rows
+                    .iter()
+                    .map(|row| row.clone().into_terms())
+                    .collect::<Vec<_>>(),
+                "ordered original tensor-source basis for {gallery:?}"
+            );
+            let zx = ZXGraph::from_block_graph_for_analysis(&source).unwrap();
+            assert_eq!(
+                actual
+                    .relation_view()
+                    .materialize_relation(&zx, |value| value == ONE),
+                expected.materialize_relation(&zx, |value| value == ONE),
+                "certificate presentation keeps original support for {gallery:?}"
+            );
+            for space in [&mut actual, &mut expected] {
+                space.native_gauges = space.certify_native_gauges().unwrap();
+                space.plan_causal_readouts::<true, true>().unwrap();
+                space.lift_native_surfaces().unwrap();
+                // Compare the complete physical recipes after the compiler's
+                // prescribed back-substitution, keeping production rows triangular.
+                expand_output_folds(&mut space.surfaces, &mut space.topology.diagram);
+            }
+            assert_same_raw_plan(&actual, &expected);
+        }
+    }
+
+    #[test]
+    fn equality_reduction_preserves_prepared_yoke_reference_sections() {
+        let mut source = crate::GalleryItem::OneDYoked.build().flatten().unwrap();
+        source
+            .set_block_kind(IVec3::ZERO, crate::BlockKind::T)
+            .unwrap();
+        for quarter_turns in [0, 1] {
+            let source = source
+                .rotate_about_origin(crate::UDirection::Z, quarter_turns)
+                .unwrap()
+                .fix_shadowed_faces();
+            let limits = ModuleCertificationLimits::DEFAULT;
+            let topology = GuardedTopology::new(&source, limits).unwrap();
+            let mut actual = GuardedSurfaceSpace::build::<true>(
+                topology.clone(),
+                &HashMap::new(),
+                limits,
+                &HashMap::new(),
+            )
+            .unwrap();
+            let mut expected = GuardedSurfaceSpace::build::<false>(
+                topology,
+                &HashMap::new(),
+                limits,
+                &HashMap::new(),
+            )
+            .unwrap();
+            assert!(!actual.coordinates.is_identity());
+            assert_eq!(
+                actual
+                    .rows
+                    .iter()
+                    .map(|row| actual.coordinates.expand(row).into_terms())
+                    .collect::<Vec<_>>(),
+                expected
+                    .rows
+                    .iter()
+                    .map(|row| row.clone().into_terms())
+                    .collect::<Vec<_>>(),
+                "prepared resource reference after {quarter_turns} quarter turns"
+            );
+            for space in [&mut actual, &mut expected] {
+                space.plan_causal_readouts::<true, true>().unwrap();
+                expand_output_folds(&mut space.surfaces, &mut space.topology.diagram);
+            }
+            assert_same_raw_plan(&actual, &expected);
+        }
+    }
+
+    #[test]
+    fn symbolic_coordinate_aliases_preserve_off_activation_queries() {
+        let mut diagram = bloq_utils::boolean::BooleanDecisionDiagram::default();
+        let active = diagram.make_node(0, ZERO, ONE).unwrap();
+        let mut rows = vec![BooleanRow::from_terms(
+            active,
+            [(0, ONE), (1, ONE), (2, active)],
+        )];
+        let original = rows.clone();
+        let aliases = crate::summary::relations::coalesce_columns(&mut rows, 0..4, &mut diagram)
+            .unwrap()
+            .into_iter()
+            .map(|(_, alias)| alias)
+            .collect();
+        let coordinates = SurfaceCoordinates::new(aliases);
+        for assignment in [false, true] {
+            for column in 0..4 {
+                assert_eq!(
+                    diagram.evaluate(coordinates.get(&rows[0], column), |_| assignment),
+                    diagram.evaluate(original[0].get(column), |_| assignment),
+                    "original query {column}, activation {assignment}"
+                );
+            }
+        }
+        assert_eq!(
+            coordinates.expand(&rows[0]).into_terms(),
+            original[0].terms()
+        );
+    }
+
+    #[test]
+    fn symbolic_and_module_reduction_preserves_original_queries_and_plans() {
+        let conditional = crate::lower_blog_graph_ast_deferred(
+            &crate::parse_blog_program_to_ast(include_str!(
+                "../../../docs/fixtures/conditional_cz_strip.blog"
+            ))
+            .unwrap(),
+        )
+        .unwrap();
+        for program in [
+            crate::GalleryItem::PhaseGradientK4.build(),
+            crate::GalleryItem::ThreeBitAdder.build(),
+            conditional,
+        ] {
+            let linked = crate::flatten_module_definition(&program, program.root(), "").unwrap();
+            let source = linked.graph.fix_shadowed_faces();
+            let limits = ModuleCertificationLimits::DEFAULT;
+            let topology = GuardedTopology::new(&source, limits).unwrap();
+            let mut actual = GuardedSurfaceSpace::build::<true>(
+                topology.clone(),
+                &linked.sites,
+                limits,
+                &HashMap::new(),
+            )
+            .unwrap();
+            let mut expected = GuardedSurfaceSpace::build::<false>(
+                topology,
+                &linked.sites,
+                limits,
+                &HashMap::new(),
+            )
+            .unwrap();
+            assert!(
+                actual
+                    .rows
+                    .iter()
+                    .map(|row| row.terms().len())
+                    .sum::<usize>()
+                    < expected
+                        .rows
+                        .iter()
+                        .map(|row| row.terms().len())
+                        .sum::<usize>(),
+                "fixture must exercise a smaller stored complete relation"
+            );
+            assert_eq!(
+                actual
+                    .rows
+                    .iter()
+                    .map(|row| (row.active, actual.coordinates.expand(row).into_terms()))
+                    .collect::<Vec<_>>(),
+                expected
+                    .rows
+                    .iter()
+                    .map(|row| (row.active, row.clone().into_terms()))
+                    .collect::<Vec<_>>()
+            );
+            for space in [&mut actual, &mut expected] {
+                space.plan_causal_readouts::<true, true>().unwrap();
+                expand_output_folds(&mut space.surfaces, &mut space.topology.diagram);
+            }
+            assert_same_raw_plan(&actual, &expected);
         }
     }
 
@@ -3299,14 +5143,15 @@ mod tests {
                     SurfaceColumn::Node(port.to_array()),
                     [Pauli::X, Pauli::Z][axis],
                 );
-                let value =
-                    GuardedSurfaceSpace::linear_value(row, &terms, &mut space.topology.diagram)
+                let diagram = &mut space.topology.diagram;
+                diagram.charge(terms.len()).unwrap();
+                let value = terms.iter().fold(ZERO, |value, &(column, weight)| {
+                    let term = diagram
+                        .apply(BooleanOp::And, weight, row.get(column))
                         .unwrap();
-                let guard = space
-                    .topology
-                    .diagram
-                    .apply(BooleanOp::And, row.active, value)
-                    .unwrap();
+                    diagram.apply(BooleanOp::Xor, value, term).unwrap()
+                });
+                let guard = diagram.apply(BooleanOp::And, row.active, value).unwrap();
                 if guard != ZERO {
                     expected.push((
                         port,
@@ -3534,6 +5379,8 @@ mod tests {
             limits,
         )
         .unwrap();
+        // Synthetic rows below deliberately use independent original coordinates.
+        space.coordinates = SurfaceCoordinates::default();
         let column = |position| space.node_components(position)[0][0].0;
         // Z anticommutes with both choices of this X/Y selective site.
         let selective = column(space.topology.resolves[0].0.to_array()) + 1;
@@ -3658,7 +5505,8 @@ mod tests {
             for order in &orders {
                 let mut diagram = original.clone();
                 let (mut state, mut available) =
-                    GuardedAvailability::new(rows.clone(), &constraints, 14, &mut diagram).unwrap();
+                    GuardedAvailability::new(rows.clone(), &constraints, 14, &[], &mut diagram)
+                        .unwrap();
                 let mut pending = (0..4)
                     .map(AvailabilityKey::Feedback)
                     .collect::<BTreeSet<_>>();
@@ -3714,7 +5562,13 @@ mod tests {
                     if cut < 4 {
                         pending.remove(&AvailabilityKey::Feedback(order[cut]));
                         state
-                            .release(&pending, &readouts, &mut available, &mut diagram)
+                            .release(&pending, &mut diagram, |mut row, diagram| {
+                                readouts.project(&mut row, diagram)?;
+                                if !row.terms().is_empty() {
+                                    available.push(row, diagram)?;
+                                }
+                                Ok(())
+                            })
                             .unwrap();
                     }
                 }
@@ -3874,15 +5728,633 @@ mod tests {
                     );
                 }
             }
+            let column_weights = space
+                .coordinates
+                .support_weights(&mut space.topology.diagram)
+                .unwrap();
             let (_, available) = GuardedAvailability::new(
                 vec![commuting.clone()],
                 &[(AvailabilityKey::Feedback(0), terms)],
                 2 * space.columns.len(),
+                &column_weights,
                 &mut space.topology.diagram,
             )
             .unwrap();
             assert_eq!(available.len(), 1);
             assert_eq!(available.rows().next().unwrap().terms(), commuting.terms());
+        }
+    }
+
+    #[test]
+    fn reclaimed_pivots_preserve_original_reader_completion_times() {
+        let limits = ModuleCertificationLimits::DEFAULT;
+        let mut compact = GuardedSurfaceSpace::new(
+            GuardedTopology::new(&crate::BlockGraph::new(), limits).unwrap(),
+            &HashMap::new(),
+            limits,
+        )
+        .unwrap();
+        let mut original = compact.clone();
+        compact.coordinates = SurfaceCoordinates::new(vec![
+            Some(0),
+            Some(1),
+            Some(2),
+            Some(3),
+            Some(0),
+            Some(0),
+            Some(0),
+            None,
+        ]);
+        let a = compact.topology.diagram.make_node(0, ZERO, ONE).unwrap();
+        let b = compact.topology.diagram.make_node(1, ZERO, ONE).unwrap();
+        assert_eq!(
+            a,
+            original.topology.diagram.make_node(0, ZERO, ONE).unwrap()
+        );
+        assert_eq!(
+            b,
+            original.topology.diagram.make_node(1, ZERO, ONE).unwrap()
+        );
+        // Rows 0 XOR 3 supply the accepted reader; rows 1 XOR 2 supply the next.
+        let rows = vec![
+            BooleanRow::from_terms(ONE, [(0, b), (1, ONE), (8, ONE)]),
+            BooleanRow::from_terms(ONE, [(1, ONE), (2, a), (3, ONE), (8, ONE), (9, ONE)]),
+            BooleanRow::from_terms(ONE, [(1, ONE), (2, a), (8, ONE)]),
+            BooleanRow::from_terms(ONE, [(0, b)]),
+        ];
+        let original_rows = rows
+            .iter()
+            .map(|row| compact.coordinates.expand(row))
+            .collect();
+        let reader_time = |space: &mut GuardedSurfaceSpace, rows| {
+            let column_weights = space
+                .coordinates
+                .support_weights(&mut space.topology.diagram)
+                .unwrap();
+            let mut rows = BooleanRowSpace::new(rows, &mut space.topology.diagram).unwrap();
+            let mut pivots = GuardedPivots::default();
+            let readout = BooleanRow::from_terms(ONE, [(1, ONE), (8, ONE)]);
+            space
+                .reclaim_readouts(&mut rows, &mut pivots, vec![readout], &column_weights)
+                .unwrap();
+            let retained = rows
+                .rows()
+                .map(|row| (row.active, space.coordinates.expand(row).into_terms()))
+                .collect::<Vec<_>>();
+            let restored = BooleanRowSpace::new(
+                rows.rows().chain(pivots.rows.rows()).cloned().collect(),
+                &mut space.topology.diagram,
+            )
+            .unwrap();
+            let mut timing = ReadoutTiming::new(
+                vec![0; 10],
+                vec![10, 20],
+                ONE,
+                space.topology.diagram.generation(),
+            );
+            for row in restored.rows() {
+                timing.include(row, &mut space.topology.diagram).unwrap();
+            }
+            let named = space
+                .reduce_named_rows(restored, [9].into_iter(), &timing.columns, true)
+                .unwrap();
+            let reader = space.named_row(&named, 9).unwrap();
+            assert_eq!(reader.active, ONE);
+            assert_eq!(reader.terms(), [(3, ONE), (9, ONE)]);
+            let time = timing.row(&reader, 9, &mut space.topology.diagram).unwrap();
+            (time, retained)
+        };
+        let original = reader_time(&mut original, original_rows);
+        assert_eq!(original.0, 0);
+        assert_eq!(reader_time(&mut compact, rows), original);
+    }
+
+    #[test]
+    fn availability_pivots_preserve_original_reader_completion_times() {
+        let limits = ModuleCertificationLimits::DEFAULT;
+        let mut compact = GuardedSurfaceSpace::new(
+            GuardedTopology::new(&crate::BlockGraph::new(), limits).unwrap(),
+            &HashMap::new(),
+            limits,
+        )
+        .unwrap();
+        let mut original = compact.clone();
+        compact.coordinates = SurfaceCoordinates::new(vec![
+            Some(0),
+            Some(1),
+            Some(2),
+            Some(3),
+            Some(0),
+            Some(0),
+            Some(0),
+            None,
+        ]);
+        let a = compact.topology.diagram.make_node(0, ZERO, ONE).unwrap();
+        let b = compact.topology.diagram.make_node(1, ZERO, ONE).unwrap();
+        assert_eq!(
+            a,
+            original.topology.diagram.make_node(0, ZERO, ONE).unwrap()
+        );
+        assert_eq!(
+            b,
+            original.topology.diagram.make_node(1, ZERO, ONE).unwrap()
+        );
+        let rows = vec![
+            BooleanRow::from_terms(ONE, [(0, b)]),
+            BooleanRow::from_terms(ONE, [(0, b), (2, a), (3, ONE), (8, ONE), (9, a)]),
+            BooleanRow::from_terms(a, [(1, ONE), (2, ONE)]),
+            BooleanRow::from_terms(ONE, [(2, ONE), (9, ONE)]),
+        ];
+        let original_rows = rows
+            .iter()
+            .map(|row| compact.coordinates.expand(row))
+            .collect();
+        let keys = [
+            AvailabilityKey::Site([0, 0, 0]),
+            AvailabilityKey::Site([1, 0, 0]),
+        ];
+        let constraints = [(keys[0], vec![(0, b), (1, b)]), (keys[1], vec![(3, a)])];
+        let reader_time = |space: &mut GuardedSurfaceSpace, rows| {
+            let column_weights = space
+                .coordinates
+                .support_weights(&mut space.topology.diagram)
+                .unwrap();
+            let (mut availability, mut rows) = GuardedAvailability::new(
+                rows,
+                &constraints,
+                10,
+                &column_weights,
+                &mut space.topology.diagram,
+            )
+            .unwrap();
+            for pending in [BTreeSet::from([keys[1]]), BTreeSet::new()] {
+                availability
+                    .release(&pending, &mut space.topology.diagram, |row, diagram| {
+                        rows.push(row, diagram)
+                    })
+                    .unwrap();
+            }
+            let mut timing = ReadoutTiming::new(
+                vec![0; 10],
+                vec![10, 20],
+                ONE,
+                space.topology.diagram.generation(),
+            );
+            for row in rows.rows() {
+                timing.include(row, &mut space.topology.diagram).unwrap();
+            }
+            let named = space
+                .reduce_named_rows(rows, [8, 9].into_iter(), &timing.columns, true)
+                .unwrap();
+            let reader = space.named_row(&named, 8).unwrap();
+            assert_eq!(reader.active, ONE);
+            assert_eq!(reader.terms(), [(3, ONE), (8, ONE)]);
+            timing.row(&reader, 8, &mut space.topology.diagram).unwrap()
+        };
+        let original_time = reader_time(&mut original, original_rows);
+        assert_eq!(original_time, 20);
+        assert_eq!(reader_time(&mut compact, rows), original_time);
+    }
+
+    #[test]
+    fn aliased_reader_priorities_follow_original_feedback_costs() {
+        let limits = ModuleCertificationLimits::DEFAULT;
+        let mut actual = GuardedSurfaceSpace::new(
+            GuardedTopology::new(&crate::BlockGraph::new(), limits).unwrap(),
+            &HashMap::new(),
+            limits,
+        )
+        .unwrap();
+        let mut expected = actual.clone();
+        actual.coordinates = SurfaceCoordinates::new(vec![Some(0), Some(1), Some(0), None]);
+        let guard = actual.topology.diagram.make_node(0, ZERO, ONE).unwrap();
+        assert_eq!(
+            expected.topology.diagram.make_node(0, ZERO, ONE).unwrap(),
+            guard
+        );
+        let early = actual.topology.diagram.make_node(1, ZERO, ONE).unwrap();
+        assert_eq!(
+            expected.topology.diagram.make_node(1, ZERO, ONE).unwrap(),
+            early
+        );
+        let timing = |aliases: &[usize]| {
+            let mut timing = ReadoutTiming::new(vec![i64::MIN; 7], vec![i64::MAX; 2], ONE, 0);
+            timing.outcomes.insert("late".into(), (Some(0), 5));
+            timing.outcomes.insert("early".into(), (Some(1), 6));
+            timing.pending = vec![
+                ColumnTiming {
+                    column: aliases[0],
+                    original: 0,
+                    earliest: 1,
+                    guards: Vec::new(),
+                },
+                ColumnTiming {
+                    column: aliases[1],
+                    original: 1,
+                    earliest: 10,
+                    guards: Vec::new(),
+                },
+                ColumnTiming {
+                    column: aliases[2],
+                    original: 2,
+                    earliest: 1,
+                    guards: vec![guard],
+                },
+            ];
+            timing
+                .pending
+                .sort_unstable_by_key(|profile| profile.column);
+            timing
+        };
+        let mut actual_timing = timing(&[0, 1, 0]);
+        let mut expected_timing = timing(&[0, 1, 2]);
+        let actual_rows = vec![
+            BooleanRow::from_terms(ONE, [(0, ONE), (4, ONE)]),
+            BooleanRow::from_terms(ONE, [(0, ONE), (1, ONE)]),
+        ];
+        let expected_rows = vec![
+            BooleanRow::from_terms(ONE, [(0, ONE), (2, ONE), (4, ONE)]),
+            BooleanRow::from_terms(ONE, [(0, ONE), (1, ONE), (2, ONE)]),
+        ];
+        let reader = |space: &mut GuardedSurfaceSpace,
+                      rows: &[BooleanRow],
+                      timing: &ReadoutTiming| {
+            let rows = BooleanRowSpace::new(rows.to_vec(), &mut space.topology.diagram).unwrap();
+            let named = space
+                .reduce_named_rows(rows, [4].into_iter(), &timing.columns, true)
+                .unwrap();
+            space.named_row(&named, 4).unwrap()
+        };
+        let assert_cached = |space: &mut GuardedSurfaceSpace,
+                             cached: &ConstantReadoutBasis,
+                             timing: &ReadoutTiming,
+                             expected: &BooleanRow,
+                             expected_time: i64| {
+            let (row, time) = cached
+                .ready_candidate(4, &[true], &timing.columns, &mut space.topology.diagram)
+                .unwrap()
+                .unwrap();
+            assert_eq!(space.coordinates.expand(row).terms(), expected.terms());
+            assert_eq!(time, expected_time);
+            let spent = space.topology.diagram.steps();
+            assert_eq!(
+                cached
+                    .ready_candidate(4, &[true], &timing.columns, &mut space.topology.diagram)
+                    .unwrap()
+                    .unwrap()
+                    .1,
+                time
+            );
+            assert_eq!(
+                space.topology.diagram.steps(),
+                spent + 1,
+                "cached summary does not rescan support"
+            );
+            time
+        };
+        actual_timing.refresh(&mut actual.topology.diagram).unwrap();
+        expected_timing
+            .refresh(&mut expected.topology.diagram)
+            .unwrap();
+        let mut cached = ConstantReadoutBasis::new(
+            &actual_timing,
+            &[("m".into(), 4)],
+            4,
+            &mut actual.topology.diagram,
+        )
+        .unwrap();
+        for row in &actual_rows {
+            cached
+                .insert(row.clone(), &mut actual.topology.diagram)
+                .unwrap();
+        }
+        for known in [false, true] {
+            let selected = reader(&mut actual, &actual_rows, &actual_timing);
+            let reference = reader(&mut expected, &expected_rows, &expected_timing);
+            assert_eq!(
+                actual.coordinates.expand(&selected).terms(),
+                reference.terms()
+            );
+            let expected_time = expected_timing
+                .row(&reference, 4, &mut expected.topology.diagram)
+                .unwrap();
+            assert_cached(
+                &mut actual,
+                &cached,
+                &actual_timing,
+                &reference,
+                expected_time,
+            );
+            assert_eq!(reference.get(0) == ONE, known);
+            if !known {
+                for (space, timing) in [
+                    (&mut actual, &mut actual_timing),
+                    (&mut expected, &mut expected_timing),
+                ] {
+                    timing
+                        .learn([("late", 10)], &mut space.topology.diagram)
+                        .unwrap();
+                    timing.refresh(&mut space.topology.diagram).unwrap();
+                }
+                cached
+                    .refresh(&actual_timing, &mut actual.topology.diagram)
+                    .unwrap();
+            }
+        }
+        // A row control raises every alias, including the representative, even
+        // when it only ties the class's existing maximum completion time.
+        actual_timing
+            .include(
+                &BooleanRow::from_terms(ONE, [(0, guard)]),
+                &mut actual.topology.diagram,
+            )
+            .unwrap();
+        expected_timing
+            .include(
+                &BooleanRow::from_terms(ONE, [(0, guard), (2, guard)]),
+                &mut expected.topology.diagram,
+            )
+            .unwrap();
+        let selected = reader(&mut actual, &actual_rows, &actual_timing);
+        let reference = reader(&mut expected, &expected_rows, &expected_timing);
+        assert_eq!(
+            actual.coordinates.expand(&selected).terms(),
+            reference.terms()
+        );
+        assert_eq!(reference.terms(), [(1, ONE), (4, ONE)]);
+        actual_timing.refresh(&mut actual.topology.diagram).unwrap();
+        expected_timing
+            .refresh(&mut expected.topology.diagram)
+            .unwrap();
+        let selected = reader(&mut actual, &actual_rows, &actual_timing);
+        let reference = reader(&mut expected, &expected_rows, &expected_timing);
+        assert_eq!(
+            actual.coordinates.expand(&selected).terms(),
+            reference.terms()
+        );
+        assert_eq!(reference.terms(), [(0, ONE), (2, ONE), (4, ONE)]);
+
+        let mut actual_timing = timing(&[0, 1, 0]);
+        let mut expected_timing = timing(&[0, 1, 2]);
+        for (space, timing) in [
+            (&mut actual, &mut actual_timing),
+            (&mut expected, &mut expected_timing),
+        ] {
+            for profile in &mut timing.pending {
+                match profile.original {
+                    0 => profile.guards.push(early),
+                    1 => profile.guards.push(guard),
+                    _ => {}
+                }
+            }
+            timing.refresh(&mut space.topology.diagram).unwrap();
+        }
+        let mut cached = ConstantReadoutBasis::new(
+            &actual_timing,
+            &[("m".into(), 4)],
+            4,
+            &mut actual.topology.diagram,
+        )
+        .unwrap();
+        for row in &actual_rows {
+            cached
+                .insert(row.clone(), &mut actual.topology.diagram)
+                .unwrap();
+        }
+        for step in 0..3 {
+            let reference = reader(&mut expected, &expected_rows, &expected_timing);
+            let expected_time = expected_timing
+                .row(&reference, 4, &mut expected.topology.diagram)
+                .unwrap();
+            let cached_time = assert_cached(
+                &mut actual,
+                &cached,
+                &actual_timing,
+                &reference,
+                expected_time,
+            );
+            assert_eq!(reference.get(0) == ONE, step == 1);
+            assert_eq!(cached_time, if step == 2 { 10 } else { i64::MAX });
+            if step < 2 {
+                // The first transition keeps MAX but moves its winning alias
+                // from original 0 to 2, past the independent original column 1.
+                let name = if step == 0 { "early" } else { "late" };
+                for (space, timing) in [
+                    (&mut actual, &mut actual_timing),
+                    (&mut expected, &mut expected_timing),
+                ] {
+                    timing
+                        .learn([(name, 10)], &mut space.topology.diagram)
+                        .unwrap();
+                    timing.refresh(&mut space.topology.diagram).unwrap();
+                }
+                cached
+                    .refresh(&actual_timing, &mut actual.topology.diagram)
+                    .unwrap();
+            }
+        }
+    }
+
+    #[test]
+    fn readout_timing_learns_fixed_times_and_resets_after_collection() {
+        let program = crate::parse_blog_program_to_ast(include_str!(
+            "../../../docs/fixtures/conditional_cz_strip.blog"
+        ))
+        .unwrap();
+        let program = crate::lower_blog_graph_ast_deferred(&program).unwrap();
+        let linked = crate::flatten_module_definition(&program, program.root(), "").unwrap();
+        let limits = ModuleCertificationLimits::DEFAULT;
+        let mut space = GuardedSurfaceSpace::new(
+            GuardedTopology::new(&linked.graph.fix_shadowed_faces(), limits).unwrap(),
+            &linked.sites,
+            limits,
+        )
+        .unwrap();
+        let names = space
+            .topology
+            .variables
+            .iter()
+            .filter_map(|variable| match variable {
+                crate::GuardedVariable::Outcome(name) => Some(name.clone()),
+                crate::GuardedVariable::Branch { .. } => None,
+            })
+            .enumerate()
+            .map(|(index, name)| (name, 2 * space.columns.len() + index))
+            .collect::<Vec<_>>();
+        let a = space
+            .topology
+            .condition(&crate::Expr::Var(names[0].0.clone()));
+        let b = space
+            .topology
+            .condition(&crate::Expr::Var(names[1].0.clone()));
+        let different = space.topology.diagram.apply(BooleanOp::Xor, a, b).unwrap();
+        let same = space.topology.diagram.negate(different).unwrap();
+        space.topology.domain = space
+            .topology
+            .diagram
+            .apply(BooleanOp::And, space.topology.domain, same)
+            .unwrap();
+        let target = crate::FeedbackTarget {
+            pauli: PauliBasis::X,
+            target: IVec3::new(0, 0, -1),
+            direction: None,
+        };
+        let mut actions = space.topology.source.actions();
+        actions.push(Action::Feedback {
+            targets: vec![target],
+            condition: Some(crate::Expr::Var(names[0].0.clone())),
+        });
+        let mut doubled = actions.clone();
+        doubled.push(Action::Feedback {
+            targets: vec![target, target],
+            condition: Some(crate::Expr::Var(names[2].0.clone())),
+        });
+        let mut known = HashMap::new();
+        let mut cached: Option<ReadoutTiming> = None;
+        for step in 0..=names.len() {
+            if cached
+                .as_ref()
+                .is_none_or(|timing| timing.generation != space.topology.diagram.generation())
+            {
+                cached = Some(space.readout_timing(&names, &known, &doubled).unwrap());
+            } else {
+                cached
+                    .as_mut()
+                    .unwrap()
+                    .refresh(&mut space.topology.diagram)
+                    .unwrap();
+            }
+            let cached = cached.as_mut().unwrap();
+            let mut fresh = space.readout_timing(&names, &known, &actions).unwrap();
+            assert_eq!(cached.variables, fresh.variables);
+            assert_eq!(cached.columns, fresh.columns, "step {step}");
+            for row in &space.rows {
+                cached.include(row, &mut space.topology.diagram).unwrap();
+                fresh.include(row, &mut space.topology.diagram).unwrap();
+                assert_eq!(
+                    cached
+                        .row(row, names[0].1, &mut space.topology.diagram)
+                        .unwrap(),
+                    fresh
+                        .row(row, names[0].1, &mut space.topology.diagram)
+                        .unwrap(),
+                );
+            }
+            assert_eq!(cached.columns, fresh.columns);
+            let root = space
+                .local
+                .values()
+                .flatten()
+                .find(|site| site.guard != ONE)
+                .unwrap()
+                .guard;
+            cached.decision(root, &mut space.topology.diagram).unwrap();
+            let spent = space.topology.diagram.steps();
+            cached.decision(root, &mut space.topology.diagram).unwrap();
+            assert_eq!(
+                space.topology.diagram.steps(),
+                spent + 1,
+                "cached domain restriction"
+            );
+            if step == names.len() {
+                let diagram = &mut space.topology.diagram;
+                diagram
+                    .charge(diagram.limits().max_steps - diagram.steps())
+                    .unwrap();
+                for root in [ZERO, ONE, root] {
+                    let error = cached.decision(root, diagram).unwrap_err();
+                    assert_eq!(error.resource, "Boolean work steps");
+                }
+            }
+            if let Some((name, _)) = names.get(step) {
+                let time = [7, 3, 11][step];
+                cached
+                    .learn([(name.as_str(), time)], &mut space.topology.diagram)
+                    .unwrap();
+                known.insert(name.clone(), time);
+            }
+            if step == 1 {
+                space.topology.diagram.make_node(99, ZERO, ONE).unwrap();
+                let generation = space.topology.diagram.generation();
+                space.collect_readout_roots(std::iter::empty()).unwrap();
+                assert_ne!(space.topology.diagram.generation(), generation);
+            }
+        }
+    }
+
+    #[test]
+    fn readout_control_times_determine_live_coefficients_on_the_source_domain() {
+        use bloq_utils::boolean::BooleanDecisionDiagram;
+
+        let mut diagram = BooleanDecisionDiagram::default();
+        let functions = (0..16)
+            .map(|table| {
+                let bit = |index| if table & (1 << index) == 0 { ZERO } else { ONE };
+                let low = diagram.make_node(1, bit(0), bit(1)).unwrap();
+                let high = diagram.make_node(1, bit(2), bit(3)).unwrap();
+                diagram.make_node(0, low, high).unwrap()
+            })
+            .collect::<Vec<_>>();
+        // Every two-variable activation/coefficient, with each nonconstant
+        // source domain and both finite and unavailable variable times.
+        for domain in 1..15 {
+            for active in 0..16 {
+                for coefficient in 0..16 {
+                    let row =
+                        BooleanRow::from_terms(functions[active], [(0, functions[coefficient])]);
+                    for variables in [[1, 2], [2, 1], [i64::MIN, i64::MAX]] {
+                        let mut timing = ReadoutTiming::new(
+                            Vec::new(),
+                            variables.to_vec(),
+                            functions[domain],
+                            diagram.generation(),
+                        );
+                        let result = timing.controls(&row, &mut diagram).unwrap();
+                        let care = domain & active;
+                        if care == 0 {
+                            assert!(result.is_none());
+                            continue;
+                        }
+                        let (time, columns) = result.unwrap();
+                        assert_eq!(
+                            columns,
+                            if care & coefficient == 0 {
+                                vec![]
+                            } else {
+                                vec![0]
+                            }
+                        );
+                        // Outcomes available at the reported time must determine
+                        // activation and, when active, the physical coefficient.
+                        for left in 0..4 {
+                            for right in 0..4 {
+                                if domain & (1 << left) == 0 || domain & (1 << right) == 0 {
+                                    continue;
+                                }
+                                if variables.iter().enumerate().any(|(variable, &ready)| {
+                                    ready <= time && ((left ^ right) & (1 << (1 - variable))) != 0
+                                }) {
+                                    continue;
+                                }
+                                let left_active = active & (1 << left) != 0;
+                                let right_active = active & (1 << right) != 0;
+                                assert_eq!(left_active, right_active);
+                                if left_active {
+                                    assert_eq!(
+                                        coefficient & (1 << left) != 0,
+                                        coefficient & (1 << right) != 0
+                                    );
+                                }
+                            }
+                        }
+                        // Correlated y may be unavailable: x still determines
+                        // both activation x and coefficient y when x == y.
+                        if domain == 9 && active == 12 && coefficient == 10 {
+                            assert_eq!(time, variables[0]);
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -4028,7 +6500,7 @@ mod tests {
         ];
         let mut rows = BooleanRowSpace::new(rows, &mut space.topology.diagram).unwrap();
         space
-            .reclaim_readouts(&mut rows, &mut GuardedPivots::default(), vec![readout])
+            .reclaim_readouts(&mut rows, &mut GuardedPivots::default(), vec![readout], &[])
             .unwrap();
         let next = rows.rows().find(|row| row.get(0) == ONE).unwrap();
         assert_eq!(next.get(4), absent);
@@ -4173,7 +6645,10 @@ mod tests {
         .map(crate::GalleryItem::build)
         .into_iter()
         .chain([crate::lower_blog_graph_ast_deferred(&conditional).unwrap()]);
-        for (program_index, program) in programs.enumerate() {
+        for (program_index, (program, reclaim_limit)) in programs
+            .flat_map(|program| [0, 64, usize::MAX].map(move |limit| (program.clone(), limit)))
+            .enumerate()
+        {
             let linked = crate::flatten_module_definition(&program, program.root(), "").unwrap();
             let graph = linked.graph.fix_shadowed_faces();
             let limits = ModuleCertificationLimits::DEFAULT;
@@ -4186,7 +6661,9 @@ mod tests {
                 .unwrap()
             };
             let mut actual = new_space();
-            actual.plan_causal_readouts::<true, true>().unwrap();
+            actual
+                .plan_causal_readouts_with_fast_path::<true, true, true>(reclaim_limit)
+                .unwrap();
             expand_output_folds(&mut actual.surfaces, &mut actual.topology.diagram);
             let mut expected = new_space();
             expected.plan_causal_readouts::<false, false>().unwrap();
@@ -4348,47 +6825,35 @@ mod tests {
         }
     }
 
-    fn assert_injective_named_lift_matches_full_causal_adder_rows(bits: usize) {
-        // The fixture crate depends on this crate; a BLOG round trip
-        // brings its program into this test's crate instance.
-        let source = bloq_test::benchmark::controlled_adder(bits);
-        let program = crate::parse_inline_graph(&source.to_blog_text()).unwrap();
-        let linked = crate::flatten_module_definition(&program, program.root(), "").unwrap();
-        let graph = linked.graph.fix_shadowed_faces();
-        let limits = ModuleCertificationLimits::DEFAULT;
-        let new_space = || {
-            GuardedSurfaceSpace::new(
-                GuardedTopology::new(&graph, limits).unwrap(),
-                &linked.sites,
-                limits,
-            )
-            .unwrap()
-        };
-        let mut actual = new_space();
-        actual
-            .plan_causal_readouts_with_fast_path::<true, true, true>()
-            .unwrap();
-        let mut expected = new_space();
-        expected
-            .plan_causal_readouts_with_fast_path::<true, true, false>()
-            .unwrap();
-        assert_eq!(actual.topology.domain, ONE, "{bits} bits");
-        assert_eq!(expected.topology.domain, ONE, "{bits} bits");
-        assert_same_raw_plan(&actual, &expected);
-    }
-
     #[test]
     fn injective_named_lifts_match_full_causal_adder_rows() {
         for bits in [3, 10] {
-            assert_injective_named_lift_matches_full_causal_adder_rows(bits);
-        }
-    }
-
-    #[test]
-    #[ignore = "larger exact causal row proof sweep"]
-    fn injective_named_lifts_match_full_causal_adder_rows_large() {
-        for bits in [20, 40] {
-            assert_injective_named_lift_matches_full_causal_adder_rows(bits);
+            // The fixture crate depends on this crate; a BLOG round trip
+            // brings its program into this test's crate instance.
+            let source = bloq_test::benchmark::controlled_adder(bits);
+            let program = crate::parse_inline_graph(&source.to_blog_text()).unwrap();
+            let linked = crate::flatten_module_definition(&program, program.root(), "").unwrap();
+            let graph = linked.graph.fix_shadowed_faces();
+            let limits = ModuleCertificationLimits::DEFAULT;
+            let new_space = || {
+                GuardedSurfaceSpace::new(
+                    GuardedTopology::new(&graph, limits).unwrap(),
+                    &linked.sites,
+                    limits,
+                )
+                .unwrap()
+            };
+            let mut actual = new_space();
+            actual
+                .plan_causal_readouts_with_fast_path::<true, true, true>(usize::MAX)
+                .unwrap();
+            let mut expected = new_space();
+            expected
+                .plan_causal_readouts_with_fast_path::<true, true, false>(usize::MAX)
+                .unwrap();
+            assert_eq!(actual.topology.domain, ONE, "{bits} bits");
+            assert_eq!(expected.topology.domain, ONE, "{bits} bits");
+            assert_same_raw_plan(&actual, &expected);
         }
     }
 
@@ -4421,7 +6886,7 @@ mod tests {
             .remove(0)
             .unwrap();
         let full = space
-            .reduce_named_rows::<true>(guarded, [2].into_iter(), &[])
+            .reduce_named_rows(guarded, [2].into_iter(), &[], true)
             .unwrap();
         let expected = space.named_row(&full, 2).unwrap();
         assert_eq!(
@@ -4538,7 +7003,7 @@ mod tests {
                 let remaining =
                     BooleanRowSpace::new(persistent.clone(), &mut space.topology.diagram).unwrap();
                 let actual_named = space
-                    .reduce_named_rows::<true>(remaining, names.iter().copied(), &[])
+                    .reduce_named_rows(remaining, names.iter().copied(), &[], true)
                     .unwrap()
                     .into_rows(&mut space.topology.diagram)
                     .unwrap();

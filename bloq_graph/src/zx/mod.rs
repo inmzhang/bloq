@@ -15,6 +15,7 @@ pub use guarded_surfaces::{GuardedSurface, GuardedSurfaceKind, GuardedSurfaceSpa
 mod layer;
 mod modular;
 mod output_correction;
+mod reduction;
 mod restriction;
 mod runtime_basis;
 mod stabilizer;
@@ -27,11 +28,11 @@ pub use output_correction::{
     solve_output_correction_symbolic, solve_output_correction_symbolic_prefix,
 };
 pub use runtime_basis::{RuntimeBasisError, RuntimeStabilizerBasis};
+#[cfg(feature = "verify")]
+pub(crate) use stabilizer::CoeffFactorization;
 pub(crate) use stabilizer::fill_ports_auto;
 #[cfg(test)]
 pub(crate) use stabilizer::reduce_to_basis;
-#[cfg(feature = "verify")]
-pub(crate) use stabilizer::solve_coeff_combination;
 pub(crate) use stabilizer::{CoeffVec, gaussian_elimination_with_tracking};
 pub use stabilizer::{
     FillPortsError, Stabilizer, StabilizerError, StabilizerGenerator, StabilizerGenerators,
