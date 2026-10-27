@@ -186,6 +186,7 @@ cargo publish -p bloq_circuit --locked
 cargo publish -p bloq_graph --locked
 cargo publish -p bloq_ir --locked
 cargo publish -p bloq_compile --locked
+cargo publish -p bloq-interop --locked
 cargo publish -p bloq_stim --locked
 cargo publish -p bloq-cli --locked
 cargo publish -p bloq_editor --locked
@@ -194,7 +195,7 @@ cargo publish -p bloq --locked
 ```
 
 Wait for registry indexing between dependent uploads. Do not publish `bloq_py`,
-`bloq_test`, or `xtask`. After all ten crates and the Python uploads below are
+`bloq_test`, or `xtask`. After all eleven crates and the Python uploads below are
 verified, create and push only the `v0.1.1` tag, then create the stable GitHub
 release. Prepare reviewed notes in a local file and pass them with `--notes-file`:
 

@@ -252,15 +252,12 @@ fn layout_normalized(circuit: &Circuit, options: &LayoutOptions) -> Result<Layou
                     .map_err(|reason| Error::Planning(reason.clone()))
                     .and_then(|plan| build(plan, reduction, None))
             };
-            // An identical plan ties the first fully validated successful layout.
-            let mut results = if same_plans {
+            // An identical plan embeds identically; only its label would differ.
+            let results = if same_plans {
                 vec![attempt(&candidates[0])]
             } else {
                 bloq_graph::map_jobs(&candidates, bloq_graph::default_module_jobs(), attempt)
             };
-            if same_plans && results[0].is_err() {
-                results.extend(candidates[1..].iter().map(attempt));
-            }
             let mut best: Option<(_, Layout)> = None;
             let mut failure = None;
             for result in results {
@@ -325,6 +322,11 @@ fn layout_cost(layout: &Layout) -> (u128, u128, u128) {
     let blocks = layout.graph.block_count() as u128;
     (x * y * z, x * y, blocks)
 }
+
+// Compile the Rust API guide's interop example in the doctest gate.
+#[cfg(doctest)]
+#[doc = include_str!("../../docs/api/rust.md")]
+mod api_guide {}
 
 #[cfg(test)]
 mod tests {
