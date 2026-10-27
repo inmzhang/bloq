@@ -2935,13 +2935,16 @@ impl GuardedSurfaceSpace {
         timing: &[ColumnTime],
         sparse: bool,
     ) -> Result<BooleanRowSpace, BooleanResourceError> {
+        let eliminate = |remaining: &mut BooleanRowSpace, column, diagram: &mut _| {
+            if sparse {
+                remaining.eliminate_column_sparse(column, diagram)
+            } else {
+                remaining.eliminate_column(column, diagram)
+            }
+        };
         let mut named = BooleanRowSpace::default();
         for column in names {
-            let pivot = if sparse {
-                remaining.eliminate_column_sparse(column, &mut self.topology.diagram)?
-            } else {
-                remaining.eliminate_column(column, &mut self.topology.diagram)?
-            };
+            let pivot = eliminate(&mut remaining, column, &mut self.topology.diagram)?;
             if pivot.active != ZERO {
                 named.reduce_column(column, &pivot, &mut self.topology.diagram)?;
                 named.push(pivot, &mut self.topology.diagram)?;
@@ -2967,11 +2970,7 @@ impl GuardedSurfaceSpace {
             if remaining.is_empty() {
                 break;
             }
-            let pivot = if sparse {
-                remaining.eliminate_column_sparse(column, &mut self.topology.diagram)?
-            } else {
-                remaining.eliminate_column(column, &mut self.topology.diagram)?
-            };
+            let pivot = eliminate(&mut remaining, column, &mut self.topology.diagram)?;
             named.reduce_column(column, &pivot, &mut self.topology.diagram)?;
         }
         Ok(named)
