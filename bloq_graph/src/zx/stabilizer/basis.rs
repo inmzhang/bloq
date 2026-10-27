@@ -119,7 +119,7 @@ pub(crate) struct PauliSpan {
 }
 
 impl PauliSpan {
-    pub(super) fn new(width: usize) -> Self {
+    pub(crate) fn new(width: usize) -> Self {
         Self {
             basis: Vec::new(),
             pivots: Vec::new(),
@@ -127,7 +127,7 @@ impl PauliSpan {
         }
     }
 
-    pub(super) fn reduce(&self, value: &PauliString) -> PauliString {
+    pub(crate) fn reduce(&self, value: &PauliString) -> PauliString {
         debug_assert_eq!(value.len(), self.width);
         let mut reduced = value.clone();
         for (basis, &(col, axis)) in self.basis.iter().zip(&self.pivots) {
@@ -138,7 +138,7 @@ impl PauliSpan {
         reduced
     }
 
-    pub(super) fn insert_if_independent(&mut self, value: PauliString) -> bool {
+    pub(crate) fn insert_if_independent(&mut self, value: PauliString) -> bool {
         let reduced = self.reduce(&value);
         let Some(pivot) = self.first_pivot(&reduced) else {
             return false;

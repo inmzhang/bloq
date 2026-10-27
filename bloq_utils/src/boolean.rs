@@ -2038,6 +2038,12 @@ impl BooleanRowSpace {
         ids.into_iter()
     }
 
+    /// Stable IDs whose active support may contain `column`, in unspecified
+    /// order, without copying or sorting the posting list.
+    pub fn row_ids_with_column_unordered(&self, column: usize) -> impl Iterator<Item = usize> + '_ {
+        self.columns.get(&column).into_iter().flatten().copied()
+    }
+
     /// Visit stable row IDs whose active support may contain `column`, in
     /// unspecified order, without copying or sorting the posting list.
     ///
@@ -2173,16 +2179,15 @@ impl BooleanRowSpace {
             return Ok(());
         };
         diagram.charge(indices.len())?;
-        let work = self
-            .row_ids_with_column(column)
-            .try_fold(0usize, |work, index| {
-                let row = self.rows[index].as_ref().expect("indexed row exists");
-                let search = row.bits.len().ilog2() as usize + 1;
-                diagram.charge(search)?;
-                let suffix =
-                    row.bits.len() - row.bits.partition_point(|&(current, _)| current < column);
-                Ok::<_, BooleanResourceError>(work.saturating_add(search).saturating_add(suffix))
-            })?;
+        // The total is order-independent, so walk the postings unsorted.
+        let work = indices.iter().try_fold(0usize, |work, &index| {
+            let row = self.rows[index].as_ref().expect("indexed row exists");
+            let search = row.bits.len().ilog2() as usize + 1;
+            diagram.charge(search)?;
+            let suffix =
+                row.bits.len() - row.bits.partition_point(|&(current, _)| current < column);
+            Ok::<_, BooleanResourceError>(work.saturating_add(search).saturating_add(suffix))
+        })?;
         // Removing a sorted coefficient can shift its suffix. Charge all rows
         // before changing any of them or taking ownership of the postings.
         diagram.charge(work)?;
@@ -2562,10 +2567,15 @@ impl BooleanRowSpace {
             return Ok(());
         }
         diagram.charge(terms.len())?;
+        // The ordered set sorts the union, so each posting list is read unsorted.
         let mut candidates = BTreeSet::new();
         for &(column, weight) in terms {
             if weight != DECISION_FALSE {
-                candidates.extend(self.candidates(column, None, diagram)?);
+                diagram.charge(1)?;
+                if let Some(indices) = self.columns.get(&column) {
+                    diagram.charge(indices.len())?;
+                    candidates.extend(indices.iter().copied());
+                }
             }
         }
         for index in candidates {

@@ -242,7 +242,36 @@ pub(super) struct NativeGauge {
     pub(super) generator: [usize; 4],
 }
 
+/// A gauge generator scaled by its selector's complement.
+pub(super) struct GaugeLift {
+    flip: DecisionId,
+    generator: BooleanRow,
+}
+
+impl GaugeLift {
+    /// Restore a reference witness to the selector's actual branch.
+    pub(super) fn apply(
+        &self,
+        row: &mut BooleanRow,
+        diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
+    ) -> Result<(), BooleanResourceError> {
+        row.xor_scaled(&self.generator, self.flip, diagram)
+    }
+}
+
 impl NativeGauge {
+    pub(super) fn lift(
+        &self,
+        selector: DecisionId,
+        coordinates: &SurfaceCoordinates,
+        diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
+    ) -> Result<GaugeLift, BooleanResourceError> {
+        Ok(GaugeLift {
+            flip: diagram.negate(selector)?,
+            generator: self.row(coordinates),
+        })
+    }
+
     pub(super) fn row(&self, coordinates: &SurfaceCoordinates) -> BooleanRow {
         // Support values coalesce under an equality quotient; query terms XOR.
         let columns = self
@@ -410,34 +439,31 @@ impl GuardedSurfaceSpace {
             return Ok(());
         };
         self.topology.diagram.charge(gauges.len())?;
-        let mut by_lambda = HashMap::<usize, Vec<usize>>::new();
-        for (index, gauge) in gauges.iter().enumerate() {
-            by_lambda.entry(gauge.lambda).or_default().push(index);
+        // Each generator and flip is built once; flips stay collection roots below.
+        let mut by_lambda = HashMap::<usize, Vec<GaugeLift>>::new();
+        for (gauge, &(_, selector)) in gauges.iter().zip(&self.topology.resolves) {
+            let lift = gauge.lift(selector, &self.coordinates, &mut self.topology.diagram)?;
+            by_lambda.entry(gauge.lambda).or_default().push(lift);
         }
+        let mut selected = Vec::new();
         for index in 0..self.surfaces.len() {
             crate::CancellationToken::checkpoint()?;
             let row = &self.surfaces[index].row;
             self.topology.diagram.charge(row.terms().len())?;
-            let mut selected = Vec::new();
+            selected.clear();
             for &(column, bit) in row.terms() {
-                if let Some(gauges) = by_lambda.get(&column) {
+                if let Some(lifts) = by_lambda.get(&column) {
                     assert_eq!(bit, ONE, "native reference coefficients are constant");
-                    self.topology.diagram.charge(gauges.len())?;
-                    selected.extend_from_slice(gauges);
+                    self.topology.diagram.charge(lifts.len())?;
+                    selected.push(column);
                 }
             }
-            for gauge in selected {
-                let selector = self.topology.resolves[gauge].1;
-                let flip = self.topology.diagram.negate(selector)?;
-                let generator = self.native_gauges.as_ref().expect("native certificate")[gauge]
-                    .row(&self.coordinates);
-                self.surfaces[index].row.xor_scaled(
-                    &generator,
-                    flip,
-                    &mut self.topology.diagram,
-                )?;
+            for lambda in &selected {
+                for lift in &by_lambda[lambda] {
+                    lift.apply(&mut self.surfaces[index].row, &mut self.topology.diagram)?;
+                }
             }
-            self.check_readout_roots(std::iter::empty())?;
+            self.check_readout_roots(by_lambda.values_mut().flatten().map(|lift| &mut lift.flip))?;
         }
         // All lifted coefficients become roots before physical consumers hold ids.
         self.collect_readout_roots(std::iter::empty())?;
@@ -446,37 +472,29 @@ impl GuardedSurfaceSpace {
 }
 
 fn has_local_z_pair(center: &SurfaceTopology, cap: [i32; 3], source: [i32; 3]) -> bool {
+    use bloq_utils::PauliString;
+
     let zx = &center.zx;
-    if zx.total_ids() > 32 {
-        return false;
-    }
-    let bit = |column: usize, pauli: Pauli| {
-        let x = u64::from(pauli & Pauli::X) << (2 * column);
-        let z = u64::from(pauli & Pauli::Z) << (2 * column + 1);
-        x | z
+    let width = zx.total_ids();
+    // Repeated terms on one id multiply, matching the local flow supports.
+    let string = |terms: &mut dyn Iterator<Item = (usize, Pauli)>| {
+        let mut string = PauliString::new(width);
+        for (column, pauli) in terms {
+            string.set(column, string.get(column) ^ pauli);
+        }
+        string
     };
-    let target = zx
-        .neighbor_edges(center.node)
-        .filter(|&(neighbor, _)| [cap, source].contains(&zx.nodes()[neighbor].pos.to_array()))
-        .fold(0, |sum, (_, edge)| sum ^ bit(edge, Pauli::Z));
-    let generators = zx
-        .local_stabilizer_flow_supports_for_node_kind(center.node, NodeKind::Z)
-        .into_iter()
-        .map(|terms| {
-            terms
-                .into_iter()
-                .fold(0, |sum, (column, pauli)| sum ^ bit(column, pauli))
-        })
-        .collect::<Vec<_>>();
-    (0..1usize << generators.len()).any(|choice| {
-        generators.iter().enumerate().fold(0, |sum, (index, &row)| {
-            if choice & (1 << index) == 0 {
-                sum
-            } else {
-                sum ^ row
-            }
-        }) == target
-    })
+    let target = string(
+        &mut zx
+            .neighbor_edges(center.node)
+            .filter(|&(neighbor, _)| [cap, source].contains(&zx.nodes()[neighbor].pos.to_array()))
+            .map(|(_, edge)| (edge, Pauli::Z)),
+    );
+    let mut span = crate::zx::stabilizer::PauliSpan::new(width);
+    for terms in zx.local_stabilizer_flow_supports_for_node_kind(center.node, NodeKind::Z) {
+        span.insert_if_independent(string(&mut terms.into_iter()));
+    }
+    span.reduce(&target).is_identity()
 }
 
 #[cfg(test)]
