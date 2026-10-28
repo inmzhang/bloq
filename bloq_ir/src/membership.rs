@@ -7,6 +7,45 @@ use bloq_utils::boolean::{
     BooleanDecisionDiagram, BooleanLimits, BooleanOp, DECISION_FALSE, DECISION_TRUE, DecisionId,
 };
 
+mod order;
+
+/// Required predicates and excluded conjunctions of one coexistence query.
+type CoexistenceQuery = (Box<[ValueRef]>, Box<[Vec<ValueRef>]>);
+
+/// Results keyed by borrowed slice queries; a key is copied only on insertion.
+#[derive(Debug)]
+struct SliceCache<K> {
+    buckets: FxMap<u64, Vec<(K, bool)>>,
+}
+
+impl<K> Default for SliceCache<K> {
+    fn default() -> Self {
+        Self {
+            buckets: FxMap::default(),
+        }
+    }
+}
+
+impl<K> SliceCache<K> {
+    fn hash(query: &impl std::hash::Hash) -> u64 {
+        use std::hash::BuildHasher;
+        rustc_hash::FxBuildHasher.hash_one(query)
+    }
+
+    fn get(&self, hash: u64, matches: impl Fn(&K) -> bool) -> Option<bool> {
+        self.buckets
+            .get(&hash)?
+            .iter()
+            .find_map(|(key, result)| matches(key).then_some(*result))
+    }
+
+    fn insert(&mut self, hash: u64, key: K, result: bool) {
+        self.buckets.entry(hash).or_default().push((key, result));
+    }
+}
+
+const PREDICATE_COLLECTION_FLOOR: usize = 65_536;
+
 /// Cached Boolean queries over one immutable graph level.
 ///
 /// Shared Compute ancestry preserves correlated guards. The graph must be
@@ -15,13 +54,17 @@ use bloq_utils::boolean::{
 #[derive(Debug)]
 pub struct PredicateAnalysis<'a> {
     graph: &'a SubGraph,
+    membership_order_pending: bool,
     diagram: BooleanDecisionDiagram,
+    next_collection: usize,
     memo: FxMap<ValueRef, DecisionId>,
     variables: FxMap<ValueRef, usize>,
     inputs: FxMap<BloqNodeId, FxMap<u32, ValueRef>>,
     aliases: FxMap<ValueRef, (ValueRef, bool)>,
     implications: FxMap<(Option<ValueRef>, ValueRef), bool>,
     overlaps: FxMap<(Option<ValueRef>, Option<ValueRef>), bool>,
+    coexistence: SliceCache<CoexistenceQuery>,
+    joint_implications: SliceCache<(Box<[ValueRef]>, ValueRef)>,
 }
 
 /// One exhaustive, mutually exclusive member choice and its known guard inputs.
@@ -84,13 +127,17 @@ impl<'a> PredicateAnalysis<'a> {
     pub fn with_limits(graph: &'a SubGraph, limits: BooleanLimits) -> Self {
         Self {
             graph,
+            membership_order_pending: false,
             diagram: BooleanDecisionDiagram::with_limits(limits),
+            next_collection: PREDICATE_COLLECTION_FLOOR.min(limits.max_nodes),
             memo: FxMap::default(),
             variables: FxMap::default(),
             inputs: FxMap::default(),
             aliases: FxMap::default(),
             implications: FxMap::default(),
             overlaps: FxMap::default(),
+            coexistence: SliceCache::default(),
+            joint_implications: SliceCache::default(),
         }
     }
 
@@ -168,17 +215,31 @@ impl<'a> PredicateAnalysis<'a> {
                 .saturating_add(excluded.len())
                 .saturating_add(1),
         )?;
+        // Physical qubits at one lifetime boundary repeat the same guard query.
+        let hash = SliceCache::<()>::hash(&(required, excluded));
+        if let Some(result) = self
+            .coexistence
+            .get(hash, |(cached_required, cached_excluded)| {
+                **cached_required == *required && **cached_excluded == *excluded
+            })
+        {
+            return Ok(result);
+        }
         let mut domain = self.conjunction(required)?;
         for conjunction in excluded {
+            // Clauses after an empty domain are neither lowered nor charged.
             self.charge(conjunction.len())?;
             let active = self.conjunction(conjunction)?;
             let inactive = self.diagram.negate(active)?;
             domain = self.diagram.apply(BooleanOp::And, domain, inactive)?;
             if domain == DECISION_FALSE {
-                return Ok(false);
+                break;
             }
         }
-        Ok(domain != DECISION_FALSE)
+        let result = domain != DECISION_FALSE;
+        self.coexistence
+            .insert(hash, (required.into(), excluded.into()), result);
+        Ok(result)
     }
 
     fn conjunction(&mut self, predicates: &[ValueRef]) -> Result<DecisionId, Error> {
@@ -188,6 +249,20 @@ impl<'a> PredicateAnalysis<'a> {
             result = self.diagram.apply(BooleanOp::And, result, value)?;
         }
         Ok(result)
+    }
+
+    fn collect_if_needed(&mut self) -> Result<(), Error> {
+        // Only memo roots survive at an implication fallback boundary.
+        if self.diagram.nodes().len() > self.next_collection {
+            let before = self.diagram.nodes().len();
+            let roots = self.memo.len();
+            self.charge(before.saturating_add(roots))?;
+            self.diagram.collect_garbage(self.memo.values_mut());
+            let retained = self.diagram.nodes().len();
+            let floor = PREDICATE_COLLECTION_FLOOR.min(self.diagram.limits().max_nodes);
+            self.next_collection = floor.max(retained.saturating_mul(2));
+        }
+        Ok(())
     }
 
     fn guard(&mut self, node: Option<ValueRef>) -> Result<DecisionId, Error> {
@@ -214,14 +289,13 @@ impl<'a> PredicateAnalysis<'a> {
         if let Some(&result) = self.implications.get(&(left, right)) {
             return Ok(result);
         }
-        if self.proves_conjunct(left.as_slice(), right)? {
+        if self.proves_conjunct(left.as_slice(), right)?
+            || self.proves_cofactor(left.as_slice(), right)?
+        {
             self.implications.insert((left, right), true);
             return Ok(true);
         }
-        let source = self.guard(left)?;
-        let target = self.guard(Some(right))?;
-        let absent = self.diagram.negate(target)?;
-        let result = self.diagram.apply(BooleanOp::And, source, absent)? == DECISION_FALSE;
+        let result = self.solve_implication(left.as_slice(), right)?;
         self.implications.insert((left, right), result);
         Ok(result)
     }
@@ -235,9 +309,23 @@ impl<'a> PredicateAnalysis<'a> {
             return self.implies_values(left.first().copied(), right);
         }
         self.charge(left.len())?;
-        if self.proves_conjunct(left, right)? {
-            return Ok(true);
+        let hash = SliceCache::<()>::hash(&(left, right));
+        if let Some(result) = self.joint_implications.get(hash, |(cached, target)| {
+            **cached == *left && *target == right
+        }) {
+            return Ok(result);
         }
+        let result = self.proves_conjunct(left, right)?
+            || self.proves_cofactor(left, right)?
+            || self.solve_implication(left, right)?;
+        self.joint_implications
+            .insert(hash, (left.into(), right), result);
+        Ok(result)
+    }
+
+    fn solve_implication(&mut self, left: &[ValueRef], right: ValueRef) -> Result<bool, Error> {
+        self.prepare_membership_order(left, right)?;
+        self.collect_if_needed()?;
         let source = self.conjunction(left)?;
         let target = self.guard(Some(right))?;
         let absent = self.diagram.negate(target)?;
@@ -393,6 +481,103 @@ impl<'a> PredicateAnalysis<'a> {
         Ok(false)
     }
 
+    // Boolean implication only: unknown means either truth value, not runtime
+    // unavailability. Full validation still checks every operand's dataflow.
+    fn proves_cofactor(&mut self, roots: &[ValueRef], target: ValueRef) -> Result<bool, Error> {
+        enum Task<'a> {
+            Node(ValueRef),
+            Store(ValueRef),
+            Expr(BloqNodeId, &'a ClassicalExpr),
+            /// Combine the last `usize` operand cofactors.
+            Reduce(&'a ClassicalExpr, usize),
+            Activate,
+        }
+        if roots.is_empty() {
+            return Ok(false);
+        }
+        let (target, positive) = self.normalize_alias(target)?;
+        let mut known = FxMap::from_iter([(target, Some(!positive))]);
+        let mut visiting = crate::FxSet::default();
+        let graph = self.graph;
+        for &root in roots {
+            let mut pending = vec![Task::Node(root)];
+            let mut values = Vec::new();
+            while let Some(task) = pending.pop() {
+                self.charge(1)?;
+                match task {
+                    Task::Node(value) => {
+                        if let Some(&bit) = known.get(&value) {
+                            values.push(bit);
+                            continue;
+                        }
+                        if !visiting.insert(value) {
+                            return Err(Error::InvalidMembership(
+                                "cyclic predicate ancestry".into(),
+                            ));
+                        }
+                        let node = graph.node(value.node).ok_or_else(|| {
+                            Error::InvalidMembership(format!("unknown predicate {value:?}"))
+                        })?;
+                        pending.push(Task::Store(value));
+                        if let Some(slot) = node.activation {
+                            pending.push(Task::Activate);
+                            pending.push(Task::Node(self.input(value.node, slot)?));
+                        }
+                        if value.output == ObservableOutput::Corrected
+                            && let Some(ClassicalNode::Compute { expr }) = node.try_classical()
+                        {
+                            pending.push(Task::Expr(value.node, expr));
+                        } else {
+                            values.push(None);
+                        }
+                    }
+                    Task::Store(value) => {
+                        known.insert(value, *values.last().expect("evaluated cofactor"));
+                        visiting.remove(&value);
+                    }
+                    Task::Expr(node, expr) => match expr {
+                        ClassicalExpr::Const(bit) => values.push(Some(*bit)),
+                        ClassicalExpr::In(slot) => {
+                            pending.push(Task::Node(self.input(node, *slot)?));
+                        }
+                        ClassicalExpr::Parity { inputs, .. } => {
+                            self.charge(inputs.len())?;
+                            pending.push(Task::Reduce(expr, inputs.len()));
+                            for &slot in inputs.iter().rev() {
+                                pending.push(Task::Node(self.input(node, slot)?));
+                            }
+                        }
+                        _ => {
+                            let operands = expr.operands();
+                            self.charge(operands.len())?;
+                            pending.push(Task::Reduce(expr, operands.len()));
+                            pending.extend(operands.iter().rev().map(|e| Task::Expr(node, e)));
+                        }
+                    },
+                    Task::Reduce(expr, count) => {
+                        let start = values.len() - count;
+                        let bit = expr.combine_kleene(&values[start..]);
+                        values.truncate(start);
+                        values.push(bit);
+                    }
+                    Task::Activate => {
+                        let active = values.pop().expect("activation cofactor");
+                        let payload = values.pop().expect("payload cofactor");
+                        values.push(if active == Some(false) || payload == Some(false) {
+                            Some(false)
+                        } else {
+                            active.and(payload)
+                        });
+                    }
+                }
+            }
+            if values.pop().expect("source cofactor") == Some(false) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     fn input(&mut self, node: BloqNodeId, slot: u32) -> Result<ValueRef, Error> {
         if !self.inputs.contains_key(&node) {
             let mut inputs = FxMap::default();
@@ -527,10 +712,7 @@ impl<'a> PredicateAnalysis<'a> {
                     let high = values.pop().expect("true operand");
                     let low = values.pop().expect("false operand");
                     let condition = values.pop().expect("selection predicate");
-                    let absent = self.diagram.negate(condition)?;
-                    let low = self.diagram.apply(BooleanOp::And, absent, low)?;
-                    let high = self.diagram.apply(BooleanOp::And, condition, high)?;
-                    values.push(self.diagram.apply(BooleanOp::Or, low, high)?);
+                    values.push(self.diagram.select(condition, low, high)?);
                 }
             }
         }
@@ -910,7 +1092,11 @@ impl PredicateAnalysis<'_> {
         )
     }
 
-    fn can_coexist_values(&mut self, predicates: &[ValueRef]) -> Result<bool, Error> {
+    /// Whether all selected output guards can hold together.
+    ///
+    /// # Errors
+    /// Returns an error for malformed predicates or exhausted Boolean resources.
+    pub fn can_coexist_values(&mut self, predicates: &[ValueRef]) -> Result<bool, Error> {
         if predicates.len() <= 2 {
             return self.overlap_values(predicates.first().copied(), predicates.get(1).copied());
         }
@@ -979,6 +1165,142 @@ mod tests {
             graph.add_edge(inputs[slot as usize], node, BloqEdge::value(slot));
         }
         node
+    }
+
+    #[test]
+    fn fallback_collection_preserves_inputs_after_partial_select_failure() {
+        use ClassicalExpr::{In, Select};
+        let mut graph = SubGraph::new();
+        let [low, condition, high] = std::array::from_fn(|_| input_node(&mut graph));
+        let selected = compute_node(
+            &mut graph,
+            Select(Box::new([In(0), In(1), In(2)])),
+            &[condition, low, high],
+        );
+        let limits = BooleanLimits {
+            max_nodes: 5,
+            max_steps: 10_000,
+        };
+        let mut analysis = PredicateAnalysis::with_limits(&graph, limits);
+        assert!(analysis.overlap(Some(low), None).unwrap());
+        assert!(analysis.overlap(Some(condition), None).unwrap());
+        assert!(analysis.overlap(Some(low), Some(condition)).unwrap()); // dead query-only AND
+        assert!(analysis.overlap(Some(high), None).unwrap());
+        let old_high = analysis.memo[&ValueRef::from(high)];
+        assert_eq!(analysis.diagram.nodes().len(), 4);
+        assert!(
+            matches!(analysis.guard(Some(selected.into())), Err(Error::BooleanResource(error))
+            if error.resource == "Boolean nodes" && error.limit == 5 && error.observed == 6)
+        );
+        assert_eq!(
+            analysis.diagram.nodes().len(),
+            5,
+            "one partial Select child was allocated"
+        );
+        assert!(!analysis.memo.contains_key(&ValueRef::from(selected)));
+        analysis.next_collection = 0;
+        assert!(!analysis.implies(Some(low), high).unwrap());
+        assert_ne!(
+            analysis.memo[&ValueRef::from(high)],
+            old_high,
+            "collection must really remap retained roots"
+        );
+        assert_eq!(analysis.diagram.limits().max_nodes, limits.max_nodes);
+        assert_eq!(analysis.diagram.limits().max_steps, limits.max_steps);
+        for bits in 0usize..8 {
+            for (variable, input) in [low, condition, high].into_iter().enumerate() {
+                assert_eq!(
+                    analysis
+                        .diagram
+                        .evaluate(analysis.memo[&ValueRef::from(input)], |index| bits
+                            & (1 << index)
+                            != 0),
+                    bits & (1 << variable) != 0
+                );
+            }
+        }
+        assert!(analysis.overlap(Some(low), Some(condition)).unwrap());
+    }
+
+    #[test]
+    fn fallback_collection_keeps_malformed_equal_and_unchosen_operands_visible() {
+        use ClassicalExpr::{Const, In, Select};
+        for cyclic in [false, true] {
+            for equal in [false, true] {
+                let mut graph = SubGraph::new();
+                let a = input_node(&mut graph);
+                let b = input_node(&mut graph);
+                let bad = graph.add_node(BloqNode::classical(ClassicalNode::Compute {
+                    expr: In(if cyclic { 0 } else { 99 }),
+                }));
+                if cyclic {
+                    graph.add_edge(bad, bad, BloqEdge::value(0));
+                }
+                let operands = if equal {
+                    [In(0), Const(true), Const(true)]
+                } else {
+                    [Const(false), Const(true), In(0)]
+                };
+                let selected = compute_node(&mut graph, Select(Box::new(operands)), &[bad]);
+                let mut analysis = PredicateAnalysis::new(&graph);
+                assert!(analysis.overlap(Some(a), Some(b)).unwrap());
+                assert_eq!(analysis.diagram.nodes().len(), 3);
+                analysis.next_collection = 0;
+                let error = analysis.implies(None, selected).unwrap_err();
+                assert!(match error {
+                    Error::MissingMembershipInput(99) => !cyclic,
+                    Error::InvalidMembership(message) =>
+                        cyclic && message == "cyclic predicate ancestry",
+                    _ => false,
+                });
+                assert_eq!(
+                    analysis.diagram.nodes().len(),
+                    2,
+                    "real collection precedes the malformed operand"
+                );
+                analysis.next_collection = 0;
+                let generation = analysis.diagram.generation();
+                assert!(analysis.implies(Some(a), a).unwrap());
+                assert!(analysis.implies(Some(a), a).unwrap());
+                assert_eq!(
+                    analysis.diagram.generation(),
+                    generation,
+                    "structural and cached answers skip collection"
+                );
+                assert!(analysis.overlap(Some(a), Some(b)).unwrap());
+            }
+        }
+    }
+
+    #[test]
+    fn fallback_collection_charges_before_remapping_roots() {
+        let mut graph = SubGraph::new();
+        let a = input_node(&mut graph);
+        let b = input_node(&mut graph);
+        let limits = BooleanLimits {
+            max_nodes: 10,
+            max_steps: 1_000,
+        };
+        let mut analysis = PredicateAnalysis::with_limits(&graph, limits);
+        assert!(analysis.overlap(Some(a), Some(b)).unwrap());
+        analysis.next_collection = 0;
+        let cost = analysis.diagram.nodes().len() + analysis.memo.len();
+        analysis
+            .charge(limits.max_steps - analysis.steps() - (cost - 1))
+            .unwrap();
+        let before = (
+            analysis.steps(),
+            analysis.diagram.generation(),
+            analysis.memo.clone(),
+            analysis.diagram.nodes().to_vec(),
+        );
+        assert!(
+            matches!(analysis.collect_if_needed(), Err(Error::BooleanResource(error)) if error.resource == "Boolean work steps")
+        );
+        assert_eq!(analysis.steps(), before.0);
+        assert_eq!(analysis.diagram.generation(), before.1);
+        assert_eq!(analysis.memo, before.2);
+        assert_eq!(analysis.diagram.nodes(), before.3);
     }
 
     #[test]
@@ -1055,6 +1377,15 @@ mod tests {
                 ClassicalExpr::Const(true),
                 ClassicalExpr::In(1),
             ])))),
+            ClassicalExpr::Select(Box::new([
+                ClassicalExpr::In(1),
+                ClassicalExpr::And(Box::new([ClassicalExpr::In(0), ClassicalExpr::In(2)])),
+                ClassicalExpr::Select(Box::new([
+                    ClassicalExpr::In(0),
+                    ClassicalExpr::Const(false),
+                    ClassicalExpr::In(2),
+                ])),
+            ])),
             ClassicalExpr::Const(false),
             ClassicalExpr::Const(true),
             ClassicalExpr::Select(Box::new([
@@ -1121,6 +1452,13 @@ mod tests {
                     actual, exhaustive,
                     "finite valuations: {source:?} implies {target:?}"
                 );
+                assert!(
+                    !analysis
+                        .proves_cofactor(&[source.into()], target.into())
+                        .unwrap()
+                        || exhaustive,
+                    "cofactor proof: {source:?} implies {target:?}"
+                );
             }
         }
         assert!(
@@ -1142,6 +1480,60 @@ mod tests {
                 if error.resource == "Boolean nodes")
             );
         }
+    }
+
+    #[test]
+    fn select_cofactor_proves_shared_guard_without_expanding_boolean_functions() {
+        let mut graph = SubGraph::new();
+        let a = graph.add_node(BloqNode::classical(ClassicalNode::observable(0)));
+        let b = input_node(&mut graph);
+        let negative = compute_node(&mut graph, ClassicalExpr::parity([0], true), &[a]);
+        let source = compute_node(
+            &mut graph,
+            ClassicalExpr::Select(Box::new([
+                ClassicalExpr::In(1),
+                ClassicalExpr::And(Box::new([ClassicalExpr::In(0), ClassicalExpr::In(1)])),
+                ClassicalExpr::Select(Box::new([
+                    ClassicalExpr::In(0),
+                    ClassicalExpr::Const(false),
+                    ClassicalExpr::In(1),
+                ])),
+            ])),
+            &[negative, b],
+        );
+        let mut analysis = PredicateAnalysis::with_limits(
+            &graph,
+            BooleanLimits {
+                max_nodes: 0,
+                max_steps: 1_000,
+            },
+        );
+        assert!(analysis.implies(Some(source), negative).unwrap());
+        let flip = ValueRef {
+            node: a,
+            output: ObservableOutput::Flip,
+        };
+        assert!(!analysis.proves_cofactor(&[source.into()], flip).unwrap());
+        assert!(
+            !analysis
+                .proves_cofactor(&[a.into()], negative.into())
+                .unwrap()
+        );
+        assert!(matches!(
+            analysis.implies(Some(a), negative),
+            Err(Error::BooleanResource(_))
+        ));
+        let mut limited = PredicateAnalysis::with_limits(
+            &graph,
+            BooleanLimits {
+                max_nodes: 0,
+                max_steps: 1,
+            },
+        );
+        assert!(matches!(
+            limited.implies(Some(source), negative),
+            Err(Error::BooleanResource(_))
+        ));
     }
 
     #[test]
@@ -1332,7 +1724,15 @@ mod tests {
         let b = input_node(bloq.top_mut());
         let condition = compute_node(
             bloq.top_mut(),
-            ClassicalExpr::And(Box::new([ClassicalExpr::In(0), ClassicalExpr::In(1)])),
+            ClassicalExpr::Select(Box::new([
+                ClassicalExpr::In(1),
+                ClassicalExpr::And(Box::new([ClassicalExpr::In(0), ClassicalExpr::In(1)])),
+                ClassicalExpr::Select(Box::new([
+                    ClassicalExpr::In(0),
+                    ClassicalExpr::Const(false),
+                    ClassicalExpr::In(1),
+                ])),
+            ])),
             &[a, b],
         );
         let mut circuit = CoordCircuit::new();
@@ -1427,6 +1827,30 @@ mod tests {
                 .unwrap()
         );
         assert!(!predicates.coexist_without(&[], &[vec![]]).unwrap());
+        let mut cached = PredicateAnalysis::with_limits(
+            &graph,
+            BooleanLimits {
+                max_steps: 1_000,
+                ..BooleanLimits::DEFAULT
+            },
+        );
+        for _ in 0..64 {
+            assert!(
+                cached
+                    .coexist_without(&[a.into()], &[vec![a.into(), b.into()]])
+                    .unwrap()
+            );
+            assert!(
+                !cached
+                    .coexist_without(&[a.into(), b.into()], &[vec![a.into(), b.into()]])
+                    .unwrap()
+            );
+        }
+        cached.charge(1_000 - cached.steps()).unwrap();
+        assert!(matches!(
+            cached.coexist_without(&[a.into()], &[vec![a.into(), b.into()]]),
+            Err(Error::BooleanResource(_))
+        ));
         let mut limited = PredicateAnalysis::with_limits(
             &graph,
             BooleanLimits {
@@ -1523,6 +1947,15 @@ mod tests {
         let mut analysis = PredicateAnalysis::new(&graph);
         assert!(analysis.overlap(Some(raw), Some(tail)).unwrap());
         assert!(!analysis.overlap(None, Some(different)).unwrap());
+        // This zero parity needs the cofactor path to walk the shared ancestry.
+        let mut cofactor = PredicateAnalysis::with_limits(
+            &graph,
+            BooleanLimits {
+                max_nodes: 0,
+                max_steps: 200_000,
+            },
+        );
+        assert!(cofactor.implies(Some(different), raw).unwrap());
         assert_eq!(
             analysis.values_up_to(&[raw, tail, different], 3).unwrap(),
             [vec![false, false, false], vec![true, true, false]]

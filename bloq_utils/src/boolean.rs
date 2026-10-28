@@ -523,6 +523,89 @@ impl BooleanDecisionDiagram {
         Ok(results.pop().expect("root has a result"))
     }
 
+    /// Selects `low` where `condition` is false and `high` where it is true.
+    ///
+    /// All roots must belong to this diagram. The caller remains responsible
+    /// for validating the dataflow that produced every operand.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BooleanResourceError`] if construction exceeds configured limits.
+    ///
+    /// # Panics
+    ///
+    /// May panic if an operand does not belong to this diagram.
+    pub fn select(
+        &mut self,
+        condition: DecisionId,
+        low: DecisionId,
+        high: DecisionId,
+    ) -> Result<DecisionId, BooleanResourceError> {
+        let simple = |[condition, low, high]: [DecisionId; 3]| {
+            if condition == DECISION_FALSE || low == high {
+                Some(low)
+            } else if condition == DECISION_TRUE {
+                Some(high)
+            } else if low == DECISION_FALSE && high == DECISION_TRUE {
+                Some(condition)
+            } else {
+                None
+            }
+        };
+        let root = [condition, low, high];
+        if let Some(value) = simple(root) {
+            return Ok(value);
+        }
+        self.charge(1)?;
+        enum Task {
+            Visit([DecisionId; 3]),
+            Finish([DecisionId; 3], usize),
+        }
+        let mut pending = vec![Task::Visit(root)];
+        let mut results = Vec::new();
+        let mut memo = FxHashMap::default();
+        while let Some(task) = pending.pop() {
+            match task {
+                Task::Visit(key) => {
+                    if let Some(value) = simple(key) {
+                        results.push(value);
+                        continue;
+                    }
+                    if let Some(&value) = memo.get(&key) {
+                        results.push(value);
+                        continue;
+                    }
+                    self.charge(1)?;
+                    let variable = key
+                        .iter()
+                        .filter_map(|&root| self.node(root).map(|node| node.variable))
+                        .min()
+                        .expect("nonterminal selection has a variable");
+                    let [(cl, ch), (ll, lh), (hl, hh)] = key.map(|root| {
+                        self.node(root)
+                            .map_or((root, root), |node| Self::branches(node, root, variable))
+                    });
+                    pending.push(Task::Finish(key, variable));
+                    pending.push(Task::Visit([ch, lh, hh]));
+                    pending.push(Task::Visit([cl, ll, hl]));
+                }
+                Task::Finish(key, variable) => {
+                    // Results outlive memo eviction while their parent is pending.
+                    let high = results.pop().expect("visited child has a result");
+                    let low = results.pop().expect("visited child has a result");
+                    let value = self.make_node(variable, low, high)?;
+                    if memo.len() == MAX_CACHE_ENTRIES {
+                        self.charge(memo.len())?;
+                        memo.clear();
+                    }
+                    memo.insert(key, value);
+                    results.push(value);
+                }
+            }
+        }
+        Ok(results.pop().expect("root has a result"))
+    }
+
     fn branches(node: DecisionNode, root: DecisionId, variable: usize) -> (DecisionId, DecisionId) {
         if node.variable == variable {
             (node.low, node.high)
@@ -3071,6 +3154,10 @@ mod tests {
         assert_eq!(diagram.nodes().len(), 2);
         diagram.negate(a).unwrap_err();
         diagram.constrain(a, b).unwrap_err();
+        assert_eq!(
+            diagram.select(a, b, DECISION_FALSE).unwrap_err().resource,
+            "Boolean work steps"
+        );
         assert_eq!(diagram.nodes().len(), 2);
     }
 
@@ -3143,6 +3230,22 @@ mod tests {
         for variable in (0..DEPTH).rev() {
             left = diagram.make_node(variable, DECISION_FALSE, left).unwrap();
             right = diagram.make_node(variable, DECISION_FALSE, right).unwrap();
+        }
+        let selected = diagram.select(left, b, a).unwrap();
+        for bits in 0usize..8 {
+            let (prefix, a, b) = (bits & 1 != 0, bits & 2 != 0, bits & 4 != 0);
+            assert_eq!(
+                diagram.evaluate(selected, |variable| {
+                    if variable < DEPTH {
+                        prefix
+                    } else if variable == DEPTH {
+                        a
+                    } else {
+                        b
+                    }
+                }),
+                if prefix && a { a } else { b }
+            );
         }
         let negated = diagram.negate(right).unwrap();
         let joined = diagram.apply(BooleanOp::And, left, negated).unwrap();
@@ -3240,28 +3343,83 @@ mod tests {
         assert_eq!(diagram.steps(), steps);
     }
 
+    fn truth_function(
+        diagram: &mut BooleanDecisionDiagram,
+        variable: usize,
+        truth: u8,
+    ) -> DecisionId {
+        if variable == 3 {
+            return if truth & 1 == 0 {
+                DECISION_FALSE
+            } else {
+                DECISION_TRUE
+            };
+        }
+        let low = truth_function(diagram, variable + 1, truth);
+        let high = truth_function(diagram, variable + 1, truth >> (1 << (2 - variable)));
+        diagram.make_node(variable, low, high).unwrap()
+    }
+
+    #[test]
+    fn select_preserves_truth_and_allocates_only_result_nodes() {
+        let mut allocated_result = false;
+        for condition in 0u8..16 {
+            for low in 0u8..16 {
+                for high in 0u8..16 {
+                    let mut diagram = BooleanDecisionDiagram::default();
+                    let [c, l, h] =
+                        [condition, low, high].map(|truth| truth_function(&mut diagram, 1, truth));
+                    let before = diagram.nodes().len();
+                    let result = diagram.select(c, l, h).unwrap();
+                    allocated_result |= diagram.nodes().len() > before;
+                    let truth = (!condition & low) | (condition & high);
+                    for assignment in 0..4 {
+                        assert_eq!(
+                            diagram.evaluate(result, |variable| assignment & (1 << (2 - variable))
+                                != 0),
+                            truth & (1 << assignment) != 0,
+                        );
+                    }
+                    let mut live = vec![false; diagram.nodes().len()];
+                    let mut pending = vec![result];
+                    while let Some(root) = pending.pop() {
+                        if let Some(node) = diagram.node(root)
+                            && !std::mem::replace(&mut live[root.0 - 2], true)
+                        {
+                            pending.extend([node.low, node.high]);
+                        }
+                    }
+                    assert!(live[before..].iter().all(|&reachable| reachable));
+                }
+            }
+        }
+        assert!(
+            allocated_result,
+            "fresh operand-only arenas must exercise allocation"
+        );
+        let mut diagram = BooleanDecisionDiagram::default();
+        let condition = diagram
+            .make_node(usize::MAX, DECISION_FALSE, DECISION_TRUE)
+            .unwrap();
+        let result = diagram
+            .select(condition, DECISION_TRUE, DECISION_FALSE)
+            .unwrap();
+        for value in [false, true] {
+            assert_eq!(
+                diagram.evaluate(result, |index| {
+                    assert_eq!(index, usize::MAX);
+                    value
+                }),
+                !value
+            );
+        }
+    }
+
     #[test]
     fn computed_table_collisions_preserve_every_three_variable_function() {
-        fn function(
-            diagram: &mut BooleanDecisionDiagram,
-            variable: usize,
-            truth: u8,
-        ) -> DecisionId {
-            if variable == 3 {
-                return if truth & 1 == 0 {
-                    DECISION_FALSE
-                } else {
-                    DECISION_TRUE
-                };
-            }
-            let low = function(diagram, variable + 1, truth);
-            let high = function(diagram, variable + 1, truth >> (1 << (2 - variable)));
-            diagram.make_node(variable, low, high).unwrap()
-        }
-
         let mut diagram = BooleanDecisionDiagram::default();
         let functions = (0..=u8::MAX)
-            .map(|truth| function(&mut diagram, 0, truth))
+            .map(|truth| truth_function(&mut diagram, 0, truth))
             .collect::<Vec<_>>();
         for (truth, &root) in functions.iter().enumerate() {
             for assignment in 0..8 {
