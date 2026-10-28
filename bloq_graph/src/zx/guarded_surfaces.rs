@@ -3783,7 +3783,7 @@ impl GuardedSurfaceSpace {
         boundary_width: usize,
         evaluate: impl Fn(DecisionId) -> bool,
     ) -> Result<Option<super::modular::CompactSurfaceRelation>, BlockGraphError> {
-        if zx.adjacency.has_parallel_edges() || zx.stabilizer_phase_basis.get().is_some() {
+        if zx.stabilizer_phase_basis.get().is_some() {
             return Ok(None);
         }
         let mut packed = HashMap::new();

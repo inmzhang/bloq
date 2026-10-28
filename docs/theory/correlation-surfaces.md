@@ -280,7 +280,7 @@ graph, its transformed witness supplies the authoritative phase and must
 reproduce the materialized raw Pauli row. Public boundary rows share the
 complete certificate's prefix; compact certificate elimination preserves that
 prefix and canonicalizes only the closed suffix. Installed composed phase
-bases remain authoritative, and parallel-edge graphs retain signed reduction.
+bases remain authoritative.
 Physical fragment caches retain transport offsets even when their first
 consumer is an output frame, because a later closed logical query can reuse it.
 

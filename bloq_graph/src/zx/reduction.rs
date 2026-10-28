@@ -435,7 +435,7 @@ fn cancel_repeated_terms(terms: &mut Vec<usize>) {
 
 impl CorrelationReduction {
     /// Quotient tensor equalities, then equal columns of the complete residual relation.
-    /// Legacy parallel-edge aliases and non-dangling special sites are declined.
+    /// Non-dangling special sites are declined.
     pub(crate) fn new(
         zx: &ZXGraph,
         diagram: &mut BooleanDecisionDiagram,
@@ -452,8 +452,7 @@ impl CorrelationReduction {
         }
         let bits = width * 2;
         diagram.charge(bits.saturating_mul(bits.max(1).ilog2() as usize + 8))?;
-        if zx.adjacency.has_parallel_edges()
-            || zx.nodes().len().checked_add(zx.edges().len()) != Some(width)
+        if zx.nodes().len().checked_add(zx.edges().len()) != Some(width)
             || zx.edges().iter().enumerate().any(|(index, edge)| {
                 edge.id != zx.nodes().len() + index
                     || edge.n1 >= zx.nodes().len()
@@ -1083,7 +1082,7 @@ mod tests {
                 ],
             );
             assert_complete_signed_relation(&bialgebra);
-            // Subdivision avoids the graph's legacy parallel-arm representation.
+            // ZX graphs have one edge per node pair, so the Hopf pair is subdivided.
             let hopf = graph(
                 &[Z, X, X, Z, Z, X],
                 &[
@@ -1124,24 +1123,19 @@ mod tests {
     fn unsupported_shapes_and_resource_failures_remain_explicit() {
         use NodeKind::{Port, Z};
         let mut diagram = BooleanDecisionDiagram::default();
-        for unsupported in [
-            graph(&[Port], &[]),
-            graph(&[Z, Z], &[(0, 1, false), (0, 1, false)]),
-        ] {
-            assert!(
-                CorrelationReduction::new(
-                    &unsupported,
-                    &mut diagram,
-                    ModuleCertificationLimits::DEFAULT
-                )
-                .unwrap()
-                .is_none()
-            );
-            let actual = crate::RuntimeStabilizerBasis::from_zx_graph(unsupported.clone()).unwrap();
-            let expected =
-                crate::RuntimeStabilizerBasis::from_zx_graph_unreduced(unsupported).unwrap();
-            assert_eq!(actual.generators(), expected.generators());
-        }
+        let unsupported = graph(&[Port], &[]);
+        assert!(
+            CorrelationReduction::new(
+                &unsupported,
+                &mut diagram,
+                ModuleCertificationLimits::DEFAULT
+            )
+            .unwrap()
+            .is_none()
+        );
+        let actual = crate::RuntimeStabilizerBasis::from_zx_graph(unsupported.clone()).unwrap();
+        let expected = crate::RuntimeStabilizerBasis::from_zx_graph_unreduced(unsupported).unwrap();
+        assert_eq!(actual.generators(), expected.generators());
         let zx = graph(&[Z], &[]);
         let limits = ModuleCertificationLimits {
             max_local_columns: 0,

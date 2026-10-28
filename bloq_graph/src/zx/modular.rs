@@ -573,8 +573,7 @@ impl ZXGraph {
             queries,
             width,
         } = complete;
-        if self.adjacency.has_parallel_edges()
-            || self.stabilizer_phase_basis.get().is_some()
+        if self.stabilizer_phase_basis.get().is_some()
             || queries.len() != self.total_ids
             || queries.iter().flatten().flatten().any(|&bit| bit >= width)
         {
@@ -1048,17 +1047,7 @@ impl ZXGraph {
     }
 
     fn phase_basis(&self) -> Option<&StabilizerPhaseBasis> {
-        if self.adjacency.has_parallel_edges() {
-            // Parallel neighbor entries alias their last edge column. Retain
-            // signed reduction for that legacy incidence convention.
-            Some(self.stabilizer_phase_basis.get_or_init(|| {
-                Arc::new(StabilizerPhaseBasis::new(
-                    self.to_signed_external_generator_table(),
-                ))
-            }))
-        } else {
-            self.stabilizer_phase_basis.get().map(Arc::as_ref)
-        }
+        self.stabilizer_phase_basis.get().map(Arc::as_ref)
     }
 
     pub(crate) fn contains_stabilizer_support(&self, row: &PauliString) -> bool {
@@ -1091,14 +1080,12 @@ impl ZXGraph {
     }
 
     pub(crate) fn external_stabilizer_row_phases(&self, rows: &[PauliString]) -> Vec<u8> {
-        if self.adjacency.has_parallel_edges() {
-            return self.row_phases_against(rows, &self.to_signed_external_generator_table());
-        }
         rows.iter()
             .map(|row| self.local_row_phase(row, false).unwrap_or(0))
             .collect()
     }
 
+    #[cfg(test)]
     pub(crate) fn row_phases_against(
         &self,
         rows: &[PauliString],

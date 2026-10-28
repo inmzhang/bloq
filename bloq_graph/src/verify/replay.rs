@@ -57,9 +57,6 @@ pub(crate) fn solve_evolved_correction(
         .clone()
         .into_output_correction_rows(outputs)
         .map_err(|_| VerifyLogicalError::OutputSurfaceUnavailable(outputs.to_vec()))?;
-    // A physical edge map keeps the last nonzero parallel entry, not simply
-    // edge_id's last entry. Preserve the existing materializer in that case.
-    let unique_edges = !zx.has_parallel_edges();
     let components = keys
         .iter()
         .map(|key| key.components(&zx).unwrap_or_default())
@@ -68,10 +65,7 @@ pub(crate) fn solve_evolved_correction(
     let mut supports = Vec::new();
     for (constraint, row) in rows {
         let mut support = CoeffVec::zeros(keys.len());
-        if unique_edges
-            && row.len() == zx.total_ids()
-            && zx.row_has_external_edge_pair_support(&row)
-        {
+        if row.len() == zx.total_ids() && zx.row_has_external_edge_pair_support(&row) {
             for (index, components) in components.iter().enumerate() {
                 support.set_bit(
                     index,

@@ -22,6 +22,4 @@ pub use diagram::{
 };
 pub use error::VerifyLogicalError;
 pub(crate) use parity::{MeasurementKey, stabilizer_supports_measurement};
-#[cfg(test)]
-pub(crate) use replay::signed_output_correction;
 pub(crate) use replay::{replay_fill, solve_evolved_correction};
