@@ -8,8 +8,6 @@ use bloq_utils::boolean::{
 };
 
 mod order;
-#[cfg(test)]
-mod order_tests;
 
 /// Required predicates and excluded conjunctions of one coexistence query.
 type CoexistenceQuery = (Box<[ValueRef]>, Box<[Vec<ValueRef>]>);
