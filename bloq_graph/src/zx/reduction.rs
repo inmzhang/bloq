@@ -591,8 +591,7 @@ impl CorrelationReduction {
                 limit: limits.max_witness_nodes,
             });
         }
-        let reversed_hadamard = (0..zx.nodes().len())
-            .map(|_| false)
+        let reversed_hadamard = std::iter::repeat_n(false, zx.nodes().len())
             .chain(
                 zx.edges()
                     .iter()

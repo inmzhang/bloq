@@ -45,6 +45,19 @@ impl SurfaceColumn {
             Self::Node(position) | Self::Edge(position, _) => position,
         }
     }
+
+    /// The ZX column id, and whether its directed Hadamard frame swaps X and Z.
+    fn zx_column(self, zx: &ZXGraph) -> Option<(usize, bool)> {
+        let node = |position| zx.node_at(IVec3::from_array(position)).map(|node| node.id);
+        match self {
+            Self::Node(position) => Some((node(position)?, false)),
+            Self::Edge(source, target) => {
+                let (source, target) = (node(source)?, node(target)?);
+                let edge = zx.edge_between(source, target)?;
+                Some((edge.id, edge.hadamard && source > target))
+            }
+        }
+    }
 }
 
 /// Exact equality coordinates, with queries and physical ownership in the
@@ -1211,26 +1224,7 @@ impl GuardedSurfaceSpace {
         let mut aliases = vec![None; width];
         let mut representatives = vec![usize::MAX; reduced.class_count()];
         for (&column, &index) in columns {
-            let source = match column {
-                SurfaceColumn::Node(position) => {
-                    zx.node_at(IVec3::from_array(position))
-                        .expect("original isolated site")
-                        .id
-                }
-                SurfaceColumn::Edge(left, right) => {
-                    let left = zx
-                        .node_at(IVec3::from_array(left))
-                        .expect("original source")
-                        .id;
-                    let right = zx
-                        .node_at(IVec3::from_array(right))
-                        .expect("original target")
-                        .id;
-                    zx.edge_between(left, right)
-                        .expect("original directed arm")
-                        .id
-                }
-            };
+            let (source, _) = column.zx_column(&zx).expect("original surface column");
             for (axis, pauli) in [Pauli::X, Pauli::Z].into_iter().enumerate() {
                 if let Some(class) = reduced.native_bit(source, pauli) {
                     let bit = 2 * index + axis;
@@ -4026,36 +4020,10 @@ pub(super) fn materialize_row(
         if value == Pauli::I {
             continue;
         }
-        let (id, value) = match column {
-            SurfaceColumn::Node(position) => (
-                zx.node_at(IVec3::from_array(position))
-                    .expect("active surface node belongs to the supplied ZX graph")
-                    .id,
-                value,
-            ),
-            SurfaceColumn::Edge(source, target) => {
-                let source = zx
-                    .node_at(IVec3::from_array(source))
-                    .expect("active surface edge source belongs to the supplied ZX graph")
-                    .id;
-                let target = zx
-                    .node_at(IVec3::from_array(target))
-                    .expect("active surface edge target belongs to the supplied ZX graph")
-                    .id;
-                let edge = zx
-                    .edge_between(source, target)
-                    .expect("active surface edge belongs to the supplied ZX graph");
-                (
-                    edge.id,
-                    if edge.hadamard && source > target {
-                        value.flip()
-                    } else {
-                        value
-                    },
-                )
-            }
-        };
-        paulis.set(id, value);
+        let (id, flip) = column
+            .zx_column(zx)
+            .expect("active surface column belongs to the supplied ZX graph");
+        paulis.set(id, if flip { value.flip() } else { value });
     }
     zx.reconstruct_raw_centers(&mut paulis);
     paulis
