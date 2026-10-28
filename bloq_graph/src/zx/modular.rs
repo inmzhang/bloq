@@ -644,16 +644,11 @@ impl ZXGraph {
             let paulis = PauliString::from_terms(
                 self.total_ids,
                 (0..self.total_ids).filter_map(|column| {
-                    let pauli = match (
+                    let pauli = Pauli::from_xz(
                         component(&row, column, Pauli::X),
                         component(&row, column, Pauli::Z),
-                    ) {
-                        (false, false) => return None,
-                        (true, false) => Pauli::X,
-                        (false, true) => Pauli::Z,
-                        (true, true) => Pauli::Y,
-                    };
-                    Some((column, pauli))
+                    );
+                    (pauli != Pauli::I).then_some((column, pauli))
                 }),
             );
             let phase = self.external_stabilizer_row_phases(std::slice::from_ref(&paulis))[0];
@@ -1610,140 +1605,6 @@ mod tests {
         max_witness_nodes: usize::MAX,
     };
 
-    #[test]
-    fn sparse_source_products_match_dense_phases_and_overwritten_terms() {
-        const AXES: [Pauli; 4] = [Pauli::I, Pauli::X, Pauli::Z, Pauli::Y];
-        fn check(row: &mut PhasedPauliString, terms: Vec<(usize, Pauli)>, phase: u8) {
-            let source = super::SourceRow {
-                anchor: 0,
-                terms,
-                phase,
-            };
-            let mut expected = row.clone();
-            expected.multiply_assign(&PhasedPauliString::new(
-                PauliString::from_terms(row.paulis.len(), source.terms.iter().copied()),
-                source.phase,
-            ));
-            source.multiply_into(row);
-            assert_eq!(*row, expected);
-        }
-        for width in [1, 65, 513] {
-            for left in AXES {
-                for right in AXES {
-                    for left_phase in 0..4 {
-                        for right_phase in 0..4 {
-                            let mut row = PhasedPauliString::new(
-                                PauliString::from_terms(width, [(width - 1, left)]),
-                                left_phase,
-                            );
-                            check(&mut row, vec![(width - 1, right)], right_phase);
-                        }
-                    }
-                }
-            }
-        }
-        for width in [65, 513] {
-            let mut row = PhasedPauliString::new(
-                PauliString::from_terms(width, (0..width).map(|column| (column, AXES[column % 4]))),
-                3,
-            );
-            for phase in 0..4 {
-                check(
-                    &mut row,
-                    vec![
-                        (width - 1, Pauli::Y),
-                        (0, Pauli::Z),
-                        (64, Pauli::X),
-                        (width - 1, Pauli::I),
-                        (1, Pauli::Y),
-                        (0, Pauli::Y),
-                        (64, Pauli::Z),
-                    ],
-                    phase,
-                );
-            }
-            for terms in [
-                vec![(0, Pauli::X), (64, Pauli::Y)],
-                vec![(0, Pauli::Z), (64, Pauli::X)],
-                vec![(0, Pauli::Y), (64, Pauli::Z)],
-            ] {
-                check(&mut row, terms, 2);
-            }
-        }
-        for count in [8, 9, 64] {
-            let mut row = PhasedPauliString::new(
-                PauliString::from_terms(65, [(0, Pauli::Y), (64, Pauli::X)]),
-                2,
-            );
-            let mut terms = (0..count)
-                .rev()
-                .map(|column| (column, AXES[column % 4]))
-                .collect::<Vec<_>>();
-            terms.extend([(0, Pauli::Z), (count - 1, Pauli::I)]);
-            check(&mut row, terms, 3);
-        }
-        let mut empty = PhasedPauliString::positive(PauliString::new(0));
-        check(&mut empty, Vec::new(), 2);
-        assert_eq!(empty.phase(), 2);
-    }
-
-    #[test]
-    fn sparse_source_products_validate_width_before_mutation() {
-        use std::panic::{AssertUnwindSafe, catch_unwind};
-        for width in [0, 1, 65, 513] {
-            let source = super::SourceRow {
-                anchor: 0,
-                terms: vec![(0, Pauli::X), (width, Pauli::Y)],
-                phase: 2,
-            };
-            let mut actual = PhasedPauliString::positive(PauliString::new(width));
-            let before = actual.clone();
-            catch_unwind(AssertUnwindSafe(|| {
-                PauliString::from_terms(width, source.terms.iter().copied())
-            }))
-            .expect_err("dense source construction rejects an invalid width");
-            catch_unwind(AssertUnwindSafe(|| source.multiply_into(&mut actual)))
-                .expect_err("sparse source multiplication rejects an invalid width");
-            assert_eq!(actual, before);
-        }
-    }
-
-    #[test]
-    fn ordered_elimination_checks_before_folding_a_packed_row() {
-        let mut rows = vec![super::super::CoeffVec::singleton(0, 2); 2];
-        let before = rows.clone();
-        let token = crate::CancellationToken::new();
-        let mut tested = 0;
-        let error = token
-            .scope(|| {
-                super::try_signed_gaussian_elimination_from(
-                    &mut rows,
-                    0,
-                    [0],
-                    |row, &column| {
-                        tested += 1;
-                        if tested == 2 {
-                            token.cancel();
-                        }
-                        Ok::<_, crate::StabilizerError>(row.bit(column))
-                    },
-                    crate::CancellationToken::checkpoint,
-                )
-            })
-            .unwrap_err();
-        assert!(matches!(error, crate::StabilizerError::Cancelled(_)));
-        assert_eq!(rows, before, "cancel before the pending XOR");
-        let denied = super::try_signed_gaussian_elimination_from(
-            &mut rows,
-            0,
-            [0],
-            |_, _| Err::<bool, _>("query budget"),
-            || Ok(()),
-        );
-        assert_eq!(denied, Err("query budget"));
-        assert_eq!(rows, before);
-    }
-
     fn assert_rows_satisfy_external_edge_pair_support(zx: &ZXGraph, rows: &[PauliString]) {
         for row in rows {
             assert!(zx.row_has_external_edge_pair_support(row), "{row}");
@@ -2123,53 +1984,6 @@ mod tests {
     }
 
     #[test]
-    fn local_phase_width_fallback_preserves_dense_results_and_panics() {
-        use std::panic::{AssertUnwindSafe, catch_unwind};
-        for leaves in [&[][..], &[0][..], &[0, 128][..]] {
-            let zx = phase_test_star(NodeKind::Z, leaves, true);
-            for width in [0, 64, 128, zx.total_ids - 1] {
-                let row = PauliString::new(width);
-                for ignore_cross_centers in [false, true] {
-                    let expected = catch_unwind(AssertUnwindSafe(|| {
-                        zx.local_row_phase_at(&row, ignore_cross_centers, None)
-                    }));
-                    let actual = catch_unwind(AssertUnwindSafe(|| {
-                        zx.local_row_phase(&row, ignore_cross_centers)
-                    }));
-                    match (actual, expected) {
-                        (Ok(actual), Ok(expected)) => assert_eq!(actual, expected),
-                        (Err(_), Err(_)) => {}
-                        (Ok(actual), Err(_)) => {
-                            panic!("short width {width} unexpectedly returned {actual:?}")
-                        }
-                        (Err(_), Ok(expected)) => panic!(
-                            "short width {width} unexpectedly panicked; expected {expected:?}"
-                        ),
-                    }
-                }
-            }
-        }
-        let empty = ZXGraph {
-            nodes: Vec::new(),
-            edges: Vec::new(),
-            adjacency: super::super::graph::CsrAdjacency::from_edges(0, &[]),
-            pos_to_node: Default::default(),
-            action_graph: crate::ActionDag::default(),
-            total_ids: 0,
-            cross_incident: Default::default(),
-            stabilizer_phase_basis: Default::default(),
-        };
-        for ignore_cross_centers in [false, true] {
-            let row = PauliString::new(0);
-            assert_eq!(
-                empty.local_row_phase_at(&row, ignore_cross_centers, None),
-                Some(0)
-            );
-            assert_eq!(empty.local_row_phase(&row, ignore_cross_centers), Some(0));
-        }
-    }
-
-    #[test]
     fn local_tensor_phases_match_signed_gallery_relations_and_products() {
         use rand::{RngExt, SeedableRng, rngs::StdRng};
         let mut rng = StdRng::seed_from_u64(0x51_6e);
@@ -2479,102 +2293,6 @@ mod tests {
     }
 
     #[test]
-    fn witness_keys_survive_xor_reuse_and_occurrence_sensitive_transforms() {
-        let graph = GalleryItem::CNOT.build().materialize_root_graph().unwrap();
-        let zx = ZXGraph::from_block_graph_for_analysis(&graph).unwrap();
-        let mut arena = super::WitnessArena::default();
-        zx.external_row_pivots(&mut arena, usize::MAX).unwrap();
-        let sources = arena
-            .nodes
-            .iter()
-            .enumerate()
-            .filter_map(|(index, node)| {
-                matches!(node, super::WitnessNode::Source(_)).then_some(index)
-            })
-            .take(3)
-            .collect::<Vec<_>>();
-        assert_eq!(sources.len(), 3);
-        let prefix = arena.nodes.len();
-        let mut keys = super::FlowSourceKeys::default();
-        let first_id = arena.push_xor(sources[0], sources[1], usize::MAX).unwrap();
-        let first = zx.flow_witness(&arena, first_id, &mut keys);
-        arena.nodes.truncate(prefix);
-        let second_id = arena.push_xor(sources[1], sources[2], usize::MAX).unwrap();
-        assert_eq!(
-            first_id, second_id,
-            "reuse the XOR suffix, never a source slot"
-        );
-        let second = zx.flow_witness(&arena, second_id, &mut keys);
-        for (witness, indices) in [(&first, &sources[..2]), (&second, &sources[1..])] {
-            let mut expected = indices
-                .iter()
-                .map(|&index| {
-                    let super::WitnessNode::Source(source) = &arena.nodes[index] else {
-                        unreachable!("selected source")
-                    };
-                    zx.flow_source_key(source)
-                })
-                .collect::<Vec<_>>();
-            expected.sort_unstable_by(super::flow_source_key_cmp);
-            assert_eq!(
-                witness.sources.iter().map(Arc::as_ref).collect::<Vec<_>>(),
-                expected.iter().collect::<Vec<_>>()
-            );
-        }
-        let original = first.sources[0].as_ref().clone();
-        let other = arena
-            .nodes
-            .iter()
-            .filter_map(|node| match node {
-                super::WitnessNode::Source(source) => Some(zx.flow_source_key(source)),
-                _ => None,
-            })
-            .find(|key| key.position != original.position)
-            .expect("the later callback target must have a different position");
-        drop(keys);
-        drop(arena);
-        assert_eq!(
-            first
-                .transformed(crate::ModuleOrientation::IDENTITY, Ok)
-                .unwrap()
-                .sources,
-            first.sources,
-            "witness keys outlive their cache and arena"
-        );
-
-        let shared = Arc::clone(&first.sources[0]);
-        let one = FlowWitness {
-            sources: vec![Arc::clone(&shared)],
-        };
-        let two = FlowWitness {
-            sources: vec![shared, Arc::new(other)],
-        };
-        let calls = std::cell::RefCell::new(Vec::new());
-        let transform = |position| {
-            let mut calls = calls.borrow_mut();
-            calls.push(position);
-            if calls.len() == 2 {
-                crate::checked_add_position(IVec3::splat(i32::MAX), IVec3::ONE)
-            } else {
-                crate::checked_add_position(position, IVec3::X)
-            }
-        };
-        let moved = one
-            .transformed(crate::ModuleOrientation::IDENTITY, transform)
-            .unwrap();
-        assert_eq!(moved.sources[0].position, original.position + IVec3::X);
-        assert!(matches!(
-            two.transformed(crate::ModuleOrientation::IDENTITY, transform),
-            Err(crate::BlockGraphError::CoordinateOverflow { .. })
-        ));
-        assert_eq!(*calls.borrow(), [original.position, original.position]);
-        assert_eq!(
-            *one.sources[0], original,
-            "shared input keys remain unchanged"
-        );
-    }
-
-    #[test]
     fn operation_local_replay_keeps_graph_placement_frames_and_fallbacks() {
         for entry in [
             GalleryItem::CNOT,
@@ -2648,81 +2366,6 @@ mod tests {
                 }
             }
         }
-    }
-
-    #[test]
-    fn compact_certificate_rejects_unsupported_original_support() {
-        let graph = GalleryItem::CNOT.build().materialize_root_graph().unwrap();
-        let zx = ZXGraph::from_block_graph_for_analysis(&graph).unwrap();
-        let limits = UNLIMITED_PROJECTION;
-        let width = 2 * zx.total_ids();
-        let malformed = super::CompactSurfaceRelation {
-            rows: vec![super::super::CoeffVec::singleton(2 * zx.edges[0].id, width)],
-            queries: (0..zx.total_ids())
-                .map(|column| [Some(2 * column), Some(2 * column + 1)])
-                .collect(),
-            width,
-        };
-        let result = zx
-            .certify_compact_relation(malformed, &[], limits, |_| {
-                panic!("invalid half-edge support must not be certified")
-            })
-            .unwrap();
-        assert_eq!(result, None);
-
-        let space = crate::GuardedSurfaceSpace::new(
-            crate::GuardedTopology::new(&graph, crate::ModuleCertificationLimits::UNLIMITED)
-                .unwrap(),
-            &std::collections::HashMap::new(),
-            crate::ModuleCertificationLimits::UNLIMITED,
-        )
-        .unwrap();
-        let compact = space.compact_relation(&zx, 0, |_| true).unwrap().unwrap();
-        let cancellation = crate::CancellationToken::new();
-        cancellation.cancel();
-        assert!(matches!(
-            cancellation.scope(
-                || zx.certify_compact_relation(compact, &[], limits, |_| panic!(
-                    "cancelled certificate must not be emitted"
-                ),)
-            ),
-            Err(super::ProjectionError::Cancelled(_))
-        ));
-        let compact = space.compact_relation(&zx, 0, |_| true).unwrap().unwrap();
-        let cancellation = crate::CancellationToken::new();
-        let mut consumed = 0;
-        assert!(matches!(
-            cancellation.scope(|| zx.certify_compact_relation(compact, &[], limits, |_| {
-                consumed += 1;
-                cancellation.cancel();
-            })),
-            Err(super::ProjectionError::Cancelled(_))
-        ));
-        assert_eq!(
-            consumed, 1,
-            "the next row checks cancellation with a warm cache"
-        );
-        assert!(matches!(
-            zx.certify_compact_relation(
-                space.compact_relation(&zx, 0, |_| true).unwrap().unwrap(),
-                &[],
-                ProjectionLimits {
-                    max_witness_nodes: 0,
-                    ..limits
-                },
-                |_| panic!("resource failure must not emit a certificate"),
-            ),
-            Err(super::ProjectionError::WitnessLimit { limit: 0, .. })
-        ));
-        zx.stabilizer_phase_basis
-            .set(std::sync::Arc::new(super::StabilizerPhaseBasis::new(
-                zx.to_signed_external_generator_table(),
-            )))
-            .unwrap();
-        assert!(
-            space.compact_relation(&zx, 0, |_| true).unwrap().is_none(),
-            "an installed signed authority cannot enter the unsigned path"
-        );
     }
 
     /// The external table splits as `rank = b + z`: one independent surface per

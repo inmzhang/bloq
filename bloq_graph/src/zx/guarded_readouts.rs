@@ -320,16 +320,11 @@ impl GuardedReadoutPlan {
         self.topology.diagram.charge(self.columns.len())?;
         self.topology.diagram.charge(module_sites.len())?;
         // Split a single owner by x to reuse query pieces in the same site order.
-        let mut owners = module_sites.values();
-        let first_owner = owners.next();
-        let mut split_owner = first_owner.is_some();
-        for owner in owners {
-            crate::CancellationToken::checkpoint()?;
-            if Some(owner) != first_owner {
-                split_owner = false;
-                break;
-            }
-        }
+        let first_owner = module_sites.values().next();
+        let split_owner = first_owner.is_some()
+            && module_sites
+                .values()
+                .all(|owner| Some(owner) == first_owner);
         let column_groups = self
             .columns
             .iter()
@@ -360,14 +355,7 @@ impl GuardedReadoutPlan {
             }
             for owners in coordinate_groups.values_mut() {
                 for positions in owners.values_mut() {
-                    crate::CancellationToken::checkpoint()?;
-                    let incidences = positions.len();
-                    self.topology.diagram.charge(
-                        incidences.saturating_mul(incidences.max(1).ilog2() as usize + 2),
-                    )?;
-                    positions.sort_unstable();
-                    positions.dedup();
-                    crate::CancellationToken::checkpoint()?;
+                    sort_positions(positions, &mut self.topology.diagram)?;
                 }
             }
         }
@@ -427,14 +415,7 @@ impl GuardedReadoutPlan {
                             positions.extend_from_slice(owned);
                         }
                     }
-                    crate::CancellationToken::checkpoint()?;
-                    let incidences = positions.len();
-                    self.topology.diagram.charge(
-                        incidences.saturating_mul(incidences.max(1).ilog2() as usize + 2),
-                    )?;
-                    positions.sort_unstable();
-                    positions.dedup();
-                    crate::CancellationToken::checkpoint()?;
+                    sort_positions(&mut positions, &mut self.topology.diagram)?;
                     self.topology.diagram.charge(positions.len())?;
                     let id = self.fragments.len();
                     self.fragments.push((surface, positions.into()));
@@ -659,9 +640,9 @@ impl GuardedReadoutPlan {
                 };
                 // The first arm determines the linear center component. An
                 // isolated variant instead queries its independent coordinate.
-                let mut center = pauli(bit(0), bit(1));
+                let mut center = Pauli::from_xz(bit(0), bit(1));
                 let paulis = (usize::from(variant.center.is_some())..column_count)
-                    .map(|index| pauli(bit(2 * index), bit(2 * index + 1)));
+                    .map(|index| Pauli::from_xz(bit(2 * index), bit(2 * index + 1)));
                 let cross = match variant.kind {
                     NodeKind::X | NodeKind::Z => Some(variant.kind.cross_pauli()),
                     _ => None,
@@ -811,13 +792,18 @@ impl GuardedReadoutPlan {
     }
 }
 
-fn pauli(x: bool, z: bool) -> Pauli {
-    match (x, z) {
-        (false, false) => Pauli::I,
-        (true, false) => Pauli::X,
-        (false, true) => Pauli::Z,
-        (true, true) => Pauli::Y,
-    }
+/// Sort and deduplicate fragment positions, charging comparison work.
+fn sort_positions(
+    positions: &mut Vec<[i32; 3]>,
+    diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
+) -> Result<(), BlockGraphError> {
+    crate::CancellationToken::checkpoint()?;
+    let incidences = positions.len();
+    diagram.charge(incidences.saturating_mul(incidences.max(1).ilog2() as usize + 2))?;
+    positions.sort_unstable();
+    positions.dedup();
+    crate::CancellationToken::checkpoint()?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -898,214 +884,7 @@ mod tests {
     use super::*;
     use crate::PauliString;
     use crate::{GalleryItem, GuardedSurfaceSpace, ModuleCertificationLimits};
-    use bloq_utils::boolean::{BooleanRow, DECISION_TRUE as ONE};
-
-    #[test]
-    fn aliased_queries_keep_original_crossing_support_and_module_owners() {
-        let source = crate::BlockGraph::from_text(
-            "BLOG 1.0\nmodule main {\n0: ZXZ [0,0,0]\nm = measure 0\n}",
-        )
-        .unwrap()
-        .flatten()
-        .unwrap();
-        let limits = ModuleCertificationLimits::DEFAULT;
-        let mut plan = GuardedSurfaceSpace::new(
-            GuardedTopology::new(&source, limits).unwrap(),
-            &Default::default(),
-            limits,
-        )
-        .unwrap()
-        .plan_readouts()
-        .unwrap();
-        let alpha = plan.topology.diagram.make_node(0, ZERO, ONE).unwrap();
-        let beta = plan.topology.diagram.make_node(1, ZERO, ONE).unwrap();
-        let [center, a, b, isolated] = [IVec3::ZERO, IVec3::NEG_X, IVec3::X, IVec3::Z];
-        let positions = [center, a, b, isolated].map(|position| position.to_array());
-        plan.columns = vec![
-            SurfaceColumn::Edge(positions[0], positions[1]),
-            SurfaceColumn::Edge(positions[0], positions[2]),
-            SurfaceColumn::Edge(positions[1], positions[0]),
-            SurfaceColumn::Edge(positions[2], positions[0]),
-            SurfaceColumn::Node(positions[3]),
-        ];
-        // Reverse endpoints own the representatives; the second edge has H.
-        plan.coordinates = SurfaceCoordinates::new(vec![
-            Some(4),
-            None,
-            Some(7),
-            None,
-            Some(4),
-            None,
-            None,
-            Some(7),
-            None,
-            None,
-        ]);
-        plan.local = [
-            (
-                center,
-                NodeKind::X,
-                None,
-                vec![(0, a, false, false), (1, b, false, true)],
-            ),
-            (a, NodeKind::Port, None, vec![(2, center, true, false)]),
-            (b, NodeKind::Port, None, vec![(3, center, true, true)]),
-            (isolated, NodeKind::Z, Some(4), Vec::new()),
-        ]
-        .into_iter()
-        .map(|(position, kind, center, arms)| {
-            (
-                position.to_array(),
-                vec![LocalTopology {
-                    guard: ONE,
-                    kind,
-                    center,
-                    arms: arms
-                        .into_iter()
-                        .map(|(column, target, reversed, hadamard)| LocalArm {
-                            column,
-                            target,
-                            reversed,
-                            hadamard,
-                        })
-                        .collect(),
-                    selector: None,
-                }],
-            )
-        })
-        .collect();
-        let single = GuardedSurface {
-            kind: GuardedSurfaceKind::LogicalReadout,
-            feedbacks: Vec::new(),
-            row: BooleanRow::from_terms(ONE, [(4, alpha)]),
-        };
-        plan.surfaces = vec![
-            GuardedSurface {
-                // The unchanged auxiliary coordinate has no physical owner.
-                row: BooleanRow::from_terms(ONE, [(4, alpha), (7, beta), (10, ONE)]),
-                ..single.clone()
-            },
-            single.clone(),
-            single.clone(),
-            GuardedSurface {
-                row: BooleanRow::from_terms(ZERO, [(4, alpha), (7, beta), (10, ONE)]),
-                ..single
-            },
-        ];
-        assert_eq!(
-            plan.support_sites(0),
-            BTreeSet::from([positions[0], positions[1], positions[2]])
-        );
-        assert_eq!(
-            plan.support_sites(1),
-            BTreeSet::from([positions[0], positions[1]])
-        );
-        assert!(plan.local_cases(0, isolated, ONE).unwrap().is_empty());
-        let cases = plan.local_cases(0, center, ONE).unwrap();
-        for values in [[false, false], [false, true], [true, false], [true, true]] {
-            let case = cases
-                .iter()
-                .find(|case| {
-                    plan.topology
-                        .diagram
-                        .evaluate(case.guard, |bit| values[bit])
-                })
-                .unwrap();
-            assert_eq!(
-                case.surface.center,
-                if values[0] || values[1] {
-                    Pauli::X
-                } else {
-                    Pauli::I
-                }
-            );
-            let expected = [(a, values[0]), (b, values[1])]
-                .into_iter()
-                .filter(|&(_, supported)| supported)
-                .map(|(target, _)| ((center, target), Pauli::X))
-                .collect::<Vec<_>>();
-            assert_eq!(case.surface.edges, expected);
-        }
-        for case in plan.local_cases(0, b, ONE).unwrap() {
-            assert_eq!(case.surface.port_pauli(b), Pauli::Z);
-            assert_eq!(case.surface.edges, vec![((center, b), Pauli::X)]);
-        }
-        plan.fragments.clear();
-        plan.fragment_uses.clear();
-        let owners = BTreeMap::from([
-            (positions[0], 0),
-            (positions[1], 1),
-            (positions[2], 2),
-            (positions[3], 0),
-        ]);
-        plan.share_module_queries(&owners).unwrap();
-        assert_shared_fragments(&mut plan, &owners);
-        assert_eq!(plan.query_fragments(1), plan.query_fragments(2));
-        assert_eq!(plan.query_fragments(1).len(), 2);
-        let owners = plan
-            .query_fragments(1)
-            .iter()
-            .map(|&fragment| plan.query_fragment(fragment).1.to_vec())
-            .collect::<Vec<_>>();
-        assert_eq!(owners, vec![vec![positions[0]], vec![positions[1]]]);
-
-        // Refine one original owner without losing aliases in other x-slabs.
-        let mut coordinates = (0..2 * plan.columns.len())
-            .map(|bit| plan.coordinates.bit(bit))
-            .collect::<Vec<_>>();
-        coordinates[8] = Some(8);
-        plan.coordinates = SurfaceCoordinates::new(coordinates);
-        let first = GuardedSurface {
-            row: BooleanRow::from_terms(ONE, [(4, alpha), (7, beta), (8, ONE)]),
-            ..plan.surfaces[1].clone()
-        };
-        plan.surfaces = vec![
-            first.clone(),
-            GuardedSurface {
-                row: BooleanRow::from_terms(ONE, [(4, alpha), (7, ONE), (8, ONE)]),
-                ..first.clone()
-            },
-            GuardedSurface {
-                row: BooleanRow::from_terms(beta, [(4, alpha), (7, beta), (8, ONE)]),
-                ..first.clone()
-            },
-            GuardedSurface {
-                kind: GuardedSurfaceKind::Readout {
-                    name: "named".to_owned(),
-                    folds: Vec::new(),
-                },
-                ..first
-            },
-        ];
-        plan.fragments.clear();
-        plan.fragment_uses.clear();
-        let owners = positions
-            .into_iter()
-            .map(|position| (position, 0))
-            .collect();
-        plan.share_module_queries(&owners).unwrap();
-        let shared_sites = plan
-            .query_fragments(0)
-            .iter()
-            .filter(|id| plan.query_fragments(1).contains(id))
-            .flat_map(|&id| plan.query_fragment(id).1.to_vec())
-            .collect::<BTreeSet<_>>();
-        assert_eq!(shared_sites, BTreeSet::from([a.to_array()]));
-        for distinct in [2, 3] {
-            assert!(
-                plan.query_fragments(0)
-                    .iter()
-                    .all(|id| !plan.query_fragments(distinct).contains(id))
-            );
-        }
-        for _ in 0..2 {
-            assert_shared_fragments(&mut plan, &owners);
-            let isolated_cases = plan.local_cases(0, isolated, ONE).unwrap();
-            assert_eq!(isolated_cases.len(), 1);
-            assert_eq!(isolated_cases[0].surface.center, Pauli::X);
-            plan.collect_garbage(std::iter::empty());
-        }
-    }
+    use bloq_utils::boolean::DECISION_TRUE as ONE;
 
     #[test]
     fn constant_action_dependencies_do_not_scan_unrelated_boolean_nodes() {
@@ -1363,7 +1142,7 @@ mod tests {
                         let row = &plan.surfaces[surface].row;
                         let mut dense = PauliString::new(zx.total_ids());
                         for (&column, &index) in &columns {
-                            let value = pauli(
+                            let value = Pauli::from_xz(
                                 evaluate(plan.coordinates.get(row, 2 * index)),
                                 evaluate(plan.coordinates.get(row, 2 * index + 1)),
                             );

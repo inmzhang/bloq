@@ -144,7 +144,9 @@ impl From<PauliBasis> for Pauli {
 }
 
 impl Pauli {
-    const fn from_xz(x: bool, z: bool) -> Self {
+    /// Builds the Pauli with the given X and Z components.
+    #[must_use]
+    pub const fn from_xz(x: bool, z: bool) -> Self {
         match (x, z) {
             (false, false) => Self::I,
             (true, false) => Self::X,

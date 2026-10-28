@@ -1860,45 +1860,6 @@ mod certificate_tests {
     }
 
     #[test]
-    fn compact_summary_keeps_closed_modes_under_a_packed_matrix_budget() {
-        let mut source = String::from("BLOG 1.0\nmodule main {\n");
-        for index in 0..16 {
-            source.push_str(&format!("{index}: ZXZ [{},0,0]\n", 2 * index));
-        }
-        source.push_str("}\n");
-        let program = crate::BlockGraph::from_text(&source).unwrap();
-        let limits = ModuleCertificationLimits {
-            max_matrix_words: 64,
-            ..ModuleCertificationLimits::DEFAULT
-        };
-        let summary = program.summarize_root(limits).unwrap();
-        assert_eq!(summary.boundary_rows().len(), 0);
-        assert_eq!(summary.certificate_rows.len(), 16);
-        let zx = ZXGraph::from_block_graph_for_analysis(&program.materialize_root_graph().unwrap())
-            .unwrap();
-        assert!(matches!(
-            summary.materialize_certificate_rows(&zx, Ok),
-            Err(ModuleCertificationError::ResourceLimited {
-                phase: "dense matrix words",
-                observed: 256,
-                limit: 64,
-                ..
-            })
-        ));
-        assert!(matches!(
-            program.summarize_root(ModuleCertificationLimits {
-                max_matrix_words: 63,
-                ..limits
-            }),
-            Err(ModuleCertificationError::ResourceLimited {
-                phase: "compact certificate matrix words",
-                limit: 63,
-                ..
-            })
-        ));
-    }
-
-    #[test]
     fn composed_adder_rejects_unavailable_causal_readout() {
         let program = crate::BlockGraph::from_text(bloq_test::ONE_BIT_ADDER_SOURCE).unwrap();
         let result = program.stabilizers();

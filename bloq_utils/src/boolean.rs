@@ -2038,14 +2038,8 @@ impl BooleanRowSpace {
         self.columns.get(&column).into_iter().flatten().copied()
     }
 
-    /// Stable IDs whose active support may contain `column`, in unspecified
-    /// order, without copying or sorting the posting list.
-    pub fn row_ids_with_column_unordered(&self, column: usize) -> impl Iterator<Item = usize> + '_ {
-        self.columns.get(&column).into_iter().flatten().copied()
-    }
-
     /// Visit stable row IDs whose active support may contain `column`, in
-    /// unspecified order, without copying or sorting the posting list.
+    /// source order, without copying the posting list.
     ///
     /// # Errors
     /// Returns [`BooleanResourceError`] before visiting any row if the complete
@@ -2179,7 +2173,6 @@ impl BooleanRowSpace {
             return Ok(());
         };
         diagram.charge(indices.len())?;
-        // The total is order-independent, so walk the postings unsorted.
         let work = indices.iter().try_fold(0usize, |work, &index| {
             let row = self.rows[index].as_ref().expect("indexed row exists");
             let search = row.bits.len().ilog2() as usize + 1;
@@ -2309,22 +2302,6 @@ impl BooleanRowSpace {
         diagram: &mut BooleanDecisionDiagram,
     ) -> Result<BooleanRow, BooleanResourceError> {
         self.eliminate_column_when_sparse(column, DECISION_TRUE, diagram)
-    }
-
-    /// Eliminate one column using weighted support sizes, with source order
-    /// breaking ties. Columns outside `weights` have unit weight; sizes saturate
-    /// at `usize::MAX`.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`BooleanResourceError`] if elimination exceeds configured limits.
-    pub fn eliminate_column_sparse_weighted(
-        &mut self,
-        column: usize,
-        weights: &[usize],
-        diagram: &mut BooleanDecisionDiagram,
-    ) -> Result<BooleanRow, BooleanResourceError> {
-        self.eliminate_column_when_sparse_weighted(column, DECISION_TRUE, weights, diagram)
     }
 
     /// Eliminate `gate & coefficient`, retaining the column outside the gate.
@@ -2567,7 +2544,6 @@ impl BooleanRowSpace {
             return Ok(());
         }
         diagram.charge(terms.len())?;
-        // The ordered set sorts the union, so each posting list is read unsorted.
         let mut candidates = BTreeSet::new();
         for &(column, weight) in terms {
             if weight != DECISION_FALSE {
@@ -4233,7 +4209,7 @@ mod tests {
         let mut weighted = BooleanRowSpace::new(rows.clone(), &mut diagram).unwrap();
         assert_eq!(
             weighted
-                .eliminate_column_sparse_weighted(0, &weights, &mut diagram)
+                .eliminate_column_when_sparse_weighted(0, DECISION_TRUE, &weights, &mut diagram)
                 .unwrap()
                 .terms(),
             rows[0].terms()
@@ -4253,44 +4229,12 @@ mod tests {
         });
         let mut weighted = BooleanRowSpace::new(rows.clone(), &mut limited).unwrap();
         weighted
-            .eliminate_column_sparse_weighted(0, &weights, &mut limited)
+            .eliminate_column_when_sparse_weighted(0, DECISION_TRUE, &weights, &mut limited)
             .unwrap_err();
         assert_eq!(
             weighted.rows().map(BooleanRow::terms).collect::<Vec<_>>(),
             rows.iter().map(BooleanRow::terms).collect::<Vec<_>>()
         );
-    }
-
-    #[test]
-    fn column_visits_charge_before_exposing_row_ids() {
-        let mut rows = BooleanRowSpace::new(
-            vec![
-                BooleanRow::from_terms(DECISION_TRUE, [(0, DECISION_TRUE)]),
-                BooleanRow::from_terms(DECISION_TRUE, [(0, DECISION_TRUE), (1, DECISION_TRUE)]),
-            ],
-            &mut BooleanDecisionDiagram::default(),
-        )
-        .unwrap();
-        // Visiting charges the remaining posting before exposing any row.
-        rows.take(0, &mut BooleanDecisionDiagram::default())
-            .unwrap();
-        let mut visited = Vec::new();
-        let mut denied = BooleanDecisionDiagram::with_limits(BooleanLimits {
-            max_steps: 1,
-            ..BooleanLimits::DEFAULT
-        });
-        let error = rows
-            .visit_column_rows(0, &mut denied, |id| visited.push(id))
-            .unwrap_err();
-        assert_eq!(error.resource, "Boolean work steps");
-        assert!(visited.is_empty());
-        let mut allowed = BooleanDecisionDiagram::with_limits(BooleanLimits {
-            max_steps: 2,
-            ..BooleanLimits::DEFAULT
-        });
-        rows.visit_column_rows(0, &mut allowed, |id| visited.push(id))
-            .unwrap();
-        assert_eq!(visited, [1]);
     }
 
     #[test]

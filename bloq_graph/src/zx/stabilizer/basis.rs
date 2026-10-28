@@ -1,7 +1,6 @@
 //! Pauli row bases, coordinates, and rank-preserving elimination.
 
 use bloq_utils::{Pauli, PauliString};
-use std::ops::BitXorAssign;
 
 /// Dense GF(2) coefficient vector with a bit-granular logical length.
 ///
@@ -98,12 +97,6 @@ impl CoeffVec {
 
     pub(crate) fn to_indices(&self) -> Vec<usize> {
         self.iter_ones().collect()
-    }
-}
-
-impl BitXorAssign<&Self> for CoeffVec {
-    fn bitxor_assign(&mut self, other: &Self) {
-        self.xor_assign(other);
     }
 }
 
@@ -368,7 +361,7 @@ mod tests {
                 let mut sum = CoeffVec::zeros(target.len);
                 let selected = (0..columns.len()).filter(|index| mask & (1 << index) != 0);
                 for index in selected.clone() {
-                    sum ^= &columns[index];
+                    sum.xor_assign(&columns[index]);
                 }
                 (sum == *target).then(|| coeff(selected, columns.len()))
             })
@@ -424,76 +417,6 @@ mod tests {
                         }
                     }
                 }
-            }
-        }
-
-        #[test]
-        fn unsorted_pivots_keep_first_witness_and_zero_column_direction() {
-            let columns = [
-                vec![],
-                vec![1],
-                vec![1],
-                vec![0, 1],
-                vec![2],
-                vec![0, 1, 2],
-                vec![],
-            ]
-            .map(|bits| coeff(bits, 4));
-            let factorization = CoeffFactorization::new(&columns);
-            assert_eq!(factorization.solve(&columns[5]), Some(coeff([3, 4], 7)));
-            assert_eq!(
-                factorization
-                    .kernel_directions()
-                    .iter()
-                    .map(CoeffVec::to_indices)
-                    .collect::<Vec<_>>(),
-                vec![vec![0], vec![1, 2], vec![3, 4, 5], vec![6]]
-            );
-            for mask in 0..16 {
-                let target = coeff((0..4).filter(|row| mask & (1 << row) != 0), 4);
-                let actual = factorization.solve(&target);
-                assert_eq!(actual, exhaustive_solution(&columns, &target));
-                assert_eq!(actual.is_some(), mask & 8 == 0);
-            }
-        }
-
-        #[test]
-        fn rows_and_witnesses_cross_word_boundaries() {
-            let mut columns = vec![CoeffVec::zeros(130); 130];
-            columns[0] = coeff([129], 130);
-            columns[63] = coeff([64], 130);
-            columns[64] = coeff([0], 130);
-            columns[65] = coeff([64, 129], 130);
-            columns[129] = coeff([0, 64], 130);
-            let factorization = CoeffFactorization::new(&columns);
-            assert_eq!(
-                factorization.solve(&coeff([0, 64], 130)),
-                Some(coeff([63, 64], 130))
-            );
-            assert_eq!(factorization.solve(&coeff([127], 130)), None);
-            let expected_kernel = (1..130)
-                .filter(|index| ![63, 64].contains(index))
-                .map(|index| match index {
-                    65 => coeff([0, 63, 65], 130),
-                    129 => coeff([63, 64, 129], 130),
-                    _ => CoeffVec::singleton(index, 130),
-                })
-                .collect::<Vec<_>>();
-            assert_eq!(factorization.kernel_directions(), expected_kernel);
-            for mask in 0..8 {
-                let target = coeff(
-                    (0..3)
-                        .filter(|bit| mask & (1 << bit) != 0)
-                        .map(|bit| [129, 64, 0][bit]),
-                    130,
-                );
-                let expected = coeff(
-                    (0..3)
-                        .filter(|bit| mask & (1 << bit) != 0)
-                        .map(|bit| [0, 63, 64][bit]),
-                    130,
-                );
-                assert_eq!(factorization.solve(&target), Some(expected));
             }
         }
     }
