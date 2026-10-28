@@ -181,17 +181,26 @@ impl ZXGraph {
             }
         }
 
-        let mut pipes = graph.pipes().collect::<Vec<_>>();
-        pipes.sort_unstable_by_key(|pipe| {
-            let first = endpoint_to_node[&pipe.src];
-            let second = endpoint_to_node[&pipe.dst()];
-            (first.min(second), first.max(second))
-        });
-        for pipe in pipes {
+        // Resolve endpoints once; sorting by node pair must not repeat the lookups.
+        let mut pipes = graph
+            .pipes()
+            .map(|pipe| {
+                let first = endpoint_to_node[&pipe.src];
+                let second = endpoint_to_node[&pipe.dst()];
+                (
+                    (first.min(second), first.max(second)),
+                    first,
+                    second,
+                    pipe.hadamard,
+                )
+            })
+            .collect::<Vec<_>>();
+        pipes.sort_unstable_by_key(|&(pair, ..)| pair);
+        for (_, first, second, hadamard) in pipes {
             push_edge_pair(
-                endpoint_to_node[&pipe.src],
-                endpoint_to_node[&pipe.dst()],
-                pipe.hadamard,
+                first,
+                second,
+                hadamard,
                 &mut id,
                 &mut edges,
                 &mut directed_edges,
