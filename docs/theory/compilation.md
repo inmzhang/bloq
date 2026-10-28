@@ -281,10 +281,11 @@ and causal readout planning, and reports computed and reused seam equations:
 cargo run --release --locked -p bloq_graph --example profile_source_planner -- 32
 ```
 
-The argument selects an adder width. Use `yoke:32` for a flat-graph control or
-`file:program.blog` for an authored hierarchy. Definition preparation is reported
-separately; the uncached reference excludes definition certification, so its
-total is not a complete cold-compiler baseline.
+The argument selects an adder width; `yoke:32` selects yoked memory and
+`file:program.blog` loads an authored hierarchy. Add `--flat` to omit module
+relations or `--samples 3` to repeat planning. Definition preparation is timed
+separately; the reference excludes certification and is not a cold-compiler
+baseline.
 
 The selective inventory benchmark compares cold compilation, warm block
 templates, and reused definitions under changed parent bindings:
