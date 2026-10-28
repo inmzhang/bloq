@@ -884,6 +884,13 @@ impl BooleanDecisionDiagram {
     }
 }
 
+fn add_posting(columns: &mut FxHashMap<usize, Vec<usize>>, column: usize, index: usize) {
+    let rows = columns.entry(column).or_default();
+    if let Err(at) = rows.binary_search(&index) {
+        rows.insert(at, index);
+    }
+}
+
 /// A sparse GF(2) row whose entries and availability are Boolean functions.
 /// Extra columns can carry witnesses through exactly the same row operations.
 #[derive(Debug, Clone)]
@@ -1951,7 +1958,8 @@ impl BooleanRow {
 #[derive(Debug, Default)]
 pub struct BooleanRowSpace {
     rows: Vec<Option<BooleanRow>>,
-    columns: FxHashMap<usize, FxHashSet<usize>>,
+    // Sorted stable row IDs per column.
+    columns: FxHashMap<usize, Vec<usize>>,
     live: usize,
 }
 
@@ -2027,15 +2035,7 @@ impl BooleanRowSpace {
 
     /// Stable IDs whose active support may contain `column`, in source order.
     pub fn row_ids_with_column(&self, column: usize) -> impl Iterator<Item = usize> + '_ {
-        let mut ids = self
-            .columns
-            .get(&column)
-            .into_iter()
-            .flat_map(|rows| rows.iter())
-            .copied()
-            .collect::<Vec<_>>();
-        ids.sort_unstable();
-        ids.into_iter()
+        self.columns.get(&column).into_iter().flatten().copied()
     }
 
     /// Stable IDs whose active support may contain `column`, in unspecified
@@ -2057,7 +2057,7 @@ impl BooleanRowSpace {
         mut visit: impl FnMut(usize),
     ) -> Result<(), BooleanResourceError> {
         let rows = self.columns.get(&column);
-        diagram.charge(rows.map_or(1, |rows| rows.capacity().saturating_add(1)))?;
+        diagram.charge(rows.map_or(1, |rows| rows.len().saturating_add(1)))?;
         for &index in rows.into_iter().flatten() {
             visit(index);
         }
@@ -2098,7 +2098,7 @@ impl BooleanRowSpace {
         }
         let index = self.rows.len();
         for &(column, _) in &row.bits {
-            self.columns.entry(column).or_default().insert(index);
+            add_posting(&mut self.columns, column, index);
         }
         self.rows.push(Some(row));
         self.live += 1;
@@ -2149,7 +2149,7 @@ impl BooleanRowSpace {
         let previous = self.take_row(index);
         if row.active != DECISION_FALSE {
             for &(column, _) in &row.bits {
-                self.columns.entry(column).or_default().insert(index);
+                add_posting(&mut self.columns, column, index);
             }
             self.rows[index] = Some(row);
             self.live += 1;
@@ -2224,18 +2224,18 @@ impl BooleanRowSpace {
             return Ok(Vec::new());
         };
         diagram.charge(indices.len())?;
-        let mut candidates = indices.iter().copied().collect::<Vec<_>>();
+        let mut candidates = indices.to_vec();
         if let Some(weights) = sparse {
             self.sort_sparse_candidates(&mut candidates, weights, diagram)?;
-        } else {
-            candidates.sort_unstable();
         }
         Ok(candidates)
     }
 
     fn remove_column_row(&mut self, column: usize, index: usize) {
         if let std::collections::hash_map::Entry::Occupied(mut entry) = self.columns.entry(column) {
-            entry.get_mut().remove(&index);
+            if let Ok(at) = entry.get().binary_search(&index) {
+                entry.get_mut().remove(at);
+            }
             if entry.get().is_empty() {
                 entry.remove();
             }
@@ -2277,7 +2277,7 @@ impl BooleanRowSpace {
             {
                 self.remove_column_row(column, index);
             } else {
-                self.columns.entry(column).or_default().insert(index);
+                add_posting(&mut self.columns, column, index);
             }
         }
         Ok(())
@@ -4271,12 +4271,12 @@ mod tests {
             &mut BooleanDecisionDiagram::default(),
         )
         .unwrap();
-        // Removing a row leaves a sparse posting with retained capacity.
+        // Visiting charges the remaining posting before exposing any row.
         rows.take(0, &mut BooleanDecisionDiagram::default())
             .unwrap();
         let mut visited = Vec::new();
         let mut denied = BooleanDecisionDiagram::with_limits(BooleanLimits {
-            max_steps: 2,
+            max_steps: 1,
             ..BooleanLimits::DEFAULT
         });
         let error = rows
@@ -4285,7 +4285,7 @@ mod tests {
         assert_eq!(error.resource, "Boolean work steps");
         assert!(visited.is_empty());
         let mut allowed = BooleanDecisionDiagram::with_limits(BooleanLimits {
-            max_steps: 4,
+            max_steps: 2,
             ..BooleanLimits::DEFAULT
         });
         rows.visit_column_rows(0, &mut allowed, |id| visited.push(id))
