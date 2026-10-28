@@ -155,6 +155,16 @@ impl Pauli {
         }
     }
 
+    /// Power of `i` in the single-site product `self · other`.
+    #[must_use]
+    pub const fn product_phase(self, other: Self) -> u8 {
+        match (self, other) {
+            (Self::X, Self::Y) | (Self::Y, Self::Z) | (Self::Z, Self::X) => 1,
+            (Self::Y, Self::X) | (Self::Z, Self::Y) | (Self::X, Self::Z) => 3,
+            _ => 0,
+        }
+    }
+
     /// Swaps `X` and `Z`; leaves `I` and `Y` unchanged.
     pub const fn flip(self) -> Self {
         match self {

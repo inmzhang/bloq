@@ -154,7 +154,7 @@ impl<'a> EdgeFlowLayout<'a> {
                 lhs = lhs.flip();
                 rhs = rhs.flip();
             }
-            phase = (phase + pauli_product_phase(lhs, rhs)) & 3;
+            phase = (phase + lhs.product_phase(rhs)) & 3;
         }
         phase
     }
@@ -232,17 +232,9 @@ impl SourceRow {
         row.shift_phase(self.phase);
         for (column, right) in terms {
             let left = row.paulis.get(column);
-            row.shift_phase(pauli_product_phase(left, right));
+            row.shift_phase(left.product_phase(right));
             row.paulis.set(column, left ^ right);
         }
-    }
-}
-
-fn pauli_product_phase(left: Pauli, right: Pauli) -> u8 {
-    match (left, right) {
-        (Pauli::X, Pauli::Y) | (Pauli::Y, Pauli::Z) | (Pauli::Z, Pauli::X) => 1,
-        (Pauli::Y, Pauli::X) | (Pauli::Z, Pauli::Y) | (Pauli::X, Pauli::Z) => 3,
-        _ => 0,
     }
 }
 
@@ -590,14 +582,7 @@ impl ZXGraph {
                 }
             }
         }
-        let mut physical_order = vec![None; width];
-        for (column, queries) in queries.iter().enumerate() {
-            for (axis, query) in [Pauli::X, Pauli::Z].into_iter().zip(queries) {
-                if let Some(bit) = query {
-                    physical_order[*bit].get_or_insert((column, axis));
-                }
-            }
-        }
+        let physical_order = super::reduction::raw_query_order(&queries, width);
         if rows.iter().any(|row| {
             row.iter_ones()
                 .any(|bit| bit >= width || physical_order[bit].is_none())
@@ -622,15 +607,10 @@ impl ZXGraph {
             |row, &(ordinal, axis)| component(row, boundary_columns[ordinal], axis),
             checkpoint,
         )?;
-        let closed_len = try_leading_pivot_elimination_from(
+        let closed_len = super::reduction::eliminate_in_raw_order(
             &mut rows[boundary_len..],
-            0,
-            |row| {
-                row.iter_ones()
-                    .filter_map(|bit| physical_order[bit])
-                    .min_by_key(|&(column, axis)| (column, axis == Pauli::Z))
-            },
-            |row, &(column, axis)| component(row, column, axis),
+            &queries,
+            &physical_order,
             checkpoint,
         )?;
         rows.truncate(boundary_len + closed_len);
@@ -640,16 +620,7 @@ impl ZXGraph {
         let mut source_keys = FlowSourceKeys::default();
         for row in rows {
             checkpoint()?;
-            let paulis = PauliString::from_terms(
-                self.total_ids,
-                (0..self.total_ids).filter_map(|column| {
-                    let pauli = Pauli::from_xz(
-                        component(&row, column, Pauli::X),
-                        component(&row, column, Pauli::Z),
-                    );
-                    (pauli != Pauli::I).then_some((column, pauli))
-                }),
-            );
+            let paulis = super::reduction::lift_queries(&queries, |bit| row.bit(bit));
             let phase = self.external_stabilizer_row_phases(std::slice::from_ref(&paulis))[0];
             let signed = PhasedPauliString::new(paulis, phase);
             let Some(witness) =

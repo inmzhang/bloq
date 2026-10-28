@@ -21,19 +21,55 @@ pub(crate) struct CorrelationReduction {
     pub(crate) rows: Vec<BooleanRow>,
 }
 
-fn query_pauli(queries: [Option<usize>; 2], component: impl Fn(usize) -> bool) -> Pauli {
-    let [x, z] = queries.map(|class| class.is_some_and(&component));
-    Pauli::from_xz(x, z)
-}
-
-fn lift_queries(
-    width: usize,
-    queries: impl Fn(usize) -> [Option<usize>; 2],
+/// Lift compact coordinates through each raw column's `[X, Z]` queries.
+pub(super) fn lift_queries(
+    queries: &[[Option<usize>; 2]],
     component: impl Fn(usize) -> bool,
 ) -> PauliString {
     PauliString::from_terms(
-        width,
-        (0..width).map(|column| (column, query_pauli(queries(column), &component))),
+        queries.len(),
+        queries.iter().enumerate().map(|(column, axes)| {
+            let [x, z] = axes.map(|bit| bit.is_some_and(&component));
+            (column, Pauli::from_xz(x, z))
+        }),
+    )
+}
+
+/// First raw `(column, axis)` query of each compact coordinate.
+pub(super) fn raw_query_order(
+    queries: &[[Option<usize>; 2]],
+    width: usize,
+) -> Vec<Option<(usize, Pauli)>> {
+    let mut order = vec![None; width];
+    for (column, axes) in queries.iter().enumerate() {
+        for (axis, query) in [Pauli::X, Pauli::Z].into_iter().zip(axes) {
+            if let Some(bit) = *query {
+                order[bit].get_or_insert((column, axis));
+            }
+        }
+    }
+    order
+}
+
+/// Leading-pivot elimination whose pivots follow raw query order; returns the rank.
+pub(super) fn eliminate_in_raw_order<E>(
+    rows: &mut [CoeffVec],
+    queries: &[[Option<usize>; 2]],
+    order: &[Option<(usize, Pauli)>],
+    checkpoint: impl FnMut() -> Result<(), E>,
+) -> Result<usize, E> {
+    try_leading_pivot_elimination_from(
+        rows,
+        0,
+        |row| {
+            row.iter_ones()
+                .filter_map(|bit| order[bit])
+                .min_by_key(|&(column, axis)| (column, axis == Pauli::Z))
+        },
+        |row, &(column, axis)| {
+            queries[column][usize::from(axis == Pauli::Z)].is_some_and(|bit| row.bit(bit))
+        },
+        checkpoint,
     )
 }
 
@@ -662,6 +698,7 @@ impl CorrelationReduction {
     }
 
     /// A raw graph-table query, whose half-edges use the smaller endpoint's frame.
+    #[cfg(test)]
     fn original_bit(&self, column: usize, axis: Pauli) -> Option<usize> {
         self.native_bit(
             column,
@@ -685,16 +722,20 @@ impl CorrelationReduction {
                 limit: usize::MAX,
             });
         }
-        let mut order = vec![None; self.classes];
-        for column in 0..self.native_bits.len() {
-            CancellationToken::checkpoint()?;
-            for axis in [Pauli::X, Pauli::Z] {
-                if let Some(class) = self.original_bit(column, axis) {
-                    order[class].get_or_insert((column, axis));
-                }
+        // Raw graph-table queries use the smaller endpoint's frame.
+        for (axes, reversed) in self.native_bits.iter_mut().zip(&self.reversed_hadamard) {
+            if *reversed {
+                axes.swap(0, 1);
             }
         }
-        let mut rows = std::mem::take(&mut self.rows)
+        let queries = self.native_bits;
+        let order = raw_query_order(&queries, self.classes);
+        debug_assert!(
+            order.iter().all(Option::is_some),
+            "every class has an original query"
+        );
+        let mut rows = self
+            .rows
             .into_iter()
             .map(|row| {
                 CancellationToken::checkpoint()?;
@@ -707,34 +748,13 @@ impl CorrelationReduction {
                 Ok(packed)
             })
             .collect::<Result<Vec<_>, StabilizerError>>()?;
-        let rank = try_leading_pivot_elimination_from(
-            &mut rows,
-            0,
-            |row| {
-                row.iter_ones()
-                    .map(|class| order[class].expect("every class has an original query"))
-                    .min_by_key(|&(column, axis)| (column, axis == Pauli::Z))
-            },
-            |row, &(column, axis)| {
-                self.original_bit(column, axis)
-                    .is_some_and(|class| row.bit(class))
-            },
-            CancellationToken::checkpoint,
-        )?;
+        let rank =
+            eliminate_in_raw_order(&mut rows, &queries, &order, CancellationToken::checkpoint)?;
         rows.truncate(rank);
-        for (axes, reversed) in self.native_bits.iter_mut().zip(&self.reversed_hadamard) {
-            if *reversed {
-                axes.swap(0, 1);
-            }
-        }
         rows.iter()
             .map(|row| {
                 CancellationToken::checkpoint()?;
-                Ok(lift_queries(
-                    self.native_bits.len(),
-                    |column| self.native_bits[column],
-                    |class| row.bit(class),
-                ))
+                Ok(lift_queries(&queries, |class| row.bit(class)))
             })
             .collect()
     }
@@ -745,11 +765,10 @@ impl CorrelationReduction {
     fn lift(&self, row: &BooleanRow) -> PauliString {
         assert_eq!(row.active, ONE);
         assert!(row.terms().iter().all(|&(_, value)| value == ONE));
-        lift_queries(
-            self.native_bits.len(),
-            |column| [Pauli::X, Pauli::Z].map(|axis| self.original_bit(column, axis)),
-            |class| row.get(class) == ONE,
-        )
+        let queries = (0..self.native_bits.len())
+            .map(|column| [Pauli::X, Pauli::Z].map(|axis| self.original_bit(column, axis)))
+            .collect::<Vec<_>>();
+        lift_queries(&queries, |class| row.get(class) == ONE)
     }
 }
 
@@ -1039,13 +1058,7 @@ mod tests {
                         };
                         arm & Pauli::Z
                     });
-                    let expected = query_pauli([Some(0), Some(1)], |axis| {
-                        if axis == 0 {
-                            combined.get(node) & Pauli::X
-                        } else {
-                            cross
-                        }
-                    });
+                    let expected = Pauli::from_xz(combined.get(node) & Pauli::X, cross);
                     assert_eq!(
                         physical.paulis.get(node),
                         expected,
