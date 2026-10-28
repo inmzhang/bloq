@@ -272,19 +272,28 @@ impl ModuleRelations {
             terms.sort_unstable_by_key(|&(column, _)| column);
             result.push(BooleanRow::from_terms(decisions[row.active.0], terms));
         }
-        if diagram.nodes().len() > limits.max_witness_nodes {
-            return Err(StabilizerError::ResourceLimited {
-                phase: "guarded correlation coefficients",
-                observed: diagram.nodes().len(),
-                limit: limits.max_witness_nodes,
-            }
-            .into());
-        }
+        check_coefficients(diagram, limits.max_witness_nodes)?;
         Ok(RelationRows {
             rows: result,
             aliases,
         })
     }
+}
+
+fn check_coefficients(
+    diagram: &BooleanDecisionDiagram,
+    limit: usize,
+) -> Result<(), BlockGraphError> {
+    let observed = diagram.nodes().len();
+    if observed > limit {
+        return Err(StabilizerError::ResourceLimited {
+            phase: "guarded correlation coefficients",
+            observed,
+            limit,
+        }
+        .into());
+    }
+    Ok(())
 }
 
 pub(crate) fn seam_equations(seams: &[Seam]) -> Vec<Terms> {
@@ -414,14 +423,7 @@ pub(crate) fn close_relation(
             diagram.charge(1)?;
             online.insert(discard, keep);
         }
-        if diagram.nodes().len() > limits.max_witness_nodes {
-            return Err(StabilizerError::ResourceLimited {
-                phase: "guarded correlation coefficients",
-                observed: diagram.nodes().len(),
-                limit: limits.max_witness_nodes,
-            }
-            .into());
-        }
+        check_coefficients(diagram, limits.max_witness_nodes)?;
     }
     drop(incoming);
     drop(mapped);
@@ -546,14 +548,7 @@ fn close_equations(
     for terms in equations {
         // First-row pivot priority preserves authored outcome/frame conventions.
         rows.eliminate_linear(terms, diagram)?;
-        if diagram.nodes().len() > limits.max_witness_nodes {
-            return Err(StabilizerError::ResourceLimited {
-                phase: "guarded correlation coefficients",
-                observed: diagram.nodes().len(),
-                limit: limits.max_witness_nodes,
-            }
-            .into());
-        }
+        check_coefficients(diagram, limits.max_witness_nodes)?;
     }
     Ok(rows.into_rows(diagram)?)
 }

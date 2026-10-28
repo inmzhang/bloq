@@ -1249,37 +1249,40 @@ fn summarize_space_view(
         max_frontier_width: limits.max_frontier_width,
         max_witness_nodes: limits.max_witness_nodes,
     };
-    let (boundary_len, certificate_rows) = if let Some(compact) = space
-        .compact_relation(&zx, columns.len(), evaluate)
-        .map_err(|error| certification_error(&module.name, error))?
+    let mut certificate_rows = Vec::new();
+    let mut consume = |signed: PhasedPauliString, witness| {
+        let boundary = PhasedPauliString::new(
+            PauliString::from_terms(
+                columns.len(),
+                columns
+                    .iter()
+                    .enumerate()
+                    .map(|(target, &source)| (target, signed.paulis.get(source))),
+            ),
+            signed.phase(),
+        );
+        certificate_rows.push(SupportedRow {
+            signed: boundary,
+            support: PositionedSupport::from_paulis(signed.paulis, &zx),
+            witness,
+        });
+    };
+    let invalid_support = || {
+        invalid(
+            &module.name,
+            "composed relation has invalid local tensor support",
+        )
+    };
+    let boundary_len = if let Some(compact) =
+        space
+            .compact_relation(&zx, columns.len(), evaluate)
+            .map_err(|error| certification_error(&module.name, error))?
     {
-        let mut certificate_rows = Vec::new();
-        let boundary_len = zx
-            .certify_compact_relation(compact, &columns, projection_limits, |row| {
-                let signed = PhasedPauliString::new(
-                    PauliString::from_terms(
-                        columns.len(),
-                        columns
-                            .iter()
-                            .enumerate()
-                            .map(|(target, &source)| (target, row.signed.paulis.get(source))),
-                    ),
-                    row.signed.phase(),
-                );
-                certificate_rows.push(SupportedRow {
-                    signed,
-                    support: PositionedSupport::from_paulis(row.signed.paulis, &zx),
-                    witness: row.flow_witness,
-                });
-            })
-            .map_err(|error| projection_limit(&module.name, error))?
-            .ok_or_else(|| {
-                invalid(
-                    &module.name,
-                    "composed relation has invalid local tensor support",
-                )
-            })?;
-        (boundary_len, certificate_rows)
+        zx.certify_compact_relation(compact, &columns, projection_limits, |row| {
+            consume(row.signed, row.flow_witness);
+        })
+        .map_err(|error| projection_limit(&module.name, error))?
+        .ok_or_else(invalid_support)?
     } else {
         let words = space
             .rows
@@ -1306,31 +1309,11 @@ fn summarize_space_view(
         let table = zx
             .projected_external_table_from_rows(&columns, rows, projection_limits)
             .map_err(|error| projection_limit(&module.name, error))?
-            .ok_or_else(|| {
-                invalid(
-                    &module.name,
-                    "composed relation has invalid local tensor support",
-                )
-            })?;
-        let mut certificate_rows = table
-            .boundary_rows
-            .iter()
-            .map(|row| {
-                let full = table.materialize(row);
-                SupportedRow {
-                    signed: row.signed.clone(),
-                    support: PositionedSupport::from_paulis(full.paulis, &zx),
-                    witness: row.flow_witness.clone(),
-                }
-            })
-            .collect::<Vec<_>>();
-        let boundary_len = certificate_rows.len();
-        certificate_rows.extend(table.closed_rows.iter().map(|row| SupportedRow {
-            signed: PhasedPauliString::new(PauliString::new(columns.len()), row.signed.phase()),
-            support: PositionedSupport::from_paulis(row.signed.paulis.clone(), &zx),
-            witness: row.flow_witness.clone(),
-        }));
-        (boundary_len, certificate_rows)
+            .ok_or_else(invalid_support)?;
+        for row in table.complete_rows() {
+            consume(row.signed, row.flow_witness);
+        }
+        table.boundary_rows.len()
     };
     Ok(ModuleSummary {
         name: module.name.clone(),

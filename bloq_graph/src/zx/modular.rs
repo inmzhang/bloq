@@ -188,6 +188,16 @@ impl ProjectedExternalTable {
     pub(crate) fn materialize(&self, row: &ProjectedRow) -> PhasedPauliString {
         self.arena.materialize(row.witness, self.width)
     }
+
+    pub(crate) fn complete_rows(&self) -> impl Iterator<Item = WitnessedRow> + '_ {
+        self.boundary_rows
+            .iter()
+            .map(|row| WitnessedRow {
+                signed: self.materialize(row),
+                flow_witness: row.flow_witness.clone(),
+            })
+            .chain(self.closed_rows.iter().cloned())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -437,12 +447,7 @@ impl ZXGraph {
         boundary_columns: &[usize],
         limits: ProjectionLimits,
     ) -> Result<ProjectedExternalTable, ProjectionError> {
-        if boundary_columns.len() > limits.max_frontier_width {
-            return Err(ProjectionError::FrontierLimit {
-                observed: boundary_columns.len(),
-                limit: limits.max_frontier_width,
-            });
-        }
+        check_frontier_width(boundary_columns.len(), limits.max_frontier_width)?;
         let retained = boundary_columns.iter().copied().collect::<FxHashSet<_>>();
         let mut arena = WitnessArena::default();
         let mut source_keys = FlowSourceKeys::default();
@@ -514,12 +519,7 @@ impl ZXGraph {
         complete: Vec<PhasedPauliString>,
         limits: ProjectionLimits,
     ) -> Result<Option<ProjectedExternalTable>, ProjectionError> {
-        if boundary_columns.len() > limits.max_frontier_width {
-            return Err(ProjectionError::FrontierLimit {
-                observed: boundary_columns.len(),
-                limit: limits.max_frontier_width,
-            });
-        }
+        check_frontier_width(boundary_columns.len(), limits.max_frontier_width)?;
         let mut arena = WitnessArena::default();
         let pivots = self.external_row_pivots(&mut arena, limits.max_witness_nodes)?;
         let mut rows = Vec::with_capacity(complete.len());
@@ -567,12 +567,7 @@ impl ZXGraph {
         limits: ProjectionLimits,
         mut consume: impl FnMut(WitnessedRow),
     ) -> Result<Option<usize>, ProjectionError> {
-        if boundary_columns.len() > limits.max_frontier_width {
-            return Err(ProjectionError::FrontierLimit {
-                observed: boundary_columns.len(),
-                limit: limits.max_frontier_width,
-            });
-        }
+        check_frontier_width(boundary_columns.len(), limits.max_frontier_width)?;
         let CompactSurfaceRelation {
             mut rows,
             queries,
@@ -1374,6 +1369,10 @@ fn check_frontier(rows: &[SparseRow], limit: usize) -> Result<(), ProjectionErro
         .flat_map(|row| row.paulis.keys().copied())
         .collect::<FxHashSet<_>>()
         .len();
+    check_frontier_width(width, limit)
+}
+
+fn check_frontier_width(width: usize, limit: usize) -> Result<(), ProjectionError> {
     if width <= limit {
         Ok(())
     } else {
@@ -1605,6 +1604,11 @@ mod tests {
     use super::super::stabilizer::{axis_pivot_constraints, gaussian_elimination_with_tracking};
     use super::{FlowSourceKey, FlowWitness, ProjectionLimits};
     use crate::{GalleryItem, NodeKind};
+
+    const UNLIMITED_PROJECTION: ProjectionLimits = ProjectionLimits {
+        max_frontier_width: usize::MAX,
+        max_witness_nodes: usize::MAX,
+    };
 
     #[test]
     fn sparse_source_products_match_dense_phases_and_overwritten_terms() {
@@ -2368,10 +2372,7 @@ mod tests {
                     .projected_external_table_from_rows(
                         &free_boundary_columns(&zx),
                         expected.clone(),
-                        ProjectionLimits {
-                            max_frontier_width: usize::MAX,
-                            max_witness_nodes: usize::MAX,
-                        },
+                        UNLIMITED_PROJECTION,
                     )
                     .unwrap()
                     .expect("complete rows belong to their local tensors");
@@ -2397,10 +2398,7 @@ mod tests {
                         zx.projected_external_table_from_rows(
                             &free_boundary_columns(&zx),
                             vec![invalid],
-                            ProjectionLimits {
-                                max_frontier_width: usize::MAX,
-                                max_witness_nodes: usize::MAX,
-                            },
+                            UNLIMITED_PROJECTION,
                         )
                         .unwrap()
                         .is_none()
@@ -2437,10 +2435,7 @@ mod tests {
                         .zip(phases)
                         .map(|(row, phase)| PhasedPauliString::new(row, phase))
                         .collect();
-                    let projection_limits = ProjectionLimits {
-                        max_frontier_width: usize::MAX,
-                        max_witness_nodes: usize::MAX,
-                    };
+                    let projection_limits = UNLIMITED_PROJECTION;
                     let expected = zx
                         .projected_external_table_from_rows(&columns, signed, projection_limits)
                         .unwrap()
@@ -2460,10 +2455,8 @@ mod tests {
                         .unwrap();
                     assert_eq!(boundary_len, expected.boundary_rows.len(), "{entry}");
                     let expected = expected
-                        .boundary_rows
-                        .iter()
-                        .map(|row| expected.materialize(row))
-                        .chain(expected.closed_rows.iter().map(|row| row.signed.clone()))
+                        .complete_rows()
+                        .map(|row| row.signed)
                         .collect::<Vec<_>>();
                     assert_eq!(
                         actual
@@ -2607,23 +2600,13 @@ mod tests {
                     .projected_external_table_from_rows(
                         &free_boundary_columns(&zx),
                         signed,
-                        ProjectionLimits {
-                            max_frontier_width: usize::MAX,
-                            max_witness_nodes: usize::MAX,
-                        },
+                        UNLIMITED_PROJECTION,
                     )
                     .unwrap()
                     .unwrap();
                 let rows = table
-                    .boundary_rows
-                    .iter()
-                    .map(|row| (row.flow_witness.clone(), table.materialize(row)))
-                    .chain(
-                        table
-                            .closed_rows
-                            .iter()
-                            .map(|row| (row.flow_witness.clone(), row.signed.clone())),
-                    )
+                    .complete_rows()
+                    .map(|row| (row.flow_witness, row.signed))
                     .collect::<Vec<_>>();
                 let mut replay = zx.flow_witness_replayer();
                 let local = zx
@@ -2671,10 +2654,7 @@ mod tests {
     fn compact_certificate_rejects_unsupported_original_support() {
         let graph = GalleryItem::CNOT.build().materialize_root_graph().unwrap();
         let zx = ZXGraph::from_block_graph_for_analysis(&graph).unwrap();
-        let limits = ProjectionLimits {
-            max_frontier_width: usize::MAX,
-            max_witness_nodes: usize::MAX,
-        };
+        let limits = UNLIMITED_PROJECTION;
         let width = 2 * zx.total_ids();
         let malformed = super::CompactSurfaceRelation {
             rows: vec![super::super::CoeffVec::singleton(2 * zx.edges[0].id, width)],
@@ -2802,13 +2782,7 @@ mod tests {
                     "a boundary-free component must carry a closed surface: {entry:?}"
                 );
                 let projected = zx
-                    .projected_external_table(
-                        &columns,
-                        ProjectionLimits {
-                            max_frontier_width: usize::MAX,
-                            max_witness_nodes: usize::MAX,
-                        },
-                    )
+                    .projected_external_table(&columns, UNLIMITED_PROJECTION)
                     .unwrap();
 
                 assert_eq!(projected.boundary_rows.len(), columns.len(), "{entry:?}");

@@ -96,6 +96,30 @@ pub(crate) fn solve_evolved_correction(
 }
 
 #[cfg(test)]
+pub(crate) fn signed_output_correction(
+    basis: &RuntimeStabilizerBasis,
+    outputs: &[IVec3],
+    keys: &[&MeasurementKey],
+) -> (Vec<CoeffVec>, SymbolicOutputCorrection) {
+    let mut constraints = Vec::new();
+    let mut masks = Vec::new();
+    for (constraint, surface) in basis.derive_output_correction_surfaces(outputs).unwrap() {
+        let mut mask = CoeffVec::zeros(keys.len());
+        for (index, key) in keys.iter().enumerate() {
+            mask.set_bit(index, stabilizer_supports_measurement(&surface, key));
+        }
+        if !mask.is_zero() {
+            constraints.push(constraint);
+            masks.push(mask);
+        }
+    }
+    (
+        masks,
+        solve_output_correction_symbolic(outputs, &constraints).unwrap(),
+    )
+}
+
+#[cfg(test)]
 mod output_query_tests {
     use super::*;
 
@@ -152,23 +176,8 @@ mod output_query_tests {
         outputs: &[IVec3],
         keys: &[MeasurementKey],
     ) -> usize {
-        let mut constraints = Vec::new();
-        let mut expected_masks = Vec::new();
-        for (constraint, surface) in basis.derive_output_correction_surfaces(outputs).unwrap() {
-            let mut mask = CoeffVec::zeros(keys.len());
-            for (index, key) in keys.iter().enumerate() {
-                mask.set_bit(
-                    index,
-                    crate::verify::stabilizer_supports_measurement(&surface, key),
-                );
-            }
-            if !mask.is_zero() {
-                constraints.push(constraint);
-                expected_masks.push(mask);
-            }
-        }
-        let expected = solve_output_correction_symbolic(outputs, &constraints).unwrap();
         let refs = keys.iter().collect::<Vec<_>>();
+        let (expected_masks, expected) = signed_output_correction(basis, outputs, &refs);
         let (actual_masks, actual) = solve_evolved_correction(basis, outputs, &refs).unwrap();
         assert_eq!(
             actual_masks, expected_masks,

@@ -581,37 +581,44 @@ fn insert_output_corrections(
 mod tests {
     use super::*;
 
-    #[test]
-    fn sampled_coordinates_preserve_named_values_and_affine_phases() {
+    fn correction(phases: &[Parity], sampled: &[Var], named: &[(&str, Var)]) -> InternalCorrection {
         let graph = crate::GalleryItem::CNOT
             .build()
             .materialize_root_graph()
             .unwrap();
         let zx = ZXGraph::from_block_graph_for_analysis(&graph).unwrap();
-        let keys = (0..4)
+        let keys = (0..phases.len())
             .map(|x| MeasurementKey::Node {
-                pos: IVec3::new(x, 0, 0),
+                pos: IVec3::new(x as i32, 0, 0),
                 pauli: Pauli::X,
             })
             .collect::<Vec<_>>();
+        InternalCorrection {
+            measurement_vars: keys.iter().cloned().zip(phases.iter().cloned()).collect(),
+            sampled: keys.into_iter().zip(sampled.iter().copied()).collect(),
+            initial_basis: RuntimeStabilizerBasis::from_zx_graph(zx).unwrap(),
+            named_vars: named
+                .iter()
+                .map(|&(name, var)| (name.to_owned(), var))
+                .collect(),
+            records: BTreeMap::new(),
+        }
+    }
+
+    #[test]
+    fn sampled_coordinates_preserve_named_values_and_affine_phases() {
         let sampled = [3, 5, 9];
-        let phases = keys
-            .iter()
-            .cloned()
-            .zip([
+        let correction = correction(
+            &[
                 Parity::new([3, 7], true),
                 Parity::new([3, 5], false),
                 Parity::new([5, 9, 7], true),
                 Parity::new([7], true),
-            ])
-            .collect::<BTreeMap<_, _>>();
-        let correction = InternalCorrection {
-            measurement_vars: phases.clone(),
-            sampled: keys.iter().cloned().zip(sampled).collect(),
-            initial_basis: RuntimeStabilizerBasis::from_zx_graph(zx).unwrap(),
-            named_vars: BTreeMap::from([("named".to_owned(), 7)]),
-            records: BTreeMap::new(),
-        };
+            ],
+            &sampled,
+            &[("named", 7)],
+        );
+        let phases = &correction.measurement_vars;
         for named in [false, true] {
             let reference = phases
                 .iter()
@@ -622,8 +629,8 @@ mod tests {
                 for index in 0..sampled.len() {
                     coordinate.set_bit(index, mask & (1 << index) != 0);
                 }
-                let actual = correction.apply_coordinate(&phases, reference.clone(), &coordinate);
-                for (key, parity) in &phases {
+                let actual = correction.apply_coordinate(phases, reference.clone(), &coordinate);
+                for (key, parity) in phases {
                     let expected = phase_value(parity, |var| {
                         if var == 7 {
                             named
@@ -640,38 +647,23 @@ mod tests {
 
     #[test]
     fn resolved_phases_keep_affine_constants_and_ordered_anonymous_coordinates() {
-        let graph = crate::GalleryItem::CNOT
-            .build()
-            .materialize_root_graph()
-            .unwrap();
-        let zx = ZXGraph::from_block_graph_for_analysis(&graph).unwrap();
-        let keys = (0..3)
-            .map(|x| MeasurementKey::Node {
-                pos: IVec3::new(x, 0, 0),
-                pauli: Pauli::X,
-            })
-            .collect::<Vec<_>>();
-        let correction = InternalCorrection {
-            measurement_vars: keys
-                .iter()
-                .cloned()
-                .zip([
-                    Parity::new([3, 7], true),
-                    Parity::new([3, 5], false),
-                    Parity::new([5], true),
-                ])
-                .collect(),
-            sampled: keys.iter().cloned().zip([3, 5]).collect(),
-            initial_basis: RuntimeStabilizerBasis::from_zx_graph(zx).unwrap(),
-            named_vars: BTreeMap::from([("named".to_owned(), 7)]),
-            records: BTreeMap::new(),
-        };
+        let correction = correction(
+            &[
+                Parity::new([3, 7], true),
+                Parity::new([3, 5], false),
+                Parity::new([5], true),
+            ],
+            &[3, 5],
+            &[("named", 7)],
+        );
         let rows = [crate::Stabilizer::from_interior_nodes([
             (IVec3::new(0, 0, 0), Pauli::X),
             (IVec3::new(1, 0, 0), Pauli::X),
         ])];
-        let expected = keys
-            .into_iter()
+        let expected = correction
+            .measurement_vars
+            .keys()
+            .cloned()
             .zip([
                 Parity::new([3, 7], false),
                 Parity::new([3], false),
@@ -688,22 +680,11 @@ mod tests {
 
     #[test]
     fn resolved_phases_report_first_named_failure_before_anonymous_failure() {
-        let graph = crate::GalleryItem::CNOT
-            .build()
-            .materialize_root_graph()
-            .unwrap();
-        let zx = ZXGraph::from_block_graph_for_analysis(&graph).unwrap();
-        let keys = (0..2).map(|x| MeasurementKey::Node {
-            pos: IVec3::new(x, 0, 0),
-            pauli: Pauli::X,
-        });
-        let correction = InternalCorrection {
-            measurement_vars: keys.map(|key| (key, Parity::default())).collect(),
-            sampled: Vec::new(),
-            initial_basis: RuntimeStabilizerBasis::from_zx_graph(zx).unwrap(),
-            named_vars: BTreeMap::from([("a".to_owned(), 7), ("z".to_owned(), 9)]),
-            records: BTreeMap::new(),
-        };
+        let correction = correction(
+            &[Parity::default(), Parity::default()],
+            &[],
+            &[("a", 7), ("z", 9)],
+        );
         for (support, expected) in [(vec![], "a"), (vec![(IVec3::ZERO, Pauli::X)], "z")] {
             let rows = [
                 crate::Stabilizer::from_interior_nodes(support),

@@ -220,6 +220,7 @@ impl SurfaceSupport for Stabilizer {
 /// from these arms after evaluating the final symbolic row.
 #[doc(hidden)]
 #[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct LocalPauliSurface {
     position: IVec3,
     center: Pauli,
@@ -304,6 +305,7 @@ pub struct GuardedReadoutPlan {
 
 #[doc(hidden)]
 #[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct GuardedLocalSurface {
     pub guard: DecisionId,
     pub surface: LocalPauliSurface,
@@ -819,12 +821,15 @@ fn pauli(x: bool, z: bool) -> Pauli {
 }
 
 #[cfg(test)]
-fn assert_original_fragment_positions(
-    plan: &GuardedReadoutPlan,
+fn assert_shared_fragments(
+    plan: &mut GuardedReadoutPlan,
     owners: &BTreeMap<[i32; 3], usize>,
-) {
-    for (surface, query) in plan.surfaces.iter().enumerate() {
-        let mut expected = BTreeMap::<usize, BTreeSet<[i32; 3]>>::new();
+) -> (BTreeSet<usize>, usize) {
+    let mut used = BTreeSet::new();
+    let mut sites = 0;
+    for surface in 0..plan.surfaces.len() {
+        let query = &plan.surfaces[surface];
+        let mut expected = BTreeSet::new();
         if query.row.active != ZERO {
             for (column, original) in plan.columns.iter().enumerate() {
                 if [2 * column, 2 * column + 1]
@@ -832,37 +837,60 @@ fn assert_original_fragment_positions(
                     .any(|bit| plan.coordinates.get(&query.row, bit) != ZERO)
                 {
                     let position = original.source_position();
-                    expected
-                        .entry(owners[&position])
-                        .or_default()
-                        .insert(position);
+                    expected.insert((owners[&position], position));
                 }
             }
         }
-        let expected = expected
-            .into_iter()
-            .flat_map(|(owner, positions)| {
-                positions.into_iter().map(move |position| (owner, position))
-            })
-            .collect::<Vec<_>>();
-        let actual = plan
-            .query_fragments(surface)
-            .iter()
-            .flat_map(|&id| {
-                let (_, positions) = plan.query_fragment(id);
-                let owner = owners[positions.first().expect("a fragment has physical support")];
-                assert!(positions.iter().all(|position| owners[position] == owner));
-                positions
+        let mut actual = Vec::new();
+        for id in plan.query_fragments(surface).to_vec() {
+            used.insert(id);
+            let (representative, positions) = plan.query_fragment(id);
+            let owner = owners[positions.first().expect("a fragment has physical support")];
+            let named = |index: usize| {
+                matches!(
+                    plan.surfaces[index].kind,
+                    GuardedSurfaceKind::Readout { .. }
+                )
+            };
+            assert_eq!(named(surface), named(representative));
+            assert_eq!(
+                plan.surfaces[surface].activation(),
+                plan.surfaces[representative].activation()
+            );
+            for &position in positions.iter() {
+                assert_eq!(owners[&position], owner);
+                actual.push((owner, position));
+                for column in plan.local[&position]
                     .iter()
-                    .map(|&position| (owner, position))
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
+                    .flat_map(LocalTopology::columns)
+                {
+                    for bit in [2 * column, 2 * column + 1] {
+                        assert_eq!(
+                            plan.coordinates.get(&plan.surfaces[surface].row, bit),
+                            plan.coordinates
+                                .get(&plan.surfaces[representative].row, bit)
+                        );
+                    }
+                }
+                let position = IVec3::from_array(position);
+                assert_eq!(
+                    plan.local_cases(surface, position, ONE).unwrap(),
+                    plan.local_cases(representative, position, ONE).unwrap()
+                );
+            }
+        }
         assert_eq!(
-            actual, expected,
-            "surface {surface}: exact original owner/site order"
+            actual,
+            expected.iter().copied().collect::<Vec<_>>(),
+            "surface {surface}: exact original owner/site order without overlap"
         );
+        assert_eq!(
+            plan.support_sites(surface),
+            expected.iter().map(|&(_, position)| position).collect()
+        );
+        sites += expected.len();
     }
+    (used, sites)
 }
 
 #[cfg(test)]
@@ -1011,7 +1039,7 @@ mod tests {
             (positions[3], 0),
         ]);
         plan.share_module_queries(&owners).unwrap();
-        assert_original_fragment_positions(&plan, &owners);
+        assert_shared_fragments(&mut plan, &owners);
         assert_eq!(plan.query_fragments(1), plan.query_fragments(2));
         assert_eq!(plan.query_fragments(1).len(), 2);
         let owners = plan
@@ -1020,14 +1048,6 @@ mod tests {
             .map(|&fragment| plan.query_fragment(fragment).1.to_vec())
             .collect::<Vec<_>>();
         assert_eq!(owners, vec![vec![positions[0]], vec![positions[1]]]);
-        for surface in 0..plan.surfaces.len() {
-            let support = plan
-                .query_fragments(surface)
-                .iter()
-                .flat_map(|&fragment| plan.query_fragment(fragment).1.to_vec())
-                .collect::<BTreeSet<_>>();
-            assert_eq!(support, plan.support_sites(surface));
-        }
 
         // Refine one original owner without losing aliases in other x-slabs.
         let mut coordinates = (0..2 * plan.columns.len())
@@ -1078,46 +1098,8 @@ mod tests {
                     .all(|id| !plan.query_fragments(distinct).contains(id))
             );
         }
-        let signature = |cases: Vec<GuardedLocalSurface>| {
-            cases
-                .into_iter()
-                .map(|case| {
-                    (
-                        case.guard,
-                        case.surface.center,
-                        case.surface.port,
-                        case.surface.edges,
-                        case.selective,
-                    )
-                })
-                .collect::<Vec<_>>()
-        };
         for _ in 0..2 {
-            assert_original_fragment_positions(&plan, &owners);
-            for surface in 0..plan.surfaces.len() {
-                for id in plan.query_fragments(surface).to_vec() {
-                    let (representative, positions) = plan.query_fragment(id);
-                    for &position in positions.iter() {
-                        for column in plan.local[&position]
-                            .iter()
-                            .flat_map(LocalTopology::columns)
-                        {
-                            for bit in [2 * column, 2 * column + 1] {
-                                assert_eq!(
-                                    plan.coordinates.get(&plan.surfaces[surface].row, bit),
-                                    plan.coordinates
-                                        .get(&plan.surfaces[representative].row, bit)
-                                );
-                            }
-                        }
-                        let position = IVec3::from_array(position);
-                        assert_eq!(
-                            signature(plan.local_cases(surface, position, ONE).unwrap()),
-                            signature(plan.local_cases(representative, position, ONE).unwrap())
-                        );
-                    }
-                }
-            }
+            assert_shared_fragments(&mut plan, &owners);
             let isolated_cases = plan.local_cases(0, isolated, ONE).unwrap();
             assert_eq!(isolated_cases.len(), 1);
             assert_eq!(isolated_cases[0].surface.center, Pauli::X);
@@ -1437,12 +1419,6 @@ mod tests {
             }
         }
     }
-}
-
-#[cfg(test)]
-mod fragment_tests {
-    use super::*;
-    use crate::{GalleryItem, GuardedSurfaceSpace, ModuleCertificationLimits};
 
     #[test]
     fn shared_fragments_cover_complete_native_coefficients_after_collection() {
@@ -1488,43 +1464,9 @@ mod fragment_tests {
             let mut visited = BTreeSet::new();
             let mut original_sites = 0;
             for _ in 0..2 {
-                assert_original_fragment_positions(&plan, &owners);
-                for index in 0..plan.surfaces.len() {
-                    let mut support = BTreeSet::new();
-                    for &id in plan.query_fragments(index) {
-                        visited.insert(id);
-                        let (representative, positions) = plan.query_fragment(id);
-                        assert_eq!(
-                            plan.surfaces[index].activation(),
-                            plan.surfaces[representative].activation()
-                        );
-                        let named = |query: usize| {
-                            matches!(
-                                plan.surfaces[query].kind,
-                                GuardedSurfaceKind::Readout { .. }
-                            )
-                        };
-                        assert_eq!(named(index), named(representative));
-                        for &position in positions.iter() {
-                            assert!(support.insert(position), "fragments overlap");
-                            for column in plan.local[&position]
-                                .iter()
-                                .flat_map(LocalTopology::columns)
-                            {
-                                for bit in [2 * column, 2 * column + 1] {
-                                    assert_eq!(
-                                        plan.coordinates.get(&plan.surfaces[index].row, bit),
-                                        plan.coordinates
-                                            .get(&plan.surfaces[representative].row, bit),
-                                        "{gallery:?}: native coefficient {bit}"
-                                    );
-                                }
-                            }
-                        }
-                    }
-                    assert_eq!(support, plan.support_sites(index));
-                    original_sites += support.len();
-                }
+                let (used, sites) = assert_shared_fragments(&mut plan, &owners);
+                visited.extend(used);
+                original_sites += sites;
                 plan.collect_garbage(std::iter::empty());
             }
             if gallery == Some(GalleryItem::ThreeBitAdder) {

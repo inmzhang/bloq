@@ -1,8 +1,6 @@
 //! Runtime-selectable stabilizer bases and their output-correction surfaces.
 
 use std::collections::HashMap;
-use std::ops::BitXorAssign;
-use std::sync::Arc;
 
 use bloq_utils::boolean::BooleanDecisionDiagram;
 use glam::IVec3;
@@ -10,11 +8,10 @@ use thiserror::Error;
 
 use super::graph::insert_selective_fill;
 use super::output_correction::{OutputCorrectionRow, pivot_output_correction_rows};
-use super::reduction::{CanonicalCorrelation, CorrelationReduction, OriginalCoordinates};
+use super::reduction::CorrelationReduction;
 use super::stabilizer::{
-    CoeffVec, SelectiveConstraint, collect_selective_constraints,
-    gaussian_elimination_with_tracking, normalize_selective_support_in_place,
-    normalize_selective_support_with, reduce_to_basis,
+    CoeffVec, collect_selective_constraints, gaussian_elimination_with_tracking,
+    normalize_selective_support_in_place, reduce_to_basis,
 };
 use super::{NodeKind, Stabilizer, StabilizerError, StabilizerGenerators, ZXError, ZXGraph};
 use crate::{
@@ -71,8 +68,6 @@ pub struct RuntimeStabilizerBasis {
     input_columns: Vec<usize>,
     prepared_columns: Vec<usize>,
     rows: Vec<PauliString>,
-    // Certified initial equalities survive every runtime row combination and fill.
-    coordinates: Option<Arc<OriginalCoordinates>>,
     /// Readable-value provenance of every live row, expressed in the original
     /// public generator ordinals. Rank-completion directions carry the zero
     /// vector. Row operations update these coefficients with Pauli support.
@@ -106,21 +101,13 @@ impl RuntimeStabilizerBasis {
     /// Returns a [`RuntimeBasisError`] if a selective site admits no permitted
     /// support, computation is cancelled, or the relation size is unrepresentable.
     pub fn from_zx_graph(zx_graph: ZXGraph) -> Result<Self, RuntimeBasisError> {
-        let (rows, coordinates) = match Self::reduced_relation(&zx_graph)? {
-            Some(relation) => (relation.rows, Some(Arc::new(relation.coordinates))),
-            None => (
-                reduce_to_basis(&zx_graph.to_external_generator_table(), zx_graph.total_ids),
-                None,
-            ),
-        };
-        let mut basis = Self::from_complete_rows(zx_graph, rows)?;
-        basis.coordinates = coordinates;
-        Ok(basis)
+        let rows = Self::reduced_relation(&zx_graph)?.unwrap_or_else(|| {
+            reduce_to_basis(&zx_graph.to_external_generator_table(), zx_graph.total_ids)
+        });
+        Self::from_complete_rows(zx_graph, rows)
     }
 
-    fn reduced_relation(
-        zx_graph: &ZXGraph,
-    ) -> Result<Option<CanonicalCorrelation>, StabilizerError> {
+    fn reduced_relation(zx_graph: &ZXGraph) -> Result<Option<Vec<PauliString>>, StabilizerError> {
         CancellationToken::checkpoint()?;
         if zx_graph.stabilizer_phase_basis.get().is_some() {
             return Ok(None);
@@ -129,7 +116,7 @@ impl RuntimeStabilizerBasis {
         let limits = ModuleCertificationLimits::UNLIMITED;
         let mut diagram = BooleanDecisionDiagram::with_limits(limits.boolean_limits());
         CorrelationReduction::new(zx_graph, &mut diagram, limits)?
-            .map(CorrelationReduction::into_canonical_relation)
+            .map(CorrelationReduction::into_canonical_rows)
             .transpose()
     }
 
@@ -193,7 +180,6 @@ impl RuntimeStabilizerBasis {
                 .collect(),
             zx_graph,
             rows,
-            coordinates: None,
             readout_coeffs,
         }
     }
@@ -352,96 +338,37 @@ impl RuntimeStabilizerBasis {
                 )
             })
             .collect::<Vec<_>>();
-        // Single fills avoid repacking the complete basis.
-        let (rows, readout_coeffs) = if let Some(coordinates) =
-            self.coordinates.as_ref().filter(|_| fills.len() > 1)
-        {
-            // This temporary namespace names this invocation's input rows,
-            // independently of their original readable-value provenance.
-            let mut traces = (0..self.rows.len())
-                .map(|index| {
-                    CancellationToken::checkpoint()?;
-                    Ok(CoeffVec::singleton(index, self.rows.len()))
-                })
-                .collect::<Result<Vec<_>, StabilizerError>>()?;
-            let query_bits = remaining.len().saturating_mul(2);
-            if query_bits.div_ceil(64) < coordinates.class_count().div_ceil(64) {
-                let mut columns = columns;
-                let mut rows = project_selective_queries(&self.rows, &mut remaining, &mut columns)?;
-                restrict_selective_rows(
-                    &mut rows,
-                    &mut traces,
-                    &mut remaining,
-                    &columns,
-                    selective_query_pauli,
-                )?;
-            } else {
-                let mut rows = coordinates.pack_rows(&self.rows)?;
-                restrict_selective_rows(
-                    &mut rows,
-                    &mut traces,
-                    &mut remaining,
-                    &columns,
-                    |row, column| coordinates.get(row, column),
-                )?;
-            }
-            self.replay_fill_traces(&traces)?
-        } else {
-            let mut rows = self.rows.clone();
-            let mut readout_coeffs = self.readout_coeffs.clone();
-            restrict_selective_rows(
+        let mut rows = self.rows.clone();
+        let mut readout_coeffs = self.readout_coeffs.clone();
+        for (column, chosen) in columns {
+            CancellationToken::checkpoint()?;
+            remaining.retain(|constraint| constraint.col != column);
+            let pivots = gaussian_elimination_with_tracking(
                 &mut rows,
                 &mut readout_coeffs,
-                &mut remaining,
-                &columns,
-                PauliString::get,
-            )?;
-            (rows, readout_coeffs)
-        };
+                [(column, chosen)],
+                |row, &(column, chosen)| {
+                    let pauli = row.get(column);
+                    pauli != Pauli::I && pauli != chosen
+                },
+                None,
+            );
+            rows.drain(..pivots);
+            readout_coeffs.drain(..pivots);
+            normalize_selective_support_in_place(&mut rows, Some(&mut readout_coeffs), &remaining)?;
+        }
 
         Ok(RuntimeStabilizerBasis {
             input_columns: self.input_columns.clone(),
             prepared_columns: self.prepared_columns.clone(),
             zx_graph: self.zx_graph.fill_ports(&port_map)?,
             rows,
-            coordinates: self.coordinates.clone(),
             readout_coeffs,
             selective_kinds: remaining
                 .into_iter()
                 .map(|constraint| (constraint.pos, constraint.kind))
                 .collect(),
         })
-    }
-
-    fn replay_fill_traces(
-        &self,
-        traces: &[CoeffVec],
-    ) -> Result<(Vec<PauliString>, Vec<CoeffVec>), StabilizerError> {
-        let mut rows = Vec::with_capacity(traces.len());
-        let mut coefficients = Vec::with_capacity(traces.len());
-        for trace in traces {
-            CancellationToken::checkpoint()?;
-            let mut sources = trace.iter_ones();
-            let Some(first) = sources.next() else {
-                rows.push(PauliString::new(self.zx_graph.total_ids()));
-                coefficients.push(
-                    self.readout_coeffs
-                        .first()
-                        .map_or_else(|| CoeffVec::zeros(0), CoeffVec::zeros_like),
-                );
-                continue;
-            };
-            let mut row = self.rows[first].clone();
-            let mut coefficient = self.readout_coeffs[first].clone();
-            for source in sources {
-                CancellationToken::checkpoint()?;
-                row ^= &self.rows[source];
-                coefficient.xor_assign(&self.readout_coeffs[source]);
-            }
-            rows.push(row);
-            coefficients.push(coefficient);
-        }
-        Ok((rows, coefficients))
     }
 
     /// Derives compact output rows together with their full stabilizer
@@ -520,78 +447,6 @@ impl RuntimeStabilizerBasis {
     }
 }
 
-/// Retain every row and its trace, even when all selective queries are zero.
-fn project_selective_queries(
-    rows: &[PauliString],
-    remaining: &mut [SelectiveConstraint],
-    fills: &mut [(usize, Pauli)],
-) -> Result<Vec<CoeffVec>, StabilizerError> {
-    for (column, _) in fills {
-        *column = remaining
-            .iter()
-            .position(|constraint| constraint.col == *column)
-            .expect("validated fill has a live selective query");
-    }
-    let width = remaining.len().saturating_mul(2);
-    let rows = rows
-        .iter()
-        .map(|row| {
-            CancellationToken::checkpoint()?;
-            let mut projected = CoeffVec::zeros(width);
-            for (slot, constraint) in remaining.iter().enumerate() {
-                let pauli = row.get(constraint.col);
-                projected.set_bit(2 * slot, pauli & Pauli::X);
-                projected.set_bit(2 * slot + 1, pauli & Pauli::Z);
-            }
-            Ok(projected)
-        })
-        .collect::<Result<Vec<_>, StabilizerError>>()?;
-    // Slots stay fixed while restrictions remove entries from `remaining`.
-    for (slot, constraint) in remaining.iter_mut().enumerate() {
-        constraint.col = slot;
-    }
-    Ok(rows)
-}
-
-fn selective_query_pauli(row: &CoeffVec, slot: usize) -> Pauli {
-    match (row.bit(2 * slot), row.bit(2 * slot + 1)) {
-        (false, false) => Pauli::I,
-        (true, false) => Pauli::X,
-        (false, true) => Pauli::Z,
-        (true, true) => Pauli::Y,
-    }
-}
-
-fn restrict_selective_rows<R>(
-    rows: &mut Vec<R>,
-    coefficients: &mut Vec<CoeffVec>,
-    remaining: &mut Vec<SelectiveConstraint>,
-    fills: &[(usize, Pauli)],
-    get: impl Fn(&R, usize) -> Pauli,
-) -> Result<(), StabilizerError>
-where
-    R: Clone + for<'a> BitXorAssign<&'a R>,
-{
-    for &(column, chosen) in fills {
-        CancellationToken::checkpoint()?;
-        remaining.retain(|constraint| constraint.col != column);
-        let pivots = gaussian_elimination_with_tracking(
-            rows,
-            coefficients,
-            [(column, chosen)],
-            |row, &(column, chosen)| {
-                let pauli = get(row, column);
-                pauli != Pauli::I && pauli != chosen
-            },
-            None,
-        );
-        rows.drain(..pivots);
-        coefficients.drain(..pivots);
-        normalize_selective_support_with(rows, Some(coefficients), remaining, &get)?;
-    }
-    Ok(())
-}
-
 /// Capture boundary ownership before native resources are relaxed for fills.
 pub(super) fn authored_boundary_columns(zx: &ZXGraph) -> (Vec<usize>, Vec<usize>) {
     let mut nodes = zx
@@ -651,12 +506,12 @@ fn requested_output_columns(
 mod tests {
     use glam::ivec3;
 
-    use crate::{BlockGraph, GalleryItem, MeasurementObservable, PauliBasis};
+    use crate::{BlockGraph, GalleryItem, MeasurementObservable};
 
-    use super::{RuntimeBasisError, RuntimeStabilizerBasis};
+    use super::*;
 
     fn runtime_basis(graph: &BlockGraph) -> RuntimeStabilizerBasis {
-        RuntimeStabilizerBasis::from_zx_graph(crate::ZXGraph::try_from(graph).unwrap()).unwrap()
+        RuntimeStabilizerBasis::from_zx_graph(ZXGraph::try_from(graph).unwrap()).unwrap()
     }
 
     fn assert_same_runtime(actual: &RuntimeStabilizerBasis, expected: &RuntimeStabilizerBasis) {
@@ -690,7 +545,7 @@ mod tests {
             GalleryItem::Stability,
         ] {
             let source = gallery.build().materialize_root_graph().unwrap();
-            let zx = crate::ZXGraph::from_block_graph_for_analysis(&source).unwrap();
+            let zx = ZXGraph::from_block_graph_for_analysis(&source).unwrap();
             let expected = RuntimeStabilizerBasis::from_zx_graph_unreduced(zx.clone()).unwrap();
             let actual = RuntimeStabilizerBasis::from_zx_graph(zx.clone()).unwrap();
             assert_same_runtime(&actual, &expected);
@@ -704,7 +559,7 @@ mod tests {
     #[test]
     fn reduced_runtime_preserves_installed_authority_and_unbounded_admission() {
         let source = GalleryItem::CNOT.build().materialize_root_graph().unwrap();
-        let zx = crate::ZXGraph::from_block_graph_for_analysis(&source).unwrap();
+        let zx = ZXGraph::from_block_graph_for_analysis(&source).unwrap();
         let mut signed = zx.to_signed_external_generator_table();
         signed[0].shift_phase(2);
         zx.stabilizer_phase_basis
@@ -718,7 +573,7 @@ mod tests {
 
         // An unsupported synthetic width charges more than the default Boolean
         // budget before returning None, without allocating that many columns.
-        let mut unsupported = crate::ZXGraph::from_block_graph_for_analysis(&source).unwrap();
+        let mut unsupported = ZXGraph::from_block_graph_for_analysis(&source).unwrap();
         unsupported.total_ids = 1 << 22;
         assert!(
             RuntimeStabilizerBasis::reduced_relation(&unsupported)
@@ -729,200 +584,13 @@ mod tests {
         assert!(matches!(
             RuntimeStabilizerBasis::from_zx_graph(unsupported),
             Err(RuntimeBasisError::Stabilizer(
-                crate::StabilizerError::ResourceLimited { .. }
+                StabilizerError::ResourceLimited { .. }
             ))
         ));
     }
 
-    fn assert_projected_selective_fills_match(
-        original: Vec<crate::PauliString>,
-        constraints: Vec<super::SelectiveConstraint>,
-        fills: &[(usize, crate::Pauli)],
-    ) -> Result<Vec<crate::PauliString>, String> {
-        use super::*;
-        let width = original.first().unwrap().len();
-        let mut expected = original.clone();
-        let mut expected_constraints = constraints.clone();
-        let mut expected_traces = (0..original.len())
-            .map(|index| CoeffVec::singleton(index, original.len()))
-            .collect::<Vec<_>>();
-        let mut remaining = constraints;
-        let mut mapped_fills = fills.to_vec();
-        let mut projected =
-            project_selective_queries(&original, &mut remaining, &mut mapped_fills).unwrap();
-        assert_eq!(
-            projected.len(),
-            original.len(),
-            "zero-query rows are retained"
-        );
-        let mut traces = expected_traces.clone();
-        for (original_fill, mapped_fill) in fills.iter().zip(&mapped_fills) {
-            let expected_result = restrict_selective_rows(
-                &mut expected,
-                &mut expected_traces,
-                &mut expected_constraints,
-                std::slice::from_ref(original_fill),
-                PauliString::get,
-            )
-            .map_err(|error| error.to_string());
-            let actual_result = restrict_selective_rows(
-                &mut projected,
-                &mut traces,
-                &mut remaining,
-                std::slice::from_ref(mapped_fill),
-                selective_query_pauli,
-            )
-            .map_err(|error| error.to_string());
-            assert_eq!(actual_result, expected_result, "same original error sites");
-            assert_eq!(
-                traces, expected_traces,
-                "ordered input traces after each fill and normalization"
-            );
-            actual_result?;
-        }
-        assert_eq!(
-            remaining
-                .iter()
-                .map(|c| (c.pos, c.kind, c.forbidden))
-                .collect::<Vec<_>>(),
-            expected_constraints
-                .iter()
-                .map(|c| (c.pos, c.kind, c.forbidden))
-                .collect::<Vec<_>>()
-        );
-        let actual = traces
-            .iter()
-            .map(|trace| {
-                trace
-                    .iter_ones()
-                    .fold(PauliString::new(width), |mut row, index| {
-                        row ^= &original[index];
-                        row
-                    })
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(actual, expected, "original row order and hidden support");
-        Ok(actual)
-    }
-
     #[test]
-    fn projected_batch_keeps_zero_query_rows_and_private_modes() {
-        use super::*;
-        let rows = vec![
-            PauliString::from_terms(6, [(0, Pauli::X), (2, Pauli::X)]),
-            PauliString::from_terms(6, [(0, Pauli::X), (3, Pauli::X)]),
-            PauliString::from_terms(6, [(1, Pauli::X), (4, Pauli::X)]),
-            PauliString::from_terms(6, [(1, Pauli::Y), (4, Pauli::Z)]),
-            PauliString::single(6, 5, Pauli::Z),
-        ];
-        let constraints = [0, 1]
-            .map(|col| SelectiveConstraint {
-                pos: ivec3(col as i32, 0, 0),
-                kind: crate::SelectiveKind::XY,
-                col,
-                forbidden: Pauli::Z,
-            })
-            .to_vec();
-        let actual = assert_projected_selective_fills_match(
-            rows,
-            constraints,
-            &[(0, Pauli::Y), (1, Pauli::X)],
-        )
-        .unwrap();
-        assert!(actual.contains(&PauliString::from_terms(6, [(2, Pauli::X), (3, Pauli::X)])));
-        assert!(actual.contains(&PauliString::single(6, 5, Pauli::Z)));
-    }
-
-    #[test]
-    fn projected_batch_matches_all_small_queries_and_fill_orders() {
-        use super::*;
-        let paulis = [Pauli::I, Pauli::X, Pauli::Z, Pauli::Y];
-        let constraints = vec![
-            SelectiveConstraint {
-                pos: ivec3(2, 0, 0),
-                kind: crate::SelectiveKind::XY,
-                col: 2,
-                forbidden: Pauli::Z,
-            },
-            SelectiveConstraint {
-                pos: ivec3(0, 0, 0),
-                kind: crate::SelectiveKind::XZ,
-                col: 0,
-                forbidden: Pauli::Y,
-            },
-        ];
-        for encoded in 0..256 {
-            let rows = vec![
-                PauliString::from_terms(
-                    6,
-                    [
-                        (0, paulis[encoded & 3]),
-                        (2, paulis[(encoded >> 2) & 3]),
-                        (3, Pauli::X),
-                    ],
-                ),
-                PauliString::from_terms(
-                    6,
-                    [
-                        (0, paulis[(encoded >> 4) & 3]),
-                        (2, paulis[(encoded >> 6) & 3]),
-                        (4, Pauli::Z),
-                    ],
-                ),
-                PauliString::single(6, 5, Pauli::Y),
-            ];
-            for choices in 0..4 {
-                let mut fills = [
-                    (0, [Pauli::X, Pauli::Z][choices & 1]),
-                    (2, [Pauli::X, Pauli::Y][choices >> 1]),
-                ];
-                for _ in 0..2 {
-                    let _ = assert_projected_selective_fills_match(
-                        rows.clone(),
-                        constraints.clone(),
-                        &fills,
-                    );
-                    fills.reverse();
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn projected_batch_keeps_unfilled_queries_and_original_error_sites() {
-        use super::*;
-        let rows = vec![
-            PauliString::from_terms(4, [(0, Pauli::X), (1, Pauli::X)]),
-            PauliString::from_terms(4, [(0, Pauli::X), (1, Pauli::Z)]),
-        ];
-        let constraints = vec![
-            SelectiveConstraint {
-                pos: ivec3(1, 0, 0),
-                kind: crate::SelectiveKind::XZ,
-                col: 1,
-                forbidden: Pauli::Y,
-            },
-            SelectiveConstraint {
-                pos: ivec3(0, 0, 0),
-                kind: crate::SelectiveKind::XY,
-                col: 0,
-                forbidden: Pauli::Z,
-            },
-            SelectiveConstraint {
-                pos: ivec3(2, 0, 0),
-                kind: crate::SelectiveKind::XY,
-                col: 2,
-                forbidden: Pauli::Z,
-            },
-        ];
-        // The first fill creates forbidden Y on unrequested original node one.
-        assert_projected_selective_fills_match(rows, constraints, &[(0, Pauli::Y), (2, Pauli::X)])
-            .expect_err("an unfilled selective still requires normalization");
-    }
-
-    #[test]
-    fn reduced_runtime_preserves_batch_fills_and_original_coordinates() {
-        use super::*;
+    fn reduced_runtime_preserves_batch_fills_and_provenance() {
         for (private_modes, source_coordinates) in [(0, true), (64, false), (64, true)] {
             let mut source = GalleryItem::THTH.build().materialize_root_graph().unwrap();
             // Independent internal modes widen equality storage without adding queries.
@@ -932,10 +600,10 @@ mod tests {
                     crate::BlockKind::Cube(crate::CubeKind::ZXZ),
                 ));
             }
-            let zx = crate::ZXGraph::from_block_graph_for_analysis(&source).unwrap();
+            let zx = ZXGraph::from_block_graph_for_analysis(&source).unwrap();
             let actual = RuntimeStabilizerBasis::from_zx_graph(zx.clone()).unwrap();
             let expected = RuntimeStabilizerBasis::from_zx_graph_unreduced(zx).unwrap();
-            let (actual, expected) = if source_coordinates {
+            let (mut actual, mut expected) = if source_coordinates {
                 (
                     actual.with_source_readouts().unwrap(),
                     expected.with_source_readouts().unwrap(),
@@ -948,16 +616,17 @@ mod tests {
             };
             let sites = collect_selective_constraints(&actual.zx_graph);
             assert_eq!(sites.len(), 2);
-            if private_modes != 0 {
-                assert!(
-                    (2 * sites.len()).div_ceil(64)
-                        < actual
-                            .coordinates
-                            .as_ref()
-                            .unwrap()
-                            .class_count()
-                            .div_ceil(64)
-                );
+            if !source_coordinates {
+                // Source provenance need not be the identity or match the row count.
+                for basis in [&mut actual, &mut expected] {
+                    basis.readout_coeffs = (0..basis.rows.len())
+                        .map(|index| {
+                            let mut value = CoeffVec::singleton(index + 2, basis.rows.len() + 3);
+                            value.set_bit(0, index % 2 == 0);
+                            value
+                        })
+                        .collect();
+                }
             }
             for choices in 0..4 {
                 let mut fills = sites
@@ -975,10 +644,8 @@ mod tests {
                     })
                     .collect::<Vec<_>>();
                 for _ in 0..2 {
-                    assert_same_runtime(
-                        &actual.apply_selective_fills(&fills).unwrap(),
-                        &expected.apply_selective_fills(&fills).unwrap(),
-                    );
+                    let batch = actual.apply_selective_fills(&fills).unwrap();
+                    assert_same_runtime(&batch, &expected.apply_selective_fills(&fills).unwrap());
                     let mut actual = actual.clone();
                     let mut expected = expected.clone();
                     for &(pos, axis) in &fills {
@@ -986,6 +653,7 @@ mod tests {
                         expected = expected.apply_selective_fill(pos, axis).unwrap();
                         assert_same_runtime(&actual, &expected);
                     }
+                    assert_same_runtime(&batch, &actual);
                     fills.reverse();
                 }
             }
@@ -993,117 +661,16 @@ mod tests {
     }
 
     #[test]
-    fn projected_batch_trace_width_and_empty_projection_preserve_hidden_rows() {
-        use super::*;
-        let mut rows = (0..65)
-            .map(|index| PauliString::single(66, index + 1, Pauli::X))
-            .collect::<Vec<_>>();
-        rows[2] = PauliString::from_terms(66, [(0, Pauli::Z), (3, Pauli::X)]);
-        rows[64] = PauliString::from_terms(66, [(0, Pauli::Z), (65, Pauli::Z)]);
-        let constraints = vec![SelectiveConstraint {
-            pos: ivec3(0, 0, 0),
-            kind: crate::SelectiveKind::XY,
-            col: 0,
-            forbidden: Pauli::Z,
-        }];
-        // One payload word, two trace words; trace2 XOR trace64 must retain bit64.
-        let actual =
-            assert_projected_selective_fills_match(rows, constraints, &[(0, Pauli::X)]).unwrap();
-        assert!(actual.contains(&PauliString::from_terms(
-            66,
-            [(3, Pauli::X), (65, Pauli::Z)]
-        )));
-        assert_eq!(actual.len(), 64);
-        let rows = vec![PauliString::new(4), PauliString::single(4, 2, Pauli::Y)];
-        assert_eq!(
-            assert_projected_selective_fills_match(rows.clone(), Vec::new(), &[]).unwrap(),
-            rows
-        );
-    }
-
-    #[test]
-    fn projected_batch_normalizes_unfilled_queries_before_a_second_batch() {
-        use super::*;
-        let rows = vec![
-            PauliString::from_terms(5, [(0, Pauli::Z), (1, Pauli::X), (2, Pauli::X)]),
-            PauliString::from_terms(5, [(0, Pauli::Z), (1, Pauli::Z), (3, Pauli::Z)]),
-            PauliString::from_terms(5, [(1, Pauli::X), (4, Pauli::Y)]),
-            PauliString::single(5, 1, Pauli::Z),
-        ];
-        let future = SelectiveConstraint {
-            pos: ivec3(1, 0, 0),
-            kind: crate::SelectiveKind::XZ,
-            col: 1,
-            forbidden: Pauli::Y,
-        };
-        let constraints = vec![
-            future,
-            SelectiveConstraint {
-                pos: ivec3(0, 0, 0),
-                kind: crate::SelectiveKind::XY,
-                col: 0,
-                forbidden: Pauli::Z,
-            },
-        ];
-        let first =
-            assert_projected_selective_fills_match(rows, constraints, &[(0, Pauli::X)]).unwrap();
-        assert!(first.iter().all(|row| row.get(1) != Pauli::Y));
-        // Rebuild the new query map from original ids after full replay.
-        assert_projected_selective_fills_match(first, vec![future], &[(1, Pauli::Z)]).unwrap();
-    }
-
-    #[test]
-    fn fill_traces_compose_input_rows_without_relabeling_source_provenance() {
-        let source = GalleryItem::CNOT.build().materialize_root_graph().unwrap();
-        let zx = crate::ZXGraph::from_block_graph_for_analysis(&source).unwrap();
-        let mut basis = RuntimeStabilizerBasis::from_zx_graph(zx).unwrap();
-        assert!(basis.rows.len() >= 2);
-        let source_width = basis.rows.len() + 3;
-        basis.readout_coeffs = basis
-            .rows
-            .iter()
-            .enumerate()
-            .map(|(index, _)| {
-                let mut value = super::CoeffVec::singleton(index + 2, source_width);
-                value.set_bit(0, index % 2 == 0);
-                value
-            })
-            .collect();
-        let mut combined = super::CoeffVec::singleton(0, basis.rows.len());
-        combined.set_bit(1, true);
-        let traces = vec![
-            super::CoeffVec::singleton(1, basis.rows.len()),
-            combined,
-            super::CoeffVec::zeros(basis.rows.len()),
-        ];
-        let (rows, coefficients) = basis.replay_fill_traces(&traces).unwrap();
-        assert_eq!(rows[0], basis.rows[1]);
-        assert_eq!(coefficients[0], basis.readout_coeffs[1]);
-        assert_eq!(rows[1], &basis.rows[0] ^ &basis.rows[1]);
-        let mut expected = basis.readout_coeffs[0].clone();
-        expected.xor_assign(&basis.readout_coeffs[1]);
-        assert_eq!(coefficients[1], expected);
-        assert_eq!(rows[2], crate::PauliString::new(basis.zx_graph.total_ids()));
-        assert_eq!(coefficients[2], super::CoeffVec::zeros(source_width));
-        // Zero support is not a reason to discard a distinct readable recipe.
-        basis.rows[1] = basis.rows[0].clone();
-        let (rows, coefficients) = basis.replay_fill_traces(&traces[1..2]).unwrap();
-        assert_eq!(rows[0], crate::PauliString::new(basis.zx_graph.total_ids()));
-        assert_eq!(coefficients[0], expected);
-        assert!(!coefficients[0].to_indices().is_empty());
-    }
-
-    #[test]
-    fn compact_runtime_y_fill_preserves_prepared_sectors_and_phase_interpretation() {
+    fn runtime_y_fill_preserves_prepared_sectors_and_phase_interpretation() {
         let source = GalleryItem::T.build().materialize_root_graph().unwrap();
-        let zx = crate::ZXGraph::from_block_graph_for_analysis(&source).unwrap();
+        let zx = ZXGraph::from_block_graph_for_analysis(&source).unwrap();
         let actual = RuntimeStabilizerBasis::for_source_readouts(zx.clone()).unwrap();
         let expected = RuntimeStabilizerBasis::from_zx_graph_unreduced(zx)
             .unwrap()
             .with_source_readouts()
             .unwrap();
-        let site = super::collect_selective_constraints(actual.zx_graph())[0];
-        assert_eq!(site.kind, crate::SelectiveKind::XY);
+        let site = collect_selective_constraints(actual.zx_graph())[0];
+        assert_eq!(site.kind, SelectiveKind::XY);
         for chosen in [PauliBasis::X, PauliBasis::Y] {
             assert_same_runtime(
                 &actual.apply_selective_fill(site.pos, chosen).unwrap(),
@@ -1115,23 +682,21 @@ mod tests {
     #[test]
     fn supplied_runtime_rows_keep_literal_order_and_dense_fill_ownership() {
         let source = GalleryItem::CNOT.build().materialize_root_graph().unwrap();
-        let zx = crate::ZXGraph::from_block_graph_for_analysis(&source).unwrap();
+        let zx = ZXGraph::from_block_graph_for_analysis(&source).unwrap();
         let mut generators = source.stabilizers().unwrap();
         generators.reverse();
         generators.push(generators[0].clone());
         let mut zero = generators[0].clone();
-        zero.stabilizer.paulis = crate::PauliString::new(zx.total_ids());
+        zero.stabilizer.paulis = PauliString::new(zx.total_ids());
         generators.push(zero);
         // Caller presentation is literal, even when it violates graph aliases.
-        generators[0].stabilizer.paulis =
-            crate::PauliString::single(zx.total_ids(), 0, crate::Pauli::Y);
+        generators[0].stabilizer.paulis = PauliString::single(zx.total_ids(), 0, Pauli::Y);
         let expected = generators
             .iter()
             .map(|generator| generator.stabilizer.paulis.clone())
             .collect::<Vec<_>>();
         let presentation = crate::StabilizerGenerators::new(zx, generators);
         let actual = RuntimeStabilizerBasis::from_generators(&presentation);
-        assert!(actual.coordinates.is_none());
         assert_eq!(actual.generators(), expected);
         for (index, coefficient) in actual.readout_coeffs.iter().enumerate() {
             assert_eq!(coefficient.to_indices(), [index]);
@@ -1141,18 +706,15 @@ mod tests {
     #[test]
     fn runtime_fill_cancellation_keeps_the_original_rows() {
         let source = GalleryItem::THTH.build().materialize_root_graph().unwrap();
-        let zx = crate::ZXGraph::from_block_graph_for_analysis(&source).unwrap();
+        let zx = ZXGraph::from_block_graph_for_analysis(&source).unwrap();
         let actual = RuntimeStabilizerBasis::for_source_readouts(zx).unwrap();
-        assert!(actual.coordinates.is_some());
         let original = actual.generators().to_vec();
-        let site = super::collect_selective_constraints(actual.zx_graph())[0];
-        let token = crate::CancellationToken::new();
+        let site = collect_selective_constraints(actual.zx_graph())[0];
+        let token = CancellationToken::new();
         token.cancel();
         assert!(matches!(
             token.scope(|| actual.apply_selective_fill(site.pos, site.kind.pauli_if_false())),
-            Err(RuntimeBasisError::Stabilizer(
-                crate::StabilizerError::Cancelled(_)
-            ))
+            Err(RuntimeBasisError::Stabilizer(StabilizerError::Cancelled(_)))
         ));
         assert_eq!(actual.generators(), original);
     }
@@ -1160,14 +722,12 @@ mod tests {
     #[test]
     fn reduced_runtime_propagates_cancellation_without_retry() {
         let source = GalleryItem::CNOT.build().materialize_root_graph().unwrap();
-        let zx = crate::ZXGraph::from_block_graph_for_analysis(&source).unwrap();
-        let token = crate::CancellationToken::new();
+        let zx = ZXGraph::from_block_graph_for_analysis(&source).unwrap();
+        let token = CancellationToken::new();
         token.cancel();
         assert!(matches!(
             token.scope(|| RuntimeStabilizerBasis::from_zx_graph(zx)),
-            Err(RuntimeBasisError::Stabilizer(
-                crate::StabilizerError::Cancelled(_)
-            ))
+            Err(RuntimeBasisError::Stabilizer(StabilizerError::Cancelled(_)))
         ));
     }
 
@@ -1193,7 +753,7 @@ mod tests {
                 },
             ])
             .unwrap();
-        let zx = crate::ZXGraph::from_block_graph_for_analysis(&graph).unwrap();
+        let zx = ZXGraph::from_block_graph_for_analysis(&graph).unwrap();
         let filled = RuntimeStabilizerBasis::from_zx_graph(zx)
             .unwrap()
             .apply_selective_fill(ivec3(0, 0, 1), PauliBasis::Z)
@@ -1228,33 +788,9 @@ mod tests {
     #[test]
     fn verifier_output_queries_preserve_parallel_edge_materialization() {
         use crate::verify::{
-            MeasurementKey, solve_evolved_correction, stabilizer_supports_measurement,
+            MeasurementKey, signed_output_correction as oracle, solve_evolved_correction,
         };
-        use crate::zx::CoeffVec;
         use std::panic::{AssertUnwindSafe, catch_unwind};
-
-        fn oracle(
-            basis: &RuntimeStabilizerBasis,
-            outputs: &[glam::IVec3],
-            keys: &[&MeasurementKey],
-        ) -> (Vec<CoeffVec>, crate::SymbolicOutputCorrection) {
-            let mut constraints = Vec::new();
-            let mut masks = Vec::new();
-            for (constraint, surface) in basis.derive_output_correction_surfaces(outputs).unwrap() {
-                let mut mask = CoeffVec::zeros(keys.len());
-                for (index, key) in keys.iter().enumerate() {
-                    mask.set_bit(index, stabilizer_supports_measurement(&surface, key));
-                }
-                if !mask.is_zero() {
-                    constraints.push(constraint);
-                    masks.push(mask);
-                }
-            }
-            (
-                masks,
-                crate::solve_output_correction_symbolic(outputs, &constraints).unwrap(),
-            )
-        }
 
         for hadamard in [false, true] {
             let nodes = vec![
@@ -1271,7 +807,7 @@ mod tests {
                     hadamard,
                 })
                 .collect::<Vec<_>>();
-            let zx = crate::ZXGraph {
+            let zx = ZXGraph {
                 adjacency: super::super::graph::CsrAdjacency::from_edges(
                     nodes.len(),
                     &edges
@@ -1292,17 +828,17 @@ mod tests {
             let keys = [
                 MeasurementKey::Node {
                     pos: outputs[0],
-                    pauli: crate::Pauli::X,
+                    pauli: Pauli::X,
                 },
                 MeasurementKey::Edge {
                     src: zx.nodes[0].pos,
                     dst: zx.nodes[1].pos,
-                    pauli: crate::Pauli::X,
+                    pauli: Pauli::X,
                 },
                 MeasurementKey::Edge {
                     src: zx.nodes[1].pos,
                     dst: zx.nodes[0].pos,
-                    pauli: crate::Pauli::X,
+                    pauli: Pauli::X,
                 },
             ];
             let refs = keys.iter().collect::<Vec<_>>();
@@ -1315,13 +851,13 @@ mod tests {
             // The latest forward column is I, but an earlier forward X remains
             // in the physical map. Its reverse reference is X, so maps are valid
             // under the existing debug assertion despite synthetic pair mismatch.
-            for last_reverse in [crate::Pauli::X, crate::Pauli::I] {
-                let row = crate::PauliString::from_terms(
+            for last_reverse in [Pauli::X, Pauli::I] {
+                let row = PauliString::from_terms(
                     zx.total_ids(),
                     [
-                        (1, crate::Pauli::X),
-                        (2, crate::Pauli::X),
-                        (3, crate::Pauli::X),
+                        (1, Pauli::X),
+                        (2, Pauli::X),
+                        (3, Pauli::X),
                         (5, last_reverse),
                     ],
                 );
@@ -1340,7 +876,7 @@ mod tests {
                         );
                         assert_eq!(actual, expected);
                     }
-                    (Err(_), Err(_)) => assert_eq!(last_reverse, crate::Pauli::I),
+                    (Err(_), Err(_)) => assert_eq!(last_reverse, Pauli::I),
                     (Ok(_), Err(_)) => {
                         panic!("query path hid the signed materializer's debug failure")
                     }
@@ -1348,28 +884,28 @@ mod tests {
                 }
             }
         }
-        let graph = crate::BlockGraph::from_text(
+        let graph = BlockGraph::from_text(
             "BLOG 1.0\nmodule main {\nin q: data = 0\nout r: data = 1\n0: Port [0,0,0] role=input\n1: Port [0,0,1] role=output\n0 -> +Z\n}\n",
         )
         .unwrap()
         .materialize_root_graph()
         .unwrap();
-        let zx = crate::ZXGraph::from_block_graph_for_analysis(&graph).unwrap();
+        let zx = ZXGraph::from_block_graph_for_analysis(&graph).unwrap();
         let outputs = zx.output_ports();
         let keys = [
             MeasurementKey::Node {
                 pos: outputs[0],
-                pauli: crate::Pauli::X,
+                pauli: Pauli::X,
             },
             MeasurementKey::Edge {
                 src: zx.nodes[0].pos,
                 dst: zx.nodes[1].pos,
-                pauli: crate::Pauli::X,
+                pauli: Pauli::X,
             },
             MeasurementKey::Edge {
                 src: zx.nodes[1].pos,
                 dst: zx.nodes[0].pos,
-                pauli: crate::Pauli::X,
+                pauli: Pauli::X,
             },
         ];
         let refs = keys.iter().collect::<Vec<_>>();
@@ -1379,15 +915,15 @@ mod tests {
             (zx.total_ids() - 1, false),
             (zx.total_ids() + 1, true),
         ] {
-            let mut row = crate::PauliString::new(width);
-            row.set(0, crate::Pauli::X);
-            row.set(1, crate::Pauli::X);
+            let mut row = PauliString::new(width);
+            row.set(0, Pauli::X);
+            row.set(1, Pauli::X);
             let forward = zx.edge_id(0, 1).unwrap();
             if forward < width {
-                row.set(forward, crate::Pauli::X);
+                row.set(forward, Pauli::X);
             }
             if paired {
-                row.set(zx.edge_id(1, 0).unwrap(), crate::Pauli::X);
+                row.set(zx.edge_id(1, 0).unwrap(), Pauli::X);
             }
             let basis = RuntimeStabilizerBasis::new(zx.clone(), vec![row], 1);
             let expected = catch_unwind(AssertUnwindSafe(|| oracle(&basis, &outputs, &refs)));

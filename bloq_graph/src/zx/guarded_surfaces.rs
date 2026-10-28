@@ -4099,6 +4099,75 @@ pub(super) fn materialize_row(
 mod tests {
     use super::*;
 
+    fn surface_space(
+        source: &crate::BlockGraph,
+        limits: ModuleCertificationLimits,
+    ) -> GuardedSurfaceSpace {
+        GuardedSurfaceSpace::new(
+            GuardedTopology::new(source, limits).unwrap(),
+            &HashMap::new(),
+            limits,
+        )
+        .unwrap()
+    }
+
+    fn import_decisions(
+        source: &bloq_utils::boolean::BooleanDecisionDiagram,
+        target: &mut bloq_utils::boolean::BooleanDecisionDiagram,
+    ) -> Vec<DecisionId> {
+        let mut roots = vec![ZERO, ONE];
+        for node in source.nodes() {
+            roots.push(
+                target
+                    .make_node(node.variable, roots[node.low.0], roots[node.high.0])
+                    .unwrap(),
+            );
+        }
+        roots
+    }
+
+    fn remap_surface(mut surface: GuardedSurface, roots: &[DecisionId]) -> GuardedSurface {
+        // Keep this independent of the root iterator used by production collection.
+        surface.row = BooleanRow::from_terms(
+            roots[surface.row.active.0],
+            surface
+                .row
+                .terms()
+                .iter()
+                .map(|&(column, root)| (column, roots[root.0])),
+        );
+        for (_, root) in &mut surface.feedbacks {
+            *root = roots[root.0];
+        }
+        match &mut surface.kind {
+            GuardedSurfaceKind::Readout { folds, .. } => {
+                for (_, root) in folds {
+                    *root = roots[root.0];
+                }
+            }
+            GuardedSurfaceKind::OutputFrame { folds, .. } => {
+                for (_, _, root) in folds {
+                    *root = roots[root.0];
+                }
+            }
+            GuardedSurfaceKind::LogicalReadout => {}
+        }
+        surface
+    }
+
+    #[track_caller]
+    fn assert_same_surface(actual: &GuardedSurface, expected: &GuardedSurface) {
+        assert_eq!(actual.row.active, expected.row.active);
+        assert_eq!(
+            actual.row.terms(),
+            expected.row.terms(),
+            "complete raw witness: {:?}",
+            actual.kind
+        );
+        assert_eq!(actual.feedbacks, expected.feedbacks);
+        assert_eq!(actual.kind, expected.kind, "ordered role, label, and folds");
+    }
+
     #[test]
     fn packed_crossing_readers_match_exact_dense_choices_and_original_queries() {
         let isolated = crate::BlockGraph::from_text(
@@ -4149,12 +4218,7 @@ mod tests {
                 .iter()
                 .any(|edge| edge.hadamard && edge.n1 > edge.n2);
             saw_y |= zx.nodes().iter().any(|node| node.kind == NodeKind::Y);
-            let mut space = GuardedSurfaceSpace::new(
-                GuardedTopology::new(&source, limits).unwrap(),
-                &HashMap::new(),
-                limits,
-            )
-            .unwrap();
+            let mut space = surface_space(&source, limits);
             for order in 0..3 {
                 let mut rows = space.rows.clone();
                 if case == 2 {
@@ -4290,12 +4354,7 @@ mod tests {
             .unwrap();
         let source = source.fix_shadowed_faces();
         let zx = ZXGraph::from_block_graph_for_analysis(&source).unwrap();
-        let mut space = GuardedSurfaceSpace::new(
-            GuardedTopology::new(&source, ModuleCertificationLimits::DEFAULT).unwrap(),
-            &HashMap::new(),
-            ModuleCertificationLimits::DEFAULT,
-        )
-        .unwrap();
+        let mut space = surface_space(&source, ModuleCertificationLimits::DEFAULT);
         let rows = space.rows.clone();
         let packed_width = rows
             .iter()
@@ -4334,12 +4393,7 @@ mod tests {
                 max_witness_nodes: limit,
                 ..ModuleCertificationLimits::DEFAULT
             };
-            let mut space = GuardedSurfaceSpace::new(
-                GuardedTopology::new(&crate::BlockGraph::new(), limits).unwrap(),
-                &HashMap::new(),
-                limits,
-            )
-            .unwrap();
+            let mut space = surface_space(&crate::BlockGraph::new(), limits);
             space.topology.diagram.make_node(9, ZERO, ONE).unwrap();
             let live = space.topology.diagram.make_node(0, ZERO, ONE).unwrap();
             let mut pending = BooleanRow::from_terms(live, [(0, live)]);
@@ -4384,55 +4438,17 @@ mod tests {
         // Both plans use the same source variable order; compare raw functions
         // on every assignment, including outside activation and source domain.
         let mut canonical = expected.topology.diagram.clone();
-        let mut remap = vec![ZERO, ONE];
-        for node in actual.topology.diagram.nodes() {
-            remap.push(
-                canonical
-                    .make_node(node.variable, remap[node.low.0], remap[node.high.0])
-                    .unwrap(),
-            );
-        }
+        let remap = import_decisions(&actual.topology.diagram, &mut canonical);
         assert_eq!(actual.columns, expected.columns);
         assert_eq!(remap[actual.topology.domain.0], expected.topology.domain);
         assert_eq!(actual.surfaces.len(), expected.surfaces.len());
         for (actual_surface, expected_surface) in actual.surfaces.iter().zip(&expected.surfaces) {
-            let actual_row = actual.coordinates.expand(&actual_surface.row);
-            let expected_row = expected.coordinates.expand(&expected_surface.row);
-            let (actual, expected) = (actual_surface, expected_surface);
-            assert_eq!(remap[actual_row.active.0], expected_row.active);
-            assert_eq!(
-                actual_row
-                    .terms()
-                    .iter()
-                    .map(|&(column, value)| (column, remap[value.0]))
-                    .collect::<Vec<_>>(),
-                expected_row.terms(),
-                "complete raw witness, including off-domain coefficients: {:?}",
-                actual.kind
-            );
-            assert_eq!(
-                actual
-                    .feedbacks
-                    .iter()
-                    .map(|&(ordinal, value)| (ordinal, remap[value.0]))
-                    .collect::<Vec<_>>(),
-                expected.feedbacks
-            );
-            let mut kind = actual.kind.clone();
-            match &mut kind {
-                GuardedSurfaceKind::Readout { folds, .. } => {
-                    for (_, value) in folds {
-                        *value = remap[value.0];
-                    }
-                }
-                GuardedSurfaceKind::OutputFrame { folds, .. } => {
-                    for (_, _, value) in folds {
-                        *value = remap[value.0];
-                    }
-                }
-                GuardedSurfaceKind::LogicalReadout => {}
-            }
-            assert_eq!(kind, expected.kind, "ordered role, label, and folds");
+            let mut actual_surface = actual_surface.clone();
+            actual_surface.row = actual.coordinates.expand(&actual_surface.row);
+            let actual_surface = remap_surface(actual_surface, &remap);
+            let mut expected_surface = expected_surface.clone();
+            expected_surface.row = expected.coordinates.expand(&expected_surface.row);
+            assert_same_surface(&actual_surface, &expected_surface);
         }
     }
 
@@ -4668,12 +4684,7 @@ mod tests {
                 .unwrap()
                 .fix_shadowed_faces();
             let limits = ModuleCertificationLimits::DEFAULT;
-            let mut cached = GuardedSurfaceSpace::new(
-                GuardedTopology::new(&source, limits).unwrap(),
-                &HashMap::new(),
-                limits,
-            )
-            .unwrap();
+            let mut cached = surface_space(&source, limits);
             assert!(cached.representative_zx.is_some());
             let token = crate::CancellationToken::new();
             token.scope(|| {
@@ -4929,12 +4940,7 @@ mod tests {
                 .unwrap()
                 .fix_shadowed_faces();
             let limits = ModuleCertificationLimits::DEFAULT;
-            let space = GuardedSurfaceSpace::new(
-                GuardedTopology::new(&graph, limits).unwrap(),
-                &HashMap::new(),
-                limits,
-            )
-            .unwrap();
+            let space = surface_space(&graph, limits);
             let isolated = space
                 .local
                 .iter()
@@ -5086,14 +5092,7 @@ mod tests {
         for graph in cases {
             let graph = graph.fix_shadowed_faces();
             let limits = ModuleCertificationLimits::DEFAULT;
-            let build = || {
-                GuardedSurfaceSpace::new(
-                    GuardedTopology::new(&graph, limits).unwrap(),
-                    &HashMap::new(),
-                    limits,
-                )
-                .unwrap()
-            };
+            let build = || surface_space(&graph, limits);
             let mut expanded = build();
             expanded.plan_causal_readouts::<true, false>().unwrap();
             let mut taped = build();
@@ -5177,12 +5176,7 @@ mod tests {
             }
         }
         let limits = ModuleCertificationLimits::DEFAULT;
-        let mut space = GuardedSurfaceSpace::new(
-            GuardedTopology::new(&graph, limits).unwrap(),
-            &HashMap::new(),
-            limits,
-        )
-        .unwrap();
+        let mut space = surface_space(&graph, limits);
         space.plan_causal_readouts::<true, true>().unwrap();
         assert_output_folds_match_dense(&mut space);
         let mut outputs = Vec::new();
@@ -5208,12 +5202,7 @@ mod tests {
             max_boolean_steps: 100,
             ..ModuleCertificationLimits::DEFAULT
         };
-        let mut space = GuardedSurfaceSpace::new(
-            GuardedTopology::new(&crate::BlockGraph::new(), limits).unwrap(),
-            &HashMap::new(),
-            limits,
-        )
-        .unwrap();
+        let mut space = surface_space(&crate::BlockGraph::new(), limits);
         let row = BooleanRow::from_terms(ONE, (0..4096).map(|column| (column, ONE)));
         let outputs = [(IVec3::ZERO, 0, true), (IVec3::Z, 0, true)];
         let columns = BTreeMap::from([(0, vec![(1, ONE)])]);
@@ -5299,12 +5288,7 @@ mod tests {
             .unwrap();
         let build = |source: &crate::BlockGraph| {
             let limits = ModuleCertificationLimits::DEFAULT;
-            GuardedSurfaceSpace::new(
-                GuardedTopology::new(source, limits).unwrap(),
-                &HashMap::new(),
-                limits,
-            )
-            .unwrap()
+            surface_space(source, limits)
         };
         let original = build(&graph);
         let extended = build(&extended);
@@ -5363,12 +5347,7 @@ mod tests {
             .expect("gallery flat projection")
             .fix_shadowed_faces();
         let limits = ModuleCertificationLimits::DEFAULT;
-        let mut space = GuardedSurfaceSpace::new(
-            GuardedTopology::new(&graph, limits).unwrap(),
-            &HashMap::new(),
-            limits,
-        )
-        .unwrap();
+        let mut space = surface_space(&graph, limits);
         // Synthetic rows below deliberately use independent original coordinates.
         space.coordinates = SurfaceCoordinates::default();
         let column = |position| space.node_components(position)[0][0].0;
@@ -5668,12 +5647,7 @@ mod tests {
             .materialize_root_graph()
             .expect("gallery flat projection");
         let limits = ModuleCertificationLimits::DEFAULT;
-        let mut space = GuardedSurfaceSpace::new(
-            GuardedTopology::new(&graph, limits).unwrap(),
-            &HashMap::new(),
-            limits,
-        )
-        .unwrap();
+        let mut space = surface_space(&graph, limits);
         let ports = graph
             .blocks()
             .filter(|block| block.kind().is_port())
@@ -5738,12 +5712,7 @@ mod tests {
     #[test]
     fn reclaimed_pivots_preserve_original_reader_completion_times() {
         let limits = ModuleCertificationLimits::DEFAULT;
-        let mut compact = GuardedSurfaceSpace::new(
-            GuardedTopology::new(&crate::BlockGraph::new(), limits).unwrap(),
-            &HashMap::new(),
-            limits,
-        )
-        .unwrap();
+        let mut compact = surface_space(&crate::BlockGraph::new(), limits);
         let mut original = compact.clone();
         compact.coordinates = SurfaceCoordinates::new(vec![
             Some(0),
@@ -5822,12 +5791,7 @@ mod tests {
     #[test]
     fn availability_pivots_preserve_original_reader_completion_times() {
         let limits = ModuleCertificationLimits::DEFAULT;
-        let mut compact = GuardedSurfaceSpace::new(
-            GuardedTopology::new(&crate::BlockGraph::new(), limits).unwrap(),
-            &HashMap::new(),
-            limits,
-        )
-        .unwrap();
+        let mut compact = surface_space(&crate::BlockGraph::new(), limits);
         let mut original = compact.clone();
         compact.coordinates = SurfaceCoordinates::new(vec![
             Some(0),
@@ -5909,12 +5873,7 @@ mod tests {
     #[test]
     fn aliased_reader_priorities_follow_original_feedback_costs() {
         let limits = ModuleCertificationLimits::DEFAULT;
-        let mut actual = GuardedSurfaceSpace::new(
-            GuardedTopology::new(&crate::BlockGraph::new(), limits).unwrap(),
-            &HashMap::new(),
-            limits,
-        )
-        .unwrap();
+        let mut actual = surface_space(&crate::BlockGraph::new(), limits);
         let mut expected = actual.clone();
         actual.coordinates = SurfaceCoordinates::new(vec![Some(0), Some(1), Some(0), None]);
         let guard = actual.topology.diagram.make_node(0, ZERO, ONE).unwrap();
@@ -6377,12 +6336,7 @@ mod tests {
             let ast = crate::parse_blog_program_to_ast(&source).unwrap();
             let graph = crate::lower_blog_graph_ast_deferred(&ast).unwrap();
             let limits = ModuleCertificationLimits::DEFAULT;
-            let mut space = GuardedSurfaceSpace::new(
-                GuardedTopology::new(&graph, limits).unwrap(),
-                &HashMap::new(),
-                limits,
-            )
-            .unwrap();
+            let mut space = surface_space(&graph, limits);
             let guard = if symbolic_kernel {
                 space.topology.condition(&crate::Expr::Var("a".into()))
             } else {
@@ -6452,12 +6406,7 @@ mod tests {
             let ast = crate::parse_blog_program_to_ast(&source).unwrap();
             let graph = crate::lower_blog_graph_ast_deferred(&ast).unwrap();
             let limits = ModuleCertificationLimits::DEFAULT;
-            let mut space = GuardedSurfaceSpace::new(
-                GuardedTopology::new(&graph, limits).unwrap(),
-                &HashMap::new(),
-                limits,
-            )
-            .unwrap();
+            let mut space = surface_space(&graph, limits);
             let before = space.topology.diagram.steps();
             space.plan_causal_readouts::<true, true>().unwrap();
             space.topology.diagram.steps() - before
@@ -6473,12 +6422,7 @@ mod tests {
     #[test]
     fn readout_reclamation_uses_known_names_under_partial_activation() {
         let limits = ModuleCertificationLimits::DEFAULT;
-        let mut space = GuardedSurfaceSpace::new(
-            GuardedTopology::new(&crate::BlockGraph::new(), limits).unwrap(),
-            &HashMap::new(),
-            limits,
-        )
-        .unwrap();
+        let mut space = surface_space(&crate::BlockGraph::new(), limits);
         let guard = space.topology.diagram.make_node(0, ZERO, ONE).unwrap();
         let absent = space.topology.diagram.negate(guard).unwrap();
         // This readout has no physical support: its only valid pivot names an
@@ -6587,21 +6531,6 @@ mod tests {
             known
         }
 
-        fn import(
-            source: &BooleanDecisionDiagram,
-            target: &mut BooleanDecisionDiagram,
-        ) -> Vec<DecisionId> {
-            let mut roots = vec![ZERO, ONE];
-            for node in source.nodes() {
-                roots.push(
-                    target
-                        .make_node(node.variable, roots[node.low.0], roots[node.high.0])
-                        .unwrap(),
-                );
-            }
-            roots
-        }
-
         fn augmented(
             surface: &GuardedSurface,
             roots: &[DecisionId],
@@ -6679,8 +6608,8 @@ mod tests {
                 .map(|(index, name)| (name, 2 * actual.columns.len() + index))
                 .collect::<BTreeMap<_, _>>();
             let mut diagram = BooleanDecisionDiagram::default();
-            let actual_roots = import(&actual.topology.diagram, &mut diagram);
-            let expected_roots = import(&expected.topology.diagram, &mut diagram);
+            let actual_roots = import_decisions(&actual.topology.diagram, &mut diagram);
+            let expected_roots = import_decisions(&expected.topology.diagram, &mut diagram);
             let domain = actual_roots[actual.topology.domain.0];
             assert_eq!(domain, expected_roots[expected.topology.domain.0]);
 
@@ -6850,12 +6779,7 @@ mod tests {
     #[test]
     fn injective_named_certificate_handles_guards_and_rejects_kernel() {
         let limits = ModuleCertificationLimits::DEFAULT;
-        let mut space = GuardedSurfaceSpace::new(
-            GuardedTopology::new(&crate::BlockGraph::new(), limits).unwrap(),
-            &HashMap::new(),
-            limits,
-        )
-        .unwrap();
+        let mut space = surface_space(&crate::BlockGraph::new(), limits);
         assert_eq!(space.topology.domain, ONE);
         let x = space.topology.diagram.make_node(0, ZERO, ONE).unwrap();
         let not_x = space.topology.diagram.negate(x).unwrap();
@@ -7043,12 +6967,7 @@ mod tests {
                 .unwrap();
         }
         let limits = ModuleCertificationLimits::DEFAULT;
-        let mut space = GuardedSurfaceSpace::new(
-            GuardedTopology::new(&source, limits).unwrap(),
-            &HashMap::new(),
-            limits,
-        )
-        .unwrap();
+        let mut space = surface_space(&source, limits);
         let zx = ZXGraph::from_block_graph_for_analysis(&source).unwrap();
         let node = zx.node_at(IVec3::ZERO).unwrap();
         assert_eq!(node.kind, NodeKind::X);
@@ -7108,12 +7027,7 @@ mod tests {
             .materialize_root_graph()
             .expect("gallery flat projection");
         let limits = ModuleCertificationLimits::DEFAULT;
-        let mut space = GuardedSurfaceSpace::new(
-            GuardedTopology::new(&graph, limits).unwrap(),
-            &HashMap::new(),
-            limits,
-        )
-        .unwrap();
+        let mut space = surface_space(&graph, limits);
         let target = graph
             .blocks()
             .find(|block| block.kind().is_port())
@@ -7275,12 +7189,7 @@ module main {
         ] {
             let graph = graph.fix_shadowed_faces();
             let limits = ModuleCertificationLimits::DEFAULT;
-            let mut space = GuardedSurfaceSpace::new(
-                GuardedTopology::new(&graph, limits).unwrap(),
-                &HashMap::new(),
-                limits,
-            )
-            .unwrap();
+            let mut space = surface_space(&graph, limits);
             space.plan_causal_readouts::<true, true>().unwrap();
             assert_output_folds_match_dense(&mut space);
             let mut plan = space.into_readout_plan().unwrap();
@@ -7325,14 +7234,7 @@ module main {
             let zx = ZXGraph::from_block_graph_for_analysis(&graph).unwrap();
             let boundaries = |source: &crate::BlockGraph| {
                 let limits = ModuleCertificationLimits::DEFAULT;
-                let mut plan = GuardedSurfaceSpace::new(
-                    GuardedTopology::new(source, limits).unwrap(),
-                    &HashMap::new(),
-                    limits,
-                )
-                .unwrap()
-                .plan_readouts()
-                .unwrap();
+                let mut plan = surface_space(source, limits).plan_readouts().unwrap();
                 expand_output_folds(&mut plan.surfaces, &mut plan.topology.diagram);
                 plan.surfaces
                     .iter()
@@ -7512,82 +7414,14 @@ module main {
         assert!(collected.topology.diagram.nodes().len() <= WITNESS_LIMIT);
         assert_eq!(collected.columns, space.columns);
         let mut canonical = bloq_utils::boolean::BooleanDecisionDiagram::default();
-        let mut import = |space: &GuardedReadoutPlan| {
-            let mut ids = vec![ZERO, ONE];
-            for node in space.topology.diagram.nodes() {
-                ids.push(
-                    canonical
-                        .make_node(node.variable, ids[node.low.0], ids[node.high.0])
-                        .unwrap(),
-                );
-            }
-            ids
-        };
-        let before = import(&space);
-        let after = import(&collected);
-        let row = |row: &BooleanRow, ids: &[DecisionId]| {
-            (
-                ids[row.active.0],
-                row.terms()
-                    .iter()
-                    .map(|&(col, id)| (col, ids[id.0]))
-                    .collect::<Vec<_>>(),
-            )
-        };
+        let before = import_decisions(&space.topology.diagram, &mut canonical);
+        let after = import_decisions(&collected.topology.diagram, &mut canonical);
         assert_eq!(space.surfaces.len(), collected.surfaces.len());
         for (left, right) in space.surfaces.iter().zip(&collected.surfaces) {
-            assert_eq!(row(&left.row, &before), row(&right.row, &after));
-            assert_eq!(
-                left.feedbacks
-                    .iter()
-                    .map(|(ordinal, id)| (ordinal, before[id.0]))
-                    .collect::<Vec<_>>(),
-                right
-                    .feedbacks
-                    .iter()
-                    .map(|(ordinal, id)| (ordinal, after[id.0]))
-                    .collect::<Vec<_>>()
+            assert_same_surface(
+                &remap_surface(left.clone(), &before),
+                &remap_surface(right.clone(), &after),
             );
-            match (&left.kind, &right.kind) {
-                (
-                    GuardedSurfaceKind::Readout { name: a, folds: af },
-                    GuardedSurfaceKind::Readout { name: b, folds: bf },
-                ) => {
-                    assert_eq!(a, b);
-                    assert_eq!(
-                        af.iter()
-                            .map(|(name, id)| (name, before[id.0]))
-                            .collect::<Vec<_>>(),
-                        bf.iter()
-                            .map(|(name, id)| (name, after[id.0]))
-                            .collect::<Vec<_>>()
-                    );
-                }
-                (
-                    GuardedSurfaceKind::OutputFrame {
-                        port: a,
-                        basis: aa,
-                        folds: af,
-                    },
-                    GuardedSurfaceKind::OutputFrame {
-                        port: b,
-                        basis: ba,
-                        folds: bf,
-                    },
-                ) => {
-                    assert_eq!((a, aa), (b, ba));
-                    assert_eq!(
-                        af.iter()
-                            .map(|(port, basis, id)| (port, basis, before[id.0]))
-                            .collect::<Vec<_>>(),
-                        bf.iter()
-                            .map(|(port, basis, id)| (port, basis, after[id.0]))
-                            .collect::<Vec<_>>(),
-                    );
-                }
-                (GuardedSurfaceKind::LogicalReadout, GuardedSurfaceKind::LogicalReadout) => {}
-                _ => panic!("collection changed surface kind"),
-            }
         }
         collected.max_witness_nodes = 0;
         let position = IVec3::from_array(*collected.local.first_key_value().unwrap().0);

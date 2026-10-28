@@ -26,9 +26,12 @@ impl GuardedSurfaceSpace {
                 assert_eq!(self.coordinates.get(row, gauge.generator[0]), ZERO);
             }
             if lambda == ONE {
-                gauge
-                    .lift(selector, &self.coordinates, &mut self.topology.diagram)?
-                    .apply(&mut lifted, &mut self.topology.diagram)?;
+                let flip = self.topology.diagram.negate(selector)?;
+                lifted.xor_scaled(
+                    &gauge.row(&self.coordinates),
+                    flip,
+                    &mut self.topology.diagram,
+                )?;
             }
         }
         for &(_, bit) in lifted.terms() {

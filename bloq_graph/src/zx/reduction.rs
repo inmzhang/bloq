@@ -21,56 +21,6 @@ pub(crate) struct CorrelationReduction {
     pub(crate) rows: Vec<BooleanRow>,
 }
 
-/// Original equality queries remain valid under row combinations and restrictions.
-/// Only the certified runtime relation may use these representatives for packing.
-#[derive(Debug)]
-pub(crate) struct OriginalCoordinates {
-    queries: Vec<[Option<usize>; 2]>,
-    representatives: Vec<(usize, Pauli)>,
-}
-
-pub(crate) struct CanonicalCorrelation {
-    pub(crate) rows: Vec<PauliString>,
-    pub(crate) coordinates: OriginalCoordinates,
-}
-
-impl OriginalCoordinates {
-    pub(crate) fn class_count(&self) -> usize {
-        self.representatives.len()
-    }
-
-    pub(crate) fn get(&self, row: &CoeffVec, column: usize) -> Pauli {
-        query_pauli(self.queries[column], |class| row.bit(class))
-    }
-
-    pub(crate) fn pack_rows(&self, rows: &[PauliString]) -> Result<Vec<CoeffVec>, StabilizerError> {
-        rows.iter()
-            .map(|row| {
-                CancellationToken::checkpoint()?;
-                debug_assert_eq!(row.len(), self.queries.len());
-                let mut packed = CoeffVec::zeros(self.representatives.len());
-                for (class, &(column, axis)) in self.representatives.iter().enumerate() {
-                    packed.set_bit(class, row.get(column) & axis);
-                }
-                Ok(packed)
-            })
-            .collect()
-    }
-
-    fn lift_rows(&self, rows: &[CoeffVec]) -> Result<Vec<PauliString>, StabilizerError> {
-        rows.iter()
-            .map(|row| {
-                CancellationToken::checkpoint()?;
-                Ok(lift_queries(
-                    self.queries.len(),
-                    |column| self.queries[column],
-                    |class| row.bit(class),
-                ))
-            })
-            .collect()
-    }
-}
-
 fn query_pauli(queries: [Option<usize>; 2], component: impl Fn(usize) -> bool) -> Pauli {
     match queries.map(|class| class.is_some_and(&component)) {
         [false, false] => Pauli::I,
@@ -730,9 +680,7 @@ impl CorrelationReduction {
 
     /// Canonicalize the complete relation in original raw query order before
     /// its single dense lift. Closed pivots also reduce earlier boundary rows.
-    pub(crate) fn into_canonical_relation(
-        mut self,
-    ) -> Result<CanonicalCorrelation, StabilizerError> {
+    pub(crate) fn into_canonical_rows(mut self) -> Result<Vec<PauliString>, StabilizerError> {
         CancellationToken::checkpoint()?;
         let words = self.classes.div_ceil(64);
         if self.rows.len().checked_mul(words).is_none() {
@@ -784,22 +732,16 @@ impl CorrelationReduction {
                 axes.swap(0, 1);
             }
         }
-        let coordinates = OriginalCoordinates {
-            queries: self.native_bits,
-            representatives: order
-                .into_iter()
-                .map(|query| query.expect("every class has an original query"))
-                .collect(),
-        };
-        Ok(CanonicalCorrelation {
-            rows: coordinates.lift_rows(&rows)?,
-            coordinates,
-        })
-    }
-
-    #[cfg(test)]
-    fn into_canonical_rows(self) -> Result<Vec<PauliString>, StabilizerError> {
-        self.into_canonical_relation().map(|relation| relation.rows)
+        rows.iter()
+            .map(|row| {
+                CancellationToken::checkpoint()?;
+                Ok(lift_queries(
+                    self.native_bits.len(),
+                    |column| self.native_bits[column],
+                    |class| row.bit(class),
+                ))
+            })
+            .collect()
     }
 
     /// Crossing centers belong to the original graph's nonlinear physical

@@ -21,10 +21,7 @@ pub(crate) use basis::{
     CoeffVec, PauliSpan, axis_pivot_constraints, gaussian_elimination_with_tracking,
     reduce_to_basis,
 };
-pub(crate) use selective::{
-    SelectiveConstraint, collect_selective_constraints, normalize_selective_support_in_place,
-    normalize_selective_support_with,
-};
+pub(crate) use selective::{collect_selective_constraints, normalize_selective_support_in_place};
 
 /// An error from filling a graph's open ports with concrete boundary spiders.
 #[derive(Debug, Clone, Error)]

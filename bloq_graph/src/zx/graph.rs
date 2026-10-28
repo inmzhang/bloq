@@ -2,7 +2,7 @@
 
 use super::ZXLayerView;
 use super::modular::StabilizerPhaseBasis;
-use super::stabilizer::{Stabilizer, contracted_sign};
+use super::stabilizer::{CoeffVec, Stabilizer, contracted_sign};
 use crate::{
     Action, ActionDag, BlockGraphError, CubeKind, FeedbackTarget, MeasureTarget,
     MeasurementObservable, SelectiveKind,
@@ -878,7 +878,7 @@ impl ZXGraph {
         if row.len() != self.total_ids || row.weight() > self.total_ids / 2 {
             return None;
         }
-        let mut present = vec![0u64; self.nodes.len().div_ceil(64)];
+        let mut present = CoeffVec::zeros(self.nodes.len());
         let mut count = 0;
         for (column, _) in row.iter_support() {
             let node = if column < self.nodes.len() {
@@ -886,10 +886,8 @@ impl ZXGraph {
             } else {
                 self.edges[column - self.nodes.len()].n1
             };
-            let bit = 1u64 << (node % 64);
-            let word = &mut present[node / 64];
-            if *word & bit == 0 {
-                *word |= bit;
+            if !present.bit(node) {
+                present.set_bit(node, true);
                 count += 1;
                 if count > self.nodes.len() / 2 {
                     return None;
@@ -897,12 +895,7 @@ impl ZXGraph {
             }
         }
         let mut nodes = SmallVec::with_capacity(count);
-        for (word, mut bits) in present.into_iter().enumerate() {
-            while bits != 0 {
-                nodes.push(64 * word + bits.trailing_zeros() as usize);
-                bits &= bits - 1;
-            }
-        }
+        nodes.extend(present.iter_ones());
         Some(nodes)
     }
 

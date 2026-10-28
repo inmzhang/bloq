@@ -243,35 +243,12 @@ pub(super) struct NativeGauge {
 }
 
 /// A gauge generator scaled by its selector's complement.
-pub(super) struct GaugeLift {
+struct GaugeLift {
     flip: DecisionId,
     generator: BooleanRow,
 }
 
-impl GaugeLift {
-    /// Restore a reference witness to the selector's actual branch.
-    pub(super) fn apply(
-        &self,
-        row: &mut BooleanRow,
-        diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
-    ) -> Result<(), BooleanResourceError> {
-        row.xor_scaled(&self.generator, self.flip, diagram)
-    }
-}
-
 impl NativeGauge {
-    pub(super) fn lift(
-        &self,
-        selector: DecisionId,
-        coordinates: &SurfaceCoordinates,
-        diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
-    ) -> Result<GaugeLift, BooleanResourceError> {
-        Ok(GaugeLift {
-            flip: diagram.negate(selector)?,
-            generator: self.row(coordinates),
-        })
-    }
-
     pub(super) fn row(&self, coordinates: &SurfaceCoordinates) -> BooleanRow {
         // Support values coalesce under an equality quotient; query terms XOR.
         let columns = self
@@ -442,8 +419,10 @@ impl GuardedSurfaceSpace {
         // Each generator and flip is built once; flips stay collection roots below.
         let mut by_lambda = HashMap::<usize, Vec<GaugeLift>>::new();
         for (gauge, &(_, selector)) in gauges.iter().zip(&self.topology.resolves) {
-            let lift = gauge.lift(selector, &self.coordinates, &mut self.topology.diagram)?;
-            by_lambda.entry(gauge.lambda).or_default().push(lift);
+            by_lambda.entry(gauge.lambda).or_default().push(GaugeLift {
+                flip: self.topology.diagram.negate(selector)?,
+                generator: gauge.row(&self.coordinates),
+            });
         }
         let mut selected = Vec::new();
         for index in 0..self.surfaces.len() {
@@ -460,7 +439,11 @@ impl GuardedSurfaceSpace {
             }
             for lambda in &selected {
                 for lift in &by_lambda[lambda] {
-                    lift.apply(&mut self.surfaces[index].row, &mut self.topology.diagram)?;
+                    self.surfaces[index].row.xor_scaled(
+                        &lift.generator,
+                        lift.flip,
+                        &mut self.topology.diagram,
+                    )?;
                 }
             }
             self.check_readout_roots(by_lambda.values_mut().flatten().map(|lift| &mut lift.flip))?;

@@ -252,108 +252,43 @@ The representations have separate responsibilities:
 | Authored outcome labels and output frames | Physical instruments and native readout lowering | Records, folds, feedback, and decoder flips determine the value; no extra tensor sign is XORed in |
 | Proxy observable reference offsets | Public observable binding and proxy frame emission | Accumulated with the frame surface's gateway offset; distinct from `Stabilizer::sign` |
 
-For a fixed topology without module scopes, the symbolic planner first quotients
-native bit equalities: seam transport, shared spider broadcasts, and degree-two
-identity arms. Every original bit remains a query into a representative or zero;
-the remaining crossing-parity constraints retain all independent closed and
-internal modes. After seam and frame equalities are applied, the solver builds a
-forest from coordinates that occur in exactly two normalized parity equations,
-independently of spider color and native Pauli frame. Non-tree cycle coordinates
-remain. This includes ordinary spider fusion.
-
-The reducer matches identical tails of three- or four-term parity equations,
-then propagates zero and equality constraints and removes variables used in only
-one residual equation. Repeated-arm cancellation captures ordinary Hopf
-consequences; common-tail matching captures bialgebra equalities. These operations
-transform the computational relation while retaining the original ZX diagram.
-Each elimination records an exact recovery equation; unconstrained variables
-remain as independent modes even when they disappear from the residual equations.
-The constant parity reducer also eliminates a coordinate from a three-term
-equation when that coordinate has exactly three current incidences. It substitutes
-the two-term recovery into both other equations, decreasing the total residual
-term count. This includes bounded Hadamard-pivot patterns without assigning the
-replacement topology any physical meaning.
+The planner keeps correlation rows compact while retaining queries into the
+original ZX diagram. For fixed topologies without module scopes, it merges
+wire, spider, and identity equalities, then simplifies the remaining parity
+equations by forest elimination, repeated-term cancellation, common-tail
+matching, and substitutions that reduce the number of terms. Every eliminated
+coordinate has an exact recovery equation; closed and internal modes remain.
 
 Projection $P$ and reconstruction $L$ are inverse on the complete relations:
 $PL=I$ on reduced solutions and $LP=I$ on original solutions. An original linear
-query $q$ becomes $qL$; a reduced query $r$ becomes $rP$. General XOR recovery
-finishes before planning, whose compact rows use equality representatives of
-binary coordinates. Equal coordinate functions on the complete solved relation
-can share a representative without dropping any internal mode. Original
-local-generator coefficient queries restore the source order used by seam
-elimination, preserving named-readout and prepared-resource reference choices.
-Rows stay compact through causal and terminal planning. Local physical binding
-reconstructs the original arms of the combined row before computing a crossing
-center's OR; that nonlinear query cannot be combined by XORing center values.
-Crossing readout isolation currently requires a constant local relation;
-branch-dependent isolation needs a symbolic choice over the original arms.
+query $q$ becomes $qL$. After solving, equal coordinate functions share storage.
+Original query and generator order preserve readout and resource reference
+choices. Physical binding reconstructs the original arms before computing a
+crossing center's OR; XORing center values would not preserve that nonlinear
+query. Crossing readout isolation currently requires a constant local relation.
 
-Fragment assembly builds a temporary index from each compact coordinate to
-original source sites grouped by module instance. A single instance is further
-partitioned into contiguous x-slabs so related queries can share smaller pieces.
-Each fragment takes the sorted union of its group's sites; complete queries keep
-the original site order, raw coefficient functions, activation, and physical
-ownership. The index is discarded after assembly.
-
-Module and conditional relations also share columns with identical raw Boolean
-coefficients, including values outside row activation. Exact incoming equalities
-are coalesced before seam solving; the completed relation is coalesced again.
-After each seam, matching singleton raw-column postings can also establish a
-new equality. Later queries follow that alias while historical source rows keep
-their original coordinates. Representative minima and full alias composition
-preserve the original query multiplicities and final column choices.
-Parent seams query compact child rows through the original half-edge mappings.
-These paths preserve seam order and do not apply the fixed-topology parity forest
-across branches. Module caches reuse exact normalized incoming rows,
-seam equations, Boolean functions, compact results, and alias updates; physical
-ownership and original query mappings are bound separately for each instance.
-Completed aliases never project fresh, unsolved tensor generators. Common-tail
-memoization is local to each fixed-topology reduction.
-
-The complete native half-edge relation and its original phase authorities remain
-available in either representation. Certificate views retain compact rows. For
-compositor-owned unsigned support, packed elimination follows the original
-boundary-query order and row operations, freezes the resulting boundary prefix,
-and canonicalizes only the closed suffix. Each final row is lifted once into
-original coordinates, then certified by the unchanged local tensor phase and
-witness machinery. Existing signed paths remain in use for installed composed
-phase authorities and legacy parallel-edge graphs.
-
-For supported fixed ZX graphs, `RuntimeStabilizerBasis::from_zx_graph` also starts
-from the complete reduced relation. It canonicalizes all rows together in
-original raw column order, including closed pivots that reduce earlier boundary
-rows, then lifts the ordered basis once. The resulting rows undergo selective
-support normalization, and each generator begins with its own unit provenance
-vector. Batch selective fills can retain just the two bits of every live selective
-node when that is smaller than the equality coordinates. Every row keeps a trace
-of its incoming rows, including rows with zero projected support. Replaying those
-traces restores the exact original rows and readable provenance. Public runtime
-rows remain explicit; single fills and caller-supplied presentations keep their
-existing paths.
-
-Verifier output correction evaluates original measurement queries on the final
-row combinations. It materializes physical surfaces only for unsupported query
-shapes; closed reference constraints still use signed surfaces.
+Module and conditional relations merge columns only when their raw Boolean
+coefficients agree, including outside row activation. They preserve seam order
+and do not apply the fixed-topology forest across branches. Reused relations and
+query fragments retain each instance's physical ownership and original query
+mapping. Aliases of a completed relation do not apply to unsolved generators.
 
 Signed projection tables reconstruct exact local witnesses and multiply their
 phases modulo four. This recovers the tensor sign once even when a boundary
 projection omits interior factors. When a certificate is placed in a linked
-graph, support materialization returns its raw Pauli row; the transformed witness
-supplies the authoritative phase and must reproduce that row. There is no
-intermediate signed surface whose phase is then discarded. Summary construction
-maps raw rows directly into positioned support. Public boundary rows are a view
-of the complete certificate's prefix, so their signed rows, support, and witnesses
-are stored once. Witness keys and local replay sources are reused within one
-immutable graph operation; placement, rotation, and the original phase authority
-remain part of reconstruction.
+graph, its transformed witness supplies the authoritative phase and must
+reproduce the materialized raw Pauli row. Public boundary rows share the
+complete certificate's prefix; compact certificate elimination preserves that
+prefix and canonicalizes only the closed suffix. Installed composed phase
+bases remain authoritative, and parallel-edge graphs retain signed reduction.
+Physical fragment caches retain transport offsets even when their first
+consumer is an output frame, because a later closed logical query can reuse it.
 
-Ordinary diagnostic rows recover their phase from local tensors. Sparse
-materialization shares a list of nonzero centers and arm owners between crossing
-reconstruction and phase recovery; zero neighborhoods contribute no phase.
-Dense rows retain the full traversal. An installed composed phase basis remains
-authoritative; parallel-edge graphs retain signed reduction. Physical fragment
-caches retain transport offsets when their first consumer is an output frame,
-because a later closed logical query can reuse the same fragment.
+`RuntimeStabilizerBasis::from_zx_graph` derives supported fixed relations in
+compact coordinates, then restores explicit rows in original order. Selective
+fills update those rows and their readable-value provenance together. Verifier
+output correction evaluates original measurement queries on the final combinations;
+closed reference constraints still use signed surfaces.
 
 The Clifford proxy collects temporal-Hadamard reference offsets while binding
 the corresponding pipe records and combines them with spatial wall offsets by
@@ -427,20 +362,12 @@ $(1\oplus b)\,x_e\oplus z_e=0$. It permits $\{I,Y\}$ for $b=0$ and
 $\{I,X\}$ for $b=1$.
 Bloq imposes this constraint by the same elimination as a seam.
 
-For certified fixed native T gadgets, Bloq first plans in the constant X-cap
-reference relation and retains a complete GF(2) basis between causal waves.
-Released availability directions enter this basis directly, including accepted
-equations and private physical kernels; no separate available quotient is kept.
-Candidate witnesses are borrowed until their complete frontier is selected.
-Native readiness and completion summaries are reused until an incident row,
-column time or known-name status changes. These summaries contain no Boolean
-decision IDs and do not alter the witness or frontier ordering.
-The cap-X coordinate alone inherits the selector's availability time. Before
-physical lowering, each complete witness is lifted into the original X/Y
-relation; the existing signed binder receives that whole local tuple. The
-certificate preserves named projections, feedback and protected resource
-sectors. Unsupported inputs use the general guarded planner, while resource
-errors propagate without resetting their budgets.
+Certified fixed native T gadgets use a constant X-cap reference relation,
+retaining a complete GF(2) basis between causal waves. The cap-X coordinate
+inherits the selector's availability time. Each selected witness is lifted into
+the original X/Y relation before physical binding, preserving named projections,
+feedback, and resource sectors. Unsupported inputs use the general guarded
+planner; resource errors propagate without resetting their budgets.
 
 Keeping alternatives as guarded rows matters because their union is not a
 vector space. Multiplying the $X$ and $Y$ alternatives yields $Z$ support,
@@ -514,11 +441,6 @@ available, so later waves do not restart elimination. An accepted readout is
 removed from the live relation, and later readouts refer to it by name. Its
 defining relation is restored while a later readout chooses its witness, so
 that witness can move to an earlier equivalent coset through the known value.
-
-Before falling back to a full-source solve, Bloq collects dead Boolean
-functions while retaining every owned readout root. Timing persists between
-waves and refreshes unresolved or affected entries as outcomes become known;
-diagram collection invalidates caches whose decision IDs have changed.
 
 Source `z` is a preference, not a control deadline: a readout may extend above
 its controlled cap. Lowering orders the required records before the cap, and

@@ -88,20 +88,19 @@ fn main() {
             };
             let (prepared_computed, prepared_reused) = prepared
                 .as_ref()
-                .map(|prepared| prepared.relation_work())
-                .unwrap_or_default();
+                .map_or((0, 0), |prepared| prepared.relation_work());
             let start = Instant::now();
             let topology = GuardedTopology::new(&graph, limits).expect("source topology");
             let topology_ms = start.elapsed().as_secs_f64() * 1000.0;
             let topology_boolean_steps = topology.diagram.steps();
             let topology_boolean_nodes = topology.diagram.nodes().len();
-            let mut scope_sites = BTreeMap::<String, usize>::new();
+            let mut scope_sites = BTreeMap::<&str, usize>::new();
             for &position in topology.sites.keys() {
                 let scope = sites
                     .get(&glam::IVec3::from_array(position))
                     .map(|site| site.instance_path.as_str())
                     .unwrap_or("");
-                *scope_sites.entry(scope.to_owned()).or_default() += 1;
+                *scope_sites.entry(scope).or_default() += 1;
             }
             let root_sites = scope_sites.get("").copied().unwrap_or(0);
             let largest_child_scope = scope_sites
@@ -122,8 +121,7 @@ fn main() {
             let before_readout_steps = relation.topology.diagram.steps();
             let (relation_computed, relation_reused) = prepared
                 .as_ref()
-                .map(|prepared| prepared.relation_work())
-                .unwrap_or_default();
+                .map_or((0, 0), |prepared| prepared.relation_work());
             let readout_start = Instant::now();
             let plan = relation
                 .plan_readouts()
@@ -136,14 +134,11 @@ fn main() {
             let support_sites = (0..plan.surfaces.len())
                 .map(|index| plan.support_sites(index))
                 .collect::<Vec<_>>();
-            if let Some(reference) = &reference_supports {
-                assert_eq!(
-                    &support_sites, reference,
-                    "reuse must preserve query supports"
-                );
-            } else {
-                reference_supports = Some(support_sites.clone());
-            }
+            let reference = reference_supports.get_or_insert_with(|| support_sites.clone());
+            assert_eq!(
+                &support_sites, reference,
+                "reuse must preserve query supports"
+            );
             let support_site_visits = support_sites.iter().map(BTreeSet::len).sum::<usize>();
             let max_query_support = support_sites.iter().map(BTreeSet::len).max().unwrap_or(0);
             let fragments = (0..plan.surfaces.len())
