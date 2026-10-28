@@ -702,21 +702,15 @@ impl GuardedReadoutPlan {
         Ok(output)
     }
 
-    /// Expand nonzero compact coordinates to their original owners without
-    /// scanning the global table. Named-readout coordinates are not physical support.
+    /// Original owners of nonzero compact coordinates, as the union of this
+    /// query's sorted fragments. Named-readout coordinates are not physical support.
     pub fn support_sites(&self, surface: usize) -> BTreeSet<[i32; 3]> {
-        let row = &self.surfaces[surface].row;
-        if row.active == ZERO {
+        if self.surfaces[surface].row.terms().is_empty() {
             return BTreeSet::new();
         }
-        row.terms()
+        self.fragment_uses[surface]
             .iter()
-            .flat_map(|&(coordinate, _)| self.coordinates.sources(coordinate))
-            .filter_map(|column| {
-                self.columns
-                    .get(column / 2)
-                    .map(|column| column.source_position())
-            })
+            .flat_map(|&fragment| self.fragments[fragment].1.iter().copied())
             .collect()
     }
 
@@ -800,7 +794,8 @@ fn sort_positions(
     crate::CancellationToken::checkpoint()?;
     let incidences = positions.len();
     diagram.charge(incidences.saturating_mul(incidences.max(1).ilog2() as usize + 2))?;
-    positions.sort_unstable();
+    // Positions concatenate sorted runs, which the stable sort merges.
+    positions.sort();
     positions.dedup();
     crate::CancellationToken::checkpoint()?;
     Ok(())

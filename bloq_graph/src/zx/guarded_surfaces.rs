@@ -52,7 +52,6 @@ impl SurfaceColumn {
 #[derive(Debug, Clone, Default)]
 pub(super) struct SurfaceCoordinates {
     aliases: Vec<Option<usize>>,
-    sources: BTreeMap<usize, Vec<usize>>,
 }
 
 impl SurfaceCoordinates {
@@ -61,13 +60,7 @@ impl SurfaceCoordinates {
     }
 
     pub(super) fn new(aliases: Vec<Option<usize>>) -> Self {
-        let mut sources = BTreeMap::<_, Vec<_>>::new();
-        for (original, &coordinate) in aliases.iter().enumerate() {
-            if let Some(coordinate) = coordinate {
-                sources.entry(coordinate).or_default().push(original);
-            }
-        }
-        Self { aliases, sources }
+        Self { aliases }
     }
 
     pub(super) fn bit(&self, original: usize) -> Option<usize> {
@@ -81,20 +74,18 @@ impl SurfaceCoordinates {
         self.bit(original).map_or(ZERO, |bit| row.get(bit))
     }
 
-    pub(super) fn sources(&self, coordinate: usize) -> impl Iterator<Item = usize> + '_ {
-        std::iter::once(coordinate)
-            .filter(move |_| coordinate >= self.aliases.len())
-            .chain(self.sources.get(&coordinate).into_iter().flatten().copied())
-    }
-
+    /// Original bits per coordinate; coordinates without originals weigh one.
     fn support_weights(
         &self,
         diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
     ) -> Result<Vec<usize>, BooleanResourceError> {
-        diagram.charge(self.aliases.len().saturating_add(self.sources.len()))?;
-        let mut weights = vec![1; self.aliases.len()];
-        for (&column, originals) in &self.sources {
-            weights[column] = originals.len();
+        diagram.charge(self.aliases.len().saturating_mul(2))?;
+        let mut weights = vec![0; self.aliases.len()];
+        for &coordinate in self.aliases.iter().flatten() {
+            weights[coordinate] += 1;
+        }
+        for weight in &mut weights {
+            *weight = (*weight).max(1);
         }
         Ok(weights)
     }
@@ -104,12 +95,21 @@ impl SurfaceCoordinates {
         if self.aliases.is_empty() {
             return row.clone();
         }
+        let mut sources = vec![Vec::new(); self.aliases.len()];
+        for (original, &coordinate) in self.aliases.iter().enumerate() {
+            if let Some(coordinate) = coordinate {
+                sources[coordinate].push(original);
+            }
+        }
         let mut terms = row
             .terms()
             .iter()
-            .flat_map(|&(coordinate, value)| {
-                self.sources(coordinate)
-                    .map(move |original| (original, value))
+            .flat_map(|&(coordinate, value)| match sources.get(coordinate) {
+                Some(originals) => originals
+                    .iter()
+                    .map(|&original| (original, value))
+                    .collect(),
+                None => vec![(coordinate, value)],
             })
             .collect::<Vec<_>>();
         terms.sort_unstable_by_key(|&(column, _)| column);
