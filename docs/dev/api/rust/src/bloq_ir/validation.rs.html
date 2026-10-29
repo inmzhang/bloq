@@ -978,7 +978,7 @@
 <a href=#978 id=978 data-nosnippet>978</a>                    <span class="kw">let </span>level = <span class="self">self</span>.level_at(<span class="kw-2">&amp;</span>path).expect(<span class="string">"cut owner ancestor"</span>);
 <a href=#979 id=979 data-nosnippet>979</a>                    <span class="kw">let </span>node = <span class="kw-2">&amp;</span>level[segment.region];
 <a href=#980 id=980 data-nosnippet>980</a>                    <span class="kw">let </span>relation = predicates.entry(path.clone()).or_insert_with(|| {
-<a href=#981 id=981 data-nosnippet>981</a>                        <span class="kw">crate</span>::membership::PredicateAnalysis::with_limits(
+<a href=#981 id=981 data-nosnippet>981</a>                        <span class="kw">crate</span>::membership::PredicateAnalysis::for_membership_references(
 <a href=#982 id=982 data-nosnippet>982</a>                            level,
 <a href=#983 id=983 data-nosnippet>983</a>                            options.boolean_limits(),
 <a href=#984 id=984 data-nosnippet>984</a>                        )
@@ -1014,7 +1014,7 @@
 <a href=#1014 id=1014 data-nosnippet>1014</a>            }
 <a href=#1015 id=1015 data-nosnippet>1015</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>((path, guard)) = availability.get(<span class="kw-2">&amp;</span>instance) {
 <a href=#1016 id=1016 data-nosnippet>1016</a>                <span class="kw">let </span>relation = predicates.entry(path.clone()).or_insert_with(|| {
-<a href=#1017 id=1017 data-nosnippet>1017</a>                    <span class="kw">crate</span>::membership::PredicateAnalysis::with_limits(
+<a href=#1017 id=1017 data-nosnippet>1017</a>                    <span class="kw">crate</span>::membership::PredicateAnalysis::for_membership_references(
 <a href=#1018 id=1018 data-nosnippet>1018</a>                        <span class="self">self</span>.level_at(path).expect(<span class="string">"owner level"</span>),
 <a href=#1019 id=1019 data-nosnippet>1019</a>                        options.boolean_limits(),
 <a href=#1020 id=1020 data-nosnippet>1020</a>                    )
@@ -1066,7 +1066,7 @@
 <a href=#1066 id=1066 data-nosnippet>1066</a>                        }
 <a href=#1067 id=1067 data-nosnippet>1067</a>                    }
 <a href=#1068 id=1068 data-nosnippet>1068</a>                    <span class="kw">let </span>relation = predicates.entry(owner_path.clone()).or_insert_with(|| {
-<a href=#1069 id=1069 data-nosnippet>1069</a>                        <span class="kw">crate</span>::membership::PredicateAnalysis::with_limits(
+<a href=#1069 id=1069 data-nosnippet>1069</a>                        <span class="kw">crate</span>::membership::PredicateAnalysis::for_membership_references(
 <a href=#1070 id=1070 data-nosnippet>1070</a>                            <span class="self">self</span>.level_at(owner_path).expect(<span class="string">"registered owner level"</span>),
 <a href=#1071 id=1071 data-nosnippet>1071</a>                            options.boolean_limits(),
 <a href=#1072 id=1072 data-nosnippet>1072</a>                        )

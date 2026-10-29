@@ -82,30 +82,48 @@
 <a href=#82 id=82 data-nosnippet>82</a>        })
 <a href=#83 id=83 data-nosnippet>83</a>    }
 <a href=#84 id=84 data-nosnippet>84</a>
-<a href=#85 id=85 data-nosnippet>85</a>    <span class="kw">fn </span>sort_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (u8, [i32; <span class="number">3</span>], [i32; <span class="number">3</span>], u8) {
-<a href=#86 id=86 data-nosnippet>86</a>        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
-<a href=#87 id=87 data-nosnippet>87</a>            <span class="self">Self</span>::Node { pos, pauli } =&gt; (<span class="number">0</span>, pos.to_array(), [<span class="number">0</span>; <span class="number">3</span>], u8::from(pauli)),
-<a href=#88 id=88 data-nosnippet>88</a>            <span class="self">Self</span>::Edge { src, dst, pauli } =&gt; (<span class="number">1</span>, src.to_array(), dst.to_array(), u8::from(pauli)),
-<a href=#89 id=89 data-nosnippet>89</a>        }
-<a href=#90 id=90 data-nosnippet>90</a>    }
-<a href=#91 id=91 data-nosnippet>91</a>}
-<a href=#92 id=92 data-nosnippet>92</a>
-<a href=#93 id=93 data-nosnippet>93</a><span class="doccomment">/// Whether a stabilizer's interior support covers a measurement key — the
-<a href=#94 id=94 data-nosnippet>94</a>/// support predicate used by internal-measurement output correction.
-<a href=#95 id=95 data-nosnippet>95</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>stabilizer_supports_measurement(
-<a href=#96 id=96 data-nosnippet>96</a>    stabilizer: <span class="kw-2">&amp;</span>Stabilizer,
-<a href=#97 id=97 data-nosnippet>97</a>    key: <span class="kw-2">&amp;</span>MeasurementKey,
-<a href=#98 id=98 data-nosnippet>98</a>) -&gt; bool {
-<a href=#99 id=99 data-nosnippet>99</a>    <span class="kw">match </span>key {
-<a href=#100 id=100 data-nosnippet>100</a>        MeasurementKey::Node { pos, pauli } =&gt; stabilizer
-<a href=#101 id=101 data-nosnippet>101</a>            .interior_nodes
-<a href=#102 id=102 data-nosnippet>102</a>            .get(pos)
-<a href=#103 id=103 data-nosnippet>103</a>            .is_some_and(|support| <span class="kw-2">*</span>support &amp; <span class="kw-2">*</span>pauli),
-<a href=#104 id=104 data-nosnippet>104</a>        MeasurementKey::Edge { src, dst, pauli } =&gt; stabilizer
-<a href=#105 id=105 data-nosnippet>105</a>            .interior_edges
-<a href=#106 id=106 data-nosnippet>106</a>            .get(<span class="kw-2">&amp;</span>(<span class="kw-2">*</span>src, <span class="kw-2">*</span>dst))
-<a href=#107 id=107 data-nosnippet>107</a>            .or_else(|| stabilizer.interior_edges.get(<span class="kw-2">&amp;</span>(<span class="kw-2">*</span>dst, <span class="kw-2">*</span>src)))
-<a href=#108 id=108 data-nosnippet>108</a>            .is_some_and(|support| <span class="kw-2">*</span>support &amp; <span class="kw-2">*</span>pauli),
-<a href=#109 id=109 data-nosnippet>109</a>    }
-<a href=#110 id=110 data-nosnippet>110</a>}
+<a href=#85 id=85 data-nosnippet>85</a>    <span class="doccomment">/// Original linear components whose OR is this measurement's physical support.
+<a href=#86 id=86 data-nosnippet>86</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>components(<span class="kw-2">&amp;</span><span class="self">self</span>, zx: <span class="kw-2">&amp;</span>ZXGraph) -&gt; <span class="prelude-ty">Option</span>&lt;Vec&lt;(usize, Pauli)&gt;&gt; {
+<a href=#87 id=87 data-nosnippet>87</a>        <span class="kw">let </span>(column, pauli) = <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+<a href=#88 id=88 data-nosnippet>88</a>            <span class="self">Self</span>::Node { pos, pauli } =&gt; (zx.node_at(pos)<span class="question-mark">?</span>.id, pauli),
+<a href=#89 id=89 data-nosnippet>89</a>            <span class="self">Self</span>::Edge { src, dst, pauli } =&gt; {
+<a href=#90 id=90 data-nosnippet>90</a>                <span class="kw">let </span>src = zx.node_at(src)<span class="question-mark">?</span>.id;
+<a href=#91 id=91 data-nosnippet>91</a>                <span class="kw">let </span>dst = zx.node_at(dst)<span class="question-mark">?</span>.id;
+<a href=#92 id=92 data-nosnippet>92</a>                (zx.edge_between(src, dst)<span class="question-mark">?</span>.id, pauli)
+<a href=#93 id=93 data-nosnippet>93</a>            }
+<a href=#94 id=94 data-nosnippet>94</a>        };
+<a href=#95 id=95 data-nosnippet>95</a>        <span class="prelude-val">Some</span>(
+<a href=#96 id=96 data-nosnippet>96</a>            pauli
+<a href=#97 id=97 data-nosnippet>97</a>                .iter_xz()
+<a href=#98 id=98 data-nosnippet>98</a>                .flat_map(|axis| zx.readout_components(column, axis))
+<a href=#99 id=99 data-nosnippet>99</a>                .collect(),
+<a href=#100 id=100 data-nosnippet>100</a>        )
+<a href=#101 id=101 data-nosnippet>101</a>    }
+<a href=#102 id=102 data-nosnippet>102</a>
+<a href=#103 id=103 data-nosnippet>103</a>    <span class="kw">fn </span>sort_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (u8, [i32; <span class="number">3</span>], [i32; <span class="number">3</span>], u8) {
+<a href=#104 id=104 data-nosnippet>104</a>        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+<a href=#105 id=105 data-nosnippet>105</a>            <span class="self">Self</span>::Node { pos, pauli } =&gt; (<span class="number">0</span>, pos.to_array(), [<span class="number">0</span>; <span class="number">3</span>], u8::from(pauli)),
+<a href=#106 id=106 data-nosnippet>106</a>            <span class="self">Self</span>::Edge { src, dst, pauli } =&gt; (<span class="number">1</span>, src.to_array(), dst.to_array(), u8::from(pauli)),
+<a href=#107 id=107 data-nosnippet>107</a>        }
+<a href=#108 id=108 data-nosnippet>108</a>    }
+<a href=#109 id=109 data-nosnippet>109</a>}
+<a href=#110 id=110 data-nosnippet>110</a>
+<a href=#111 id=111 data-nosnippet>111</a><span class="doccomment">/// Whether a stabilizer's interior support covers a measurement key — the
+<a href=#112 id=112 data-nosnippet>112</a>/// support predicate used by internal-measurement output correction.
+<a href=#113 id=113 data-nosnippet>113</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>stabilizer_supports_measurement(
+<a href=#114 id=114 data-nosnippet>114</a>    stabilizer: <span class="kw-2">&amp;</span>Stabilizer,
+<a href=#115 id=115 data-nosnippet>115</a>    key: <span class="kw-2">&amp;</span>MeasurementKey,
+<a href=#116 id=116 data-nosnippet>116</a>) -&gt; bool {
+<a href=#117 id=117 data-nosnippet>117</a>    <span class="kw">match </span>key {
+<a href=#118 id=118 data-nosnippet>118</a>        MeasurementKey::Node { pos, pauli } =&gt; stabilizer
+<a href=#119 id=119 data-nosnippet>119</a>            .interior_nodes
+<a href=#120 id=120 data-nosnippet>120</a>            .get(pos)
+<a href=#121 id=121 data-nosnippet>121</a>            .is_some_and(|support| <span class="kw-2">*</span>support &amp; <span class="kw-2">*</span>pauli),
+<a href=#122 id=122 data-nosnippet>122</a>        MeasurementKey::Edge { src, dst, pauli } =&gt; stabilizer
+<a href=#123 id=123 data-nosnippet>123</a>            .interior_edges
+<a href=#124 id=124 data-nosnippet>124</a>            .get(<span class="kw-2">&amp;</span>(<span class="kw-2">*</span>src, <span class="kw-2">*</span>dst))
+<a href=#125 id=125 data-nosnippet>125</a>            .or_else(|| stabilizer.interior_edges.get(<span class="kw-2">&amp;</span>(<span class="kw-2">*</span>dst, <span class="kw-2">*</span>src)))
+<a href=#126 id=126 data-nosnippet>126</a>            .is_some_and(|support| <span class="kw-2">*</span>support &amp; <span class="kw-2">*</span>pauli),
+<a href=#127 id=127 data-nosnippet>127</a>    }
+<a href=#128 id=128 data-nosnippet>128</a>}
 </code></pre></div></section></main></body></html>

@@ -2790,13 +2790,12 @@ Reachability here describes Boolean control, not the probability of a quantum
 outcome. If one selector is <span class="math notranslate nohighlight">\(a\)</span> and another is <span class="math notranslate nohighlight">\(\neg a\)</span>, the planner does not
 treat all four joint choices as reachable.</p>
 <p>The composed-surface planner reuses compatible definition relations and closes
-parent seams with Boolean-guarded coefficients. Public module summaries derive
-their signed presentation from the same complete relation; production prepares
-the factored relation directly without computing certificate phases. Signed
-summary construction and placement map raw support directly and replay exact
-local witnesses for phases. Public boundary rows share the complete certificate’s
-storage. After composition, the planner selects named readouts in causal waves
-and derives terminal frame equations:</p>
+parent seams with Boolean-guarded coefficients. It keeps rows in compact
+coordinates while preserving original queries, physical support, and phases;
+<a class="reference internal" href="correlation-surfaces.html#signs"><span class="std std-ref">correlation reduction</span></a> describes the invariants.
+Public summaries share the complete relation’s signed certificate, while
+production prepares support without computing certificate phases. The planner
+then selects named readouts in causal waves and derives terminal frame equations:</p>
 <table class="docutils data align-default">
 <thead>
 <tr class="row-odd"><th class="head"><p>Recipe</p></th>
@@ -2960,10 +2959,11 @@ and causal readout planning, and reports computed and reused seam equations:</p>
 <div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>cargo<span class="w"> </span>run<span class="w"> </span>--release<span class="w"> </span>--locked<span class="w"> </span>-p<span class="w"> </span>bloq_graph<span class="w"> </span>--example<span class="w"> </span>profile_source_planner<span class="w"> </span>--<span class="w"> </span><span class="m">32</span>
 </code></pre></div>
 </div>
-<p>The argument selects an adder width. Use <code class="docutils literal notranslate"><span class="pre">yoke:32</span></code> for a flat-graph control or
-<code class="docutils literal notranslate"><span class="pre">file:program.blog</span></code> for an authored hierarchy. Definition preparation is reported
-separately; the uncached reference excludes definition certification, so its
-total is not a complete cold-compiler baseline.</p>
+<p>The argument selects an adder width; <code class="docutils literal notranslate"><span class="pre">yoke:32</span></code> selects yoked memory and
+<code class="docutils literal notranslate"><span class="pre">file:program.blog</span></code> loads an authored hierarchy. Add <code class="docutils literal notranslate"><span class="pre">--flat</span></code> to omit module
+relations or <code class="docutils literal notranslate"><span class="pre">--samples</span> <span class="pre">3</span></code> to repeat planning. Definition preparation is timed
+separately; the reference excludes certification and is not a cold-compiler
+baseline.</p>
 <p>The selective inventory benchmark compares cold compilation, warm block
 templates, and reused definitions under changed parent bindings:</p>
 <div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><code>cargo<span class="w"> </span>bench<span class="w"> </span>--locked<span class="w"> </span>-p<span class="w"> </span>bloq_compile<span class="w"> </span>--bench<span class="w"> </span>bench<span class="w"> </span>--<span class="w"> </span>selective-definition-inventory

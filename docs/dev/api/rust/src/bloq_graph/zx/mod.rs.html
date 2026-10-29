@@ -15,26 +15,27 @@
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">mod </span>layer;
 <a href=#16 id=16 data-nosnippet>16</a><span class="kw">mod </span>modular;
 <a href=#17 id=17 data-nosnippet>17</a><span class="kw">mod </span>output_correction;
-<a href=#18 id=18 data-nosnippet>18</a><span class="kw">mod </span>restriction;
-<a href=#19 id=19 data-nosnippet>19</a><span class="kw">mod </span>runtime_basis;
-<a href=#20 id=20 data-nosnippet>20</a><span class="kw">mod </span>stabilizer;
-<a href=#21 id=21 data-nosnippet>21</a>
-<a href=#22 id=22 data-nosnippet>22</a><span class="kw">pub use </span>graph::{NodeKind, ZXEdge, ZXError, ZXGraph, ZXNode};
-<a href=#23 id=23 data-nosnippet>23</a><span class="kw">pub use </span>layer::ZXLayerView;
-<a href=#24 id=24 data-nosnippet>24</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span>modular::{FlowWitness, ProjectedExternalTable, ProjectionError, ProjectionLimits};
-<a href=#25 id=25 data-nosnippet>25</a><span class="kw">pub use </span>output_correction::{
-<a href=#26 id=26 data-nosnippet>26</a>    OutputCorrectionError, OutputCorrectionRow, SymbolicFramePair, SymbolicOutputCorrection,
-<a href=#27 id=27 data-nosnippet>27</a>    solve_output_correction_symbolic, solve_output_correction_symbolic_prefix,
-<a href=#28 id=28 data-nosnippet>28</a>};
-<a href=#29 id=29 data-nosnippet>29</a><span class="kw">pub use </span>runtime_basis::{RuntimeBasisError, RuntimeStabilizerBasis};
-<a href=#30 id=30 data-nosnippet>30</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span>stabilizer::fill_ports_auto;
-<a href=#31 id=31 data-nosnippet>31</a><span class="attr">#[cfg(test)]
-<a href=#32 id=32 data-nosnippet>32</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span>stabilizer::reduce_to_basis;
-<a href=#33 id=33 data-nosnippet>33</a><span class="attr">#[cfg(feature = <span class="string">"verify"</span>)]
-<a href=#34 id=34 data-nosnippet>34</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span>stabilizer::solve_coeff_combination;
-<a href=#35 id=35 data-nosnippet>35</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span>stabilizer::{CoeffVec, gaussian_elimination_with_tracking};
-<a href=#36 id=36 data-nosnippet>36</a><span class="kw">pub use </span>stabilizer::{
-<a href=#37 id=37 data-nosnippet>37</a>    FillPortsError, Stabilizer, StabilizerError, StabilizerGenerator, StabilizerGenerators,
-<a href=#38 id=38 data-nosnippet>38</a>    StabilizerRowKind,
-<a href=#39 id=39 data-nosnippet>39</a>};
+<a href=#18 id=18 data-nosnippet>18</a><span class="kw">mod </span>reduction;
+<a href=#19 id=19 data-nosnippet>19</a><span class="kw">mod </span>restriction;
+<a href=#20 id=20 data-nosnippet>20</a><span class="kw">mod </span>runtime_basis;
+<a href=#21 id=21 data-nosnippet>21</a><span class="kw">mod </span>stabilizer;
+<a href=#22 id=22 data-nosnippet>22</a>
+<a href=#23 id=23 data-nosnippet>23</a><span class="kw">pub use </span>graph::{NodeKind, ZXEdge, ZXError, ZXGraph, ZXNode};
+<a href=#24 id=24 data-nosnippet>24</a><span class="kw">pub use </span>layer::ZXLayerView;
+<a href=#25 id=25 data-nosnippet>25</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span>modular::{FlowWitness, ProjectedExternalTable, ProjectionError, ProjectionLimits};
+<a href=#26 id=26 data-nosnippet>26</a><span class="kw">pub use </span>output_correction::{
+<a href=#27 id=27 data-nosnippet>27</a>    OutputCorrectionError, OutputCorrectionRow, SymbolicFramePair, SymbolicOutputCorrection,
+<a href=#28 id=28 data-nosnippet>28</a>    solve_output_correction_symbolic, solve_output_correction_symbolic_prefix,
+<a href=#29 id=29 data-nosnippet>29</a>};
+<a href=#30 id=30 data-nosnippet>30</a><span class="kw">pub use </span>runtime_basis::{RuntimeBasisError, RuntimeStabilizerBasis};
+<a href=#31 id=31 data-nosnippet>31</a><span class="attr">#[cfg(feature = <span class="string">"verify"</span>)]
+<a href=#32 id=32 data-nosnippet>32</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span>stabilizer::CoeffFactorization;
+<a href=#33 id=33 data-nosnippet>33</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span>stabilizer::fill_ports_auto;
+<a href=#34 id=34 data-nosnippet>34</a><span class="attr">#[cfg(test)]
+<a href=#35 id=35 data-nosnippet>35</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span>stabilizer::reduce_to_basis;
+<a href=#36 id=36 data-nosnippet>36</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span>stabilizer::{CoeffVec, gaussian_elimination_with_tracking};
+<a href=#37 id=37 data-nosnippet>37</a><span class="kw">pub use </span>stabilizer::{
+<a href=#38 id=38 data-nosnippet>38</a>    FillPortsError, Stabilizer, StabilizerError, StabilizerGenerator, StabilizerGenerators,
+<a href=#39 id=39 data-nosnippet>39</a>    StabilizerRowKind,
+<a href=#40 id=40 data-nosnippet>40</a>};
 </code></pre></div></section></main></body></html>

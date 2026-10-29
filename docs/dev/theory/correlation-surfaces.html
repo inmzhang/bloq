@@ -3200,21 +3200,39 @@ sign a second time.</p>
 </tr>
 </tbody>
 </table>
-<p>The symbolic planner retains full native half-edge support while eliminating
-binary coefficients. Signed projection tables reconstruct exact local witnesses
-and multiply their phases modulo four. This recovers the tensor sign once even
-when a boundary projection omits interior factors. When a certificate is placed
-in a linked graph, support materialization returns its raw Pauli row; the
-transformed witness supplies the authoritative phase and must reproduce that
-row. There is no intermediate signed surface whose phase is then discarded.
-Summary construction likewise maps raw rows directly into positioned support.
-Public boundary rows are a view of the complete certificate’s prefix, so their
-signed rows, support, and witnesses are stored once.</p>
-<p>Ordinary diagnostic rows recover their phase from local tensors. An installed
-composed phase basis remains authoritative; parallel-edge graphs retain signed
-reduction. Physical fragment caches also retain transport offsets when their
-first consumer is an output frame, because a later closed logical query can
-reuse the same fragment.</p>
+<p>The planner keeps correlation rows compact while retaining queries into the
+original ZX diagram. For fixed topologies without module scopes, it merges
+wire, spider, and identity equalities, then simplifies the remaining parity
+equations by forest elimination, repeated-term cancellation, common-tail
+matching, and substitutions that reduce the number of terms. Every eliminated
+coordinate has an exact recovery equation; closed and internal modes remain.</p>
+<p>Projection <span class="math notranslate nohighlight">\(P\)</span> and reconstruction <span class="math notranslate nohighlight">\(L\)</span> are inverse on the complete relations:
+<span class="math notranslate nohighlight">\(PL=I\)</span> on reduced solutions and <span class="math notranslate nohighlight">\(LP=I\)</span> on original solutions. An original linear
+query <span class="math notranslate nohighlight">\(q\)</span> becomes <span class="math notranslate nohighlight">\(qL\)</span>. After solving, equal coordinate functions share storage.
+Original query and generator order preserve readout and resource reference
+choices. Physical binding reconstructs the original arms before computing a
+crossing center’s OR; XORing center values would not preserve that nonlinear
+query. Crossing readout isolation currently requires a constant local relation.</p>
+<p>Module and conditional relations merge columns only when their raw Boolean
+coefficients agree, including outside row activation. They preserve seam order
+and do not apply the fixed-topology forest across branches. Reused relations and
+query fragments retain each instance’s physical ownership and original query
+mapping. Aliases of a completed relation do not apply to unsolved generators.</p>
+<p>Signed projection tables reconstruct exact local witnesses and multiply their
+phases modulo four. This recovers the tensor sign once even when a boundary
+projection omits interior factors. When a certificate is placed in a linked
+graph, its transformed witness supplies the authoritative phase and must
+reproduce the materialized raw Pauli row. Public boundary rows share the
+complete certificate’s prefix; compact certificate elimination preserves that
+prefix and canonicalizes only the closed suffix. Installed composed phase
+bases remain authoritative.
+Physical fragment caches retain transport offsets even when their first
+consumer is an output frame, because a later closed logical query can reuse it.</p>
+<p><code class="docutils literal notranslate"><span class="pre">RuntimeStabilizerBasis::from_zx_graph</span></code> derives supported fixed relations in
+compact coordinates, then restores explicit rows in original order. Selective
+fills update those rows and their readable-value provenance together. Verifier
+output correction evaluates original measurement queries on the final combinations;
+closed reference constraints still use signed surfaces.</p>
 <p>The Clifford proxy collects temporal-Hadamard reference offsets while binding
 the corresponding pipe records and combines them with spatial wall offsets by
 XOR. Its frame equations retain these references without a separate edge scan.</p>
@@ -3275,6 +3293,12 @@ selector <span class="math notranslate nohighlight">\(b\)</span> is true and <sp
 <span class="math notranslate nohighlight">\((1\oplus b)\,x_e\oplus z_e=0\)</span>. It permits <span class="math notranslate nohighlight">\(\{I,Y\}\)</span> for <span class="math notranslate nohighlight">\(b=0\)</span> and
 <span class="math notranslate nohighlight">\(\{I,X\}\)</span> for <span class="math notranslate nohighlight">\(b=1\)</span>.
 Bloq imposes this constraint by the same elimination as a seam.</p>
+<p>Certified fixed native T gadgets use a constant X-cap reference relation,
+retaining a complete GF(2) basis between causal waves. The cap-X coordinate
+inherits the selector’s availability time. Each selected witness is lifted into
+the original X/Y relation before physical binding, preserving named projections,
+feedback, and resource sectors. Unsupported inputs use the general guarded
+planner; resource errors propagate without resetting their budgets.</p>
 <p>Keeping alternatives as guarded rows matters because their union is not a
 vector space. Multiplying the <span class="math notranslate nohighlight">\(X\)</span> and <span class="math notranslate nohighlight">\(Y\)</span> alternatives yields <span class="math notranslate nohighlight">\(Z\)</span> support,
 which neither arm admits.</p>
