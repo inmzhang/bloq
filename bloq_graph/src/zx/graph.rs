@@ -2,7 +2,7 @@
 
 use super::ZXLayerView;
 use super::modular::StabilizerPhaseBasis;
-use super::stabilizer::{CoeffVec, Stabilizer, contracted_sign};
+use super::stabilizer::{Stabilizer, contracted_sign};
 use crate::{
     Action, ActionDag, BlockGraphError, CubeKind, FeedbackTarget, MeasureTarget,
     MeasurementObservable, SelectiveKind,
@@ -871,25 +871,19 @@ impl ZXGraph {
         if row.len() != self.total_ids || row.weight() > self.total_ids / 2 {
             return None;
         }
-        let mut present = CoeffVec::zeros(self.nodes.len());
-        let mut count = 0;
-        for (column, _) in row.iter_support() {
-            let node = if column < self.nodes.len() {
-                column
-            } else {
-                self.edges[column - self.nodes.len()].n1
-            };
-            if !present.bit(node) {
-                present.set_bit(node, true);
-                count += 1;
-                if count > self.nodes.len() / 2 {
-                    return None;
+        let mut nodes = row
+            .iter_support()
+            .map(|(column, _)| {
+                if column < self.nodes.len() {
+                    column
+                } else {
+                    self.edges[column - self.nodes.len()].n1
                 }
-            }
-        }
-        let mut nodes = SmallVec::with_capacity(count);
-        nodes.extend(present.iter_ones());
-        Some(nodes)
+            })
+            .collect::<SmallVec<[usize; 32]>>();
+        nodes.sort_unstable();
+        nodes.dedup();
+        (nodes.len() <= self.nodes.len() / 2).then_some(nodes)
     }
 
     pub(crate) fn reconstruct_cross_center(&self, table: &mut [PauliString]) {
@@ -951,13 +945,37 @@ impl ZXGraph {
     /// Materializes graph-position support, reconstructing crossing centers and the sign.
     /// Row roles and measurement identity remain on
     /// [`StabilizerGenerator`](super::StabilizerGenerator).
-    pub fn materialize_stabilizer(&self, mut ps: PauliString) -> Stabilizer {
+    pub fn materialize_stabilizer(&self, ps: PauliString) -> Stabilizer {
         let candidates = if self.stabilizer_phase_basis.get().is_none() {
             self.phase_node_candidates(&ps)
         } else {
             None
         };
-        if let Some(nodes) = &candidates {
+        // Reconstruction changes only cross components, which phases ignore.
+        let row_phase = self.materialized_row_phase(&ps, candidates.as_deref());
+        self.reconstruct_with_phase(ps, candidates.as_deref(), row_phase)
+    }
+
+    /// Materializes a row that must belong to the local relation, checking
+    /// membership with the same candidate scan that derives its sign.
+    pub(crate) fn materialize_member_stabilizer(&self, ps: PauliString) -> Option<Stabilizer> {
+        if self.stabilizer_phase_basis.get().is_some() {
+            return self
+                .contains_stabilizer_support(&ps)
+                .then(|| self.materialize_stabilizer(ps));
+        }
+        let candidates = self.phase_node_candidates(&ps);
+        let row_phase = self.local_row_phase_at(&ps, true, candidates.as_deref())?;
+        Some(self.reconstruct_with_phase(ps, candidates.as_deref(), row_phase))
+    }
+
+    fn reconstruct_with_phase(
+        &self,
+        mut ps: PauliString,
+        candidates: Option<&[usize]>,
+        row_phase: u8,
+    ) -> Stabilizer {
+        if let Some(nodes) = candidates {
             self.reconstruct_cross_centers_at(
                 &mut ps,
                 self.cross_incidence(),
@@ -966,7 +984,6 @@ impl ZXGraph {
         } else {
             self.reconstruct_cross_center(std::slice::from_mut(&mut ps));
         }
-        let row_phase = self.materialized_row_phase(&ps, candidates.as_deref());
         self.pauli_string_to_stabilizer_with_row_phase(ps, row_phase)
     }
 

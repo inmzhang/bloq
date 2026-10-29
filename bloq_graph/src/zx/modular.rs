@@ -941,7 +941,7 @@ impl ZXGraph {
         self.local_row_phase_at(row, true, nodes).unwrap_or(0)
     }
 
-    fn local_row_phase_at(
+    pub(super) fn local_row_phase_at(
         &self,
         row: &PauliString,
         ignore_cross_centers: bool,

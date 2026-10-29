@@ -777,11 +777,9 @@ impl GuardedReadoutPlan {
                 zx,
                 evaluate,
             );
-            assert!(
-                zx.contains_stabilizer_support(&paulis),
-                "frozen surface {surface} must belong to the signed branch relation"
-            );
-            zx.materialize_stabilizer(paulis)
+            zx.materialize_member_stabilizer(paulis).unwrap_or_else(|| {
+                panic!("frozen surface {surface} must belong to the signed branch relation")
+            })
         })
     }
 }
