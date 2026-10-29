@@ -49,6 +49,13 @@ impl ZXGraph {
         Self::from_block_graph_parts(&graph, action_graph)
     }
 
+    /// Converts a branch projection that materialization already fixed,
+    /// validated, and gave a checked action graph.
+    pub(crate) fn from_validated_projection(graph: &BlockGraph) -> Result<Self, ZXError> {
+        debug_assert!(crate::validate::validate_structure(graph).is_ok());
+        Self::from_block_graph_parts(graph, graph.action_graph().clone())
+    }
+
     /// Build the center's tensor/incidence view from a validated projection
     /// whose shadowed faces have already been fixed. Neighbor kinds are copied
     /// from that complete projection: normalizing a truncated graph could change

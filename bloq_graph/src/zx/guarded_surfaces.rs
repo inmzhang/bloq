@@ -1207,7 +1207,7 @@ impl GuardedSurfaceSpace {
         limits: ModuleCertificationLimits,
     ) -> Result<Option<FixedRelation>, BlockGraphError> {
         let representative = topology.project(ONE)?;
-        let zx = Arc::new(ZXGraph::from_block_graph_for_analysis(&representative)?);
+        let zx = Arc::new(ZXGraph::from_validated_projection(&representative)?);
         // A bounded caller may admit half-edges but not an additional raw table.
         if zx.total_ids() > limits.max_local_columns {
             return Ok(None);
@@ -1280,7 +1280,7 @@ impl GuardedSurfaceSpace {
         {
             return Ok(zx);
         }
-        Ok(Arc::new(ZXGraph::from_block_graph_for_analysis(
+        Ok(Arc::new(ZXGraph::from_validated_projection(
             &representative,
         )?))
     }
