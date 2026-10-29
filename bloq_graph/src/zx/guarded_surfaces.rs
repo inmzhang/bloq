@@ -1223,8 +1223,10 @@ impl GuardedSurfaceSpace {
             .charge(width.saturating_mul(width.max(1).ilog2() as usize + 4))?;
         let mut aliases = vec![None; width];
         let mut representatives = vec![usize::MAX; reduced.class_count()];
+        let mut surface_columns = vec![usize::MAX; zx.total_ids()];
         for (&column, &index) in columns {
             let (source, _) = column.zx_column(&zx).expect("original surface column");
+            surface_columns[source] = index;
             for (axis, pauli) in [Pauli::X, Pauli::Z].into_iter().enumerate() {
                 if let Some(class) = reduced.native_bit(source, pauli) {
                     let bit = 2 * index + axis;
@@ -1239,7 +1241,7 @@ impl GuardedSurfaceSpace {
         );
         let normalized = Self::restore_source_basis(
             &zx,
-            columns,
+            &surface_columns,
             &aliases,
             source_rows,
             reduced.rows,
@@ -1287,7 +1289,7 @@ impl GuardedSurfaceSpace {
 
     fn restore_source_basis(
         zx: &ZXGraph,
-        columns: &BTreeMap<SurfaceColumn, usize>,
+        surface_columns: &[usize],
         aliases: &[Option<usize>],
         source_rows: &[BooleanRow],
         rows: Vec<BooleanRow>,
@@ -1295,7 +1297,8 @@ impl GuardedSurfaceSpace {
         diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
     ) -> Result<Vec<BooleanRow>, BlockGraphError> {
         diagram.charge(source_rows.len().saturating_mul(2))?;
-        let mut queries = HashMap::with_capacity(source_rows.len());
+        let mut queries =
+            crate::FxHashMap::with_capacity_and_hasher(source_rows.len(), Default::default());
         let mut record = |mut signature: Vec<usize>, query: Vec<usize>| {
             signature.sort_unstable();
             let mut query = query
@@ -1322,12 +1325,8 @@ impl GuardedSurfaceSpace {
             )?;
             let mut arms = zx
                 .neighbor_edges(node.id)
-                .map(|(neighbor, _)| {
-                    let position = zx.nodes()[neighbor].pos.to_array();
-                    (
-                        position,
-                        columns[&SurfaceColumn::Edge(node.pos.to_array(), position)],
-                    )
+                .map(|(neighbor, edge)| {
+                    (zx.nodes()[neighbor].pos.to_array(), surface_columns[edge])
                 })
                 .collect::<Vec<_>>();
             arms.sort_unstable();
@@ -1346,7 +1345,7 @@ impl GuardedSurfaceSpace {
                         );
                     }
                     let signature = if arms.is_empty() {
-                        vec![2 * columns[&SurfaceColumn::Node(node.pos.to_array())] + broadcast]
+                        vec![2 * surface_columns[node.id] + broadcast]
                     } else {
                         arms.iter().map(|bits| bits[broadcast]).collect::<Vec<_>>()
                     };
@@ -1369,7 +1368,7 @@ impl GuardedSurfaceSpace {
     fn restore_source_basis_packed(
         rows: Vec<BooleanRow>,
         source_rows: &[BooleanRow],
-        queries: &HashMap<Vec<usize>, Vec<(usize, DecisionId)>>,
+        queries: &crate::FxHashMap<Vec<usize>, Vec<(usize, DecisionId)>>,
         width: usize,
         matrix_limit: usize,
         diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
@@ -1404,18 +1403,16 @@ impl GuardedSurfaceSpace {
         // Full RREF under the original source functionals fixes the same reference section.
         let mut solved = 0;
         let mut seen = rustc_hash::FxHashSet::default();
+        let mut signature = Vec::new();
         for source in source_rows.iter().rev() {
             crate::CancellationToken::checkpoint()?;
             if solved == packed.len() {
                 break;
             }
             diagram.charge(source.terms().len())?;
-            let signature = source
-                .terms()
-                .iter()
-                .map(|&(bit, _)| bit)
-                .collect::<Vec<_>>();
-            let query = &queries[&signature];
+            signature.clear();
+            signature.extend(source.terms().iter().map(|&(bit, _)| bit));
+            let query = &queries[signature.as_slice()];
             diagram.charge(query.len().saturating_mul(2).saturating_add(1))?;
             if query.is_empty() || !seen.insert(query.as_slice()) {
                 continue;
@@ -1463,9 +1460,10 @@ impl GuardedSurfaceSpace {
     fn restore_source_basis_sparse(
         rows: Vec<BooleanRow>,
         source_rows: &[BooleanRow],
-        queries: &HashMap<Vec<usize>, Vec<(usize, DecisionId)>>,
+        queries: &crate::FxHashMap<Vec<usize>, Vec<(usize, DecisionId)>>,
         diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
     ) -> Result<Vec<BooleanRow>, BlockGraphError> {
+        let mut signature = Vec::new();
         let mut canonical = BooleanRowSpace::default();
         let mut remaining = BooleanRowSpace::new(rows, diagram)?;
         for source in source_rows.iter().rev() {
@@ -1474,12 +1472,9 @@ impl GuardedSurfaceSpace {
                 break;
             }
             diagram.charge(source.terms().len())?;
-            let signature = source
-                .terms()
-                .iter()
-                .map(|&(bit, _)| bit)
-                .collect::<Vec<_>>();
-            let query = &queries[&signature];
+            signature.clear();
+            signature.extend(source.terms().iter().map(|&(bit, _)| bit));
+            let query = &queries[signature.as_slice()];
             let pivot = remaining.eliminate_linear(query, diagram)?;
             if pivot.active != ZERO {
                 canonical.reduce_linear(query, &pivot, diagram)?;
@@ -4344,7 +4339,7 @@ mod tests {
     fn packed_source_normalization_matches_sparse_original_queries() {
         let row = |bits: &[usize]| BooleanRow::from_terms(ONE, bits.iter().map(|&bit| (bit, ONE)));
         let source_rows = vec![row(&[0]), row(&[2]), row(&[4]), row(&[6]), row(&[0, 2])];
-        let queries = HashMap::from([
+        let queries = crate::FxHashMap::from_iter([
             (vec![0], vec![(0, ONE)]),
             (vec![2], vec![(0, ONE), (2, ONE)]),
             (vec![4], vec![(2, ONE), (4, ONE)]),
