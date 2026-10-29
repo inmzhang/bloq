@@ -415,10 +415,13 @@ impl ParityReduction {
             return Ok(());
         }
         diagram.charge(self.eliminated.len())?;
+        let tape = self.recovery.iter().fold(0usize, |sum, (_, query)| {
+            sum.saturating_add(query.len() + 1)
+        });
         let mut values = vec![false; self.eliminated.len()];
         for row in rows {
             CancellationToken::checkpoint()?;
-            diagram.charge(row.terms().len())?;
+            diagram.charge(row.terms().len().saturating_add(tape))?;
             for &(class, value) in row.terms() {
                 debug_assert_eq!(value, ONE);
                 values[class] = true;
@@ -426,8 +429,6 @@ impl ParityReduction {
             let active = row.active;
             let mut terms = std::mem::take(row).into_terms();
             for (parent, query) in &self.recovery {
-                CancellationToken::checkpoint()?;
-                diagram.charge(query.len().saturating_add(1))?;
                 let value = query.iter().fold(false, |sum, &class| sum ^ values[class]);
                 debug_assert!(!values[*parent]);
                 values[*parent] = value;
