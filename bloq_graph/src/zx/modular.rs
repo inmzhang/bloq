@@ -7,7 +7,6 @@ use std::sync::Arc;
 use bloq_utils::{Direction, Pauli, PauliString, PhasedPauliString};
 use glam::IVec3;
 use rustc_hash::FxHashSet;
-use smallvec::SmallVec;
 
 use super::graph::{NodeKind, ZXGraph};
 use super::stabilizer::axis_pivot_constraints;
@@ -220,17 +219,9 @@ impl SourceRow {
                 .iter()
                 .all(|&(column, _)| column < row.paulis.len())
         );
-        // Parallel-edge aliases retain from_terms' last-write-wins semantics.
-        let mut terms = self
-            .terms
-            .iter()
-            .rev()
-            .copied()
-            .collect::<SmallVec<[_; 8]>>();
-        terms.sort_by_key(|&(column, _)| column);
-        terms.dedup_by_key(|term| term.0);
         row.shift_phase(self.phase);
-        for (column, right) in terms {
+        // One edge per node pair keeps local flow-support columns distinct.
+        for &(column, right) in &self.terms {
             let left = row.paulis.get(column);
             row.shift_phase(left.product_phase(right));
             row.paulis.set(column, left ^ right);
@@ -285,15 +276,19 @@ impl SparseRow {
         limit: usize,
     ) -> Result<(), ProjectionError> {
         self.witness = arena.push_xor(self.witness, other.witness, limit)?;
-        for (&column, &pauli) in &other.paulis {
-            let product = self.get(column) ^ pauli;
-            if product == Pauli::I {
-                self.paulis.remove(&column);
-            } else {
-                self.paulis.insert(column, product);
-            }
-        }
+        xor_sparse_paulis(&mut self.paulis, &other.paulis);
         Ok(())
+    }
+}
+
+fn xor_sparse_paulis(target: &mut BTreeMap<usize, Pauli>, other: &BTreeMap<usize, Pauli>) {
+    for (&column, &pauli) in other {
+        let product = target.get(&column).copied().unwrap_or(Pauli::I) ^ pauli;
+        if product == Pauli::I {
+            target.remove(&column);
+        } else {
+            target.insert(column, product);
+        }
     }
 }
 
@@ -571,17 +566,11 @@ impl ZXGraph {
         {
             return Ok(None);
         }
-        let component = |row: &super::CoeffVec, column: usize, axis: Pauli| {
-            queries[column][usize::from(axis == Pauli::Z)].is_some_and(|bit| row.bit(bit))
-        };
-        let mut boundary_order = vec![None; width];
-        for (ordinal, &column) in boundary_columns.iter().enumerate() {
-            for (axis, query) in [Pauli::X, Pauli::Z].into_iter().zip(queries[column]) {
-                if let Some(bit) = query {
-                    boundary_order[bit].get_or_insert((ordinal, axis));
-                }
-            }
-        }
+        let boundary_queries = boundary_columns
+            .iter()
+            .map(|&column| queries[column])
+            .collect::<Vec<_>>();
+        let boundary_order = super::reduction::raw_query_order(&boundary_queries, width);
         let physical_order = super::reduction::raw_query_order(&queries, width);
         if rows.iter().any(|row| {
             row.iter_ones()
@@ -596,15 +585,10 @@ impl ZXGraph {
                 .map_or(Ok(()), crate::CancellationToken::check)
                 .map_err(ProjectionError::from)
         };
-        let boundary_len = try_leading_pivot_elimination_from(
+        let boundary_len = super::reduction::eliminate_in_raw_order(
             &mut rows,
-            0,
-            |row| {
-                row.iter_ones()
-                    .filter_map(|bit| boundary_order[bit])
-                    .min_by_key(|&(column, axis)| (column, axis == Pauli::Z))
-            },
-            |row, &(ordinal, axis)| component(row, boundary_columns[ordinal], axis),
+            &boundary_queries,
+            &boundary_order,
             checkpoint,
         )?;
         let closed_len = super::reduction::eliminate_in_raw_order(
@@ -695,14 +679,7 @@ impl ZXGraph {
             let Some(pivot) = pivots.get(&(column, pauli & Pauli::X)) else {
                 return Ok(None);
             };
-            for (&column, &pauli) in &pivot.paulis {
-                let value = residual.get(&column).copied().unwrap_or(Pauli::I) ^ pauli;
-                if value == Pauli::I {
-                    residual.remove(&column);
-                } else {
-                    residual.insert(column, value);
-                }
-            }
+            xor_sparse_paulis(&mut residual, &pivot.paulis);
             witness = Some(match witness {
                 None => pivot.witness,
                 Some(previous) => arena.push_xor(previous, pivot.witness, limit)?,

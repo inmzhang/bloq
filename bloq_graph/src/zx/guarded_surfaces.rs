@@ -46,6 +46,13 @@ impl SurfaceColumn {
         }
     }
 
+    fn of_zx_edge(zx: &ZXGraph, edge: &super::ZXEdge) -> Self {
+        Self::Edge(
+            zx.nodes()[edge.n1].pos.to_array(),
+            zx.nodes()[edge.n2].pos.to_array(),
+        )
+    }
+
     /// The ZX column id, and whether its directed Hadamard frame swaps X and Z.
     fn zx_column(self, zx: &ZXGraph) -> Option<(usize, bool)> {
         let node = |position| zx.node_at(IVec3::from_array(position)).map(|node| node.id);
@@ -68,10 +75,6 @@ pub(super) struct SurfaceCoordinates {
 }
 
 impl SurfaceCoordinates {
-    pub(super) fn is_identity(&self) -> bool {
-        self.aliases.is_empty()
-    }
-
     pub(super) fn new(aliases: Vec<Option<usize>>) -> Self {
         Self { aliases }
     }
@@ -185,8 +188,6 @@ pub struct GuardedSurfaceSpace {
     module_sites: BTreeMap<[i32; 3], usize>,
     next_readout_collection: usize,
     native_gauges: Option<Vec<NativeGauge>>,
-    #[cfg(test)]
-    fresh_reference: bool,
 }
 
 // Reclamation stays finite when callers raise or disable the witness quota.
@@ -816,8 +817,6 @@ impl GuardedSurfaceSpace {
             module_sites: BTreeMap::new(),
             next_readout_collection: self.next_readout_collection,
             native_gauges: None,
-            #[cfg(test)]
-            fresh_reference: false,
         }
     }
 
@@ -835,19 +834,11 @@ impl GuardedSurfaceSpace {
         sites: &HashMap<IVec3, MaterializedModuleSite>,
         limits: ModuleCertificationLimits,
     ) -> Result<Self, BlockGraphError> {
-        Self::with_relations(topology, sites, limits, &HashMap::new())
+        Self::build::<true>(topology, sites, limits, &HashMap::new())
     }
 
-    pub(crate) fn with_relations(
-        topology: GuardedTopology,
-        sites: &HashMap<IVec3, MaterializedModuleSite>,
-        limits: ModuleCertificationLimits,
-        relations: &HashMap<String, Arc<crate::summary::relations::ModuleRelations>>,
-    ) -> Result<Self, BlockGraphError> {
-        Self::build::<true>(topology, sites, limits, relations)
-    }
-
-    fn build<const REDUCE: bool>(
+    /// `REDUCE = false` keeps the unreduced seam closure as a test oracle.
+    pub(crate) fn build<const REDUCE: bool>(
         mut topology: GuardedTopology,
         sites: &HashMap<IVec3, MaterializedModuleSite>,
         limits: ModuleCertificationLimits,
@@ -1195,8 +1186,6 @@ impl GuardedSurfaceSpace {
             module_sites,
             next_readout_collection: next_readout_collection(0, limits.max_witness_nodes),
             native_gauges: None,
-            #[cfg(test)]
-            fresh_reference: false,
         })
     }
 
@@ -1305,13 +1294,12 @@ impl GuardedSurfaceSpace {
                 .into_iter()
                 .filter_map(|bit| aliases[bit])
                 .collect::<Vec<_>>();
-            query.sort_unstable();
+            super::reduction::cancel_repeated_terms(&mut query);
             queries.insert(
                 signature,
                 query
-                    .chunk_by(|left, right| left == right)
-                    .filter(|group| group.len() % 2 == 1)
-                    .map(|group| (group[0], ONE))
+                    .into_iter()
+                    .map(|class| (class, ONE))
                     .collect::<Vec<_>>(),
             );
         };
@@ -1738,25 +1726,17 @@ impl GuardedSurfaceSpace {
         let mut incremental = RECLAIM;
         let mut reference_basis: Option<ConstantReadoutBasis> = None;
         let use_native = self.native_gauges.is_some();
-        #[cfg(test)]
-        let use_native = use_native && !self.fresh_reference;
         while !unknown.is_empty() {
             crate::CancellationToken::checkpoint()?;
             if incremental && self.topology.diagram.nodes().len() > reclaim_limit {
                 // Dead reduction products must not disable incremental solving.
-                self.collect_readout_roots(
-                    basis
-                        .iter_mut()
-                        .chain(causal_basis.iter_mut())
-                        .flat_map(BooleanRow::decisions_mut)
-                        .chain(available_rows.decisions_mut())
-                        .chain(readout_pivots.rows.decisions_mut())
-                        .chain(
-                            availability
-                                .iter_mut()
-                                .flat_map(|state| state.pivots.rows.decisions_mut()),
-                        ),
-                )?;
+                self.collect_readout_roots(planner_roots(
+                    &mut basis,
+                    &mut causal_basis,
+                    &mut available_rows,
+                    &mut readout_pivots,
+                    &mut availability,
+                ))?;
                 if self.topology.diagram.nodes().len() > reclaim_limit {
                     self.charge_row_copy(&basis)?;
                     causal_basis = basis.clone();
@@ -2231,13 +2211,10 @@ impl GuardedSurfaceSpace {
                         .filter(|&&(column, _)| !unknown_columns[column - physical_columns])
                         .map(|&(column, bit)| (names[column - physical_columns].0.clone(), bit))
                         .collect();
-                let row = match row {
-                    Cow::Borrowed(row) => {
-                        self.topology.diagram.charge(row.terms().len())?;
-                        row.clone()
-                    }
-                    Cow::Owned(row) => row,
-                };
+                if let Cow::Borrowed(row) = &row {
+                    self.topology.diagram.charge(row.terms().len())?;
+                }
+                let row = row.into_owned();
                 let surface = GuardedSurface {
                     kind: GuardedSurfaceKind::Readout {
                         name: name.clone(),
@@ -2292,19 +2269,13 @@ impl GuardedSurfaceSpace {
                     &column_weights,
                 )?;
             }
-            self.check_readout_roots(
-                basis
-                    .iter_mut()
-                    .chain(causal_basis.iter_mut())
-                    .flat_map(BooleanRow::decisions_mut)
-                    .chain(available_rows.decisions_mut())
-                    .chain(readout_pivots.rows.decisions_mut())
-                    .chain(
-                        availability
-                            .iter_mut()
-                            .flat_map(|state| state.pivots.rows.decisions_mut()),
-                    ),
-            )?;
+            self.check_readout_roots(planner_roots(
+                &mut basis,
+                &mut causal_basis,
+                &mut available_rows,
+                &mut readout_pivots,
+                &mut availability,
+            ))?;
         }
         drop(reference_basis);
         drop((
@@ -3360,11 +3331,7 @@ impl GuardedSurfaceSpace {
         Ok(if column < zx.nodes().len() {
             SurfaceColumn::Node(zx.nodes()[column].pos.to_array())
         } else {
-            let edge = &zx.edges()[column - zx.nodes().len()];
-            SurfaceColumn::Edge(
-                zx.nodes()[edge.n1].pos.to_array(),
-                zx.nodes()[edge.n2].pos.to_array(),
-            )
+            SurfaceColumn::of_zx_edge(zx, &zx.edges()[column - zx.nodes().len()])
         })
     }
 
@@ -3619,10 +3586,7 @@ impl GuardedSurfaceSpace {
                     .zx
                     .feedback_edge(target)
                     .expect("validated feedback wire");
-                let column = SurfaceColumn::Edge(
-                    variant.zx.nodes()[edge.n1].pos.to_array(),
-                    variant.zx.nodes()[edge.n2].pos.to_array(),
-                );
+                let column = SurfaceColumn::of_zx_edge(&variant.zx, edge);
                 let bits = [
                     self.component(row, column, Pauli::X),
                     self.component(row, column, Pauli::Z),
@@ -3669,10 +3633,7 @@ impl GuardedSurfaceSpace {
                     target: target.target,
                     pauli: target.pauli,
                 })?;
-        let column = SurfaceColumn::Edge(
-            variant.zx.nodes()[edge.n1].pos.to_array(),
-            variant.zx.nodes()[edge.n2].pos.to_array(),
-        );
+        let column = SurfaceColumn::of_zx_edge(&variant.zx, edge);
         Ok(Pauli::from(target.pauli)
             .flip()
             .iter_xz()
@@ -3888,10 +3849,7 @@ fn original_readout_bit(
         if edge.hadamard && edge.n1 > edge.n2 {
             axis = axis.flip();
         }
-        SurfaceColumn::Edge(
-            zx.nodes()[edge.n1].pos.to_array(),
-            zx.nodes()[edge.n2].pos.to_array(),
-        )
+        SurfaceColumn::of_zx_edge(zx, edge)
     };
     Some(2 * columns[&key] + usize::from(axis == Pauli::Z))
 }
@@ -4022,6 +3980,27 @@ pub(super) fn materialize_row(
     }
     zx.reconstruct_raw_centers(&mut paulis);
     paulis
+}
+
+/// Decision roots the causal readout planner keeps live across collections.
+fn planner_roots<'a>(
+    basis: &'a mut [BooleanRow],
+    causal_basis: &'a mut [BooleanRow],
+    available_rows: &'a mut BooleanRowSpace,
+    readout_pivots: &'a mut GuardedPivots,
+    availability: &'a mut Option<GuardedAvailability>,
+) -> impl Iterator<Item = &'a mut DecisionId> {
+    basis
+        .iter_mut()
+        .chain(causal_basis)
+        .flat_map(BooleanRow::decisions_mut)
+        .chain(available_rows.decisions_mut())
+        .chain(readout_pivots.rows.decisions_mut())
+        .chain(
+            availability
+                .iter_mut()
+                .flat_map(|state| state.pivots.rows.decisions_mut()),
+        )
 }
 
 #[cfg(test)]
@@ -4475,7 +4454,7 @@ mod tests {
                 &HashMap::new(),
             )
             .unwrap();
-            assert!(!actual.coordinates.is_identity(), "{gallery:?}");
+            assert!(!actual.coordinates.aliases.is_empty(), "{gallery:?}");
             assert_eq!(
                 actual
                     .rows

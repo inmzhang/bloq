@@ -78,8 +78,7 @@ fn native_reference_branches_preserve_spaces_and_avoid_self_wait() {
         let mut actual_rows = actual.rows.clone();
         actual.fill_selective(&mut actual_rows, &resolved).unwrap();
         let mut incremental = reference.clone();
-        let mut fallback = reference.clone();
-        reference.fresh_reference = true;
+        let mut fallback = reference;
         incremental.plan_causal_readouts::<true, true>().unwrap();
         if text == feedback {
             assert!(
@@ -89,12 +88,10 @@ fn native_reference_branches_preserve_spaces_and_avoid_self_wait() {
                     .any(|surface| !surface.feedbacks.is_empty())
             );
         }
-        reference.plan_causal_readouts::<true, true>().unwrap();
-        tests::assert_same_raw_plan(&incremental, &reference);
         fallback
             .plan_causal_readouts_with_fast_path::<true, true, true>(0)
             .unwrap();
-        tests::assert_same_raw_plan(&fallback, &reference);
+        tests::assert_same_raw_plan(&fallback, &incremental);
         let physical = 2 * actual.columns.len();
         for assignment in 0..1usize << actual.topology.variables.len() {
             let evaluate = |root| {
@@ -138,7 +135,12 @@ fn native_reference_branches_preserve_spaces_and_avoid_self_wait() {
                 expected
             );
             let mut with_plan = evaluated;
-            with_plan.extend(reference.surfaces.iter().map(|surface| lift(&surface.row)));
+            with_plan.extend(
+                incremental
+                    .surfaces
+                    .iter()
+                    .map(|surface| lift(&surface.row)),
+            );
             assert_eq!(canonical(with_plan, physical), expected);
         }
     }

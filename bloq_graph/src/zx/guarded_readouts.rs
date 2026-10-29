@@ -335,28 +335,26 @@ impl GuardedReadoutPlan {
             .collect::<Vec<_>>();
         let mut coordinate_groups =
             crate::FxHashMap::<usize, BTreeMap<(usize, Option<i32>), Vec<[i32; 3]>>>::default();
-        if !self.coordinates.is_identity() {
-            self.topology
-                .diagram
-                .charge(column_groups.len().saturating_mul(4))?;
-            for (column, &owner) in column_groups.iter().enumerate() {
-                crate::CancellationToken::checkpoint()?;
-                let position = self.columns[column].source_position();
-                for original in [2 * column, 2 * column + 1] {
-                    if let Some(coordinate) = self.coordinates.bit(original) {
-                        coordinate_groups
-                            .entry(coordinate)
-                            .or_default()
-                            .entry(owner)
-                            .or_default()
-                            .push(position);
-                    }
+        self.topology
+            .diagram
+            .charge(column_groups.len().saturating_mul(4))?;
+        for (column, &owner) in column_groups.iter().enumerate() {
+            crate::CancellationToken::checkpoint()?;
+            let position = self.columns[column].source_position();
+            for original in [2 * column, 2 * column + 1] {
+                if let Some(coordinate) = self.coordinates.bit(original) {
+                    coordinate_groups
+                        .entry(coordinate)
+                        .or_default()
+                        .entry(owner)
+                        .or_default()
+                        .push(position);
                 }
             }
-            for owners in coordinate_groups.values_mut() {
-                for positions in owners.values_mut() {
-                    sort_positions(positions, &mut self.topology.diagram)?;
-                }
+        }
+        for owners in coordinate_groups.values_mut() {
+            for positions in owners.values_mut() {
+                sort_positions(positions, &mut self.topology.diagram)?;
             }
         }
         let mut shared = crate::FxHashMap::default();
@@ -366,12 +364,7 @@ impl GuardedReadoutPlan {
             let mut groups = crate::FxHashMap::<(usize, Option<i32>), Vec<_>>::default();
             if query.row.active != ZERO {
                 for &(column, coefficient) in query.row.terms() {
-                    if self.coordinates.is_identity() {
-                        let Some(&owner) = column_groups.get(column / 2) else {
-                            continue;
-                        };
-                        groups.entry(owner).or_default().push((column, coefficient));
-                    } else if let Some(owners) = coordinate_groups.get(&column) {
+                    if let Some(owners) = coordinate_groups.get(&column) {
                         self.topology.diagram.charge(owners.len())?;
                         for &owner in owners.keys() {
                             groups.entry(owner).or_default().push((column, coefficient));
@@ -407,13 +400,9 @@ impl GuardedReadoutPlan {
                     crate::CancellationToken::checkpoint()?;
                     let mut positions = Vec::new();
                     for &(coordinate, _) in &key.3 {
-                        if self.coordinates.is_identity() {
-                            positions.push(self.columns[coordinate / 2].source_position());
-                        } else {
-                            let owned = &coordinate_groups[&coordinate][&owner];
-                            self.topology.diagram.charge(owned.len())?;
-                            positions.extend_from_slice(owned);
-                        }
+                        let owned = &coordinate_groups[&coordinate][&owner];
+                        self.topology.diagram.charge(owned.len())?;
+                        positions.extend_from_slice(owned);
                     }
                     sort_positions(&mut positions, &mut self.topology.diagram)?;
                     self.topology.diagram.charge(positions.len())?;
@@ -662,11 +651,7 @@ impl GuardedReadoutPlan {
                     } else {
                         (position, arm.target)
                     };
-                    // Parallel adjacency repeats the same resolved edge and
-                    // coefficient. Match the full stabilizer's unique edge map.
-                    if !edges.iter().any(|(edge, _)| *edge == endpoints) {
-                        edges.push((endpoints, value));
-                    }
+                    edges.push((endpoints, value));
                 }
                 if let Some(cross) = cross {
                     // Match exact ZX reconstruction: clear stale crossing
@@ -1104,16 +1089,6 @@ mod tests {
             let columns = relation.columns.clone();
             let local = relation.local.clone();
             let mut plan = relation.plan_readouts().unwrap();
-            // CSR adjacency may repeat an endpoint; every occurrence resolves
-            // to that pair's last edge. The visible surface still has one edge.
-            for topology in plan.local.values_mut().flatten() {
-                topology.arms = topology
-                    .arms
-                    .iter()
-                    .chain(topology.arms.first())
-                    .copied()
-                    .collect();
-            }
             for surface in 0..plan.surfaces.len() {
                 for position in plan
                     .support_sites(surface)

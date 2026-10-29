@@ -69,7 +69,7 @@ impl PreparedModuleRelations {
         topology: crate::GuardedTopology,
         sites: &HashMap<IVec3, crate::MaterializedModuleSite>,
     ) -> Result<crate::GuardedSurfaceSpace, crate::BlockGraphError> {
-        crate::GuardedSurfaceSpace::with_relations(topology, sites, self.limits, self.relations())
+        crate::GuardedSurfaceSpace::build::<true>(topology, sites, self.limits, self.relations())
     }
 
     /// Checks that `graph`, an orientation of this definition, closes its

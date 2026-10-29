@@ -451,7 +451,7 @@ impl ParityReduction {
     }
 }
 
-fn cancel_repeated_terms(terms: &mut Vec<usize>) {
+pub(super) fn cancel_repeated_terms(terms: &mut Vec<usize>) {
     terms.sort_unstable();
     let mut read = 0;
     let mut write = 0;

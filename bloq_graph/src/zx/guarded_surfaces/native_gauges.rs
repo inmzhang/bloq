@@ -449,23 +449,15 @@ fn has_local_z_pair(center: &SurfaceTopology, cap: [i32; 3], source: [i32; 3]) -
 
     let zx = &center.zx;
     let width = zx.total_ids();
-    // Repeated terms on one id multiply, matching the local flow supports.
-    let string = |terms: &mut dyn Iterator<Item = (usize, Pauli)>| {
-        let mut string = PauliString::new(width);
-        for (column, pauli) in terms {
-            string.set(column, string.get(column) ^ pauli);
-        }
-        string
-    };
-    let target = string(
-        &mut zx
-            .neighbor_edges(center.node)
+    let target = PauliString::from_terms(
+        width,
+        zx.neighbor_edges(center.node)
             .filter(|&(neighbor, _)| [cap, source].contains(&zx.nodes()[neighbor].pos.to_array()))
             .map(|(_, edge)| (edge, Pauli::Z)),
     );
     let mut span = crate::zx::stabilizer::PauliSpan::new(width);
     for terms in zx.local_stabilizer_flow_supports_for_node_kind(center.node, NodeKind::Z) {
-        span.insert_if_independent(string(&mut terms.into_iter()));
+        span.insert_if_independent(PauliString::from_terms(width, terms));
     }
     span.reduce(&target).is_identity()
 }
