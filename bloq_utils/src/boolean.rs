@@ -2091,8 +2091,9 @@ impl BooleanRowSpace {
             diagram.charge(self.rows.len())?;
         }
         let index = self.rows.len();
+        // A new slot is the largest row id, so appending keeps postings sorted.
         for &(column, _) in &row.bits {
-            add_posting(&mut self.columns, column, index);
+            self.columns.entry(column).or_default().push(index);
         }
         self.rows.push(Some(row));
         self.live += 1;
