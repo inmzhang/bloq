@@ -114,14 +114,13 @@ impl SymbolicOutputCorrection {
         Ok(self
             .frames
             .iter()
-            .map(|pair| (pair.output, pauli_from_xz(xor(&pair.x), xor(&pair.z))))
+            .map(|pair| (pair.output, Pauli::from_xz(xor(&pair.x), xor(&pair.z))))
             .collect())
     }
 }
 
-/// Output-pivot dense stabilizer rows and retain only the compact correction
-/// equation plus its source row. Runtime derivation materializes the dense row
-/// only for the verifier; static and compiler paths consume the compact half.
+/// Pivot output corrections while retaining each compact equation and original
+/// raw row. Callers choose which physical support they need to materialize.
 pub(super) fn pivot_output_correction_rows(
     mut rows: Vec<PauliString>,
     mut coeffs: Vec<CoeffVec>,
@@ -373,15 +372,6 @@ impl ConstraintParities {
     }
 }
 
-fn pauli_from_xz(x: bool, z: bool) -> Pauli {
-    match (x, z) {
-        (false, false) => Pauli::I,
-        (true, false) => Pauli::X,
-        (false, true) => Pauli::Z,
-        (true, true) => Pauli::Y,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use glam::ivec3;
@@ -497,7 +487,7 @@ mod tests {
             .map(|(index, output)| {
                 (
                     output,
-                    pauli_from_xz(solution[2 * index], solution[2 * index + 1]),
+                    Pauli::from_xz(solution[2 * index], solution[2 * index + 1]),
                 )
             })
             .collect())

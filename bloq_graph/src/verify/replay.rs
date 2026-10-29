@@ -3,11 +3,13 @@
 use glam::IVec3;
 
 use crate::{
-    Pauli, PauliBasis, RuntimeBasisError, RuntimeStabilizerBasis, Stabilizer,
-    SymbolicOutputCorrection, solve_output_correction_symbolic,
+    Pauli, PauliBasis, RuntimeBasisError, RuntimeStabilizerBasis, SymbolicOutputCorrection,
+    solve_output_correction_symbolic,
 };
 
-use super::{MeasurementKey, VerifyLogicalError};
+use crate::zx::CoeffVec;
+
+use super::{MeasurementKey, VerifyLogicalError, stabilizer_supports_measurement};
 
 /// One selective-fill replay step: apply `chosen` at `pos` over `basis` (with
 /// the T-port fallback) and return the evolved basis together with the
@@ -43,23 +45,169 @@ fn apply_selective_fill_with_fallback(
     }
 }
 
-/// The evolved-basis terminal solve: derive the output-correction surfaces of
-/// `basis`, keep only the measured-support constraints
-/// (`has_support`, mirroring `solve_output_correction`'s parity-only skip), and
-/// run the shared symbolic solve. Returns the surviving constraints alongside
-/// the solve so callers fold their own runtime RHS.
+/// The evolved-basis terminal solve, retaining support on every measured key.
+/// Crossing-node predicates are evaluated after the final row combinations.
+/// Closed reference constraints retain their separate signed materialization.
 pub(crate) fn solve_evolved_correction(
     basis: &RuntimeStabilizerBasis,
     outputs: &[IVec3],
-    mut has_support: impl FnMut(&Stabilizer) -> bool,
-) -> Result<(Vec<Stabilizer>, SymbolicOutputCorrection), VerifyLogicalError> {
-    let derived = basis
-        .derive_output_correction_surfaces(outputs)
+    keys: &[&MeasurementKey],
+) -> Result<(Vec<CoeffVec>, SymbolicOutputCorrection), VerifyLogicalError> {
+    let (zx, rows) = basis
+        .clone()
+        .into_output_correction_rows(outputs)
         .map_err(|_| VerifyLogicalError::OutputSurfaceUnavailable(outputs.to_vec()))?;
-    let (constraints, surfaces): (Vec<_>, Vec<_>) = derived
-        .into_iter()
-        .filter(|(_, surface)| has_support(surface))
-        .unzip();
+    let components = keys
+        .iter()
+        .map(|key| key.components(&zx).unwrap_or_default())
+        .collect::<Vec<_>>();
+    let mut constraints = Vec::new();
+    let mut supports = Vec::new();
+    for (constraint, row) in rows {
+        let mut support = CoeffVec::zeros(keys.len());
+        if row.len() == zx.total_ids() && zx.row_has_external_edge_pair_support(&row) {
+            for (index, components) in components.iter().enumerate() {
+                support.set_bit(
+                    index,
+                    components
+                        .iter()
+                        .any(|&(column, axis)| row.get(column) & axis),
+                );
+            }
+        } else {
+            let surface = zx.materialize_stabilizer(row);
+            for (index, key) in keys.iter().enumerate() {
+                support.set_bit(index, stabilizer_supports_measurement(&surface, key));
+            }
+        }
+        if !support.is_zero() {
+            constraints.push(constraint);
+            supports.push(support);
+        }
+    }
     let symbolic = solve_output_correction_symbolic(outputs, &constraints)?;
-    Ok((surfaces, symbolic))
+    Ok((supports, symbolic))
+}
+
+#[cfg(test)]
+pub(crate) fn signed_output_correction(
+    basis: &RuntimeStabilizerBasis,
+    outputs: &[IVec3],
+    keys: &[&MeasurementKey],
+) -> (Vec<CoeffVec>, SymbolicOutputCorrection) {
+    let mut constraints = Vec::new();
+    let mut masks = Vec::new();
+    for (constraint, surface) in basis.derive_output_correction_surfaces(outputs).unwrap() {
+        let mut mask = CoeffVec::zeros(keys.len());
+        for (index, key) in keys.iter().enumerate() {
+            mask.set_bit(index, stabilizer_supports_measurement(&surface, key));
+        }
+        if !mask.is_zero() {
+            constraints.push(constraint);
+            masks.push(mask);
+        }
+    }
+    (
+        masks,
+        solve_output_correction_symbolic(outputs, &constraints).unwrap(),
+    )
+}
+
+#[cfg(test)]
+mod output_query_tests {
+    use super::*;
+
+    fn all_keys(zx: &crate::ZXGraph) -> Vec<MeasurementKey> {
+        let mut keys = Vec::new();
+        for node in zx.nodes() {
+            for pauli in [Pauli::X, Pauli::Z, Pauli::Y] {
+                keys.push(MeasurementKey::Node {
+                    pos: node.pos,
+                    pauli,
+                });
+            }
+        }
+        for edge in zx.edges().iter().filter(|edge| edge.n1 < edge.n2) {
+            let left = zx.nodes()[edge.n1].pos;
+            let right = zx.nodes()[edge.n2].pos;
+            for (src, dst) in [(left, right), (right, left)] {
+                for pauli in [Pauli::X, Pauli::Z, Pauli::Y] {
+                    keys.push(MeasurementKey::Edge { src, dst, pauli });
+                }
+            }
+        }
+        let absent = glam::ivec3(i32::MAX, 42, 17);
+        assert!(zx.node_at(absent).is_none());
+        keys.push(MeasurementKey::Node {
+            pos: absent,
+            pauli: Pauli::Y,
+        });
+        keys.push(MeasurementKey::Edge {
+            src: absent,
+            dst: glam::ivec3(i32::MAX - 1, 42, 17),
+            pauli: Pauli::Y,
+        });
+        if let Some(first) = zx.nodes().first()
+            && let Some(other) = zx
+                .nodes()
+                .iter()
+                .find(|other| other.id != first.id && zx.edge_id(first.id, other.id).is_none())
+        {
+            keys.push(MeasurementKey::Edge {
+                src: first.pos,
+                dst: other.pos,
+                pauli: Pauli::X,
+            });
+        }
+        if let Some(first) = keys.first().cloned() {
+            keys.push(first); // The supplied key order may contain duplicates.
+        }
+        keys
+    }
+
+    fn assert_matches_signed(
+        basis: &RuntimeStabilizerBasis,
+        outputs: &[IVec3],
+        keys: &[MeasurementKey],
+    ) -> usize {
+        let refs = keys.iter().collect::<Vec<_>>();
+        let (expected_masks, expected) = signed_output_correction(basis, outputs, &refs);
+        let (actual_masks, actual) = solve_evolved_correction(basis, outputs, &refs).unwrap();
+        assert_eq!(
+            actual_masks, expected_masks,
+            "ordered physical support masks"
+        );
+        assert_eq!(
+            actual, expected,
+            "exact symbolic frames and consistency equations"
+        );
+        actual_masks.len()
+    }
+
+    #[test]
+    fn output_queries_match_signed_gallery_surfaces_and_key_order() {
+        for gallery in [
+            crate::GalleryItem::CNOT,
+            crate::GalleryItem::CZSpatialH,
+            crate::GalleryItem::CZTemporalH,
+            crate::GalleryItem::S,
+            crate::GalleryItem::T,
+            crate::GalleryItem::TWithPreparedY,
+            crate::GalleryItem::THTH,
+            crate::GalleryItem::YMemory,
+            crate::GalleryItem::Stability,
+        ] {
+            let graph = gallery.build().materialize_root_graph().unwrap();
+            let zx = crate::ZXGraph::from_block_graph_for_analysis(&graph).unwrap();
+            let basis = RuntimeStabilizerBasis::from_zx_graph(zx)
+                .unwrap()
+                .with_t_nodes_as_ports();
+            let outputs = basis.zx_graph().output_ports();
+            let mut keys = all_keys(basis.zx_graph());
+            assert_matches_signed(&basis, &outputs, &keys);
+            keys.reverse();
+            assert_matches_signed(&basis, &outputs[..outputs.len().min(1)], &keys);
+            assert_eq!(assert_matches_signed(&basis, &outputs, &[]), 0);
+        }
+    }
 }

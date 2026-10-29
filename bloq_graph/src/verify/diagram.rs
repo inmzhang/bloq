@@ -19,7 +19,7 @@ use crate::{
 
 use super::correction::{InternalCorrection, ResolvedCorrection, fresh_var, named_readouts};
 use super::{MeasurementKey, VerifyLogicalError, stabilizer_supports_measurement};
-use crate::zx::{CoeffVec, solve_coeff_combination};
+use crate::zx::{CoeffFactorization, CoeffVec};
 
 /// The concrete QuiZX graph type used for logical maps.
 pub type QuizxGraph = quizx::vec_graph::Graph;
@@ -942,13 +942,14 @@ fn named_measurement_phases(
             column
         })
         .collect::<Vec<_>>();
+    let factorization = CoeffFactorization::new(&columns);
     for parity in phases.values_mut() {
         *parity = Parity::default();
     }
     for (index, &(name, _)) in rows.iter().enumerate() {
-        let solution =
-            solve_coeff_combination(&columns, &CoeffVec::singleton(index, rows.len()))
-                .ok_or_else(|| VerifyLogicalError::MeasurementPhaseUnavailable(name.to_owned()))?;
+        let solution = factorization
+            .solve(&CoeffVec::singleton(index, rows.len()))
+            .ok_or_else(|| VerifyLogicalError::MeasurementPhaseUnavailable(name.to_owned()))?;
         for (candidate, parity) in phases.values_mut().enumerate() {
             if solution.bit(candidate) {
                 *parity = &*parity + &Parity::single(variables[name]);

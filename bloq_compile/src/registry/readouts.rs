@@ -125,7 +125,7 @@ struct LocalBindingAnchor {
     source_t: Option<(IVec3, bool, TemplateInstanceId)>,
 }
 
-/// A complete module contribution to a source query. It retains record owners,
+/// A fragment's exact contribution to a source query. It retains record owners,
 /// boundary operators, guards, and exact gateway transport. Each consumer still
 /// constructs its own complete decoder equation and corrected-parity folds.
 struct FragmentBinding {

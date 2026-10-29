@@ -24,7 +24,7 @@ fn named_row_from_ids(
     )
     .unwrap();
     let reduced = space
-        .reduce_named_rows::<true>(rows, [column].into_iter(), &[])
+        .reduce_named_rows(rows, [column].into_iter(), &[], true)
         .unwrap();
     space.named_row(&reduced, column).unwrap()
 }
@@ -109,6 +109,7 @@ fn feedback_parity_couples_disconnected_source_rows_before_selection() {
         ],
         &[(AvailabilityKey::Feedback(0), vec![(0, ONE), (1, ONE)])],
         11,
+        &[],
         &mut space.topology.diagram,
     )
     .unwrap();
@@ -200,11 +201,11 @@ fn assert_complete_plan_matches_global_reduction(program: &crate::BlockGraph) {
     };
     let mut actual = build();
     actual
-        .plan_causal_readouts_with_fast_path::<true, true, true>()
+        .plan_causal_readouts_with_fast_path::<true, true, true>(usize::MAX)
         .unwrap();
     let mut expected = build();
     expected
-        .plan_causal_readouts_with_fast_path::<true, true, false>()
+        .plan_causal_readouts_with_fast_path::<true, true, false>(usize::MAX)
         .unwrap();
     super::tests::assert_same_raw_plan(&actual, &expected);
 }

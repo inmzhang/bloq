@@ -82,6 +82,24 @@ impl MeasurementKey {
         })
     }
 
+    /// Original linear components whose OR is this measurement's physical support.
+    pub(super) fn components(&self, zx: &ZXGraph) -> Option<Vec<(usize, Pauli)>> {
+        let (column, pauli) = match *self {
+            Self::Node { pos, pauli } => (zx.node_at(pos)?.id, pauli),
+            Self::Edge { src, dst, pauli } => {
+                let src = zx.node_at(src)?.id;
+                let dst = zx.node_at(dst)?.id;
+                (zx.edge_between(src, dst)?.id, pauli)
+            }
+        };
+        Some(
+            pauli
+                .iter_xz()
+                .flat_map(|axis| zx.readout_components(column, axis))
+                .collect(),
+        )
+    }
+
     fn sort_key(&self) -> (u8, [i32; 3], [i32; 3], u8) {
         match *self {
             Self::Node { pos, pauli } => (0, pos.to_array(), [0; 3], u8::from(pauli)),

@@ -1896,6 +1896,10 @@ pub(crate) fn projection_limit(module: &str, error: ProjectionError) -> ModuleCe
         ProjectionError::WitnessLimit { observed, limit } => {
             resource_limit(module, "witness nodes", observed, limit)
         }
+        ProjectionError::Cancelled(source) => ModuleCertificationError::Graph {
+            module: module.to_owned(),
+            source: crate::StabilizerError::from(source).into(),
+        },
     }
 }
 

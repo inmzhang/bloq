@@ -2,17 +2,21 @@
 
 use std::collections::HashMap;
 
+use bloq_utils::boolean::BooleanDecisionDiagram;
 use glam::IVec3;
 use thiserror::Error;
 
 use super::graph::insert_selective_fill;
 use super::output_correction::{OutputCorrectionRow, pivot_output_correction_rows};
+use super::reduction::CorrelationReduction;
 use super::stabilizer::{
     CoeffVec, collect_selective_constraints, gaussian_elimination_with_tracking,
     normalize_selective_support_in_place, reduce_to_basis,
 };
 use super::{NodeKind, Stabilizer, StabilizerError, StabilizerGenerators, ZXError, ZXGraph};
-use crate::{Pauli, PauliBasis, PauliString, SelectiveKind};
+use crate::{
+    CancellationToken, ModuleCertificationLimits, Pauli, PauliBasis, PauliString, SelectiveKind,
+};
 
 /// An error from deriving or updating a [`RuntimeStabilizerBasis`].
 #[derive(Debug, Clone, Error)]
@@ -95,9 +99,37 @@ impl RuntimeStabilizerBasis {
     /// # Errors
     ///
     /// Returns a [`RuntimeBasisError`] if a selective site admits no permitted
-    /// support.
+    /// support, computation is cancelled, or the relation size is unrepresentable.
     pub fn from_zx_graph(zx_graph: ZXGraph) -> Result<Self, RuntimeBasisError> {
-        let mut rows = reduce_to_basis(&zx_graph.to_external_generator_table(), zx_graph.total_ids);
+        let rows = Self::reduced_relation(&zx_graph)?.unwrap_or_else(|| {
+            reduce_to_basis(&zx_graph.to_external_generator_table(), zx_graph.total_ids)
+        });
+        Self::from_complete_rows(zx_graph, rows)
+    }
+
+    fn reduced_relation(zx_graph: &ZXGraph) -> Result<Option<Vec<PauliString>>, StabilizerError> {
+        CancellationToken::checkpoint()?;
+        if zx_graph.stabilizer_phase_basis.get().is_some() {
+            return Ok(None);
+        }
+        // This public constructor has never imposed certification budgets.
+        let limits = ModuleCertificationLimits::UNLIMITED;
+        let mut diagram = BooleanDecisionDiagram::with_limits(limits.boolean_limits());
+        CorrelationReduction::new(zx_graph, &mut diagram, limits)?
+            .map(CorrelationReduction::into_canonical_rows)
+            .transpose()
+    }
+
+    #[cfg(test)]
+    pub(super) fn from_zx_graph_unreduced(zx_graph: ZXGraph) -> Result<Self, RuntimeBasisError> {
+        let rows = reduce_to_basis(&zx_graph.to_external_generator_table(), zx_graph.total_ids);
+        Self::from_complete_rows(zx_graph, rows)
+    }
+
+    fn from_complete_rows(
+        zx_graph: ZXGraph,
+        mut rows: Vec<PauliString>,
+    ) -> Result<Self, RuntimeBasisError> {
         // Normalization adds rows to rows, so they remain an independent basis.
         normalize_selective_support_in_place(
             &mut rows,
@@ -162,7 +194,11 @@ impl RuntimeStabilizerBasis {
     /// Returns an error if a named source measurement lacks a concrete linear
     /// coordinate, or a selective site admits no permitted support.
     pub fn for_source_readouts(zx_graph: ZXGraph) -> Result<Self, RuntimeBasisError> {
-        let mut basis = Self::from_zx_graph(zx_graph)?.with_t_nodes_as_ports();
+        Self::from_zx_graph(zx_graph)?.with_source_readouts()
+    }
+
+    fn with_source_readouts(self) -> Result<Self, RuntimeBasisError> {
+        let mut basis = self.with_t_nodes_as_ports();
         let measurements = basis
             .zx_graph
             .action_graph()
@@ -204,7 +240,7 @@ impl RuntimeStabilizerBasis {
     /// terminal frame space: the oracle that cross-checks the guarded planner.
     #[cfg(test)]
     pub(super) fn for_output_frames(zx: ZXGraph) -> Result<Self, RuntimeBasisError> {
-        let mut basis = Self::from_zx_graph(zx)?.with_t_nodes_as_ports();
+        let mut basis = Self::from_zx_graph_unreduced(zx)?.with_t_nodes_as_ports();
         let constraints = basis
             .zx_graph
             .action_graph()
@@ -289,22 +325,30 @@ impl RuntimeStabilizerBasis {
             insert_selective_fill(&mut port_map, pos, kind, chosen)?;
         }
 
+        let mut remaining = collect_selective_constraints(&self.zx_graph);
+        let columns = fills
+            .iter()
+            .map(|&(pos, chosen)| {
+                (
+                    self.zx_graph
+                        .node_at(pos)
+                        .expect("validated selective has a ZX node")
+                        .id,
+                    Pauli::from(chosen),
+                )
+            })
+            .collect::<Vec<_>>();
         let mut rows = self.rows.clone();
         let mut readout_coeffs = self.readout_coeffs.clone();
-        let mut remaining = collect_selective_constraints(&self.zx_graph);
-        for &(pos, chosen) in fills {
-            let col = self
-                .zx_graph
-                .node_at(pos)
-                .expect("validated selective has a ZX node")
-                .id;
-            remaining.retain(|constraint| constraint.pos != pos);
+        for (column, chosen) in columns {
+            CancellationToken::checkpoint()?;
+            remaining.retain(|constraint| constraint.col != column);
             let pivots = gaussian_elimination_with_tracking(
                 &mut rows,
                 &mut readout_coeffs,
-                [(col, Pauli::from(chosen))],
-                |row, &(col, chosen)| {
-                    let pauli = row.get(col);
+                [(column, chosen)],
+                |row, &(column, chosen)| {
+                    let pauli = row.get(column);
                     pauli != Pauli::I && pauli != chosen
                 },
                 None,
@@ -376,20 +420,30 @@ impl RuntimeStabilizerBasis {
         self,
         outputs: &[IVec3],
     ) -> Result<Vec<(OutputCorrectionRow, Stabilizer)>, RuntimeBasisError> {
+        let (zx, rows) = self.into_output_correction_rows(outputs)?;
+        Ok(rows
+            .into_iter()
+            .map(|(correction, row)| (correction, zx.materialize_stabilizer(row)))
+            .collect())
+    }
+
+    /// Select the original output rows once; the consumer owns their physical interpretation.
+    pub(crate) fn into_output_correction_rows(
+        self,
+        outputs: &[IVec3],
+    ) -> Result<(ZXGraph, Vec<(OutputCorrectionRow, PauliString)>), RuntimeBasisError> {
         let output_cols = requested_output_columns(&self.zx_graph, outputs)?;
         let protected =
             protected_boundary_columns(&self.zx_graph, &self.prepared_columns, &output_cols);
-        Ok(pivot_output_correction_rows(
+        let rows = pivot_output_correction_rows(
             self.rows,
             self.readout_coeffs,
             outputs,
             &output_cols,
             &self.input_columns,
             &protected,
-        )
-        .into_iter()
-        .map(|(correction, row)| (correction, self.zx_graph.materialize_stabilizer(row)))
-        .collect())
+        );
+        Ok((self.zx_graph, rows))
     }
 }
 
@@ -439,12 +493,11 @@ fn requested_output_columns(
         .iter()
         .copied()
         .map(|output| {
-            let node_id = zx_graph
+            zx_graph
                 .node_at(output)
                 .filter(|node| node.is_output_port(zx_graph))
                 .map(|node| node.id)
-                .ok_or(RuntimeBasisError::UnknownOutput(output))?;
-            Ok(node_id)
+                .ok_or(RuntimeBasisError::UnknownOutput(output))
         })
         .collect()
 }
@@ -453,12 +506,54 @@ fn requested_output_columns(
 mod tests {
     use glam::ivec3;
 
-    use crate::{BlockGraph, GalleryItem, MeasurementObservable, PauliBasis};
+    use crate::{BlockGraph, GalleryItem, MeasurementObservable};
 
-    use super::{RuntimeBasisError, RuntimeStabilizerBasis};
+    use super::*;
 
     fn runtime_basis(graph: &BlockGraph) -> RuntimeStabilizerBasis {
-        RuntimeStabilizerBasis::from_zx_graph(crate::ZXGraph::try_from(graph).unwrap()).unwrap()
+        RuntimeStabilizerBasis::from_zx_graph(ZXGraph::try_from(graph).unwrap()).unwrap()
+    }
+
+    fn assert_same_runtime(actual: &RuntimeStabilizerBasis, expected: &RuntimeStabilizerBasis) {
+        assert_eq!(actual.rows, expected.rows);
+        assert_eq!(actual.readout_coeffs, expected.readout_coeffs);
+        assert_eq!(actual.input_columns, expected.input_columns);
+        assert_eq!(actual.prepared_columns, expected.prepared_columns);
+        assert_eq!(actual.selective_kinds, expected.selective_kinds);
+        let outputs = actual.zx_graph.output_ports();
+        for requested in [&outputs[..], &outputs[..outputs.len().min(1)]] {
+            assert_eq!(
+                actual.derive_output_correction_surfaces(requested).unwrap(),
+                expected
+                    .derive_output_correction_surfaces(requested)
+                    .unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn reduced_runtime_preserves_ordered_rows_provenance_and_output_phases() {
+        for gallery in [
+            GalleryItem::CNOT,
+            GalleryItem::CZSpatialH,
+            GalleryItem::CZTemporalH,
+            GalleryItem::S,
+            GalleryItem::T,
+            GalleryItem::TWithPreparedY,
+            GalleryItem::THTH,
+            GalleryItem::YMemory,
+            GalleryItem::Stability,
+        ] {
+            let source = gallery.build().materialize_root_graph().unwrap();
+            let zx = ZXGraph::from_block_graph_for_analysis(&source).unwrap();
+            let expected = RuntimeStabilizerBasis::from_zx_graph_unreduced(zx.clone()).unwrap();
+            let actual = RuntimeStabilizerBasis::from_zx_graph(zx.clone()).unwrap();
+            assert_same_runtime(&actual, &expected);
+            assert_same_runtime(
+                &RuntimeStabilizerBasis::for_source_readouts(zx).unwrap(),
+                &expected.with_source_readouts().unwrap(),
+            );
+        }
     }
 
     #[test]
@@ -483,7 +578,7 @@ mod tests {
                 },
             ])
             .unwrap();
-        let zx = crate::ZXGraph::from_block_graph_for_analysis(&graph).unwrap();
+        let zx = ZXGraph::from_block_graph_for_analysis(&graph).unwrap();
         let filled = RuntimeStabilizerBasis::from_zx_graph(zx)
             .unwrap()
             .apply_selective_fill(ivec3(0, 0, 1), PauliBasis::Z)

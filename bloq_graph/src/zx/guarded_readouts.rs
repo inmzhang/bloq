@@ -10,7 +10,9 @@ use std::sync::Arc;
 use bloq_utils::boolean::{BooleanOp, DECISION_FALSE as ZERO, DECISION_TRUE as ONE, DecisionId};
 use glam::IVec3;
 
-use super::guarded_surfaces::{GuardedSurface, GuardedSurfaceKind, SurfaceColumn};
+use super::guarded_surfaces::{
+    GuardedSurface, GuardedSurfaceKind, SurfaceColumn, SurfaceCoordinates,
+};
 use super::{NodeKind, Stabilizer, StabilizerGenerator, StabilizerRowKind, ZXGraph};
 use crate::{BlockGraphError, GuardedTopology, Pauli, StabilizerError};
 
@@ -218,6 +220,7 @@ impl SurfaceSupport for Stabilizer {
 /// from these arms after evaluating the final symbolic row.
 #[doc(hidden)]
 #[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct LocalPauliSurface {
     position: IVec3,
     center: Pauli,
@@ -288,6 +291,7 @@ pub struct GuardedReadoutPlan {
     pub topology: GuardedTopology,
     pub surfaces: Vec<GuardedSurface>,
     pub(super) columns: Vec<SurfaceColumn>,
+    pub(super) coordinates: SurfaceCoordinates,
     pub(super) local: BTreeMap<[i32; 3], Vec<LocalTopology>>,
     pub(super) max_witness_nodes: usize,
     // Cleared whenever the owning physical stage jointly remaps its live ids.
@@ -301,6 +305,7 @@ pub struct GuardedReadoutPlan {
 
 #[doc(hidden)]
 #[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct GuardedLocalSurface {
     pub guard: DecisionId,
     pub surface: LocalPauliSurface,
@@ -313,62 +318,99 @@ impl GuardedReadoutPlan {
         module_sites: &BTreeMap<[i32; 3], usize>,
     ) -> Result<(), BlockGraphError> {
         self.topology.diagram.charge(self.columns.len())?;
-        let column_modules = self
+        self.topology.diagram.charge(module_sites.len())?;
+        // Split a single owner by x to reuse query pieces in the same site order.
+        let first_owner = module_sites.values().next();
+        let split_owner = first_owner.is_some()
+            && module_sites
+                .values()
+                .all(|owner| Some(owner) == first_owner);
+        let column_groups = self
             .columns
             .iter()
             .map(|column| {
-                let (SurfaceColumn::Node(position) | SurfaceColumn::Edge(position, _)) = column;
-                module_sites[position]
+                let position = column.source_position();
+                (module_sites[&position], split_owner.then_some(position[0]))
             })
             .collect::<Vec<_>>();
+        let mut coordinate_groups =
+            crate::FxHashMap::<usize, BTreeMap<(usize, Option<i32>), Vec<[i32; 3]>>>::default();
+        self.topology
+            .diagram
+            .charge(column_groups.len().saturating_mul(4))?;
+        for (column, &owner) in column_groups.iter().enumerate() {
+            crate::CancellationToken::checkpoint()?;
+            let position = self.columns[column].source_position();
+            for original in [2 * column, 2 * column + 1] {
+                if let Some(coordinate) = self.coordinates.bit(original) {
+                    coordinate_groups
+                        .entry(coordinate)
+                        .or_default()
+                        .entry(owner)
+                        .or_default()
+                        .push(position);
+                }
+            }
+        }
+        for owners in coordinate_groups.values_mut() {
+            for positions in owners.values_mut() {
+                sort_positions(positions, &mut self.topology.diagram)?;
+            }
+        }
         let mut shared = crate::FxHashMap::default();
         let mut retained = 0usize;
         for (surface, query) in self.surfaces.iter().enumerate() {
             self.topology.diagram.charge(query.row.terms().len())?;
-            let mut modules = crate::FxHashMap::<usize, Vec<_>>::default();
+            let mut groups = crate::FxHashMap::<(usize, Option<i32>), Vec<_>>::default();
             if query.row.active != ZERO {
                 for &(column, coefficient) in query.row.terms() {
-                    let Some(&owner) = column_modules.get(column / 2) else {
-                        continue;
-                    };
-                    modules
-                        .entry(owner)
-                        .or_default()
-                        .push((column, coefficient));
+                    if let Some(owners) = coordinate_groups.get(&column) {
+                        self.topology.diagram.charge(owners.len())?;
+                        for &owner in owners.keys() {
+                            groups.entry(owner).or_default().push((column, coefficient));
+                        }
+                    }
                 }
             }
             let mut uses = Vec::new();
-            let mut modules = modules.into_iter().collect::<Vec<_>>();
-            modules.sort_unstable_by_key(|(owner, _)| *owner);
-            for (_, terms) in modules {
-                // Include activation and gateway role, all native half-edge
-                // coefficients, and the actual instance's columns. Missing
-                // coefficients are zero. Never equate output-only summaries.
+            let mut groups = groups.into_iter().collect::<Vec<_>>();
+            crate::CancellationToken::checkpoint()?;
+            let group_count = groups.len();
+            self.topology
+                .diagram
+                .charge(group_count.saturating_mul(group_count.max(1).ilog2() as usize + 1))?;
+            groups.sort_unstable_by_key(|(owner, _)| *owner);
+            crate::CancellationToken::checkpoint()?;
+            for (owner, terms) in groups {
+                // Exact coefficients, original owner and contiguous x-slab determine
+                // every native half-edge coefficient. Missing coefficients are
+                // zero; activation and gateway role also distinguish queries.
                 let key = (
+                    owner,
                     query.row.active,
                     matches!(query.kind, super::GuardedSurfaceKind::Readout { .. }),
                     terms,
                 );
-                self.topology.diagram.charge(key.2.len())?;
+                self.topology
+                    .diagram
+                    .charge(key.3.len().saturating_add(usize::from(split_owner)))?;
                 let id = if let Some(&id) = shared.get(&key) {
                     id
                 } else {
-                    let positions =
-                        key.2
-                            .iter()
-                            .map(|&(column, _)| match self.columns[column / 2] {
-                                SurfaceColumn::Node(position)
-                                | SurfaceColumn::Edge(position, _) => position,
-                            })
-                            .collect::<BTreeSet<_>>();
+                    crate::CancellationToken::checkpoint()?;
+                    let mut positions = Vec::new();
+                    for &(coordinate, _) in &key.3 {
+                        let owned = &coordinate_groups[&coordinate][&owner];
+                        self.topology.diagram.charge(owned.len())?;
+                        positions.extend_from_slice(owned);
+                    }
+                    sort_positions(&mut positions, &mut self.topology.diagram)?;
                     self.topology.diagram.charge(positions.len())?;
                     let id = self.fragments.len();
-                    self.fragments
-                        .push((surface, positions.into_iter().collect()));
-                    // ponytail: cap optional interning; uncommon oversized
-                    // fragments still bind exactly, without cache admission.
+                    self.fragments.push((surface, positions.into()));
+                    // Bound optional interning for large physical fragments.
                     const MAX_SHARED_TERMS: usize = 262_144;
-                    let terms = key.2.len().saturating_add(1);
+                    let terms = key.3.len().saturating_add(1 + usize::from(split_owner));
                     if terms <= MAX_SHARED_TERMS.saturating_sub(retained) {
                         retained += terms;
                         shared.insert(key, id);
@@ -523,7 +565,10 @@ impl GuardedReadoutPlan {
                 coordinates.push(bit);
             };
             for column in variant.columns() {
-                for root in [row.get(2 * column), row.get(2 * column + 1)] {
+                for root in [
+                    self.coordinates.get(row, 2 * column),
+                    self.coordinates.get(row, 2 * column + 1),
+                ] {
                     if root != ZERO && support != ONE {
                         support = if support == ZERO || support == root {
                             root
@@ -560,8 +605,7 @@ impl GuardedReadoutPlan {
                         .iter()
                         .map(|(values, _)| values.len() + 1)
                         .sum::<usize>();
-                // ponytail: bound retained coordinates; clear-on-full can be
-                // replaced by eviction if measured query churn warrants it.
+                // Bound retained query data; oversized cases bypass the cache.
                 const MAX_CACHED_TERMS: usize = 262_144;
                 if terms <= MAX_CACHED_TERMS {
                     if self.query_cache_terms + terms > MAX_CACHED_TERMS {
@@ -585,9 +629,9 @@ impl GuardedReadoutPlan {
                 };
                 // The first arm determines the linear center component. An
                 // isolated variant instead queries its independent coordinate.
-                let mut center = pauli(bit(0), bit(1));
+                let mut center = Pauli::from_xz(bit(0), bit(1));
                 let paulis = (usize::from(variant.center.is_some())..column_count)
-                    .map(|index| pauli(bit(2 * index), bit(2 * index + 1)));
+                    .map(|index| Pauli::from_xz(bit(2 * index), bit(2 * index + 1)));
                 let cross = match variant.kind {
                     NodeKind::X | NodeKind::Z => Some(variant.kind.cross_pauli()),
                     _ => None,
@@ -607,11 +651,7 @@ impl GuardedReadoutPlan {
                     } else {
                         (position, arm.target)
                     };
-                    // Parallel adjacency repeats the same resolved edge and
-                    // coefficient. Match the full stabilizer's unique edge map.
-                    if !edges.iter().any(|(edge, _)| *edge == endpoints) {
-                        edges.push((endpoints, value));
-                    }
+                    edges.push((endpoints, value));
                 }
                 if let Some(cross) = cross {
                     // Match exact ZX reconstruction: clear stale crossing
@@ -647,20 +687,15 @@ impl GuardedReadoutPlan {
         Ok(output)
     }
 
-    /// Visit nonzero row coefficients instead of scanning the global column
-    /// table. Auxiliary named-readout coordinates are not physical support.
+    /// Original owners of nonzero compact coordinates, as the union of this
+    /// query's sorted fragments. Named-readout coordinates are not physical support.
     pub fn support_sites(&self, surface: usize) -> BTreeSet<[i32; 3]> {
-        let row = &self.surfaces[surface].row;
-        if row.active == ZERO {
+        if self.surfaces[surface].row.terms().is_empty() {
             return BTreeSet::new();
         }
-        row.terms()
+        self.fragment_uses[surface]
             .iter()
-            .filter_map(|&(column, _)| {
-                self.columns.get(column / 2).map(|column| match *column {
-                    SurfaceColumn::Node(position) | SurfaceColumn::Edge(position, _) => position,
-                })
-            })
+            .flat_map(|&fragment| self.fragments[fragment].1.iter().copied())
             .collect()
     }
 
@@ -722,26 +757,104 @@ impl GuardedReadoutPlan {
                     .copied()
                     .enumerate()
                     .map(|(index, column)| (column, index)),
+                &self.coordinates,
                 row,
                 zx,
                 evaluate,
             );
-            assert!(
-                zx.contains_stabilizer_support(&paulis),
-                "frozen surface {surface} must belong to the signed branch relation"
-            );
-            zx.materialize_stabilizer(paulis)
+            zx.materialize_member_stabilizer(paulis).unwrap_or_else(|| {
+                panic!("frozen surface {surface} must belong to the signed branch relation")
+            })
         })
     }
 }
 
-fn pauli(x: bool, z: bool) -> Pauli {
-    match (x, z) {
-        (false, false) => Pauli::I,
-        (true, false) => Pauli::X,
-        (false, true) => Pauli::Z,
-        (true, true) => Pauli::Y,
+/// Sort and deduplicate fragment positions, charging comparison work.
+fn sort_positions(
+    positions: &mut Vec<[i32; 3]>,
+    diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
+) -> Result<(), BlockGraphError> {
+    crate::CancellationToken::checkpoint()?;
+    let incidences = positions.len();
+    diagram.charge(incidences.saturating_mul(incidences.max(1).ilog2() as usize + 2))?;
+    // Positions concatenate sorted runs, which the stable sort merges.
+    positions.sort();
+    positions.dedup();
+    crate::CancellationToken::checkpoint()?;
+    Ok(())
+}
+
+#[cfg(test)]
+fn assert_shared_fragments(
+    plan: &mut GuardedReadoutPlan,
+    owners: &BTreeMap<[i32; 3], usize>,
+) -> (BTreeSet<usize>, usize) {
+    let mut used = BTreeSet::new();
+    let mut sites = 0;
+    for surface in 0..plan.surfaces.len() {
+        let query = &plan.surfaces[surface];
+        let mut expected = BTreeSet::new();
+        if query.row.active != ZERO {
+            for (column, original) in plan.columns.iter().enumerate() {
+                if [2 * column, 2 * column + 1]
+                    .into_iter()
+                    .any(|bit| plan.coordinates.get(&query.row, bit) != ZERO)
+                {
+                    let position = original.source_position();
+                    expected.insert((owners[&position], position));
+                }
+            }
+        }
+        let mut actual = Vec::new();
+        for id in plan.query_fragments(surface).to_vec() {
+            used.insert(id);
+            let (representative, positions) = plan.query_fragment(id);
+            let owner = owners[positions.first().expect("a fragment has physical support")];
+            let named = |index: usize| {
+                matches!(
+                    plan.surfaces[index].kind,
+                    GuardedSurfaceKind::Readout { .. }
+                )
+            };
+            assert_eq!(named(surface), named(representative));
+            assert_eq!(
+                plan.surfaces[surface].activation(),
+                plan.surfaces[representative].activation()
+            );
+            for &position in positions.iter() {
+                assert_eq!(owners[&position], owner);
+                actual.push((owner, position));
+                for column in plan.local[&position]
+                    .iter()
+                    .flat_map(LocalTopology::columns)
+                {
+                    for bit in [2 * column, 2 * column + 1] {
+                        assert_eq!(
+                            plan.coordinates.get(&plan.surfaces[surface].row, bit),
+                            plan.coordinates
+                                .get(&plan.surfaces[representative].row, bit)
+                        );
+                    }
+                }
+                let position = IVec3::from_array(position);
+                assert_eq!(
+                    plan.local_cases(surface, position, ONE).unwrap(),
+                    plan.local_cases(representative, position, ONE).unwrap()
+                );
+            }
+        }
+        assert_eq!(
+            actual,
+            expected.iter().copied().collect::<Vec<_>>(),
+            "surface {surface}: exact original owner/site order without overlap"
+        );
+        assert_eq!(
+            plan.support_sites(surface),
+            expected.iter().map(|&(_, position)| position).collect()
+        );
+        sites += expected.len();
     }
+    (used, sites)
 }
 
 #[cfg(test)]
@@ -833,7 +946,12 @@ mod tests {
                         }
                         let mut roots = variant
                             .columns()
-                            .flat_map(|column| [row.get(2 * column), row.get(2 * column + 1)])
+                            .flat_map(|column| {
+                                [
+                                    plan.coordinates.get(row, 2 * column),
+                                    plan.coordinates.get(row, 2 * column + 1),
+                                ]
+                            })
                             .collect::<Vec<_>>();
                         let raw_len = roots.len();
                         repeated += usize::from(roots.iter().enumerate().any(|(index, root)| {
@@ -971,16 +1089,6 @@ mod tests {
             let columns = relation.columns.clone();
             let local = relation.local.clone();
             let mut plan = relation.plan_readouts().unwrap();
-            // CSR adjacency may repeat an endpoint; every occurrence resolves
-            // to that pair's last edge. The visible surface still has one edge.
-            for topology in plan.local.values_mut().flatten() {
-                topology.arms = topology
-                    .arms
-                    .iter()
-                    .chain(topology.arms.first())
-                    .copied()
-                    .collect();
-            }
             for surface in 0..plan.surfaces.len() {
                 for position in plan
                     .support_sites(surface)
@@ -1002,9 +1110,9 @@ mod tests {
                         let row = &plan.surfaces[surface].row;
                         let mut dense = PauliString::new(zx.total_ids());
                         for (&column, &index) in &columns {
-                            let value = pauli(
-                                evaluate(row.get(2 * index)),
-                                evaluate(row.get(2 * index + 1)),
+                            let value = Pauli::from_xz(
+                                evaluate(plan.coordinates.get(row, 2 * index)),
+                                evaluate(plan.coordinates.get(row, 2 * index + 1)),
                             );
                             match column {
                                 SurfaceColumn::Node(at) if at == position.to_array() => {
@@ -1058,21 +1166,25 @@ mod tests {
             }
         }
     }
-}
-
-#[cfg(test)]
-mod fragment_tests {
-    use super::*;
-    use crate::{GalleryItem, GuardedSurfaceSpace, ModuleCertificationLimits};
 
     #[test]
     fn shared_fragments_cover_complete_native_coefficients_after_collection() {
-        for gallery in [
+        let conditional = crate::lower_blog_graph_ast_deferred(
+            &crate::parse_blog_program_to_ast(include_str!(
+                "../../../docs/fixtures/conditional_cz_strip.blog"
+            ))
+            .unwrap(),
+        )
+        .unwrap();
+        for (gallery, source) in [
             GalleryItem::PhaseGradientK4,
             GalleryItem::CZSpatialH,
             GalleryItem::ThreeBitAdder,
-        ] {
-            let source = gallery.build();
+        ]
+        .map(|gallery| (Some(gallery), gallery.build()))
+        .into_iter()
+        .chain([(None, conditional)])
+        {
             let linked = crate::flatten_module_definition(&source, source.root(), "").unwrap();
             let limits = ModuleCertificationLimits::DEFAULT;
             let mut plan = GuardedSurfaceSpace::new(
@@ -1083,47 +1195,28 @@ mod fragment_tests {
             .unwrap()
             .plan_readouts()
             .unwrap();
+            let mut scope_ids = std::collections::HashMap::new();
+            let owners = plan
+                .local
+                .keys()
+                .map(|&position| {
+                    let path = linked
+                        .sites
+                        .get(&IVec3::from_array(position))
+                        .map_or("", |site| site.instance_path.as_str());
+                    let next = scope_ids.len();
+                    (position, *scope_ids.entry(path).or_insert(next))
+                })
+                .collect();
             let mut visited = BTreeSet::new();
             let mut original_sites = 0;
             for _ in 0..2 {
-                for index in 0..plan.surfaces.len() {
-                    let mut support = BTreeSet::new();
-                    for &id in plan.query_fragments(index) {
-                        visited.insert(id);
-                        let (representative, positions) = plan.query_fragment(id);
-                        assert_eq!(
-                            plan.surfaces[index].activation(),
-                            plan.surfaces[representative].activation()
-                        );
-                        let named = |query: usize| {
-                            matches!(
-                                plan.surfaces[query].kind,
-                                GuardedSurfaceKind::Readout { .. }
-                            )
-                        };
-                        assert_eq!(named(index), named(representative));
-                        for &position in positions.iter() {
-                            assert!(support.insert(position), "fragments overlap");
-                            for column in plan.local[&position]
-                                .iter()
-                                .flat_map(LocalTopology::columns)
-                            {
-                                for bit in [2 * column, 2 * column + 1] {
-                                    assert_eq!(
-                                        plan.surfaces[index].row.get(bit),
-                                        plan.surfaces[representative].row.get(bit),
-                                        "{gallery:?}: native coefficient {bit}"
-                                    );
-                                }
-                            }
-                        }
-                    }
-                    assert_eq!(support, plan.support_sites(index));
-                    original_sites += support.len();
-                }
+                let (used, sites) = assert_shared_fragments(&mut plan, &owners);
+                visited.extend(used);
+                original_sites += sites;
                 plan.collect_garbage(std::iter::empty());
             }
-            if gallery == GalleryItem::ThreeBitAdder {
+            if gallery == Some(GalleryItem::ThreeBitAdder) {
                 let shared_sites = visited
                     .into_iter()
                     .map(|id| plan.query_fragment(id).1.len())

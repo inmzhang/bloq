@@ -9,7 +9,7 @@ use quizx::params::{Parity, Var};
 use quizx::phase::Phase;
 use rustc_hash::FxHashMap;
 
-use crate::zx::{CoeffVec, solve_coeff_combination};
+use crate::zx::{CoeffFactorization, CoeffVec};
 use crate::{
     Action, ActionNode, NodeKind, OutputCorrectionError, Pauli, PauliBasis, RuntimeStabilizerBasis,
     ZXGraph,
@@ -33,7 +33,12 @@ pub(super) fn named_readouts(
     let zx = basis.zx_graph();
     let components = records
         .iter()
-        .map(|(name, key)| (name.as_str(), key_components(zx, key)))
+        .map(|(name, key)| {
+            (
+                name.as_str(),
+                key.components(zx).expect("record measurement site exists"),
+            )
+        })
         .collect::<Vec<_>>();
     let outputs = zx
         .nodes()
@@ -84,27 +89,6 @@ pub(super) fn named_readouts(
                 .map(|row| ((*name).to_owned(), zx.materialize_stabilizer(row)))
                 .ok_or_else(|| VerifyLogicalError::MeasurementPhaseUnavailable((*name).to_owned()))
         })
-        .collect()
-}
-
-/// Linear components whose OR is the support a key reads.
-fn key_components(zx: &ZXGraph, key: &MeasurementKey) -> Vec<(usize, Pauli)> {
-    let (column, pauli) = match *key {
-        MeasurementKey::Node { pos, pauli } => {
-            (zx.node_at(pos).expect("record node exists").id, pauli)
-        }
-        MeasurementKey::Edge { src, dst, pauli } => {
-            let src = zx.node_at(src).expect("record edge source exists").id;
-            let dst = zx.node_at(dst).expect("record edge target exists").id;
-            (
-                zx.edge_between(src, dst).expect("record edge exists").id,
-                pauli,
-            )
-        }
-    };
-    pauli
-        .iter_xz()
-        .flat_map(|axis| zx.readout_components(column, axis))
         .collect()
 }
 
@@ -274,6 +258,7 @@ impl InternalCorrection {
                 column
             })
             .collect::<Vec<_>>();
+        let factorization = CoeffFactorization::new(&columns);
         // A fill can move a later named readout onto different native records.
         // Reparameterize the whole affine fiber, rather than preserving an
         // obsolete pre-fill compensation or losing an anonymous direction.
@@ -294,7 +279,8 @@ impl InternalCorrection {
                     rhs.xor_assign(column);
                 }
             }
-            let adjustment = solve_coeff_combination(&columns, &rhs)
+            let adjustment = factorization
+                .solve(&rhs)
                 .ok_or_else(|| VerifyLogicalError::MeasurementPhaseUnavailable(name.clone()))?;
             for (index, parity) in phases.values_mut().enumerate() {
                 if adjustment.bit(index) {
@@ -308,7 +294,7 @@ impl InternalCorrection {
                 constant.xor_assign(column);
             }
         }
-        let adjustment = solve_coeff_combination(&columns, &constant).ok_or_else(|| {
+        let adjustment = factorization.solve(&constant).ok_or_else(|| {
             VerifyLogicalError::MeasurementPhaseUnavailable("affine readout offset".into())
         })?;
         for (index, parity) in phases.values_mut().enumerate() {
@@ -316,7 +302,7 @@ impl InternalCorrection {
                 *parity = parity.negated();
             }
         }
-        let directions = kernel_directions(&columns);
+        let directions = factorization.kernel_directions();
         if directions.len() > self.sampled.len() {
             return Err(VerifyLogicalError::MeasurementPhaseUnavailable(
                 "resolved anonymous coordinates".into(),
@@ -414,19 +400,18 @@ impl InternalCorrection {
             *graph.scalar_mut() = FScalar::zero();
             return Ok(());
         };
-        let (surfaces, correction) = solve_evolved_correction(basis, outputs, |surface| {
-            measured
-                .keys()
-                .any(|key| stabilizer_supports_measurement(surface, key))
-        })?;
-        let flips = surfaces
+        let keys = measured.keys().collect::<Vec<_>>();
+        let (supports, correction) = solve_evolved_correction(basis, outputs, &keys)?;
+        let changes = measured
             .iter()
-            .map(|surface| {
-                measured.iter().fold(false, |parity, (key, value)| {
-                    parity
-                        ^ ((*value ^ reference[key])
-                            && stabilizer_supports_measurement(surface, key))
-                })
+            .map(|(key, value)| *value ^ reference[key])
+            .collect::<Vec<_>>();
+        let flips = supports
+            .iter()
+            .map(|support| {
+                support
+                    .iter_ones()
+                    .fold(false, |parity, index| parity ^ changes[index])
             })
             .collect::<Vec<_>>();
         match correction.evaluate(&flips) {
@@ -465,7 +450,7 @@ impl InternalCorrection {
         // Each sampled variable includes its compensating native phases.
         // Solving individual phase coordinates would change the named branch.
         let columns = self.parity_columns(&surfaces, measurement_vars);
-        let solution = solve_coeff_combination(&columns, &rhs)?;
+        let solution = CoeffFactorization::new(&columns).solve(&rhs)?;
         Some(self.apply_coordinate(measurement_vars, reference, &solution))
     }
 
@@ -475,6 +460,9 @@ impl InternalCorrection {
         mut outcomes: BTreeMap<MeasurementKey, bool>,
         coordinate: &CoeffVec,
     ) -> BTreeMap<MeasurementKey, bool> {
+        if coordinate.is_zero() {
+            return outcomes;
+        }
         for (key, value) in &mut outcomes {
             let parity = &phases[key];
             for (index, (_, variable)) in self.sampled.iter().enumerate() {
@@ -483,25 +471,6 @@ impl InternalCorrection {
         }
         outcomes
     }
-}
-
-fn kernel_directions(columns: &[CoeffVec]) -> Vec<CoeffVec> {
-    let mut basis = Vec::<CoeffVec>::new();
-    let mut selected = Vec::new();
-    let mut kernel = Vec::new();
-    for (index, column) in columns.iter().enumerate() {
-        if let Some(combination) = solve_coeff_combination(&basis, column) {
-            let mut direction = CoeffVec::singleton(index, columns.len());
-            for bit in combination.iter_ones() {
-                direction.set_bit(selected[bit], true);
-            }
-            kernel.push(direction);
-        } else {
-            selected.push(index);
-            basis.push(column.clone());
-        }
-    }
-    kernel
 }
 
 fn feedback_sign(

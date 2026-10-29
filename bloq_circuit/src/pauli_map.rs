@@ -123,13 +123,7 @@ impl PauliMap {
     /// Exact power of `i` contributed by a product; the maps themselves remain phaseless.
     pub fn product_phase(&self, other: &Self) -> u8 {
         self.iter().fold(0, |phase, (coord, &left)| {
-            (phase
-                + match (left, other.get(coord).copied().unwrap_or(Pauli::I)) {
-                    (Pauli::X, Pauli::Y) | (Pauli::Y, Pauli::Z) | (Pauli::Z, Pauli::X) => 1,
-                    (Pauli::Y, Pauli::X) | (Pauli::Z, Pauli::Y) | (Pauli::X, Pauli::Z) => 3,
-                    _ => 0,
-                })
-                % 4
+            (phase + left.product_phase(other.get(coord).copied().unwrap_or(Pauli::I))) % 4
         })
     }
 

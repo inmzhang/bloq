@@ -69,7 +69,7 @@ impl PreparedModuleRelations {
         topology: crate::GuardedTopology,
         sites: &HashMap<IVec3, crate::MaterializedModuleSite>,
     ) -> Result<crate::GuardedSurfaceSpace, crate::BlockGraphError> {
-        crate::GuardedSurfaceSpace::with_relations(topology, sites, self.limits, self.relations())
+        crate::GuardedSurfaceSpace::build::<true>(topology, sites, self.limits, self.relations())
     }
 
     /// Checks that `graph`, an orientation of this definition, closes its
@@ -255,6 +255,7 @@ impl ModuleSummary {
                 self.limits.max_matrix_words,
             ));
         }
+        let mut replay = zx.flow_witness_replayer();
         self.certificate_rows
             .iter()
             .map(|row| {
@@ -273,14 +274,12 @@ impl ModuleSummary {
                         module: self.name.clone(),
                         source,
                     })?;
-                let witnessed =
-                    zx.materialize_flow_witness(&witness, &paulis)
-                        .ok_or_else(|| {
-                            invalid(
-                                &self.name,
-                                "composed certificate witness does not fit the linked graph",
-                            )
-                        })?;
+                let witnessed = replay(&witness, &paulis).ok_or_else(|| {
+                    invalid(
+                        &self.name,
+                        "composed certificate witness does not fit the linked graph",
+                    )
+                })?;
                 if witnessed.paulis != paulis {
                     return Err(invalid(
                         &self.name,
@@ -1240,68 +1239,82 @@ fn summarize_space_view(
         .map_err(|source| graph_error(source.into()))?
         .ok_or_else(|| invalid(&module.name, "presentation selects an unreachable branch"))?;
     let evaluate = |root| space.topology.diagram.evaluate(root, |index| values[index]);
-    let words = space
-        .rows
-        .iter()
-        .filter(|row| evaluate(row.active))
-        .count()
-        .checked_mul(zx.total_ids().div_ceil(512))
-        .and_then(|blocks| blocks.checked_mul(16));
-    if words.is_none_or(|words| words > limits.max_matrix_words) {
-        return Err(resource_limit(
-            &module.name,
-            "dense matrix words",
-            words.unwrap_or(usize::MAX),
-            limits.max_matrix_words,
-        ));
-    }
-    let rows = space.materialize_relation(&zx, evaluate);
-    let phases = zx.external_stabilizer_row_phases(&rows);
-    let rows = rows
-        .into_iter()
-        .zip(phases)
-        .map(|(row, phase)| PhasedPauliString::new(row, phase))
-        .collect();
     let columns = module
         .interface
         .quantum_ports
         .iter()
         .map(|port| zx.node_at(port.position).expect("validated module port").id)
         .collect::<Vec<_>>();
-    let table = zx
-        .projected_external_table_from_rows(
-            &columns,
-            rows,
-            ProjectionLimits {
-                max_frontier_width: limits.max_frontier_width,
-                max_witness_nodes: limits.max_witness_nodes,
-            },
+    let projection_limits = ProjectionLimits {
+        max_frontier_width: limits.max_frontier_width,
+        max_witness_nodes: limits.max_witness_nodes,
+    };
+    let mut certificate_rows = Vec::new();
+    let mut consume = |signed: PhasedPauliString, witness| {
+        let boundary = PhasedPauliString::new(
+            PauliString::from_terms(
+                columns.len(),
+                columns
+                    .iter()
+                    .enumerate()
+                    .map(|(target, &source)| (target, signed.paulis.get(source))),
+            ),
+            signed.phase(),
+        );
+        certificate_rows.push(SupportedRow {
+            signed: boundary,
+            support: PositionedSupport::from_paulis(signed.paulis, &zx),
+            witness,
+        });
+    };
+    let invalid_support = || {
+        invalid(
+            &module.name,
+            "composed relation has invalid local tensor support",
         )
-        .map_err(|error| projection_limit(&module.name, error))?
-        .ok_or_else(|| {
-            invalid(
-                &module.name,
-                "composed relation has invalid local tensor support",
-            )
-        })?;
-    let mut certificate_rows = table
-        .boundary_rows
-        .iter()
-        .map(|row| {
-            let full = table.materialize(row);
-            SupportedRow {
-                signed: row.signed.clone(),
-                support: PositionedSupport::from_paulis(full.paulis, &zx),
-                witness: row.flow_witness.clone(),
-            }
+    };
+    let boundary_len = if let Some(compact) =
+        space
+            .compact_relation(&zx, columns.len(), evaluate)
+            .map_err(|error| certification_error(&module.name, error))?
+    {
+        zx.certify_compact_relation(compact, &columns, projection_limits, |row| {
+            consume(row.signed, row.flow_witness);
         })
-        .collect::<Vec<_>>();
-    let boundary_len = certificate_rows.len();
-    certificate_rows.extend(table.closed_rows.iter().map(|row| SupportedRow {
-        signed: PhasedPauliString::new(PauliString::new(columns.len()), row.signed.phase()),
-        support: PositionedSupport::from_paulis(row.signed.paulis.clone(), &zx),
-        witness: row.flow_witness.clone(),
-    }));
+        .map_err(|error| projection_limit(&module.name, error))?
+        .ok_or_else(invalid_support)?
+    } else {
+        let words = space
+            .rows
+            .iter()
+            .filter(|row| evaluate(row.active))
+            .count()
+            .checked_mul(zx.total_ids().div_ceil(512))
+            .and_then(|blocks| blocks.checked_mul(16));
+        if words.is_none_or(|words| words > limits.max_matrix_words) {
+            return Err(resource_limit(
+                &module.name,
+                "dense matrix words",
+                words.unwrap_or(usize::MAX),
+                limits.max_matrix_words,
+            ));
+        }
+        let rows = space.materialize_relation(&zx, evaluate);
+        let phases = zx.external_stabilizer_row_phases(&rows);
+        let rows = rows
+            .into_iter()
+            .zip(phases)
+            .map(|(row, phase)| PhasedPauliString::new(row, phase))
+            .collect();
+        let table = zx
+            .projected_external_table_from_rows(&columns, rows, projection_limits)
+            .map_err(|error| projection_limit(&module.name, error))?
+            .ok_or_else(invalid_support)?;
+        for row in table.complete_rows() {
+            consume(row.signed, row.flow_witness);
+        }
+        table.boundary_rows.len()
+    };
     Ok(ModuleSummary {
         name: module.name.clone(),
         limits,
@@ -1833,7 +1846,7 @@ mod certificate_tests {
                     summary.name(),
                 )
                 .unwrap();
-                let witnessed = zx.materialize_flow_witness(&row.witness, &paulis).unwrap();
+                let witnessed = zx.flow_witness_replayer()(&row.witness, &paulis).unwrap();
                 assert_eq!(witnessed.phase(), row.signed.phase(), "{item:?} witness");
                 assert_eq!(
                     witnessed.phase(),

@@ -37,7 +37,6 @@ impl CoeffVec {
         value
     }
 
-    #[cfg(feature = "verify")]
     pub(crate) fn bit(&self, index: usize) -> bool {
         debug_assert!(index < self.len);
         let word = index / 64;
@@ -109,7 +108,7 @@ pub(crate) struct PauliSpan {
 }
 
 impl PauliSpan {
-    pub(super) fn new(width: usize) -> Self {
+    pub(crate) fn new(width: usize) -> Self {
         Self {
             basis: Vec::new(),
             pivots: Vec::new(),
@@ -117,7 +116,7 @@ impl PauliSpan {
         }
     }
 
-    pub(super) fn reduce(&self, value: &PauliString) -> PauliString {
+    pub(crate) fn reduce(&self, value: &PauliString) -> PauliString {
         debug_assert_eq!(value.len(), self.width);
         let mut reduced = value.clone();
         for (basis, &(col, axis)) in self.basis.iter().zip(&self.pivots) {
@@ -128,19 +127,14 @@ impl PauliSpan {
         reduced
     }
 
-    pub(super) fn insert_if_independent(&mut self, value: PauliString) -> bool {
+    pub(crate) fn insert_if_independent(&mut self, value: PauliString) -> bool {
         let reduced = self.reduce(&value);
-        let Some(pivot) = self.first_pivot(&reduced) else {
+        let Some(pivot) = first_pauli_pivot(&reduced) else {
             return false;
         };
         self.basis.push(reduced);
         self.pivots.push(pivot);
         true
-    }
-
-    fn first_pivot(&self, value: &PauliString) -> Option<(usize, Pauli)> {
-        debug_assert_eq!(value.len(), self.width);
-        first_pauli_pivot(value)
     }
 }
 
@@ -175,47 +169,73 @@ pub(crate) fn axis_pivot_constraints(cols: impl IntoIterator<Item = usize>) -> V
         .collect()
 }
 
-// Incremental forward elimination picks a deterministic witness when
-// `vectors` are linearly dependent; callers rely on that exact witness.
+/// Fixed columns reduced in source order, preserving the first-independent
+/// witness used by the one-shot solver.
 #[cfg(feature = "verify")]
-pub(crate) fn solve_coeff_combination(vectors: &[CoeffVec], target: &CoeffVec) -> Option<CoeffVec> {
-    let mut basis = Vec::new();
-    let mut witnesses = Vec::new();
-    let mut pivots = Vec::new();
+pub(crate) struct CoeffFactorization<'a> {
+    vectors: &'a [CoeffVec],
+    basis: Vec<CoeffVec>,
+    witnesses: Vec<CoeffVec>,
+    pivots: Vec<usize>,
+    dependent: Vec<usize>,
+}
 
-    for (index, vector) in vectors.iter().enumerate() {
-        let mut reduced = vector.clone();
-        let mut witness = CoeffVec::singleton(index, vectors.len());
-
-        for ((basis_vector, basis_witness), &pivot) in basis.iter().zip(&witnesses).zip(&pivots) {
-            if !reduced.bit(pivot) {
-                continue;
-            }
-
-            reduced.xor_assign(basis_vector);
-            witness.xor_assign(basis_witness);
-        }
-
-        let Some(pivot) = reduced.first_one() else {
-            continue;
+#[cfg(feature = "verify")]
+impl<'a> CoeffFactorization<'a> {
+    pub(crate) fn new(vectors: &'a [CoeffVec]) -> Self {
+        let mut factorization = Self {
+            vectors,
+            basis: Vec::new(),
+            witnesses: Vec::new(),
+            pivots: Vec::new(),
+            dependent: Vec::new(),
         };
-        basis.push(reduced);
-        witnesses.push(witness);
-        pivots.push(pivot);
-    }
-
-    let mut reduced_target = target.clone();
-    let mut witness = CoeffVec::zeros(vectors.len());
-    for ((basis_vector, basis_witness), &pivot) in basis.iter().zip(&witnesses).zip(&pivots) {
-        if !reduced_target.bit(pivot) {
-            continue;
+        for (index, vector) in vectors.iter().enumerate() {
+            let mut reduced = vector.clone();
+            let mut witness = CoeffVec::singleton(index, vectors.len());
+            factorization.reduce(&mut reduced, &mut witness);
+            if let Some(pivot) = reduced.first_one() {
+                factorization.basis.push(reduced);
+                factorization.witnesses.push(witness);
+                factorization.pivots.push(pivot);
+            } else {
+                factorization.dependent.push(index);
+            }
         }
-
-        reduced_target.xor_assign(basis_vector);
-        witness.xor_assign(basis_witness);
+        factorization
     }
 
-    reduced_target.is_zero().then_some(witness)
+    fn reduce(&self, value: &mut CoeffVec, witness: &mut CoeffVec) {
+        for ((basis, basis_witness), &pivot) in
+            self.basis.iter().zip(&self.witnesses).zip(&self.pivots)
+        {
+            if value.bit(pivot) {
+                value.xor_assign(basis);
+                witness.xor_assign(basis_witness);
+            }
+        }
+    }
+
+    pub(crate) fn solve(&self, target: &CoeffVec) -> Option<CoeffVec> {
+        let mut reduced = target.clone();
+        let mut witness = CoeffVec::zeros(self.vectors.len());
+        self.reduce(&mut reduced, &mut witness);
+        reduced.is_zero().then_some(witness)
+    }
+
+    pub(crate) fn kernel_directions(&self) -> Vec<CoeffVec> {
+        self.dependent
+            .iter()
+            .map(|&index| {
+                // Later independent columns cannot change a prefix's unique witness.
+                let mut direction = self
+                    .solve(&self.vectors[index])
+                    .expect("a dependent column is in the factorized span");
+                direction.set_bit(index, true);
+                direction
+            })
+            .collect()
+    }
 }
 
 /// Column-pivot GF(2) elimination over `rows`. Pass a `combinations` slice the
@@ -327,5 +347,77 @@ mod tests {
 
         assert_eq!(coeff.iter_ones().collect::<Vec<_>>(), vec![1, 65, 129]);
         assert_eq!(coeff.to_indices(), vec![1, 65, 129]);
+    }
+
+    #[cfg(feature = "verify")]
+    mod factorization {
+        use super::super::CoeffFactorization;
+        use super::CoeffVec;
+
+        // Source-ordered elimination selects the smallest input mask: replacing
+        // any dependent column uses only earlier columns and lowers that mask.
+        fn exhaustive_solution(columns: &[CoeffVec], target: &CoeffVec) -> Option<CoeffVec> {
+            (0usize..1 << columns.len()).find_map(|mask| {
+                let mut sum = CoeffVec::zeros(target.len);
+                let selected = (0..columns.len()).filter(|index| mask & (1 << index) != 0);
+                for index in selected.clone() {
+                    sum.xor_assign(&columns[index]);
+                }
+                (sum == *target).then(|| coeff(selected, columns.len()))
+            })
+        }
+
+        fn exhaustive_kernel(columns: &[CoeffVec]) -> Vec<CoeffVec> {
+            columns
+                .iter()
+                .enumerate()
+                .filter_map(|(index, column)| {
+                    let witness = exhaustive_solution(&columns[..index], column)?;
+                    Some(coeff(witness.iter_ones().chain([index]), columns.len()))
+                })
+                .collect()
+        }
+
+        fn coeff(indices: impl IntoIterator<Item = usize>, len: usize) -> CoeffVec {
+            let mut value = CoeffVec::zeros(len);
+            for index in indices {
+                value.set_bit(index, true);
+            }
+            value
+        }
+
+        #[test]
+        fn exact_solutions_and_ordered_kernels_match_exhaustive_small_matrices() {
+            for width in 0..=3 {
+                for count in 0..=4 {
+                    for matrix in 0_usize..(1 << (width * count)) {
+                        let columns = (0..count)
+                            .map(|col| {
+                                coeff(
+                                    (0..width)
+                                        .filter(|row| matrix & (1 << (col * width + row)) != 0),
+                                    width,
+                                )
+                            })
+                            .collect::<Vec<_>>();
+                        let factorization = CoeffFactorization::new(&columns);
+                        assert_eq!(
+                            factorization.kernel_directions(),
+                            exhaustive_kernel(&columns)
+                        );
+                        for mask in 0_usize..(1 << width) {
+                            let target =
+                                coeff((0..width).filter(|row| mask & (1 << row) != 0), width);
+                            let expected = exhaustive_solution(&columns, &target);
+                            assert_eq!(
+                                factorization.solve(&target),
+                                expected,
+                                "width={width}, columns={count}, matrix={matrix}, target={mask}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 }

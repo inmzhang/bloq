@@ -2,10 +2,10 @@
 
 use super::ZXLayerView;
 use super::modular::StabilizerPhaseBasis;
-use super::stabilizer::{SearchBudget, Stabilizer, StabilizerError, contracted_sign};
+use super::stabilizer::{Stabilizer, contracted_sign};
 use crate::{
     Action, ActionDag, BlockGraphError, CubeKind, FeedbackTarget, MeasureTarget,
-    MeasurementObservable, ModuleCertificationLimits, SelectiveKind,
+    MeasurementObservable, SelectiveKind,
 };
 use bloq_utils::{Pauli, PauliBasis, PauliString};
 use glam::IVec3;
@@ -274,16 +274,21 @@ pub(super) struct CsrAdjacency {
     offsets: Vec<usize>,
     neighbors: Vec<usize>,
     edge_ids: Vec<usize>,
-    has_parallel_edges: bool,
 }
 
 impl CsrAdjacency {
     pub(super) fn from_edges(node_count: usize, edges: &[(usize, usize, usize)]) -> Self {
+        debug_assert!(
+            {
+                let mut pairs = edges.iter().map(|&(s, t, _)| (s, t)).collect::<Vec<_>>();
+                pairs.sort_unstable();
+                pairs.windows(2).all(|pair| pair[0] != pair[1])
+            },
+            "a ZX graph has at most one directed edge per node pair"
+        );
         let mut offsets = vec![0; node_count + 1];
-        let mut last_edge_ids = FxHashMap::default();
-        for &(source, target, edge_id) in edges {
+        for &(source, _, _) in edges {
             offsets[source + 1] += 1;
-            last_edge_ids.insert((source, target), edge_id);
         }
         for node in 0..node_count {
             offsets[node + 1] += offsets[node];
@@ -292,24 +297,17 @@ impl CsrAdjacency {
         let mut neighbors = vec![0; edges.len()];
         let mut edge_ids = vec![0; edges.len()];
         let mut next = offsets[..node_count].to_vec();
-        for &(source, target, _) in edges {
+        for &(source, target, edge_id) in edges {
             let index = next[source];
             neighbors[index] = target;
-            // Preserve the retired `nn2e` map's parallel-edge contract: every
-            // duplicate neighbor entry resolves to the last edge for that pair.
-            edge_ids[index] = last_edge_ids[&(source, target)];
+            edge_ids[index] = edge_id;
             next[source] += 1;
         }
         Self {
             offsets,
             neighbors,
             edge_ids,
-            has_parallel_edges: edges.len() != last_edge_ids.len(),
         }
-    }
-
-    pub(super) fn has_parallel_edges(&self) -> bool {
-        self.has_parallel_edges
     }
 
     fn range(&self, node: usize) -> Option<Range<usize>> {
@@ -356,7 +354,7 @@ pub struct ZXGraph {
     pub(crate) action_graph: ActionDag,
     pub(crate) total_ids: usize,
     pub(crate) cross_incident: OnceLock<Arc<[CrossIncident]>>,
-    /// Composed sign reference or parallel-edge fallback, shared through X/Z fills.
+    /// Composed sign reference, shared through X/Z fills.
     pub(crate) stabilizer_phase_basis: OnceLock<Arc<StabilizerPhaseBasis>>,
 }
 
@@ -849,8 +847,8 @@ impl ZXGraph {
             .collect()
     }
 
-    pub(crate) fn reconstruct_cross_center(&self, table: &mut [PauliString]) {
-        let incident = self.cross_incident.get_or_init(|| {
+    fn cross_incidence(&self) -> &[CrossIncident] {
+        self.cross_incident.get_or_init(|| {
             self.nodes
                 .iter()
                 .map(|node| {
@@ -863,11 +861,36 @@ impl ZXGraph {
                 })
                 .collect::<Vec<_>>()
                 .into()
-        });
+        })
+    }
+
+    // A zero center with zero owned arms contributes no local tensor phase.
+    // The same superset stays valid after crossing centers are reconstructed.
+    pub(super) fn phase_node_candidates(&self, row: &PauliString) -> Option<SmallVec<[usize; 32]>> {
+        // Keep width failures and dense rows on the existing full scan.
+        if row.len() != self.total_ids || row.weight() > self.total_ids / 2 {
+            return None;
+        }
+        let mut nodes = row
+            .iter_support()
+            .map(|(column, _)| {
+                if column < self.nodes.len() {
+                    column
+                } else {
+                    self.edges[column - self.nodes.len()].n1
+                }
+            })
+            .collect::<SmallVec<[usize; 32]>>();
+        nodes.sort_unstable();
+        nodes.dedup();
+        (nodes.len() <= self.nodes.len() / 2).then_some(nodes)
+    }
+
+    pub(crate) fn reconstruct_cross_center(&self, table: &mut [PauliString]) {
+        let incident = self.cross_incidence();
         let mut candidates = SmallVec::<[usize; 32]>::new();
         for row in table {
-            // ponytail: retain the dense walk above this conservative density;
-            // tune only if paired profiles show sparse gathering wins there too.
+            // Dense rows avoid gathering and sorting their supported node ids.
             if row.weight() < self.nodes.len() / 4 {
                 candidates.clear();
                 candidates.extend(row.iter_support().map(|(col, _)| {
@@ -898,8 +921,7 @@ impl ZXGraph {
                 NodeKind::X | NodeKind::Z => node.kind.cross_pauli(),
                 NodeKind::Y | NodeKind::Port | NodeKind::T | NodeKind::Selective(_) => continue,
             };
-            // Edge Paulis use the smaller endpoint's frame. Retain the cached
-            // incidence lookup, including its last-edge rule for parallel edges.
+            // Edge Paulis use the smaller endpoint's frame.
             let crosses = incident[node.id].iter().any(|&(edge_col, flip)| {
                 row.get(edge_col)
                     & if flip {
@@ -920,19 +942,49 @@ impl ZXGraph {
         }
     }
 
-    /// Materializes a Pauli row into graph-position support for rendering and
-    /// lowering. Row role and measurement identity live on
-    /// [`StabilizerGenerator`](super::StabilizerGenerator), not this algebraic
-    /// support value.
-    pub(crate) fn pauli_string_to_stabilizer(&self, ps: PauliString) -> Stabilizer {
-        let row_phase = self.stabilizer_row_phases(std::slice::from_ref(&ps))[0];
-        self.pauli_string_to_stabilizer_with_row_phase(ps, row_phase)
+    /// Materializes graph-position support, reconstructing crossing centers and the sign.
+    /// Row roles and measurement identity remain on
+    /// [`StabilizerGenerator`](super::StabilizerGenerator).
+    pub fn materialize_stabilizer(&self, ps: PauliString) -> Stabilizer {
+        let candidates = if self.stabilizer_phase_basis.get().is_none() {
+            self.phase_node_candidates(&ps)
+        } else {
+            None
+        };
+        // Reconstruction changes only cross components, which phases ignore.
+        let row_phase = self.materialized_row_phase(&ps, candidates.as_deref());
+        self.reconstruct_with_phase(ps, candidates.as_deref(), row_phase)
     }
 
-    /// Rebuild cross centers before materializing a dense row.
-    pub fn materialize_stabilizer(&self, mut ps: PauliString) -> Stabilizer {
-        self.reconstruct_cross_center(std::slice::from_mut(&mut ps));
-        self.pauli_string_to_stabilizer(ps)
+    /// Materializes a row that must belong to the local relation, checking
+    /// membership with the same candidate scan that derives its sign.
+    pub(crate) fn materialize_member_stabilizer(&self, ps: PauliString) -> Option<Stabilizer> {
+        if self.stabilizer_phase_basis.get().is_some() {
+            return self
+                .contains_stabilizer_support(&ps)
+                .then(|| self.materialize_stabilizer(ps));
+        }
+        let candidates = self.phase_node_candidates(&ps);
+        let row_phase = self.local_row_phase_at(&ps, true, candidates.as_deref())?;
+        Some(self.reconstruct_with_phase(ps, candidates.as_deref(), row_phase))
+    }
+
+    fn reconstruct_with_phase(
+        &self,
+        mut ps: PauliString,
+        candidates: Option<&[usize]>,
+        row_phase: u8,
+    ) -> Stabilizer {
+        if let Some(nodes) = candidates {
+            self.reconstruct_cross_centers_at(
+                &mut ps,
+                self.cross_incidence(),
+                nodes.iter().copied(),
+            );
+        } else {
+            self.reconstruct_cross_center(std::slice::from_mut(&mut ps));
+        }
+        self.pauli_string_to_stabilizer_with_row_phase(ps, row_phase)
     }
 
     /// Rebuild cross centers while preserving an already-derived sign.
@@ -1040,36 +1092,6 @@ impl ZXGraph {
     pub fn is_open(&self) -> bool {
         self.nodes.iter().any(|node| node.kind.is_port())
     }
-
-    pub(crate) fn check_external_table_limits(
-        &self,
-        limits: ModuleCertificationLimits,
-    ) -> Result<(), StabilizerError> {
-        SearchBudget::with_limits(limits).check_matrix(
-            // A phase query retains its input and scratch rows alongside the
-            // external phase basis; each rank is bounded by the source rows.
-            self.external_source_row_count().saturating_mul(3),
-            self.total_ids,
-            0,
-            0,
-        )
-    }
-
-    fn external_source_row_count(&self) -> usize {
-        self.nodes
-            .iter()
-            .map(|node| {
-                let degree = self.neighbor_ids(node.id).len();
-                match node.kind {
-                    NodeKind::X | NodeKind::Z => degree.max(1),
-                    NodeKind::Y => usize::from(degree != 0),
-                    NodeKind::Port | NodeKind::T | NodeKind::Selective(_) => {
-                        2 * usize::from(degree != 0)
-                    }
-                }
-            })
-            .fold(0, usize::saturating_add)
-    }
 }
 
 pub(super) fn pauli_at_small_node(edge: &ZXEdge, current_id: usize, current_pauli: Pauli) -> Pauli {
@@ -1138,74 +1160,6 @@ mod tests {
     use crate::{Action, ActionDag, Direction, GalleryItem, MeasureTarget, MeasurementObservable};
 
     use super::{CsrAdjacency, NodeKind, ZXEdge, ZXError, ZXGraph, ZXNode};
-
-    #[test]
-    fn csr_preserves_last_edge_lookup_for_parallel_neighbors() {
-        let adjacency = CsrAdjacency::from_edges(2, &[(0, 1, 2), (1, 0, 3), (0, 1, 4), (1, 0, 5)]);
-
-        assert!(adjacency.has_parallel_edges());
-        assert_eq!(adjacency.edge_id(0, 1), Some(4));
-        assert_eq!(
-            adjacency
-                .neighbor_edges(0)
-                .expect("node exists")
-                .collect::<Vec<_>>(),
-            vec![(1, 4), (1, 4)]
-        );
-    }
-
-    #[test]
-    fn local_phase_queries_preserve_parallel_edge_reduction() {
-        for hadamard in [false, true] {
-            let mut zx =
-                manual_two_node_edge_graph(MeasurementObservable::Concrete(crate::PauliBasis::Z));
-            for node in &mut zx.nodes {
-                node.kind = NodeKind::Port;
-            }
-            for mut edge in [zx.edges[0], zx.edges[1]] {
-                edge.id = zx.total_ids;
-                zx.total_ids += 1;
-                zx.edges.push(edge);
-            }
-            for edge in &mut zx.edges {
-                edge.hadamard = hadamard;
-            }
-            zx.adjacency = CsrAdjacency::from_edges(
-                zx.nodes.len(),
-                &zx.edges
-                    .iter()
-                    .map(|edge| (edge.n1, edge.n2, edge.id))
-                    .collect::<Vec<_>>(),
-            );
-            let signed = zx.to_signed_external_generator_table();
-            let reference = zx.clone();
-            reference
-                .stabilizer_phase_basis
-                .set(std::sync::Arc::new(super::StabilizerPhaseBasis::new(
-                    signed.clone(),
-                )))
-                .unwrap();
-            for bits in 0..4096 {
-                let row = PauliString::from_terms(
-                    zx.total_ids,
-                    (0..zx.total_ids).map(|column| {
-                        (
-                            column,
-                            [Pauli::I, Pauli::X, Pauli::Z, Pauli::Y][(bits >> (2 * column)) & 3],
-                        )
-                    }),
-                );
-                let rows = std::slice::from_ref(&row);
-                let expected = zx.row_phases_against(rows, &signed);
-                assert_eq!(zx.external_stabilizer_row_phases(rows), expected);
-                assert_eq!(zx.stabilizer_row_phases(rows), expected);
-                assert_eq!(
-                    zx.contains_stabilizer_support(&row),
-                    reference.contains_stabilizer_support(&row)
-                );
-            }
-        }
-    }
 
     #[test]
     fn local_phase_queries_reject_support_outside_the_graph() {
@@ -1302,68 +1256,6 @@ mod tests {
         filled.reconstruct_cross_center(std::slice::from_mut(&mut row));
 
         assert!(row.get(0) & Pauli::X);
-    }
-
-    #[test]
-    fn sparse_edge_pair_checks_match_dense_reference_with_parallel_edges() {
-        let mut zx = ZXGraph::try_from(
-            &GalleryItem::CCZFactoryWithTels
-                .build()
-                .materialize_root_graph()
-                .expect("gallery flat projection"),
-        )
-        .unwrap();
-        // Parallel endpoint lookups intentionally select the last edge pair.
-        for mut edge in [zx.edges[0], zx.edges[1]] {
-            edge.id = zx.total_ids;
-            zx.total_ids += 1;
-            zx.edges.push(edge);
-        }
-        zx.adjacency = CsrAdjacency::from_edges(
-            zx.nodes.len(),
-            &zx.edges
-                .iter()
-                .map(|e| (e.n1, e.n2, e.id))
-                .collect::<Vec<_>>(),
-        );
-        let dense_reference = |row: &PauliString| {
-            zx.edges.iter().filter(|e| e.n1 < e.n2).all(|edge| {
-                let (left, right) = zx.edge_column_pair(edge);
-                row.get(left) == row.get(right)
-            })
-        };
-        let columns = [
-            zx.edges[0].id,
-            zx.edges[1].id,
-            zx.edges[2].id,
-            zx.edges[3].id,
-            zx.total_ids - 2,
-            zx.total_ids - 1,
-        ];
-        assert!(zx.edges.len() / 4 > columns.len() + 1);
-        assert!(zx.total_ids > 64);
-        for bits in 0..4096 {
-            let mut row = PauliString::new(zx.total_ids);
-            row.set(0, Pauli::Y); // Node support does not constrain edge pairs.
-            for (shift, col) in columns.into_iter().enumerate() {
-                row.set(
-                    col,
-                    [Pauli::I, Pauli::X, Pauli::Y, Pauli::Z][(bits >> (2 * shift)) & 3],
-                );
-            }
-            assert_eq!(
-                zx.row_has_external_edge_pair_support(&row),
-                dense_reference(&row),
-                "{bits}"
-            );
-        }
-        for pauli in [Pauli::X, Pauli::Y, Pauli::Z] {
-            let mut row =
-                PauliString::from_terms(zx.total_ids, (0..zx.total_ids).map(|col| (col, pauli)));
-            assert!(zx.row_has_external_edge_pair_support(&row));
-            row.set(zx.total_ids - 1, Pauli::I);
-            assert!(!zx.row_has_external_edge_pair_support(&row));
-        }
     }
 
     #[test]

@@ -236,10 +236,18 @@ fn visit_image_state(visited: &mut usize, limit: usize) -> Result<(), BlockGraph
 fn boolean_image_component(
     source: &BooleanDecisionDiagram,
     output: &mut BooleanDecisionDiagram,
-    roots: Vec<(usize, DecisionId)>,
+    mut roots: Vec<(usize, DecisionId)>,
     visited: &mut usize,
     limit: usize,
 ) -> Result<DecisionId, BlockGraphError> {
+    output.charge(
+        roots
+            .len()
+            .saturating_mul(roots.len().max(1).ilog2() as usize + 2),
+    )?;
+    // Descending output slots let fixed literals prepend an ordered cube.
+    roots.sort_unstable_by_key(|&(index, _)| std::cmp::Reverse(index));
+    let distinct_outputs = roots.windows(2).all(|pair| pair[0].0 != pair[1].0);
     enum Step {
         Visit(Vec<(usize, DecisionId)>),
         Join {
@@ -267,12 +275,23 @@ fn boolean_image_component(
         let mut remaining = Vec::new();
         for (index, root) in roots {
             if root.0 < 2 {
-                let value = if root == DECISION_TRUE {
-                    output.make_node(index, DECISION_FALSE, DECISION_TRUE)?
+                // Topology assigns distinct slots; duplicate-slot helper inputs
+                // retain the exact conjunction, including contradictory literals.
+                let tail = if distinct_outputs {
+                    fixed
                 } else {
-                    output.make_node(index, DECISION_TRUE, DECISION_FALSE)?
+                    DECISION_TRUE
                 };
-                fixed = output.apply(BooleanOp::And, fixed, value)?;
+                let value = if root == DECISION_TRUE {
+                    output.make_node(index, DECISION_FALSE, tail)?
+                } else {
+                    output.make_node(index, tail, DECISION_FALSE)?
+                };
+                fixed = if distinct_outputs {
+                    value
+                } else {
+                    output.apply(BooleanOp::And, fixed, value)?
+                };
             } else {
                 remaining.push((index, root));
             }
@@ -1018,9 +1037,12 @@ impl GuardedTopology {
         // Global planning needs this one reference anyway. Unchanged local
         // contexts borrow it instead of retaining another copy of every halo.
         let reference = self.project(DECISION_TRUE)?;
+        // The domain and decision IDs stay fixed until every site is populated.
+        // An unrestricted domain already makes constrain a constant-time return.
+        let mut constrained = (self.domain != DECISION_TRUE).then(HashMap::new);
         for &position in geometry.blocks_at.keys() {
             let pos = IVec3::from_array(position);
-            let variants = self.site_variants(&geometry, pos, &reference)?;
+            let variants = self.site_variants(&geometry, pos, &reference, constrained.as_mut())?;
             self.sites.insert(position, variants);
         }
         self.deferred_sites = false;
@@ -1032,9 +1054,10 @@ impl GuardedTopology {
         geometry: &AuthoredGeometry,
         position: IVec3,
         reference: &Arc<BlockGraph>,
+        constrained: Option<&mut HashMap<DecisionId, DecisionId>>,
     ) -> Result<Vec<GuardedProjection>, BlockGraphError> {
         let roots = geometry.roots(position);
-        let cases = self.cases(&roots, DECISION_TRUE)?;
+        let cases = self.cases_with_constrain_cache(&roots, DECISION_TRUE, constrained)?;
         let mut variants = Vec::new();
         for (values, guard) in cases {
             let choices = roots.iter().copied().zip(values).collect::<LocalChoices>();
@@ -1081,6 +1104,16 @@ impl GuardedTopology {
         roots: &[DecisionId],
         enabled: DecisionId,
     ) -> Result<Vec<(Vec<bool>, DecisionId)>, BlockGraphError> {
+        self.cases_with_constrain_cache(roots, enabled, None)
+    }
+
+    // Only site population shares this memo, with a fixed domain and no collection.
+    fn cases_with_constrain_cache(
+        &mut self,
+        roots: &[DecisionId],
+        enabled: DecisionId,
+        mut constrained: Option<&mut HashMap<DecisionId, DecisionId>>,
+    ) -> Result<Vec<(Vec<bool>, DecisionId)>, BlockGraphError> {
         let limit = self.limits.max_guarded_domain_size;
         self.diagram.charge(roots.len().saturating_add(1))?;
         let enabled = self.diagram.apply(BooleanOp::And, enabled, self.domain)?;
@@ -1125,7 +1158,17 @@ impl GuardedTopology {
         }
         for (_, guard) in &mut cases {
             self.diagram.charge(1)?;
-            *guard = self.diagram.constrain(*guard, self.domain)?;
+            *guard = if let Some(cache) = constrained.as_deref_mut() {
+                if let Some(&value) = cache.get(guard) {
+                    value
+                } else {
+                    let value = self.diagram.constrain(*guard, self.domain)?;
+                    cache.insert(*guard, value);
+                    value
+                }
+            } else {
+                self.diagram.constrain(*guard, self.domain)?
+            };
         }
         if cases.len() > limit {
             return Err(StabilizerError::ResourceLimited {
@@ -1684,6 +1727,78 @@ module main {{
                     && selected(0) != selected(1)
                     && selected(2) != selected(3)
             );
+        }
+    }
+
+    #[test]
+    fn selector_image_preserves_duplicate_slots_and_repeated_source_roots() {
+        let mut source = BooleanDecisionDiagram::default();
+        let a = source.make_node(0, DECISION_FALSE, DECISION_TRUE).unwrap();
+        let b = source.make_node(1, DECISION_FALSE, DECISION_TRUE).unwrap();
+        let not_a = source.negate(a).unwrap();
+        let parity = source.apply(BooleanOp::Xor, a, b).unwrap();
+        const OUTPUTS: [usize; 6] = [1, 2, 4, 7, 10, 13];
+
+        for (label, duplicate, expected_count) in [
+            ("conditionally consistent", b, 2),
+            ("always contradictory", not_a, 0),
+        ] {
+            // Shuffled output slots; slot 7 occurs twice and source a is reused.
+            let roots = vec![
+                (7, a),
+                (1, parity),
+                (7, duplicate),
+                (10, not_a),
+                (4, DECISION_TRUE),
+                (13, DECISION_FALSE),
+                (2, a),
+            ];
+            let mut output = BooleanDecisionDiagram::default();
+            let image = boolean_image(&source, &mut output, roots.clone(), 100).unwrap();
+            let mut reachable = 0;
+            for assignment in 0..(1usize << OUTPUTS.len()) {
+                let selected = |index| {
+                    let slot = OUTPUTS.binary_search(&index).expect("declared output slot");
+                    assignment & (1 << slot) != 0
+                };
+                // Independent existential specification: enumerate source assignments,
+                // then require every authored output equation simultaneously.
+                let expected = (0..4usize).any(|source_assignment| {
+                    roots.iter().all(|&(index, root)| {
+                        selected(index)
+                            == source
+                                .evaluate(root, |variable| source_assignment & (1 << variable) != 0)
+                    })
+                });
+                reachable += usize::from(expected);
+                assert_eq!(
+                    output.evaluate(image, selected),
+                    expected,
+                    "{label}: output assignment {assignment:06b}",
+                );
+            }
+            assert_eq!(reachable, expected_count, "{label}");
+        }
+    }
+
+    // Resource regression: the relation has only two reachable output vectors.
+    // The node cap rejects quadratic temporary cubes without asserting arena layout.
+    #[test]
+    fn repeated_selector_image_fits_a_linear_node_budget() {
+        const COPIES: usize = 256;
+        let mut source = BooleanDecisionDiagram::default();
+        let selector = source.make_node(0, DECISION_FALSE, DECISION_TRUE).unwrap();
+        let mut output = BooleanDecisionDiagram::with_limits(bloq_utils::boolean::BooleanLimits {
+            max_nodes: 3 * COPIES,
+            max_steps: 32 * COPIES,
+        });
+        let roots = (0..COPIES).map(|index| (index, selector)).collect();
+        let image = boolean_image(&source, &mut output, roots, 1).unwrap();
+        assert!(output.evaluate(image, |_| false));
+        assert!(output.evaluate(image, |_| true));
+        for changed in [0, COPIES / 2, COPIES - 1] {
+            assert!(!output.evaluate(image, |index| index == changed));
+            assert!(!output.evaluate(image, |index| index != changed));
         }
     }
 

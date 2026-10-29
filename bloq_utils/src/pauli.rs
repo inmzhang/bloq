@@ -144,12 +144,24 @@ impl From<PauliBasis> for Pauli {
 }
 
 impl Pauli {
-    const fn from_xz(x: bool, z: bool) -> Self {
+    /// Builds the Pauli with the given X and Z components.
+    #[must_use]
+    pub const fn from_xz(x: bool, z: bool) -> Self {
         match (x, z) {
             (false, false) => Self::I,
             (true, false) => Self::X,
             (false, true) => Self::Z,
             (true, true) => Self::Y,
+        }
+    }
+
+    /// Power of `i` in the single-site product `self · other`.
+    #[must_use]
+    pub const fn product_phase(self, other: Self) -> u8 {
+        match (self, other) {
+            (Self::X, Self::Y) | (Self::Y, Self::Z) | (Self::Z, Self::X) => 1,
+            (Self::Y, Self::X) | (Self::Z, Self::Y) | (Self::X, Self::Z) => 3,
+            _ => 0,
         }
     }
 

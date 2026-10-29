@@ -11,22 +11,29 @@ use bloq_utils::boolean::{
 
 use crate::{BlockGraphError, ModuleCertificationLimits, StabilizerError};
 
-type Terms = Vec<(usize, DecisionId)>;
+pub(crate) type Terms = Vec<(usize, DecisionId)>;
 pub(crate) type Seam = (usize, usize, DecisionId);
 
+/// Algebraic aliases apply to this completed relation, never its incoming generators.
+pub(crate) struct RelationRows {
+    pub(crate) rows: Vec<BooleanRow>,
+    pub(crate) aliases: Vec<(usize, Option<usize>)>,
+}
+
 /// Column and Boolean-variable names are local to this exact reduction recipe.
-/// Full rows retain interior support; external half-edges are never projected out.
+/// Original interior and exterior queries remain in the caller's alias ledger.
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct RelationKey {
     nodes: Vec<DecisionNode>,
     rows: Vec<(DecisionId, Terms)>,
-    seams: Vec<Seam>,
+    equations: Vec<Terms>,
 }
 
 #[derive(Debug)]
 struct ReducedRelation {
     nodes: Vec<DecisionNode>,
     rows: Vec<BooleanRow>,
+    aliases: Vec<(usize, Option<usize>)>,
 }
 
 type ReductionSlot = Arc<Mutex<Option<Arc<ReducedRelation>>>>;
@@ -73,35 +80,37 @@ impl ModuleRelations {
         Ok(reduced)
     }
 
-    pub(crate) fn reduce(
+    pub(crate) fn reduce_compact(
         &self,
         rows: Vec<BooleanRow>,
-        seams: Vec<Seam>,
+        equations: Vec<Terms>,
         column_rank: &[usize],
         diagram: &mut BooleanDecisionDiagram,
         limits: ModuleCertificationLimits,
-    ) -> Result<Vec<BooleanRow>, BlockGraphError> {
-        if seams.is_empty() {
-            return close_seams(rows, &seams, diagram, limits);
+    ) -> Result<RelationRows, BlockGraphError> {
+        if equations.is_empty() {
+            return close_relation(rows, &equations, diagram, limits);
         }
         let terms = rows
             .iter()
             .map(|row| row.terms().len().saturating_add(1))
             .fold(0usize, usize::saturating_add)
-            .saturating_add(seams.len().saturating_mul(3));
+            .saturating_add(equations.iter().map(Vec::len).sum::<usize>());
         diagram.charge(
             terms
                 .saturating_mul(terms.max(1).ilog2() as usize + 1)
                 .saturating_mul(3),
         )?;
+        // Omitted original slots stay caller-owned; absence from this scope's
+        // algebra makes no zero claim about another scope.
         let used = rows
             .iter()
             .flat_map(BooleanRow::terms)
-            .map(|&(column, _)| column / 2)
-            .chain(seams.iter().flat_map(|&(left, right, _)| [left, right]))
+            .chain(equations.iter().flatten())
+            .map(|&(column, _)| column)
             .collect::<HashSet<_>>();
         let mut columns = used.into_iter().collect::<Vec<_>>();
-        columns.sort_unstable_by_key(|&column| column_rank[column]);
+        columns.sort_unstable_by_key(|&column| (column_rank[column / 2], column % 2));
         let column_map = columns
             .iter()
             .enumerate()
@@ -112,7 +121,7 @@ impl ModuleRelations {
             .flat_map(|row| {
                 std::iter::once(row.active).chain(row.terms().iter().map(|&(_, root)| root))
             })
-            .chain(seams.iter().map(|&(_, _, root)| root))
+            .chain(equations.iter().flatten().map(|&(_, root)| root))
             .collect::<Vec<_>>();
         diagram.charge(roots.len().saturating_add(columns.len()))?;
         let mut imported = HashMap::from_iter([(ZERO, ZERO), (ONE, ONE)]);
@@ -165,9 +174,7 @@ impl ModuleRelations {
         let normalize = |terms: &[(usize, DecisionId)]| {
             let mut result = terms
                 .iter()
-                .map(|&(column, value)| {
-                    (2 * column_map[&(column / 2)] + column % 2, imported[&value])
-                })
+                .map(|&(column, value)| (column_map[&column], imported[&value]))
                 .collect::<Terms>();
             result.sort_unstable_by_key(|&(column, _)| column);
             result
@@ -178,16 +185,11 @@ impl ModuleRelations {
                 .iter()
                 .map(|row| (imported[&row.active], normalize(row.terms())))
                 .collect(),
-            // Seam and axis order retain the source pivot convention.
-            seams: seams
-                .iter()
-                .map(|&(left, right, value)| {
-                    (column_map[&left], column_map[&right], imported[&value])
-                })
-                .collect(),
+            // Equation order and repeated query terms retain source pivots and aliases.
+            equations: equations.iter().map(|terms| normalize(terms)).collect(),
         };
-        let equations = seams.len().saturating_mul(2);
-        let reduced = self.cached_reduction(key, equations, |key| {
+        let count = equations.len();
+        let reduced = self.cached_reduction(key, count, |key| {
             let mut local_limits = limits.boolean_limits();
             local_limits.max_nodes = local_limits.max_nodes.min(diagram.limits().max_nodes);
             local_limits.max_steps = local_limits.max_steps.min(diagram.limits().max_steps);
@@ -207,12 +209,12 @@ impl ModuleRelations {
                         .saturating_add(1),
                 )
             }))?;
-            let mut rows = close_seams(
+            let RelationRows { mut rows, aliases } = close_relation(
                 key.rows
                     .iter()
                     .map(|(active, terms)| BooleanRow::from_terms(*active, terms.clone()))
                     .collect(),
-                &key.seams,
+                &key.equations,
                 &mut local,
                 limits,
             )?;
@@ -228,6 +230,7 @@ impl ModuleRelations {
             Ok(ReducedRelation {
                 nodes: local.nodes().to_vec(),
                 rows,
+                aliases,
             })
         })?;
         let mut decisions = vec![ZERO, ONE];
@@ -241,6 +244,18 @@ impl ModuleRelations {
                 decisions[node.high.0],
             )?);
         }
+        diagram.charge(reduced.aliases.len().saturating_mul(3))?;
+        let mut representatives = vec![usize::MAX; columns.len()];
+        for &(column, alias) in &reduced.aliases {
+            if let Some(alias) = alias {
+                representatives[alias] = representatives[alias].min(columns[column]);
+            }
+        }
+        let aliases = reduced
+            .aliases
+            .iter()
+            .map(|&(column, alias)| (columns[column], alias.map(|alias| representatives[alias])))
+            .collect();
         let mut result = Vec::with_capacity(reduced.rows.len());
         for row in &reduced.rows {
             let count = row.terms().len();
@@ -252,56 +267,288 @@ impl ModuleRelations {
             let mut terms = row
                 .terms()
                 .iter()
-                .map(|&(column, root)| (2 * columns[column / 2] + column % 2, decisions[root.0]))
+                .map(|&(column, root)| (representatives[column], decisions[root.0]))
                 .collect::<Terms>();
             terms.sort_unstable_by_key(|&(column, _)| column);
             result.push(BooleanRow::from_terms(decisions[row.active.0], terms));
         }
-        if diagram.nodes().len() > limits.max_witness_nodes {
-            return Err(StabilizerError::ResourceLimited {
-                phase: "guarded correlation coefficients",
-                observed: diagram.nodes().len(),
-                limit: limits.max_witness_nodes,
-            }
-            .into());
-        }
-        Ok(result)
+        check_coefficients(diagram, limits.max_witness_nodes)?;
+        Ok(RelationRows {
+            rows: result,
+            aliases,
+        })
     }
 }
 
-pub(crate) fn close_seams(
+fn check_coefficients(
+    diagram: &BooleanDecisionDiagram,
+    limit: usize,
+) -> Result<(), BlockGraphError> {
+    let observed = diagram.nodes().len();
+    if observed > limit {
+        return Err(StabilizerError::ResourceLimited {
+            phase: "guarded correlation coefficients",
+            observed,
+            limit,
+        }
+        .into());
+    }
+    Ok(())
+}
+
+pub(crate) fn seam_equations(seams: &[Seam]) -> Vec<Terms> {
+    seams
+        .iter()
+        .flat_map(|&(left, right, hadamard)| {
+            [0, 1].map(|axis| {
+                vec![
+                    (2 * left + axis, ONE),
+                    (2 * right + axis, ONE),
+                    (2 * right, hadamard),
+                    (2 * right + 1, hadamard),
+                ]
+            })
+        })
+        .collect()
+}
+
+fn coalesce_columns(
+    rows: &mut [BooleanRow],
+    columns: impl IntoIterator<Item = usize>,
+    diagram: &mut BooleanDecisionDiagram,
+) -> Result<Vec<(usize, Option<usize>)>, BlockGraphError> {
+    let mut columns = columns.into_iter().collect::<Vec<_>>();
+    diagram.charge(
+        columns
+            .len()
+            .saturating_mul(columns.len().max(1).ilog2() as usize + 4),
+    )?;
+    columns.sort_unstable();
+    columns.dedup();
+    let indices = columns
+        .iter()
+        .enumerate()
+        .map(|(index, &column)| (column, index))
+        .collect::<HashMap<_, _>>();
+    let mut signatures = vec![Vec::new(); columns.len()];
+    for (index, row) in rows.iter().enumerate() {
+        crate::CancellationToken::checkpoint()?;
+        diagram.charge(row.terms().len().saturating_mul(3))?;
+        for &(column, coefficient) in row.terms() {
+            // Raw equality preserves off-activation timing and pivot choices.
+            signatures[indices[&column]].push((index, coefficient));
+        }
+    }
+    let mut unique = HashMap::default();
+    let mut aliases = Vec::with_capacity(columns.len());
+    for (&column, signature) in columns.iter().zip(signatures) {
+        crate::CancellationToken::checkpoint()?;
+        diagram.charge(signature.len().saturating_mul(2).saturating_add(1))?;
+        aliases.push((
+            column,
+            if signature.is_empty() {
+                None
+            } else {
+                Some(*unique.entry(signature).or_insert(column))
+            },
+        ));
+    }
+    if unique.len() != columns.len() {
+        for row in rows {
+            crate::CancellationToken::checkpoint()?;
+            let count = row.terms().len();
+            diagram.charge(count.saturating_mul(count.max(1).ilog2() as usize + 2))?;
+            let active = row.active;
+            let terms = std::mem::take(row)
+                .into_terms()
+                .into_iter()
+                .filter(|&(column, _)| aliases[indices[&column]].1 == Some(column));
+            *row = BooleanRow::from_terms(active, terms);
+        }
+    }
+    Ok(aliases)
+}
+
+pub(crate) fn close_relation(
     mut rows: Vec<BooleanRow>,
+    equations: &[Terms],
+    diagram: &mut BooleanDecisionDiagram,
+    limits: ModuleCertificationLimits,
+) -> Result<RelationRows, BlockGraphError> {
+    diagram.charge(
+        rows.iter()
+            .map(|row| row.terms().len())
+            .sum::<usize>()
+            .saturating_add(equations.iter().map(Vec::len).sum::<usize>()),
+    )?;
+    let columns = rows
+        .iter()
+        .flat_map(BooleanRow::terms)
+        .chain(equations.iter().flatten())
+        .map(|&(column, _)| column)
+        .collect::<HashSet<_>>();
+    if equations.is_empty() {
+        let mut rows = close_equations(rows, equations, diagram, limits)?;
+        let aliases = coalesce_columns(&mut rows, columns, diagram)?;
+        return Ok(RelationRows { rows, aliases });
+    }
+    // Only raw equalities already present in every incoming row precede solving.
+    let mut aliases = coalesce_columns(&mut rows, columns, diagram)?;
+    diagram.charge(
+        aliases
+            .len()
+            .saturating_add(equations.len())
+            .saturating_add(equations.iter().map(Vec::len).sum::<usize>()),
+    )?;
+    let incoming = aliases.iter().copied().collect::<HashMap<_, _>>();
+    let mut remaining = BooleanRowSpace::new(rows, diagram)?;
+    let mut online = HashMap::default();
+    let mut mapped = Vec::new();
+    for terms in equations {
+        crate::CancellationToken::checkpoint()?;
+        mapped.clear();
+        // These are weighted XOR occurrences, even after IDs repeat or reorder.
+        for &(column, weight) in terms {
+            if let Some(column) = incoming[&column] {
+                mapped.push((resolve_online_alias(&mut online, column, diagram)?, weight));
+            }
+        }
+        remaining.eliminate_linear(&mapped, diagram)?;
+        if let Some((keep, discard)) = raw_singleton_pair(&remaining, &mapped, diagram)? {
+            // Only the linear seam path maintains complete raw postings here.
+            remaining.erase_column(discard, diagram)?;
+            if online.len() == online.capacity() {
+                diagram.charge(online.len())?;
+            }
+            diagram.charge(1)?;
+            online.insert(discard, keep);
+        }
+        check_coefficients(diagram, limits.max_witness_nodes)?;
+    }
+    drop(incoming);
+    drop(mapped);
+    let mut rows = remaining.into_rows(diagram)?;
+    diagram.charge(aliases.len())?;
+    for (_, alias) in &mut aliases {
+        crate::CancellationToken::checkpoint()?;
+        if let Some(column) = alias {
+            *column = resolve_online_alias(&mut online, *column, diagram)?;
+        }
+    }
+    let representatives = aliases
+        .iter()
+        .filter_map(|&(column, alias)| (alias == Some(column)).then_some(column));
+    let completed = coalesce_columns(&mut rows, representatives, diagram)?;
+    diagram.charge(completed.len().saturating_add(aliases.len()))?;
+    let completed = completed.into_iter().collect::<HashMap<_, _>>();
+    for (_, alias) in &mut aliases {
+        crate::CancellationToken::checkpoint()?;
+        *alias = alias.and_then(|column| completed[&column]);
+    }
+    Ok(RelationRows { rows, aliases })
+}
+
+fn resolve_online_alias(
+    aliases: &mut HashMap<usize, usize>,
+    mut column: usize,
+    diagram: &mut BooleanDecisionDiagram,
+) -> Result<usize, BlockGraphError> {
+    let mut root = column;
+    loop {
+        crate::CancellationToken::checkpoint()?;
+        diagram.charge(1)?;
+        let Some(&next) = aliases.get(&root) else {
+            break;
+        };
+        root = next;
+    }
+    while column != root {
+        crate::CancellationToken::checkpoint()?;
+        diagram.charge(2)?;
+        let next = aliases[&column];
+        aliases.insert(column, root);
+        column = next;
+    }
+    Ok(root)
+}
+
+/// A copy certificate for the linear-only seam loop, not an activation equality.
+fn raw_singleton_pair(
+    rows: &BooleanRowSpace,
+    terms: &[(usize, DecisionId)],
+    diagram: &mut BooleanDecisionDiagram,
+) -> Result<Option<(usize, usize)>, BlockGraphError> {
+    crate::CancellationToken::checkpoint()?;
+    diagram.charge(1)?;
+    if terms.len() > 4 {
+        return Ok(None);
+    }
+    diagram.charge(terms.len().saturating_mul(terms.len().saturating_add(1)))?;
+    let mut odd = Vec::with_capacity(terms.len());
+    for &term in terms {
+        if term.1 == ZERO {
+            continue;
+        }
+        if let Some(index) = odd.iter().position(|&existing| existing == term) {
+            odd.swap_remove(index);
+        } else {
+            odd.push(term);
+        }
+    }
+    // Recognition alone cancels occurrences; elimination keeps the original list.
+    let [(left, ONE), (right, ONE)] = odd.as_slice() else {
+        return Ok(None);
+    };
+    let (left, right) = (*left, *right);
+    if left == right {
+        return Ok(None);
+    }
+    let mut contributors = [None; 2];
+    for (index, column) in [left, right].into_iter().enumerate() {
+        let mut count = 0;
+        rows.visit_column_rows(column, diagram, |row| {
+            count += 1;
+            contributors[index] = Some(row);
+        })?;
+        if count != 1 {
+            return Ok(None);
+        }
+    }
+    if contributors[0] != contributors[1] {
+        return Ok(None);
+    }
+    let row = rows
+        .row(contributors[0].expect("one raw contributor"))
+        .expect("posting identifies a live row");
+    diagram.charge((row.terms().len().ilog2() as usize + 1).saturating_mul(2))?;
+    Ok((row.get(left) == row.get(right)).then_some((left.min(right), left.max(right))))
+}
+
+pub(crate) fn close_seams(
+    rows: Vec<BooleanRow>,
     seams: &[Seam],
     diagram: &mut BooleanDecisionDiagram,
     limits: ModuleCertificationLimits,
 ) -> Result<Vec<BooleanRow>, BlockGraphError> {
-    if seams.is_empty() {
+    close_equations(rows, &seam_equations(seams), diagram, limits)
+}
+
+fn close_equations(
+    mut rows: Vec<BooleanRow>,
+    equations: &[Terms],
+    diagram: &mut BooleanDecisionDiagram,
+    limits: ModuleCertificationLimits,
+) -> Result<Vec<BooleanRow>, BlockGraphError> {
+    if equations.is_empty() {
         diagram.charge(rows.len())?;
         rows.retain(|row| row.active != ZERO);
         return Ok(rows);
     }
     let mut rows = BooleanRowSpace::new(rows, diagram)?;
-    for &(left, right, hadamard) in seams {
-        for axis in 0..2 {
-            // First-row pivot priority preserves authored outcome/frame conventions.
-            rows.eliminate_linear(
-                &[
-                    (2 * left + axis, ONE),
-                    (2 * right + axis, ONE),
-                    (2 * right, hadamard),
-                    (2 * right + 1, hadamard),
-                ],
-                diagram,
-            )?;
-            if diagram.nodes().len() > limits.max_witness_nodes {
-                return Err(StabilizerError::ResourceLimited {
-                    phase: "guarded correlation coefficients",
-                    observed: diagram.nodes().len(),
-                    limit: limits.max_witness_nodes,
-                }
-                .into());
-            }
-        }
+    for terms in equations {
+        // First-row pivot priority preserves authored outcome/frame conventions.
+        rows.eliminate_linear(terms, diagram)?;
+        check_coefficients(diagram, limits.max_witness_nodes)?;
     }
     Ok(rows.into_rows(diagram)?)
 }
@@ -309,6 +556,150 @@ pub(crate) fn close_seams(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    impl ModuleRelations {
+        fn reduce(
+            &self,
+            rows: Vec<BooleanRow>,
+            seams: Vec<Seam>,
+            column_rank: &[usize],
+            diagram: &mut BooleanDecisionDiagram,
+            limits: ModuleCertificationLimits,
+        ) -> Result<Vec<BooleanRow>, BlockGraphError> {
+            let reduced =
+                self.reduce_compact(rows, seam_equations(&seams), column_rank, diagram, limits)?;
+            Ok(expand(&reduced))
+        }
+    }
+
+    fn expand(reduced: &RelationRows) -> Vec<BooleanRow> {
+        reduced
+            .rows
+            .iter()
+            .map(|row| {
+                BooleanRow::from_terms(
+                    row.active,
+                    reduced
+                        .aliases
+                        .iter()
+                        .filter_map(|&(column, alias)| alias.map(|alias| (column, row.get(alias)))),
+                )
+            })
+            .collect()
+    }
+
+    fn assert_pre_solve_trace(
+        rows: &[BooleanRow],
+        equations: &[Terms],
+        diagram: &mut BooleanDecisionDiagram,
+    ) -> RelationRows {
+        let limits = ModuleCertificationLimits::DEFAULT;
+        let mut result = None;
+        for end in 0..=equations.len() {
+            let equations = &equations[..end];
+            let columns = rows
+                .iter()
+                .flat_map(BooleanRow::terms)
+                .chain(equations.iter().flatten())
+                .map(|&(column, _)| column)
+                .collect::<HashSet<_>>();
+            let raw = close_equations(rows.to_vec(), equations, diagram, limits).unwrap();
+            let mut expected = raw.clone();
+            let aliases = coalesce_columns(&mut expected, columns, diagram).unwrap();
+            let actual = close_relation(rows.to_vec(), equations, diagram, limits).unwrap();
+            assert_eq!(actual.aliases, aliases, "aliases after {end} equations");
+            assert_eq!(
+                explicit(&actual.rows),
+                explicit(&expected),
+                "compact rows after {end} equations"
+            );
+            assert_eq!(
+                explicit(&expand(&actual)),
+                explicit(&raw),
+                "raw rows after {end} equations"
+            );
+            result = Some(actual);
+        }
+        result.unwrap()
+    }
+
+    #[test]
+    fn pre_solve_symbolic_h_preserves_inactive_raw_distinctions() {
+        for shared_axes in [false, true] {
+            let mut diagram = BooleanDecisionDiagram::default();
+            let guard = diagram.make_node(0, ZERO, ONE).unwrap();
+            let absent = diagram.negate(guard).unwrap();
+            let hadamard = diagram.make_node(1, ZERO, ONE).unwrap();
+            let mut rows = vec![
+                BooleanRow::from_terms(guard, [(0, ONE), (2, ONE)]),
+                BooleanRow::from_terms(absent, [(1, ONE), (3, ONE)]),
+                BooleanRow::from_terms(guard, [(8, ONE), (9, guard), (10, ONE), (11, ONE)]),
+                BooleanRow::from_terms(ZERO, [(10, ONE)]),
+                BooleanRow::from_terms(ONE, [(12, ONE)]),
+            ];
+            if shared_axes {
+                rows.push(BooleanRow::from_terms(
+                    ONE,
+                    [(4, ONE), (5, ONE), (6, ONE), (7, ONE)],
+                ));
+            } else {
+                rows.extend([
+                    BooleanRow::from_terms(ONE, [(4, ONE), (6, ONE)]),
+                    BooleanRow::from_terms(ONE, [(5, ONE), (7, ONE)]),
+                ]);
+            }
+            let mut incoming = rows.clone();
+            let aliases = coalesce_columns(&mut incoming, 0..13, &mut diagram).unwrap();
+            assert_ne!(aliases[8].1, aliases[9].1, "do not mask by activation");
+            assert_ne!(aliases[10].1, aliases[11].1, "inspect inactive raw rows");
+            let completed =
+                assert_pre_solve_trace(&rows, &seam_equations(&[(1, 2, hadamard)]), &mut diagram);
+            assert!(
+                expand(&completed)
+                    .iter()
+                    .any(|row| row.active == ONE && row.get(12) == ONE),
+                "retain the closed mode"
+            );
+        }
+    }
+
+    #[test]
+    fn completed_aliases_do_not_project_unsolved_source_generators() {
+        let mut diagram = BooleanDecisionDiagram::default();
+        let limits = ModuleCertificationLimits::DEFAULT;
+        let rows = [[0, 1], [1, 2], [1, 3], [1, 4]]
+            .map(|bits| BooleanRow::from_terms(ONE, bits.map(|bit| (bit, ONE))))
+            .to_vec();
+        let equation = vec![(0, ONE), (1, ONE)];
+        let reduced = close_relation(rows, &[equation], &mut diagram, limits).unwrap();
+        assert_eq!(reduced.rows.len(), 3);
+        for row in expand(&reduced) {
+            assert_eq!(row.get(0), row.get(1));
+            assert!(
+                ![2, 3, 4]
+                    .map(|bit| row.get(bit) == ONE)
+                    .into_iter()
+                    .fold(false, |sum, bit| sum ^ bit)
+            );
+        }
+    }
+
+    #[test]
+    fn cache_keys_distinguish_query_alias_partitions() {
+        let cache = ModuleRelations::default();
+        let mut diagram = BooleanDecisionDiagram::default();
+        let limits = ModuleCertificationLimits::DEFAULT;
+        let rows = [0, 1]
+            .map(|bit| BooleanRow::from_terms(ONE, [(bit, ONE)]))
+            .to_vec();
+        for (query, rank) in [(vec![(0, ONE), (0, ONE)], 2), (vec![(0, ONE), (1, ONE)], 1)] {
+            let reduced = cache
+                .reduce_compact(rows.clone(), vec![query], &[0], &mut diagram, limits)
+                .unwrap();
+            assert_eq!(reduced.rows.len(), rank);
+        }
+        assert_eq!(cache.work(), (2, 0));
+    }
 
     #[test]
     fn cached_full_support_survives_column_variable_and_arena_remapping() {

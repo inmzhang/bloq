@@ -45,6 +45,8 @@ pub(crate) enum ProjectionError {
     FrontierLimit { observed: usize, limit: usize },
     #[error("witness nodes {observed} exceed limit {limit}")]
     WitnessLimit { observed: usize, limit: usize },
+    #[error(transparent)]
+    Cancelled(#[from] crate::ComputationCancelled),
 }
 
 #[derive(Debug, Clone)]
@@ -60,6 +62,13 @@ pub(crate) struct ProjectedExternalTable {
     pub closed_rows: Vec<WitnessedRow>,
     arena: WitnessArena,
     width: usize,
+}
+
+/// Unsigned compositor-owned rows with exact original raw ZX component queries.
+pub(crate) struct CompactSurfaceRelation {
+    pub(super) rows: Vec<super::CoeffVec>,
+    pub(super) queries: Vec<[Option<usize>; 2]>,
+    pub(super) width: usize,
 }
 
 /// Directed edge coordinates followed by the independent isolated-site ids.
@@ -144,13 +153,7 @@ impl<'a> EdgeFlowLayout<'a> {
                 lhs = lhs.flip();
                 rhs = rhs.flip();
             }
-            phase = (phase
-                + match (lhs, rhs) {
-                    (Pauli::X, Pauli::Y) | (Pauli::Y, Pauli::Z) | (Pauli::Z, Pauli::X) => 1,
-                    (Pauli::Y, Pauli::X) | (Pauli::Z, Pauli::Y) | (Pauli::X, Pauli::Z) => 3,
-                    _ => 0,
-                })
-                & 3;
+            phase = (phase + lhs.product_phase(rhs)) & 3;
         }
         phase
     }
@@ -184,6 +187,16 @@ impl ProjectedExternalTable {
     pub(crate) fn materialize(&self, row: &ProjectedRow) -> PhasedPauliString {
         self.arena.materialize(row.witness, self.width)
     }
+
+    pub(crate) fn complete_rows(&self) -> impl Iterator<Item = WitnessedRow> + '_ {
+        self.boundary_rows
+            .iter()
+            .map(|row| WitnessedRow {
+                signed: self.materialize(row),
+                flow_witness: row.flow_witness.clone(),
+            })
+            .chain(self.closed_rows.iter().cloned())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -199,6 +212,23 @@ struct SourceRow {
     phase: u8,
 }
 
+impl SourceRow {
+    fn multiply_into(&self, row: &mut PhasedPauliString) {
+        assert!(
+            self.terms
+                .iter()
+                .all(|&(column, _)| column < row.paulis.len())
+        );
+        row.shift_phase(self.phase);
+        // One edge per node pair keeps local flow-support columns distinct.
+        for &(column, right) in &self.terms {
+            let left = row.paulis.get(column);
+            row.shift_phase(left.product_phase(right));
+            row.paulis.set(column, left ^ right);
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct FlowSourceKey {
     position: IVec3,
@@ -206,6 +236,9 @@ struct FlowSourceKey {
     edges: Vec<(Direction, Pauli)>,
     intrinsic_phase: u8,
 }
+
+// Scoped to one graph/arena operation; only source indices are retained.
+type FlowSourceKeys = crate::FxHashMap<usize, Arc<FlowSourceKey>>;
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct FlowWitness {
@@ -243,15 +276,19 @@ impl SparseRow {
         limit: usize,
     ) -> Result<(), ProjectionError> {
         self.witness = arena.push_xor(self.witness, other.witness, limit)?;
-        for (&column, &pauli) in &other.paulis {
-            let product = self.get(column) ^ pauli;
-            if product == Pauli::I {
-                self.paulis.remove(&column);
-            } else {
-                self.paulis.insert(column, product);
-            }
-        }
+        xor_sparse_paulis(&mut self.paulis, &other.paulis);
         Ok(())
+    }
+}
+
+fn xor_sparse_paulis(target: &mut BTreeMap<usize, Pauli>, other: &BTreeMap<usize, Pauli>) {
+    for (&column, &pauli) in other {
+        let product = target.get(&column).copied().unwrap_or(Pauli::I) ^ pauli;
+        if product == Pauli::I {
+            target.remove(&column);
+        } else {
+            target.insert(column, product);
+        }
     }
 }
 
@@ -379,10 +416,7 @@ impl WitnessArena {
             let WitnessNode::Source(source) = &self.nodes[source] else {
                 unreachable!("source set contains only source nodes")
             };
-            row.multiply_assign(&PhasedPauliString::new(
-                PauliString::from_terms(width, source.terms.iter().copied()),
-                source.phase,
-            ));
+            source.multiply_into(&mut row);
         }
         row
     }
@@ -400,17 +434,12 @@ impl ZXGraph {
         boundary_columns: &[usize],
         limits: ProjectionLimits,
     ) -> Result<ProjectedExternalTable, ProjectionError> {
-        if boundary_columns.len() > limits.max_frontier_width {
-            return Err(ProjectionError::FrontierLimit {
-                observed: boundary_columns.len(),
-                limit: limits.max_frontier_width,
-            });
-        }
+        check_frontier_width(boundary_columns.len(), limits.max_frontier_width)?;
         let retained = boundary_columns.iter().copied().collect::<FxHashSet<_>>();
         let mut arena = WitnessArena::default();
+        let mut source_keys = FlowSourceKeys::default();
         let mut rows = Vec::new();
         let mut closed_candidates = Vec::new();
-        let mut max_frontier_width = 0;
         for (node_ids, same_layer_pairs, pending_edge_pairs) in self.stabilizer_layers() {
             let mut local = self.projected_source_rows(
                 &node_ids,
@@ -437,7 +466,7 @@ impl ZXGraph {
                     ),
             );
             rows.extend(local);
-            update_frontier(&rows, &mut max_frontier_width, limits.max_frontier_width)?;
+            check_frontier(&rows, limits.max_frontier_width)?;
             eliminate_projected_edge_pairs(
                 &mut rows,
                 &pending_edge_pairs,
@@ -455,11 +484,18 @@ impl ZXGraph {
                 &mut rows,
                 &mut closed_candidates,
                 &arena,
-                self.total_ids,
+                &mut source_keys,
             );
         }
 
-        self.finish_projected_table(rows, closed_candidates, arena, boundary_columns, limits)
+        self.finish_projected_table(
+            rows,
+            closed_candidates,
+            arena,
+            source_keys,
+            boundary_columns,
+            limits,
+        )
     }
 
     /// Present an already composed complete relation without solving its seams again.
@@ -470,73 +506,23 @@ impl ZXGraph {
         complete: Vec<PhasedPauliString>,
         limits: ProjectionLimits,
     ) -> Result<Option<ProjectedExternalTable>, ProjectionError> {
-        if boundary_columns.len() > limits.max_frontier_width {
-            return Err(ProjectionError::FrontierLimit {
-                observed: boundary_columns.len(),
-                limit: limits.max_frontier_width,
-            });
-        }
+        check_frontier_width(boundary_columns.len(), limits.max_frontier_width)?;
         let mut arena = WitnessArena::default();
-        let mut pivots = BTreeMap::new();
-        for node in &self.nodes {
-            let mut local = self.projected_source_rows(
-                &[node.id],
-                &FxHashSet::from_iter([node.id]),
-                &mut arena,
-                limits.max_witness_nodes,
-            )?;
-            let columns = local
-                .iter()
-                .flat_map(|row| row.paulis.keys().copied())
-                .collect::<BTreeSet<_>>();
-            let rank = projected_gaussian_elimination(
-                &mut local,
-                axis_pivot_constraints(columns),
-                |row, &(column, axis)| row.get(column) & axis,
-                &mut arena,
-                limits.max_witness_nodes,
-            )?;
-            for row in local.into_iter().take(rank) {
-                let (&column, &pauli) = row.paulis.first_key_value().expect("local pivot");
-                pivots.insert((column, pauli & Pauli::X), row);
-            }
-        }
+        let pivots = self.external_row_pivots(&mut arena, limits.max_witness_nodes)?;
         let mut rows = Vec::with_capacity(complete.len());
         for mut full in complete {
             self.clear_cross_centers(std::slice::from_mut(&mut full.paulis));
-            if !self.row_has_external_edge_pair_support(&full.paulis) {
-                return Ok(None);
-            }
-            let mut residual = full.paulis.iter_support().collect::<BTreeMap<_, _>>();
-            let mut witness = None;
-            while let Some((&column, &pauli)) = residual.first_key_value() {
-                let Some(pivot) = pivots.get(&(column, pauli & Pauli::X)) else {
-                    return Ok(None);
-                };
-                for (&column, &pauli) in &pivot.paulis {
-                    let value = residual.get(&column).copied().unwrap_or(Pauli::I) ^ pauli;
-                    if value == Pauli::I {
-                        residual.remove(&column);
-                    } else {
-                        residual.insert(column, value);
-                    }
-                }
-                witness = Some(match witness {
-                    None => pivot.witness,
-                    Some(previous) => {
-                        arena.push_xor(previous, pivot.witness, limits.max_witness_nodes)?
-                    }
-                });
-            }
-            let Some(witness) = witness else {
+            if full.paulis.is_identity() {
                 if full.phase() != 0 {
                     return Ok(None);
                 }
                 continue;
-            };
-            if arena.materialize(witness, self.total_ids) != full {
-                return Ok(None);
             }
+            let Some(witness) =
+                self.external_row_witness(&full, &pivots, &mut arena, limits.max_witness_nodes)?
+            else {
+                return Ok(None);
+            };
             rows.push(SparseRow {
                 paulis: boundary_columns
                     .iter()
@@ -548,8 +534,158 @@ impl ZXGraph {
                 witness,
             });
         }
-        self.finish_projected_table(rows, Vec::new(), arena, boundary_columns, limits)
-            .map(Some)
+        self.finish_projected_table(
+            rows,
+            Vec::new(),
+            arena,
+            FlowSourceKeys::default(),
+            boundary_columns,
+            limits,
+        )
+        .map(Some)
+    }
+
+    /// Canonicalize only compositor-owned unsigned support; original local
+    /// tensors certify the sign and witness of every resulting basis row.
+    pub(crate) fn certify_compact_relation(
+        &self,
+        complete: CompactSurfaceRelation,
+        boundary_columns: &[usize],
+        limits: ProjectionLimits,
+        mut consume: impl FnMut(WitnessedRow),
+    ) -> Result<Option<usize>, ProjectionError> {
+        check_frontier_width(boundary_columns.len(), limits.max_frontier_width)?;
+        let CompactSurfaceRelation {
+            mut rows,
+            queries,
+            width,
+        } = complete;
+        if self.stabilizer_phase_basis.get().is_some()
+            || queries.len() != self.total_ids
+            || queries.iter().flatten().flatten().any(|&bit| bit >= width)
+        {
+            return Ok(None);
+        }
+        let boundary_queries = boundary_columns
+            .iter()
+            .map(|&column| queries[column])
+            .collect::<Vec<_>>();
+        let boundary_order = super::reduction::raw_query_order(&boundary_queries, width);
+        let physical_order = super::reduction::raw_query_order(&queries, width);
+        if rows.iter().any(|row| {
+            row.iter_ones()
+                .any(|bit| bit >= width || physical_order[bit].is_none())
+        }) {
+            return Ok(None);
+        }
+        let cancellation = crate::CancellationToken::current();
+        let checkpoint = || {
+            cancellation
+                .as_ref()
+                .map_or(Ok(()), crate::CancellationToken::check)
+                .map_err(ProjectionError::from)
+        };
+        let boundary_len = super::reduction::eliminate_in_raw_order(
+            &mut rows,
+            &boundary_queries,
+            &boundary_order,
+            checkpoint,
+        )?;
+        let closed_len = super::reduction::eliminate_in_raw_order(
+            &mut rows[boundary_len..],
+            &queries,
+            &physical_order,
+            checkpoint,
+        )?;
+        rows.truncate(boundary_len + closed_len);
+        let mut arena = WitnessArena::default();
+        let pivots = self.external_row_pivots(&mut arena, limits.max_witness_nodes)?;
+        let local_nodes = arena.nodes.len();
+        let mut source_keys = FlowSourceKeys::default();
+        for row in rows {
+            checkpoint()?;
+            let paulis = super::reduction::lift_queries(&queries, |bit| row.bit(bit));
+            let phase = self.external_stabilizer_row_phases(std::slice::from_ref(&paulis))[0];
+            let signed = PhasedPauliString::new(paulis, phase);
+            let Some(witness) =
+                self.external_row_witness(&signed, &pivots, &mut arena, limits.max_witness_nodes)?
+            else {
+                return Ok(None);
+            };
+            let flow_witness = self.flow_witness(&arena, witness, &mut source_keys);
+            consume(WitnessedRow {
+                signed,
+                flow_witness,
+            });
+            // FlowWitness owns its source keys before row-local XOR nodes expire.
+            arena.nodes.truncate(local_nodes);
+        }
+        Ok(Some(boundary_len))
+    }
+
+    fn external_row_pivots(
+        &self,
+        arena: &mut WitnessArena,
+        limit: usize,
+    ) -> Result<BTreeMap<(usize, bool), SparseRow>, ProjectionError> {
+        let mut pivots = BTreeMap::new();
+        let cancellation = crate::CancellationToken::current();
+        for node in &self.nodes {
+            if let Some(token) = &cancellation {
+                token.check()?;
+            }
+            let mut local = self.projected_source_rows(
+                &[node.id],
+                &FxHashSet::from_iter([node.id]),
+                arena,
+                limit,
+            )?;
+            let columns = local
+                .iter()
+                .flat_map(|row| row.paulis.keys().copied())
+                .collect::<BTreeSet<_>>();
+            let rank = projected_gaussian_elimination(
+                &mut local,
+                axis_pivot_constraints(columns),
+                |row, &(column, axis)| row.get(column) & axis,
+                arena,
+                limit,
+            )?;
+            for row in local.into_iter().take(rank) {
+                let (&column, &pauli) = row.paulis.first_key_value().expect("local pivot");
+                pivots.insert((column, pauli & Pauli::X), row);
+            }
+        }
+        Ok(pivots)
+    }
+
+    fn external_row_witness(
+        &self,
+        full: &PhasedPauliString,
+        pivots: &BTreeMap<(usize, bool), SparseRow>,
+        arena: &mut WitnessArena,
+        limit: usize,
+    ) -> Result<Option<usize>, ProjectionError> {
+        if !self.row_has_external_edge_pair_support(&full.paulis) {
+            return Ok(None);
+        }
+        let mut residual = full.paulis.iter_support().collect::<BTreeMap<_, _>>();
+        let mut witness = None;
+        let cancellation = crate::CancellationToken::current();
+        while let Some((&column, &pauli)) = residual.first_key_value() {
+            if let Some(token) = &cancellation {
+                token.check()?;
+            }
+            let Some(pivot) = pivots.get(&(column, pauli & Pauli::X)) else {
+                return Ok(None);
+            };
+            xor_sparse_paulis(&mut residual, &pivot.paulis);
+            witness = Some(match witness {
+                None => pivot.witness,
+                Some(previous) => arena.push_xor(previous, pivot.witness, limit)?,
+            });
+        }
+        Ok(witness.filter(|&witness| arena.materialize(witness, self.total_ids) == *full))
     }
 
     fn finish_projected_table(
@@ -557,6 +693,7 @@ impl ZXGraph {
         mut rows: Vec<SparseRow>,
         mut closed_candidates: Vec<WitnessedRow>,
         mut arena: WitnessArena,
+        mut source_keys: FlowSourceKeys,
         boundary_columns: &[usize],
         limits: ProjectionLimits,
     ) -> Result<ProjectedExternalTable, ProjectionError> {
@@ -571,7 +708,7 @@ impl ZXGraph {
         let mut residual = rows.split_off(rank);
         for row in rows {
             let materialized = arena.materialize(row.witness, self.total_ids);
-            let flow_witness = self.flow_witness(&arena, row.witness);
+            let flow_witness = self.flow_witness(&arena, row.witness, &mut source_keys);
             boundary_rows.push(ProjectedRow {
                 signed: PhasedPauliString::new(
                     PauliString::from_terms(
@@ -592,7 +729,7 @@ impl ZXGraph {
             &mut residual,
             &mut closed_candidates,
             &arena,
-            self.total_ids,
+            &mut source_keys,
         );
         assert!(
             residual.is_empty(),
@@ -667,7 +804,12 @@ impl ZXGraph {
         }
     }
 
-    fn flow_witness(&self, arena: &WitnessArena, witness: usize) -> FlowWitness {
+    fn flow_witness(
+        &self,
+        arena: &WitnessArena,
+        witness: usize,
+        source_keys: &mut FlowSourceKeys,
+    ) -> FlowWitness {
         let mut sources = arena
             .source_indices(witness)
             .into_iter()
@@ -675,77 +817,83 @@ impl ZXGraph {
                 let WitnessNode::Source(source) = &arena.nodes[index] else {
                     unreachable!("source set contains only source nodes")
                 };
-                Arc::new(self.flow_source_key(source))
+                Arc::clone(
+                    source_keys
+                        .entry(index)
+                        .or_insert_with(|| Arc::new(self.flow_source_key(source))),
+                )
             })
             .collect::<Vec<_>>();
         sources.sort_unstable_by(|left, right| flow_source_key_cmp(left, right));
         FlowWitness { sources }
     }
 
-    pub(crate) fn materialize_flow_witness(
+    /// Reuses local sources only while replaying against this exact immutable graph.
+    pub(crate) fn flow_witness_replayer(
         &self,
-        witness: &FlowWitness,
-        expected: &PauliString,
-    ) -> Option<PhasedPauliString> {
-        let exact_sources = witness
-            .sources
-            .iter()
-            .map(|key| {
-                let node = self.node_at(key.position)?;
-                let (ordinal, source) = self
-                    .local_signed_flow_supports(&[node.id], None)
-                    .into_iter()
-                    .enumerate()
-                    .find(|(_, source)| self.flow_source_key(source) == *key.as_ref())?;
-                Some((
-                    (node.pos.z, node.id, ordinal),
-                    PhasedPauliString::new(
-                        PauliString::from_terms(self.total_ids, source.terms),
-                        source.phase,
-                    ),
-                ))
-            })
-            .collect::<Option<Vec<_>>>();
-        if let Some(mut sources) = exact_sources {
-            sources.sort_unstable_by_key(|(key, _)| *key);
-            let mut row = PhasedPauliString::positive(PauliString::new(self.total_ids));
-            for (_, source) in sources {
-                row.multiply_assign(&source);
+    ) -> impl FnMut(&FlowWitness, &PauliString) -> Option<PhasedPauliString> + '_ {
+        let mut local_sources =
+            crate::FxHashMap::<usize, Vec<(SourceRow, Option<FlowSourceKey>)>>::default();
+        move |witness: &FlowWitness, expected: &PauliString| {
+            let exact_sources = witness
+                .sources
+                .iter()
+                .map(|key| {
+                    let node = self.node_at(key.position)?;
+                    let candidates = local_sources.entry(node.id).or_insert_with(|| {
+                        self.local_signed_flow_supports(&[node.id], None)
+                            .into_iter()
+                            .map(|source| (source, None))
+                            .collect()
+                    });
+                    let ordinal = candidates.iter_mut().position(|(source, stored_key)| {
+                        &*stored_key.get_or_insert_with(|| self.flow_source_key(source))
+                            == key.as_ref()
+                    })?;
+                    Some((node.pos.z, node.id, ordinal))
+                })
+                .collect::<Option<Vec<_>>>();
+            if let Some(mut sources) = exact_sources {
+                sources.sort_unstable();
+                let mut row = PhasedPauliString::positive(PauliString::new(self.total_ids));
+                for (_, node, ordinal) in sources {
+                    local_sources[&node][ordinal].0.multiply_into(&mut row);
+                }
+                if &row.paulis == expected {
+                    return Some(row);
+                }
             }
-            if &row.paulis == expected {
-                return Some(row);
-            }
-        }
 
-        let mut anchors = BTreeSet::new();
-        for key in &witness.sources {
-            anchors.insert(self.node_at(key.position)?.id);
-        }
-        for (column, _) in expected.iter_support() {
-            if column < self.nodes.len() {
-                anchors.insert(column);
-            } else if let Some(edge) = self.edges.get(column - self.nodes.len()) {
-                anchors.insert(edge.n1);
+            let mut anchors = BTreeSet::new();
+            for key in &witness.sources {
+                anchors.insert(self.node_at(key.position)?.id);
             }
-        }
-        // Rotation can change which canonical local flows span one support.
-        // Rebuild only at the witness/support anchors, never from the full graph.
-        let anchors = anchors.into_iter().collect::<Vec<_>>();
-        let basis = canonical_external_basis(
-            self.local_stabilizer_flow_rows_for_nodes(&anchors, None),
-            self.total_ids,
-        );
-        let mut residual = expected.clone();
-        let mut row = PhasedPauliString::positive(PauliString::new(self.total_ids));
-        for source in &basis {
-            let (column, axis) = first_component(&source.paulis)
-                .expect("canonical local flow basis excludes identity rows");
-            if residual.get(column) & axis {
-                residual ^= &source.paulis;
-                row.multiply_assign(source);
+            for (column, _) in expected.iter_support() {
+                if column < self.nodes.len() {
+                    anchors.insert(column);
+                } else if let Some(edge) = self.edges.get(column - self.nodes.len()) {
+                    anchors.insert(edge.n1);
+                }
             }
+            // Rotation can change which canonical local flows span one support.
+            // Rebuild only at the witness/support anchors, never from the full graph.
+            let anchors = anchors.into_iter().collect::<Vec<_>>();
+            let basis = canonical_external_basis(
+                self.local_stabilizer_flow_rows_for_nodes(&anchors, None),
+                self.total_ids,
+            );
+            let mut residual = expected.clone();
+            let mut row = PhasedPauliString::positive(PauliString::new(self.total_ids));
+            for source in &basis {
+                let (column, axis) = first_component(&source.paulis)
+                    .expect("canonical local flow basis excludes identity rows");
+                if residual.get(column) & axis {
+                    residual ^= &source.paulis;
+                    row.multiply_assign(source);
+                }
+            }
+            residual.is_identity().then_some(row)
         }
-        residual.is_identity().then_some(row)
     }
 
     pub(crate) fn to_external_generator_table(&self) -> Vec<PauliString> {
@@ -759,6 +907,23 @@ impl ZXGraph {
     /// Half-edges use the smaller endpoint's frame; spider crossing centers
     /// may be display support rather than independent tensor factors.
     fn local_row_phase(&self, row: &PauliString, ignore_cross_centers: bool) -> Option<u8> {
+        let nodes = self.phase_node_candidates(row);
+        self.local_row_phase_at(row, ignore_cross_centers, nodes.as_deref())
+    }
+
+    pub(super) fn materialized_row_phase(&self, row: &PauliString, nodes: Option<&[usize]>) -> u8 {
+        if self.phase_basis().is_some() {
+            return self.stabilizer_row_phases(std::slice::from_ref(row))[0];
+        }
+        self.local_row_phase_at(row, true, nodes).unwrap_or(0)
+    }
+
+    pub(super) fn local_row_phase_at(
+        &self,
+        row: &PauliString,
+        ignore_cross_centers: bool,
+        nodes: Option<&[usize]>,
+    ) -> Option<u8> {
         if (row.len() > self.total_ids
             && row
                 .iter_support()
@@ -768,7 +933,8 @@ impl ZXGraph {
             return None;
         }
         let mut sign = false;
-        for node in &self.nodes {
+        for index in 0..nodes.map_or(self.nodes.len(), <[usize]>::len) {
+            let node = &self.nodes[nodes.map_or(index, |nodes| nodes[index])];
             let center = row.get(node.id);
             let mut arms = self.neighbor_edges(node.id).map(|(neighbor, column)| {
                 let edge = self.edge_by_id(column);
@@ -829,17 +995,7 @@ impl ZXGraph {
     }
 
     fn phase_basis(&self) -> Option<&StabilizerPhaseBasis> {
-        if self.adjacency.has_parallel_edges() {
-            // Parallel neighbor entries alias their last edge column. Retain
-            // signed reduction for that legacy incidence convention.
-            Some(self.stabilizer_phase_basis.get_or_init(|| {
-                Arc::new(StabilizerPhaseBasis::new(
-                    self.to_signed_external_generator_table(),
-                ))
-            }))
-        } else {
-            self.stabilizer_phase_basis.get().map(Arc::as_ref)
-        }
+        self.stabilizer_phase_basis.get().map(Arc::as_ref)
     }
 
     pub(crate) fn contains_stabilizer_support(&self, row: &PauliString) -> bool {
@@ -872,14 +1028,12 @@ impl ZXGraph {
     }
 
     pub(crate) fn external_stabilizer_row_phases(&self, rows: &[PauliString]) -> Vec<u8> {
-        if self.adjacency.has_parallel_edges() {
-            return self.row_phases_against(rows, &self.to_signed_external_generator_table());
-        }
         rows.iter()
             .map(|row| self.local_row_phase(row, false).unwrap_or(0))
             .collect()
     }
 
+    #[cfg(test)]
     pub(crate) fn row_phases_against(
         &self,
         rows: &[PauliString],
@@ -1122,36 +1276,33 @@ fn retire_closed(
     rows: &mut Vec<SparseRow>,
     closed: &mut Vec<WitnessedRow>,
     arena: &WitnessArena,
-    width: usize,
+    source_keys: &mut FlowSourceKeys,
 ) {
-    let mut live = Vec::with_capacity(rows.len());
-    for row in rows.drain(..) {
-        if row.paulis.is_empty() {
-            let signed = arena.materialize(row.witness, width);
-            if !signed.paulis.is_identity() {
-                closed.push(WitnessedRow {
-                    signed,
-                    flow_witness: zx.flow_witness(arena, row.witness),
-                });
-            }
-        } else {
-            live.push(row);
+    rows.retain(|row| {
+        if !row.paulis.is_empty() {
+            return true;
         }
-    }
-    *rows = live;
+        let signed = arena.materialize(row.witness, zx.total_ids);
+        if !signed.paulis.is_identity() {
+            closed.push(WitnessedRow {
+                signed,
+                flow_witness: zx.flow_witness(arena, row.witness, source_keys),
+            });
+        }
+        false
+    });
 }
 
-fn update_frontier(
-    rows: &[SparseRow],
-    max_frontier_width: &mut usize,
-    limit: usize,
-) -> Result<(), ProjectionError> {
+fn check_frontier(rows: &[SparseRow], limit: usize) -> Result<(), ProjectionError> {
     let width = rows
         .iter()
         .flat_map(|row| row.paulis.keys().copied())
         .collect::<FxHashSet<_>>()
         .len();
-    *max_frontier_width = (*max_frontier_width).max(width);
+    check_frontier_width(width, limit)
+}
+
+fn check_frontier_width(width: usize, limit: usize) -> Result<(), ProjectionError> {
     if width <= limit {
         Ok(())
     } else {
@@ -1191,10 +1342,16 @@ fn canonical_witnessed_external_basis(
 }
 
 /// A row that Gaussian elimination can fold into another. Implementors carry
-/// whatever travels with the Pauli row — a flow witness, positional support —
+/// whatever travels with the relation row — a flow witness, positional support —
 /// so everything folds in one pass.
 pub(crate) trait EliminationRow {
     fn multiply_assign(&mut self, pivot: &Self);
+}
+
+impl EliminationRow for super::CoeffVec {
+    fn multiply_assign(&mut self, pivot: &Self) {
+        self.xor_assign(pivot);
+    }
 }
 
 impl EliminationRow for PhasedPauliString {
@@ -1297,15 +1454,38 @@ pub(crate) fn signed_gaussian_elimination<R: EliminationRow, T>(
 /// Continue the same ordered elimination after a previously solved prefix.
 pub(crate) fn signed_gaussian_elimination_from<R: EliminationRow, T>(
     rows: &mut [R],
-    mut solved: usize,
+    solved: usize,
     pivot_constraints: impl IntoIterator<Item = T>,
     predicate: impl Fn(&R, &T) -> bool,
 ) -> usize {
+    try_signed_gaussian_elimination_from(
+        rows,
+        solved,
+        pivot_constraints,
+        |row, constraint| Ok::<_, std::convert::Infallible>(predicate(row, constraint)),
+        || Ok(()),
+    )
+    .unwrap_or_else(|never| match never {})
+}
+
+/// Ordered full RREF with fallible queries and a checkpoint before each row fold.
+pub(crate) fn try_signed_gaussian_elimination_from<R: EliminationRow, T, E>(
+    rows: &mut [R],
+    mut solved: usize,
+    pivot_constraints: impl IntoIterator<Item = T>,
+    mut predicate: impl FnMut(&R, &T) -> Result<bool, E>,
+    mut checkpoint: impl FnMut() -> Result<(), E>,
+) -> Result<usize, E> {
     debug_assert!(solved <= rows.len());
     for constraint in pivot_constraints {
-        let Some(pivot_index) =
-            (solved..rows.len()).find(|&row| predicate(&rows[row], &constraint))
-        else {
+        let mut pivot_index = None;
+        for (index, row) in rows.iter().enumerate().skip(solved) {
+            if predicate(row, &constraint)? {
+                pivot_index = Some(index);
+                break;
+            }
+        }
+        let Some(pivot_index) = pivot_index else {
             continue;
         };
         rows.swap(pivot_index, solved);
@@ -1316,7 +1496,8 @@ pub(crate) fn signed_gaussian_elimination_from<R: EliminationRow, T>(
         // The pivot search already proved the skipped unsolved rows zero.
         // Swapping the pivot with `solved` leaves that whole prefix zero.
         for row in before.iter_mut().chain(&mut after[pivot_index - solved..]) {
-            if predicate(row, &constraint) {
+            if predicate(row, &constraint)? {
+                checkpoint()?;
                 row.multiply_assign(pivot);
             }
         }
@@ -1325,7 +1506,7 @@ pub(crate) fn signed_gaussian_elimination_from<R: EliminationRow, T>(
             break;
         }
     }
-    solved
+    Ok(solved)
 }
 
 fn first_component(row: &PauliString) -> Option<(usize, Pauli)> {
@@ -1352,7 +1533,12 @@ mod tests {
     use super::super::ZXGraph;
     use super::super::stabilizer::{axis_pivot_constraints, gaussian_elimination_with_tracking};
     use super::{FlowSourceKey, FlowWitness, ProjectionLimits};
-    use crate::GalleryItem;
+    use crate::{GalleryItem, NodeKind};
+
+    const UNLIMITED_PROJECTION: ProjectionLimits = ProjectionLimits {
+        max_frontier_width: usize::MAX,
+        max_witness_nodes: usize::MAX,
+    };
 
     fn assert_rows_satisfy_external_edge_pair_support(zx: &ZXGraph, rows: &[PauliString]) {
         for row in rows {
@@ -1422,7 +1608,7 @@ mod tests {
     }
 
     #[test]
-    fn flow_witness_xor_preserves_sorted_shared_keys() {
+    fn flow_witness_xor_matches_set_symmetric_difference() {
         let source = |x| {
             Arc::new(FlowSourceKey {
                 position: IVec3::new(x, 0, 0),
@@ -1431,31 +1617,6 @@ mod tests {
                 intrinsic_phase: 0,
             })
         };
-        let [first, shared, last] = [0, 1, 2].map(source);
-        let mut witness = FlowWitness {
-            sources: vec![Arc::clone(&first), Arc::clone(&shared)],
-        };
-
-        witness.xor_assign(&FlowWitness {
-            sources: vec![shared, Arc::clone(&last)],
-        });
-
-        assert_eq!(witness.sources.len(), 2);
-        assert!(Arc::ptr_eq(&witness.sources[0], &first));
-        assert!(Arc::ptr_eq(&witness.sources[1], &last));
-
-        let mut append = FlowWitness {
-            sources: Vec::with_capacity(8),
-        };
-        append.sources.push(Arc::clone(&first));
-        let allocation = append.sources.as_ptr();
-        append.xor_assign(&FlowWitness::default());
-        append.xor_assign(&FlowWitness {
-            sources: vec![Arc::clone(&last)],
-        });
-        assert_eq!(append.sources.as_ptr(), allocation);
-        assert_eq!(append.sources, [Arc::clone(&first), Arc::clone(&last)]);
-
         let keys = [0, 1, 2, 3, 4, 5].map(source);
         let select = |mask| {
             keys.iter()
@@ -1555,24 +1716,6 @@ mod tests {
         boundaryless
     }
 
-    #[test]
-    fn packed_pivots_preserve_column_then_axis_order() {
-        for width in [0, 1, 63, 64, 65, 127, 128, 129, 1025] {
-            let mut row = PauliString::new(width);
-            assert_eq!(super::first_component(&row), None);
-            for column in (0..width).rev() {
-                for pauli in [Pauli::Z, Pauli::X, Pauli::Y, Pauli::I] {
-                    row.set(column, pauli);
-                    let scalar = (0..width)
-                        .flat_map(|column| [(column, Pauli::X), (column, Pauli::Z)])
-                        .find(|&(column, axis)| row.get(column) & axis);
-                    assert_eq!(super::first_component(&row), scalar);
-                }
-                row.set(column, Pauli::Y);
-            }
-        }
-    }
-
     // The three-bit adder covers composition in ordinary checks; the ten-bit
     // scaling case keeps the same oracle checks in ignored stress coverage.
     fn dense_oracle_galleries() -> impl Iterator<Item = GalleryItem> {
@@ -1619,6 +1762,160 @@ mod tests {
 
         zx.clear_cross_centers(std::slice::from_mut(&mut reconstructed));
         assert_eq!(zx.row_phases_against(&[reconstructed], &signed), [2]);
+    }
+
+    fn phase_test_star(kind: NodeKind, leaves: &[usize], hadamard: bool) -> ZXGraph {
+        const NODES: usize = 129;
+        const CENTER: usize = 64;
+        let mut nodes = (0..NODES)
+            .map(|id| {
+                let z = if id == 0 {
+                    0
+                } else if id == NODES - 1 {
+                    2
+                } else {
+                    1
+                };
+                crate::ZXNode::new(id, glam::ivec3(id as i32, 0, z), NodeKind::X)
+            })
+            .collect::<Vec<_>>();
+        nodes[CENTER].kind = kind;
+        let mut edges = Vec::new();
+        for &leaf in leaves {
+            nodes[leaf].kind = NodeKind::Port;
+            for (n1, n2) in [(CENTER, leaf), (leaf, CENTER)] {
+                edges.push(crate::ZXEdge {
+                    n1,
+                    n2,
+                    id: NODES + edges.len(),
+                    hadamard,
+                });
+            }
+        }
+        let adjacency = super::super::graph::CsrAdjacency::from_edges(
+            NODES,
+            &edges
+                .iter()
+                .map(|edge| (edge.n1, edge.n2, edge.id))
+                .collect::<Vec<_>>(),
+        );
+        let pos_to_node = nodes.iter().map(|node| (node.pos, node.id)).collect();
+        ZXGraph {
+            total_ids: NODES + edges.len(),
+            nodes,
+            edges,
+            adjacency,
+            pos_to_node,
+            action_graph: crate::ActionDag::default(),
+            cross_incident: Default::default(),
+            stabilizer_phase_basis: Default::default(),
+        }
+    }
+
+    #[test]
+    fn sparse_local_phases_match_dense_traversal() {
+        const CENTER: usize = 64;
+        const AXES: [Pauli; 4] = [Pauli::I, Pauli::X, Pauli::Z, Pauli::Y];
+        fn compare(zx: &ZXGraph, row: &PauliString, seen: &mut [bool; 3]) {
+            for ignore_cross_centers in [false, true] {
+                let expected = zx.local_row_phase_at(row, ignore_cross_centers, None);
+                assert_eq!(
+                    zx.local_row_phase(row, ignore_cross_centers),
+                    expected,
+                    "kind={:?}, ignore_cross={ignore_cross_centers}, row={row:?}",
+                    zx.nodes[CENTER].kind,
+                );
+                seen[match expected {
+                    Some(0) => 0,
+                    Some(2) => 1,
+                    None => 2,
+                    Some(phase) => panic!("unexpected non-Hermitian tensor phase {phase}"),
+                }] = true;
+            }
+        }
+
+        let mut seen = [false; 3];
+        for kind in [
+            NodeKind::X,
+            NodeKind::Y,
+            NodeKind::Z,
+            NodeKind::Port,
+            NodeKind::T,
+            NodeKind::Selective(crate::SelectiveKind::XY),
+            NodeKind::Selective(crate::SelectiveKind::XZ),
+            NodeKind::Selective(crate::SelectiveKind::YZ),
+        ] {
+            for leaves in [&[][..], &[0][..], &[128][..], &[0, 128][..]] {
+                for hadamard in [false, true] {
+                    let zx = phase_test_star(kind, leaves, hadamard);
+                    // Enumerate the center and all original arm values. Paired
+                    // directed columns agree; leaf centers use their native H frame.
+                    // At most seven nonzero columns force the padded sparse path.
+                    for bits in 0..(1usize << (2 * (leaves.len() + 1))) {
+                        let mut row = PauliString::new(zx.total_ids);
+                        row.set(CENTER, AXES[bits & 3]);
+                        for (arm, &leaf) in leaves.iter().enumerate() {
+                            let pauli = AXES[(bits >> (2 * (arm + 1))) & 3];
+                            row.set(zx.edges[2 * arm].id, pauli);
+                            row.set(zx.edges[2 * arm + 1].id, pauli);
+                            row.set(
+                                leaf,
+                                if hadamard && leaf > CENTER {
+                                    pauli.flip()
+                                } else {
+                                    pauli
+                                },
+                            );
+                        }
+                        compare(&zx, &row, &mut seen);
+                        let mut reconstructed = row.clone();
+                        zx.reconstruct_cross_center(std::slice::from_mut(&mut reconstructed));
+                        let phase = zx
+                            .local_row_phase_at(&reconstructed, true, None)
+                            .unwrap_or(0);
+                        let expected =
+                            zx.pauli_string_to_stabilizer_with_row_phase(reconstructed, phase);
+                        assert_eq!(zx.materialize_stabilizer(row), expected);
+                    }
+                    // Unmatched directed arms must fail before tensor evaluation.
+                    for edge in &zx.edges {
+                        for pauli in [Pauli::X, Pauli::Z, Pauli::Y] {
+                            let mut row = PauliString::new(zx.total_ids);
+                            row.set(edge.id, pauli);
+                            assert_eq!(zx.local_row_phase_at(&row, true, None), None);
+                            compare(&zx, &row, &mut seen);
+                        }
+                    }
+                    // Dense fallback, including nonzero isolated padding centers.
+                    for pauli in [Pauli::X, Pauli::Z, Pauli::Y] {
+                        let row = PauliString::from_terms(
+                            zx.total_ids,
+                            (0..zx.total_ids).map(|column| (column, pauli)),
+                        );
+                        compare(&zx, &row, &mut seen);
+                    }
+                    // Many distinct zero-arity tensor centers exercise the
+                    // gather-then-dense fallback without invalid local support.
+                    let majority = PauliString::from_terms(
+                        zx.total_ids,
+                        (0..zx.nodes.len())
+                            .filter(|&node| node != CENTER && !leaves.contains(&node))
+                            .take(zx.nodes.len() / 2 + 1)
+                            .map(|node| (node, Pauli::Z)),
+                    );
+                    compare(&zx, &majority, &mut seen);
+                    let mut long = PauliString::new(zx.total_ids + 65);
+                    compare(&zx, &long, &mut seen);
+                    long.set(zx.total_ids + 64, Pauli::X);
+                    assert_eq!(zx.local_row_phase_at(&long, true, None), None);
+                    compare(&zx, &long, &mut seen);
+                }
+            }
+        }
+        assert_eq!(
+            seen, [true; 3],
+            "cover positive, negative, and rejected rows"
+        );
     }
 
     #[test]
@@ -1701,7 +1998,14 @@ mod tests {
         zx.stabilizer_phase_basis
             .set(Arc::new(super::StabilizerPhaseBasis::new(signed)))
             .unwrap();
-        assert_eq!(zx.stabilizer_row_phases(&[row]), [original ^ 2]);
+        assert_eq!(
+            zx.stabilizer_row_phases(std::slice::from_ref(&row)),
+            [original ^ 2]
+        );
+        let mut reconstructed = row.clone();
+        zx.reconstruct_cross_center(std::slice::from_mut(&mut reconstructed));
+        let expected = zx.pauli_string_to_stabilizer_with_row_phase(reconstructed, original ^ 2);
+        assert_eq!(zx.materialize_stabilizer(row), expected);
     }
 
     #[test]
@@ -1721,7 +2025,7 @@ mod tests {
             assert_eq!(row.paulis.get(0), Pauli::Y);
             assert_eq!(row.paulis.get(1), Pauli::Y);
             assert_eq!(zx.local_row_phase(&row.paulis, false), Some(row.phase()));
-            assert_eq!(zx.pauli_string_to_stabilizer(row.paulis).sign, !hadamard);
+            assert_eq!(zx.materialize_stabilizer(row.paulis).sign, !hadamard);
         }
     }
 
@@ -1817,24 +2121,21 @@ mod tests {
                     .projected_external_table_from_rows(
                         &free_boundary_columns(&zx),
                         expected.clone(),
-                        ProjectionLimits {
-                            max_frontier_width: usize::MAX,
-                            max_witness_nodes: usize::MAX,
-                        },
+                        UNLIMITED_PROJECTION,
                     )
                     .unwrap()
                     .expect("complete rows belong to their local tensors");
                 for row in &table.boundary_rows {
                     let full = table.materialize(row);
                     assert_eq!(
-                        zx.materialize_flow_witness(&row.flow_witness, &full.paulis),
+                        zx.flow_witness_replayer()(&row.flow_witness, &full.paulis),
                         Some(full),
                         "{entry}: boundary witness"
                     );
                 }
                 for row in &table.closed_rows {
                     assert_eq!(
-                        zx.materialize_flow_witness(&row.flow_witness, &row.signed.paulis),
+                        zx.flow_witness_replayer()(&row.flow_witness, &row.signed.paulis),
                         Some(row.signed.clone()),
                         "{entry}: closed witness"
                     );
@@ -1846,14 +2147,157 @@ mod tests {
                         zx.projected_external_table_from_rows(
                             &free_boundary_columns(&zx),
                             vec![invalid],
-                            ProjectionLimits {
-                                max_frontier_width: usize::MAX,
-                                max_witness_nodes: usize::MAX,
-                            },
+                            UNLIMITED_PROJECTION,
                         )
                         .unwrap()
                         .is_none()
                     );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn compact_certificates_match_ordered_signed_rows_and_original_witnesses() {
+        for entry in dense_oracle_galleries() {
+            for projection in gallery_projections(&entry.build().materialize_root_graph().unwrap())
+            {
+                let limits = crate::ModuleCertificationLimits::UNLIMITED;
+                let space = crate::GuardedSurfaceSpace::new(
+                    crate::GuardedTopology::new(&projection, limits).unwrap(),
+                    &std::collections::HashMap::new(),
+                    limits,
+                )
+                .unwrap();
+                let values = space
+                    .topology
+                    .branch_selection_values(&rustc_hash::FxHashSet::default())
+                    .unwrap()
+                    .unwrap();
+                let evaluate = |root| space.topology.diagram.evaluate(root, |index| values[index]);
+                let zx = ZXGraph::from_block_graph_for_analysis(&projection).unwrap();
+                for columns in [free_boundary_columns(&zx), Vec::new()] {
+                    let raw = space.materialize_relation(&zx, evaluate);
+                    let phases = zx.external_stabilizer_row_phases(&raw);
+                    let signed = raw
+                        .into_iter()
+                        .zip(phases)
+                        .map(|(row, phase)| PhasedPauliString::new(row, phase))
+                        .collect();
+                    let projection_limits = UNLIMITED_PROJECTION;
+                    let expected = zx
+                        .projected_external_table_from_rows(&columns, signed, projection_limits)
+                        .unwrap()
+                        .unwrap();
+                    let mut actual = Vec::new();
+                    let boundary_len = zx
+                        .certify_compact_relation(
+                            space
+                                .compact_relation(&zx, columns.len(), evaluate)
+                                .unwrap()
+                                .unwrap(),
+                            &columns,
+                            projection_limits,
+                            |row| actual.push(row),
+                        )
+                        .unwrap()
+                        .unwrap();
+                    assert_eq!(boundary_len, expected.boundary_rows.len(), "{entry}");
+                    let expected = expected
+                        .complete_rows()
+                        .map(|row| row.signed)
+                        .collect::<Vec<_>>();
+                    assert_eq!(
+                        actual
+                            .iter()
+                            .map(|row| row.signed.clone())
+                            .collect::<Vec<_>>(),
+                        expected,
+                        "{entry}: exact canonical order"
+                    );
+                    for row in actual {
+                        assert_eq!(
+                            zx.flow_witness_replayer()(&row.flow_witness, &row.signed.paulis),
+                            Some(row.signed),
+                            "{entry}: original witness replay"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn operation_local_replay_keeps_graph_placement_frames_and_fallbacks() {
+        for entry in [
+            GalleryItem::CNOT,
+            GalleryItem::CZSpatialH,
+            GalleryItem::TWithPreparedY,
+        ] {
+            let original = entry.build().materialize_root_graph().unwrap();
+            let turns = match entry {
+                GalleryItem::TWithPreparedY => 2,
+                _ => 1,
+            };
+            for graph in [
+                original.clone(),
+                original
+                    .rotate_about_origin_lenient(crate::UDirection::Z, turns)
+                    .unwrap()
+                    .shift_positions(IVec3::new(20, -30, 40))
+                    .unwrap(),
+            ] {
+                let zx = ZXGraph::from_block_graph_for_analysis(&graph).unwrap();
+                let signed = zx.to_signed_external_generator_table();
+                let table = zx
+                    .projected_external_table_from_rows(
+                        &free_boundary_columns(&zx),
+                        signed,
+                        UNLIMITED_PROJECTION,
+                    )
+                    .unwrap()
+                    .unwrap();
+                let rows = table
+                    .complete_rows()
+                    .map(|row| (row.flow_witness, row.signed))
+                    .collect::<Vec<_>>();
+                let mut replay = zx.flow_witness_replayer();
+                let local = zx
+                    .nodes()
+                    .iter()
+                    .map(|node| zx.local_signed_flow_supports(&[node.id], None))
+                    .find(|sources| sources.len() > 1)
+                    .expect("fixture has multiple local ordinals");
+                let last = local.last().unwrap();
+                for source in [last, &local[0], last, &local[0]] {
+                    let witness = FlowWitness {
+                        sources: vec![Arc::new(zx.flow_source_key(source))],
+                    };
+                    let expected = PhasedPauliString::new(
+                        PauliString::from_terms(zx.total_ids(), source.terms.iter().copied()),
+                        source.phase,
+                    );
+                    assert_eq!(replay(&witness, &expected.paulis), Some(expected));
+                }
+                for (witness, expected) in rows.iter().chain(rows.iter().rev()) {
+                    assert_eq!(replay(witness, &expected.paulis), Some(expected.clone()));
+                    // Cached ingredients must still check this call's expected support.
+                    let identity = PhasedPauliString::positive(PauliString::new(zx.total_ids));
+                    assert_eq!(replay(witness, &identity.paulis), Some(identity));
+                    let mut renamed = witness.clone();
+                    if !renamed.sources.is_empty() {
+                        // An unrecognized local label must still use the existing support fallback.
+                        let mut changed = renamed.sources[0].as_ref().clone();
+                        changed.intrinsic_phase ^= 1;
+                        renamed.sources[0] = Arc::new(changed);
+                        assert_eq!(replay(&renamed, &expected.paulis), Some(expected.clone()));
+                        // A missing physical owner cannot become valid through cached keys.
+                        let mut changed = renamed.sources[0].as_ref().clone();
+                        changed.position += IVec3::splat(1_000_000);
+                        renamed.sources[0] = Arc::new(changed);
+                        assert!(replay(&renamed, &expected.paulis).is_none());
+                    }
+                    assert_eq!(replay(witness, &expected.paulis), Some(expected.clone()));
                 }
             }
         }
@@ -1916,13 +2360,7 @@ mod tests {
                     "a boundary-free component must carry a closed surface: {entry:?}"
                 );
                 let projected = zx
-                    .projected_external_table(
-                        &columns,
-                        ProjectionLimits {
-                            max_frontier_width: usize::MAX,
-                            max_witness_nodes: usize::MAX,
-                        },
-                    )
+                    .projected_external_table(&columns, UNLIMITED_PROJECTION)
                     .unwrap();
 
                 assert_eq!(projected.boundary_rows.len(), columns.len(), "{entry:?}");

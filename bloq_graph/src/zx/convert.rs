@@ -49,6 +49,13 @@ impl ZXGraph {
         Self::from_block_graph_parts(&graph, action_graph)
     }
 
+    /// Converts a branch projection that materialization already fixed,
+    /// validated, and gave a checked action graph.
+    pub(crate) fn from_validated_projection(graph: &BlockGraph) -> Result<Self, ZXError> {
+        debug_assert!(crate::validate::validate_structure(graph).is_ok());
+        Self::from_block_graph_parts(graph, graph.action_graph().clone())
+    }
+
     /// Build the center's tensor/incidence view from a validated projection
     /// whose shadowed faces have already been fixed. Neighbor kinds are copied
     /// from that complete projection: normalizing a truncated graph could change
@@ -181,17 +188,26 @@ impl ZXGraph {
             }
         }
 
-        let mut pipes = graph.pipes().collect::<Vec<_>>();
-        pipes.sort_unstable_by_key(|pipe| {
-            let first = endpoint_to_node[&pipe.src];
-            let second = endpoint_to_node[&pipe.dst()];
-            (first.min(second), first.max(second))
-        });
-        for pipe in pipes {
+        // Resolve endpoints once; sorting by node pair must not repeat the lookups.
+        let mut pipes = graph
+            .pipes()
+            .map(|pipe| {
+                let first = endpoint_to_node[&pipe.src];
+                let second = endpoint_to_node[&pipe.dst()];
+                (
+                    (first.min(second), first.max(second)),
+                    first,
+                    second,
+                    pipe.hadamard,
+                )
+            })
+            .collect::<Vec<_>>();
+        pipes.sort_unstable_by_key(|&(pair, ..)| pair);
+        for (_, first, second, hadamard) in pipes {
             push_edge_pair(
-                endpoint_to_node[&pipe.src],
-                endpoint_to_node[&pipe.dst()],
-                pipe.hadamard,
+                first,
+                second,
+                hadamard,
                 &mut id,
                 &mut edges,
                 &mut directed_edges,
