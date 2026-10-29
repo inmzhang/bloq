@@ -16,7 +16,8 @@ enum CandidateSummary {
 /// Complete constant RREF, including accepted equations and physical kernels.
 pub(super) struct ConstantReadoutBasis {
     rows: BooleanRowSpace,
-    owners: HashMap<usize, usize>,
+    // Pivot row owning each column.
+    owners: Vec<Option<usize>>,
     order: Vec<ColumnPriority>,
     pending: Vec<usize>,
     physical: usize,
@@ -58,7 +59,7 @@ impl ConstantReadoutBasis {
         );
         Ok(Self {
             rows: BooleanRowSpace::default(),
-            owners: HashMap::new(),
+            owners: vec![None; order.len()],
             order,
             pending,
             physical,
@@ -79,7 +80,7 @@ impl ConstantReadoutBasis {
         pivots.extend(
             row.terms()
                 .iter()
-                .filter_map(|&(column, _)| self.owners.get(&column).copied()),
+                .filter_map(|&(column, _)| self.owners[column]),
         );
         // Complete RREF pivots have zero on every other pivot column.
         for owner in pivots {
@@ -103,7 +104,7 @@ impl ConstantReadoutBasis {
             .rows
             .insert_indexed(row, diagram)?
             .expect("nonzero pivot");
-        assert!(self.owners.insert(column, owner).is_none());
+        assert!(self.owners[column].replace(owner).is_none());
         diagram.charge(1)?;
         if self.summaries.len() == self.summaries.capacity() {
             diagram.charge(self.summaries.len())?;
@@ -130,7 +131,7 @@ impl ConstantReadoutBasis {
         );
         self.invalidate_column(column, diagram)?;
         self.order[column] = order;
-        let Some(&owner) = self.owners.get(&column) else {
+        let Some(owner) = self.owners[column] else {
             return Ok(());
         };
         let row = self.rows.row(owner).expect("pivot owner exists");
@@ -146,8 +147,8 @@ impl ConstantReadoutBasis {
             self.invalidate_column(next, diagram)?;
             self.rows.reduce_column(next, &row, diagram)?;
             self.rows.replace(owner, row, diagram)?;
-            self.owners.remove(&column);
-            assert!(self.owners.insert(next, owner).is_none());
+            self.owners[column] = None;
+            assert!(self.owners[next].replace(owner).is_none());
         }
         Ok(())
     }
@@ -171,19 +172,6 @@ impl ConstantReadoutBasis {
         Ok(())
     }
 
-    fn candidate(
-        &self,
-        wanted: usize,
-        diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
-    ) -> Result<Option<&BooleanRow>, BooleanResourceError> {
-        diagram.charge(1)?;
-        let Some(&owner) = self.owners.get(&wanted) else {
-            return Ok(None);
-        };
-        let row = self.rows.row(owner).expect("pivot owner exists");
-        Ok(Some(row))
-    }
-
     fn invalidate_column(
         &self,
         column: usize,
@@ -205,10 +193,12 @@ impl ConstantReadoutBasis {
         times: &[ColumnTime],
         diagram: &mut bloq_utils::boolean::BooleanDecisionDiagram,
     ) -> Result<Option<(&BooleanRow, i64)>, BooleanResourceError> {
-        let Some(row) = self.candidate(wanted, diagram)? else {
+        diagram.charge(1)?;
+        let Some(owner) = self.owners[wanted] else {
             return Ok(None);
         };
-        let summary = &self.summaries[self.owners[&wanted]];
+        let row = self.rows.row(owner).expect("pivot owner exists");
+        let summary = &self.summaries[owner];
         let time = match summary.get() {
             CandidateSummary::Blocked => return Ok(None),
             CandidateSummary::Ready(time) => time,
@@ -497,17 +487,18 @@ fn constant_rref_updates_match_fresh_reduction() {
             .into_iter()
             .map(BooleanRow::into_terms)
             .collect::<Vec<_>>();
-        let mut pivots = basis.owners.iter().collect::<Vec<_>>();
-        pivots.sort_unstable_by_key(|&(&column, _)| basis.order[column]);
+        let mut pivots = (0..basis.owners.len())
+            .filter_map(|column| Some((column, basis.owners[column]?)))
+            .collect::<Vec<_>>();
+        pivots.sort_unstable_by_key(|&(column, _)| basis.order[column]);
         let actual = pivots
             .into_iter()
-            .map(|(_, &owner)| basis.rows.row(owner).unwrap().terms().to_vec())
+            .map(|(_, owner)| basis.rows.row(owner).unwrap().terms().to_vec())
             .collect::<Vec<_>>();
         assert_eq!(actual, expected);
         for wanted in (6..9).filter(|&column| unknown[column - 6]) {
-            let expected = basis
-                .candidate(wanted, diagram)
-                .unwrap()
+            let expected = basis.owners[wanted]
+                .map(|owner| basis.rows.row(owner).unwrap())
                 .filter(|row| {
                     !GuardedSurfaceSpace::named_terms(row, 6, 9)
                         .iter()
