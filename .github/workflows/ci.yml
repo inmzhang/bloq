@@ -87,7 +87,10 @@ jobs:
     name: Approve heavy PR checks
     needs: quick
     if: github.event_name == 'pull_request' && needs.quick.outputs.heavy == 'true'
-    environment: heavy-pr-checks
+    environment:
+      name: heavy-pr-checks
+      # Require approval without adding deployment events to the PR timeline.
+      deployment: false
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
