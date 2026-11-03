@@ -733,10 +733,12 @@ impl Assembly {
             }
         }
         let mut members = HashMap::default();
-        let mut layers = HashMap::default();
+        let layers = nodes
+            .iter()
+            .map(|&node| (node, self.bloq[node].layer()))
+            .collect::<HashMap<_, _>>();
         for &node in &nodes {
             let declared = if let Some(quantum) = self.bloq[node].try_quantum() {
-                layers.insert(node, self.bloq[node].layer());
                 quantum
                     .instances
                     .iter()
@@ -744,7 +746,6 @@ impl Assembly {
                     .collect::<Vec<_>>()
             } else {
                 let region = &self.regions[self.region_by_node[&node]];
-                layers.insert(node, 2 * i64::from(region.position.z));
                 vec![(
                     region
                         .source_instance

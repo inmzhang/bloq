@@ -95,7 +95,8 @@ pub struct LoweringConfig<'a> {
 /// Absolute release epochs for independently schedulable source classes.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct SourceTiming {
-    /// Factory source release epoch.
+    /// Factory source release epoch. A factory on reused qubits also waits for
+    /// their previous occupants.
     pub factory: f64,
     /// External logical-input release epoch.
     pub input: f64,
@@ -214,6 +215,10 @@ pub enum LowerError {
     /// Dynamic retries are supported only for source-isolated RUS regions.
     #[error("RUS node {0} has an incoming quantum seam and is not source-isolated")]
     NonSourceRus(u32),
+    /// Lowered tasks wait on each other, such as a factory on qubits held for an
+    /// output that waits for that factory.
+    #[error("task {0} can never start because lowered dependencies form a cycle")]
+    DependencyCycle(String),
     /// A dynamic readiness edge lacks complete persisted one-round padding.
     #[error("RUS readiness seam {from}->{to} has no complete one-round memory template")]
     MissingMemoryTemplate {
@@ -549,6 +554,7 @@ pub fn lower(bloq: &Bloq, config: &LoweringConfig<'_>) -> Result<Program, LowerE
         .stream;
     cx.rewire_terminal_holds()?;
     cx.finish_waits()?;
+    cx.reject_dependency_cycles()?;
     cx.assign_source_releases()?;
     let inputs = cx.lower_inputs()?;
     let outputs = cx.lower_outputs()?;
@@ -832,13 +838,46 @@ impl LowerCx<'_, '_> {
         Ok(())
     }
 
+    /// Waits resolve only after every level is lowered, so this is the first
+    /// point where the complete task graph exists.
+    fn reject_dependency_cycles(&self) -> Result<(), LowerError> {
+        let mut blockers = vec![0_usize; self.tasks.len()];
+        let mut successors = vec![Vec::new(); self.tasks.len()];
+        for (task, value) in self.tasks.iter().enumerate() {
+            let extra: &[TaskId] = match &value.instruction {
+                Instruction::WaitFor { until, .. } => until,
+                Instruction::Rus { body, .. } => &body.tasks,
+                _ => &[],
+            };
+            for &prerequisite in value.dependencies.iter().chain(extra) {
+                successors[prerequisite as usize].push(task);
+                blockers[task] += 1;
+            }
+        }
+        let mut ready = (0..self.tasks.len())
+            .filter(|&task| blockers[task] == 0)
+            .collect::<Vec<_>>();
+        while let Some(task) = ready.pop() {
+            for &successor in &successors[task] {
+                blockers[successor] -= 1;
+                if blockers[successor] == 0 {
+                    ready.push(successor);
+                }
+            }
+        }
+        match blockers.iter().position(|&count| count > 0) {
+            Some(task) => Err(LowerError::DependencyCycle(self.tasks[task].label.clone())),
+            None => Ok(()),
+        }
+    }
+
     fn rewire_terminal_holds(&mut self) -> Result<(), LowerError> {
         for hold in &self.terminal_holds {
             let owner = self
                 .node_tasks
                 .get(&hold.owner)
-                .ok_or(LowerError::Unflattened("terminal output owner"))?
-                .exit;
+                .copied()
+                .ok_or(LowerError::Unflattened("terminal output owner"))?;
             let wait = self
                 .node_tasks
                 .get(&hold.wait)
@@ -863,7 +902,7 @@ impl LowerCx<'_, '_> {
                         .iter()
                         .copied()
                         .flat_map(|dependency| {
-                            if dependency == owner {
+                            if dependency == owner.ready || dependency == owner.exit {
                                 predecessors.to_vec()
                             } else {
                                 vec![dependency]
@@ -985,7 +1024,11 @@ impl LowerCx<'_, '_> {
                 .filter_map(|edge| {
                     nodes.get(&edge.source).map(|producer| match edge.edge {
                         BloqEdge::Compose { .. } => producer.entry,
-                        _ => producer.exit,
+                        // Only a seam consumes the held output patch. Everything
+                        // else follows acceptance, and `last_qubit` carries any
+                        // overlap with the hold.
+                        BloqEdge::Quantum(_) => producer.exit,
+                        BloqEdge::Value { .. } | BloqEdge::Order => producer.ready,
                     })
                 })
                 .collect::<BTreeSet<_>>();
@@ -1351,6 +1394,11 @@ impl LowerCx<'_, '_> {
                         .collect::<Vec<_>>()
                         .into_boxed_slice();
                     let qubits = owned_qubits.clone();
+                    // A supported RUS has no incoming seam (checked above), so it
+                    // inherits no quantum state. It takes over its support once
+                    // the previous occupants finish, and every attempt replays
+                    // its own authored resets.
+                    dependencies.extend(qubits.iter().filter_map(|qubit| last_qubit.get(qubit)));
                     let instruction = Instruction::Rus {
                         body,
                         restart: self
@@ -1364,13 +1412,6 @@ impl LowerCx<'_, '_> {
                         decoder_hold,
                         cultivation_exits,
                     };
-                    // A supported RUS is a true source: it has no incoming
-                    // seam (checked above) and no earlier task owns its support.
-                    // Its first attempt therefore starts on fresh backend |0>
-                    // qubits; later attempts replay the authored preparation.
-                    if qubits.iter().any(|qubit| last_qubit.contains_key(qubit)) {
-                        return Err(LowerError::NonSourceRus(id.0));
-                    }
                     let task = self.push_task(Task {
                         label: task_label(path, id, region.kind_name()),
                         release: 0.0,
@@ -1404,6 +1445,11 @@ impl LowerCx<'_, '_> {
                         signal
                     };
                     let ready = exit;
+                    // Acceptance frees the scratch, and only the output hold keeps
+                    // its own qubits past it.
+                    for &qubit in qubits.iter() {
+                        last_qubit.insert(qubit, ready);
+                    }
                     if let Some((template, siblings)) =
                         self.hoisted_waits.remove(&(path.clone(), id))
                     {
@@ -1411,14 +1457,15 @@ impl LowerCx<'_, '_> {
                         let origin = self.task_origins[template as usize].clone();
                         hoisted.label = task_label(path, id, "accepted-join-wait");
                         hoisted.dependencies = Box::new([exit]);
+                        let held = hoisted.qubits.clone();
                         let hoisted = self.push_task(hoisted)?;
                         self.set_task_origin(hoisted, origin);
                         stream.push(hoisted);
                         self.pending_waits.push((hoisted, siblings));
                         exit = hoisted;
-                    }
-                    for &qubit in qubits.iter() {
-                        last_qubit.insert(qubit, exit);
+                        for &qubit in held.iter() {
+                            last_qubit.insert(qubit, exit);
+                        }
                     }
                     LoweredNode {
                         entry: task,
@@ -1565,11 +1612,7 @@ impl LowerCx<'_, '_> {
             .flat_map(|moment| moment.operations.iter())
             .flat_map(QuantumOp::qubits)
             .collect::<BTreeSet<_>>();
-        for qubit in &qubits {
-            if let Some(previous) = last_qubit.get(qubit) {
-                dependencies.insert(*previous);
-            }
-        }
+        dependencies.extend(qubits.iter().filter_map(|qubit| last_qubit.get(qubit)));
         let duration = alternatives
             .iter()
             .try_fold(0.0_f64, |longest, alternative| {

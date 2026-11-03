@@ -157,24 +157,9 @@ impl LogicalInterface {
                 }
                 _ => continue,
             };
-            let role = expansion.map(|port| port.role).unwrap_or_else(|| {
-                let role = graph
-                    .get_block(position)
-                    .expect("Port exists")
-                    .port_role()
-                    .expect("Port has role");
-                if role != PortRole::Auto {
-                    role
-                } else if graph
-                    .neighbor_positions(position)
-                    .iter()
-                    .all(|neighbor| neighbor.z > position.z)
-                {
-                    PortRole::Input
-                } else {
-                    PortRole::Output
-                }
-            });
+            let role = expansion
+                .map(|port| port.role)
+                .unwrap_or_else(|| resolved_port_role(graph, position));
             if role.has_input_boundary() {
                 let private = expansion
                     .filter(|port| !port.is_spatial())
@@ -197,6 +182,26 @@ impl LogicalInterface {
 }
 
 /// Shared finalization after every physical member and semantic recipe is bound.
+/// A port's declared role, with `Auto` read from its temporal neighbors.
+pub(crate) fn resolved_port_role(graph: &BlockGraph, position: IVec3) -> PortRole {
+    let role = graph
+        .get_block(position)
+        .expect("Port exists")
+        .port_role()
+        .expect("Port has role");
+    if role != PortRole::Auto {
+        role
+    } else if graph
+        .neighbor_positions(position)
+        .iter()
+        .all(|neighbor| neighbor.z > position.z)
+    {
+        PortRole::Input
+    } else {
+        PortRole::Output
+    }
+}
+
 pub(crate) fn finish_program(
     bloq: &mut Bloq,
     interface: LogicalInterface,

@@ -1,8 +1,9 @@
 use std::collections::BTreeSet;
 
 use bloq_compile::{CompileConfig, CompileContext};
-use bloq_graph::GalleryItem;
+use bloq_graph::{BlockGraph, GalleryItem};
 use bloq_ir::circuit::NoiseModel;
+use bloq_ir::{Bloq, BloqEdge, BloqNode, ClassicalExpr, ClassicalNode};
 use bloq_vm::DEFAULT_DECODER_LATENCY_ROUNDS;
 use bloq_vm::decoder::MockDecoderConfig;
 use bloq_vm::instruction::{Instruction, Program, QuantumOp, SourceRole, Stream};
@@ -833,4 +834,113 @@ fn noisy_thth_restarts_as_soon_as_a_physical_check_fires() {
     assert_early_restarts_skip_gap(&result.artifact);
     assert_authored_retry_replay(&program, &result.artifact);
     assert_factory_gaps(&program, &result.artifact);
+}
+
+fn compile_full_cultivation(graph: &BlockGraph) -> Bloq {
+    CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(false))
+        .compile(graph)
+        .expect("factories compile")
+        .bloq
+}
+
+/// Factories on reused qubits wait for the previous occupants and keep their
+/// support through rejected attempts. Attempt-local tasks run inside their
+/// region's interval, so the region stands in for them.
+#[test]
+fn reused_factory_qubits_stay_exclusive_through_retries() {
+    let bloq = compile_full_cultivation(&GalleryItem::PhaseGradientK4.build());
+    let program = lower(&bloq, &LoweringConfig::default()).expect("reused factories lower");
+    let artifact = program
+        .run(runtime_config(0x11, vec![false]))
+        .expect("full cultivation runs")
+        .artifact;
+    assert!(!artifact.discarded, "{:?}", artifact.stop_reason);
+    assert!(artifact.retries.iter().any(|retry| !retry.accepted));
+
+    let mut users = std::collections::BTreeMap::<u32, Vec<(f64, f64)>>::new();
+    for timing in artifact
+        .timing
+        .iter()
+        .filter(|timing| timing.attempt.is_none())
+    {
+        for &qubit in &program.tasks[timing.task as usize].qubits {
+            users
+                .entry(qubit)
+                .or_default()
+                .push((timing.start, timing.end));
+        }
+    }
+    assert!(users.values().any(|intervals| intervals.len() > 1));
+    for (qubit, mut intervals) in users {
+        intervals.sort_by(|left, right| left.0.total_cmp(&right.0));
+        for pair in intervals.windows(2) {
+            assert!(pair[0].1 <= pair[1].0 + 1e-9, "qubit {qubit}: {pair:?}");
+        }
+    }
+}
+
+/// A factory's scratch is free at acceptance while its output stays held, so a
+/// factory on that scratch can be what the hold waits for, directly or after
+/// classical work. The patches around the first factory force its spill there.
+#[test]
+fn a_held_output_can_wait_for_the_factory_reusing_its_scratch() {
+    let graph = BlockGraph::from_blog_text(
+        "BLOG 1.0
+0: T [0,0,0]
+1: ZXX [0,0,1]
+2: Port [0,0,2] role=output
+3: T [0,-1,1]
+4: ZXX [0,-1,2]
+5: Port [0,-1,3] role=output
+6: ZXX [1,0,0]
+7: Port [1,0,1] role=output
+8: ZXX [0,1,0]
+9: Port [0,1,1] role=output
+10: ZXX [-1,0,0]
+11: Port [-1,0,1] role=output
+0 -> +Z
+1 -> +Z
+3 -> +Z
+4 -> +Z
+6 -> +Z
+8 -> +Z
+10 -> +Z
+",
+    )
+    .unwrap();
+    let mut bloq = compile_full_cultivation(&graph);
+    let top = bloq.top();
+    let mut regions = top
+        .node_ids()
+        .filter(|&id| top[id].try_region().is_some())
+        .collect::<Vec<_>>();
+    regions.sort_by_key(|&id| top[id].layer());
+    let (first, second) = (regions[0], regions[1]);
+    let consumer = top
+        .outgoing(first)
+        .find(|edge| matches!(edge.edge, BloqEdge::Quantum(_)))
+        .expect("the output has a consumer")
+        .target;
+    let qubits = |id| bloq.node_qubits(&bloq.top()[id]).unwrap();
+    assert!(
+        qubits(first)
+            .iter()
+            .any(|qubit| qubits(second).contains(qubit))
+    );
+    bloq.add_edge(second, consumer, BloqEdge::Order);
+    for (expr, edge) in [
+        (ClassicalExpr::Const(true), BloqEdge::Order),
+        (ClassicalExpr::In(0), BloqEdge::value(0)),
+    ] {
+        let compute = bloq.add_node(BloqNode::classical(ClassicalNode::Compute { expr }));
+        bloq.add_edge(first, compute, edge);
+        bloq.add_edge(compute, second, BloqEdge::Order);
+    }
+
+    let artifact = lower(&bloq, &LoweringConfig::default())
+        .expect("factories lower")
+        .run(runtime_config(0x11, vec![]))
+        .expect("the hold finishes")
+        .artifact;
+    assert!(!artifact.discarded, "{:?}", artifact.stop_reason);
 }
