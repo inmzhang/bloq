@@ -3,14 +3,14 @@ use std::collections::BTreeSet;
 use bloq_compile::{CompileConfig, CompileContext};
 use bloq_graph::GalleryItem;
 use bloq_ir::circuit::NoiseModel;
-use bloq_ir::{Bloq, BloqEdge};
+use bloq_ir::{Bloq, BloqEdge, BloqNode, ClassicalExpr, ClassicalNode};
 use bloq_vm::DEFAULT_DECODER_LATENCY_ROUNDS;
 use bloq_vm::decoder::MockDecoderConfig;
 use bloq_vm::instruction::{Instruction, Program, QuantumOp, SourceRole, Stream};
 use bloq_vm::runtime::{
     ExecutionArtifact, ExecutionEvent, LogicalInputState, MemoryKind, RuntimeConfig,
 };
-use bloq_vm::{LoweringConfig, Simulator, SourceTiming, lower};
+use bloq_vm::{LowerError, LoweringConfig, Simulator, SourceTiming, lower};
 
 const ROUND_DURATION: f64 = 6.0;
 
@@ -946,6 +946,14 @@ fn a_held_output_can_wait_for_the_factory_reusing_its_scratch() {
         .expect("the output has a consumer")
         .target;
     bloq.add_edge(second, consumer, BloqEdge::Order);
+    // Classical work between the factories needs acceptance, not the hold.
+    let compute = |expr| BloqNode::classical(ClassicalNode::Compute { expr });
+    let ordered = bloq.add_node(compute(ClassicalExpr::Const(true)));
+    bloq.add_edge(first, ordered, BloqEdge::Order);
+    bloq.add_edge(ordered, second, BloqEdge::Order);
+    let valued = bloq.add_node(compute(ClassicalExpr::In(0)));
+    bloq.add_edge(first, valued, BloqEdge::value(0));
+    bloq.add_edge(valued, second, BloqEdge::Order);
 
     let artifact = lower(&bloq, &LoweringConfig::default())
         .expect("factories lower")
@@ -953,4 +961,57 @@ fn a_held_output_can_wait_for_the_factory_reusing_its_scratch() {
         .expect("the hold finishes")
         .artifact;
     assert!(!artifact.discarded, "{:?}", artifact.stop_reason);
+}
+
+/// A factory on qubits an output still holds, while that hold waits for the
+/// factory, can never run. Lowering reports it instead of stalling at runtime.
+#[test]
+fn a_factory_on_held_qubits_cannot_satisfy_the_hold_it_waits_for() {
+    let graph = bloq_graph::BlockGraph::from_blog_text(
+        "BLOG 1.0
+0: T [0,0,0]
+1: XZX [0,0,1]
+2: T [0,0,2]
+3: XZX [0,0,3]
+4: Port [0,0,4] role=output
+0 -> +Z
+2 -> +Z
+3 -> +Z
+",
+    )
+    .unwrap();
+    let mut bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(false))
+        .compile(&graph)
+        .expect("factories compile")
+        .bloq;
+    let top = bloq.top();
+    let regions = top
+        .node_ids()
+        .filter(|&id| top[id].try_region().is_some())
+        .collect::<Vec<_>>();
+    let (first, second) = if top[regions[0]].layer() == 0 {
+        (regions[0], regions[1])
+    } else {
+        (regions[1], regions[0])
+    };
+    let consumer = top
+        .outgoing(first)
+        .find(|edge| matches!(edge.edge, BloqEdge::Quantum(_)))
+        .expect("the output has a consumer")
+        .target;
+    let outgoing = top
+        .outgoing(second)
+        .map(|edge| (edge.target, edge.edge.clone()))
+        .collect::<Vec<_>>();
+    // Re-adding the factory drops its occupancy order after the consumer.
+    let factory = bloq.remove_node(second).expect("factory exists");
+    let second = bloq.add_node(factory);
+    for (target, edge) in outgoing {
+        bloq.add_edge(second, target, edge);
+    }
+    bloq.add_edge(first, second, BloqEdge::Order);
+    bloq.add_edge(second, consumer, BloqEdge::Order);
+
+    let error = lower(&bloq, &LoweringConfig::default()).expect_err("the hold can never finish");
+    assert!(matches!(error, LowerError::DependencyCycle(_)), "{error}");
 }

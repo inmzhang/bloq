@@ -215,6 +215,10 @@ pub enum LowerError {
     /// Dynamic retries are supported only for source-isolated RUS regions.
     #[error("RUS node {0} has an incoming quantum seam and is not source-isolated")]
     NonSourceRus(u32),
+    /// Lowered tasks wait on each other, such as a factory on qubits held for an
+    /// output that waits for that factory.
+    #[error("task {0} can never start because lowered dependencies form a cycle")]
+    DependencyCycle(String),
     /// A dynamic readiness edge lacks complete persisted one-round padding.
     #[error("RUS readiness seam {from}->{to} has no complete one-round memory template")]
     MissingMemoryTemplate {
@@ -550,6 +554,7 @@ pub fn lower(bloq: &Bloq, config: &LoweringConfig<'_>) -> Result<Program, LowerE
         .stream;
     cx.rewire_terminal_holds()?;
     cx.finish_waits()?;
+    cx.reject_dependency_cycles()?;
     cx.assign_source_releases()?;
     let inputs = cx.lower_inputs()?;
     let outputs = cx.lower_outputs()?;
@@ -833,13 +838,46 @@ impl LowerCx<'_, '_> {
         Ok(())
     }
 
+    /// Waits resolve only after every level is lowered, so this is the first
+    /// point where the complete task graph exists.
+    fn reject_dependency_cycles(&self) -> Result<(), LowerError> {
+        let mut blockers = vec![0_usize; self.tasks.len()];
+        let mut successors = vec![Vec::new(); self.tasks.len()];
+        for (task, value) in self.tasks.iter().enumerate() {
+            let extra: &[TaskId] = match &value.instruction {
+                Instruction::WaitFor { until, .. } => until,
+                Instruction::Rus { body, .. } => &body.tasks,
+                _ => &[],
+            };
+            for &prerequisite in value.dependencies.iter().chain(extra) {
+                successors[prerequisite as usize].push(task);
+                blockers[task] += 1;
+            }
+        }
+        let mut ready = (0..self.tasks.len())
+            .filter(|&task| blockers[task] == 0)
+            .collect::<Vec<_>>();
+        while let Some(task) = ready.pop() {
+            for &successor in &successors[task] {
+                blockers[successor] -= 1;
+                if blockers[successor] == 0 {
+                    ready.push(successor);
+                }
+            }
+        }
+        match blockers.iter().position(|&count| count > 0) {
+            Some(task) => Err(LowerError::DependencyCycle(self.tasks[task].label.clone())),
+            None => Ok(()),
+        }
+    }
+
     fn rewire_terminal_holds(&mut self) -> Result<(), LowerError> {
         for hold in &self.terminal_holds {
             let owner = self
                 .node_tasks
                 .get(&hold.owner)
-                .ok_or(LowerError::Unflattened("terminal output owner"))?
-                .exit;
+                .copied()
+                .ok_or(LowerError::Unflattened("terminal output owner"))?;
             let wait = self
                 .node_tasks
                 .get(&hold.wait)
@@ -864,7 +902,7 @@ impl LowerCx<'_, '_> {
                         .iter()
                         .copied()
                         .flat_map(|dependency| {
-                            if dependency == owner {
+                            if dependency == owner.ready || dependency == owner.exit {
                                 predecessors.to_vec()
                             } else {
                                 vec![dependency]
@@ -977,7 +1015,6 @@ impl LowerCx<'_, '_> {
         for id in level.deterministic_emit_order()? {
             let node = &level[id];
             let input_bits = self.input_bits(level, id, &nodes)?;
-            let physical = node.try_quantum().is_some() || node.try_region().is_some();
             let mut activation = node
                 .activation
                 .map(|slot| self.required_slot(id, slot, &input_bits))
@@ -987,9 +1024,11 @@ impl LowerCx<'_, '_> {
                 .filter_map(|edge| {
                     nodes.get(&edge.source).map(|producer| match edge.edge {
                         BloqEdge::Compose { .. } => producer.entry,
-                        // Sharing qubits with an output hold goes through `last_qubit`.
-                        BloqEdge::Order if physical => producer.ready,
-                        _ => producer.exit,
+                        // Only a seam consumes the held output patch. Everything
+                        // else follows acceptance, and `last_qubit` carries any
+                        // overlap with the hold.
+                        BloqEdge::Quantum(_) => producer.exit,
+                        BloqEdge::Value { .. } | BloqEdge::Order => producer.ready,
                     })
                 })
                 .collect::<BTreeSet<_>>();
