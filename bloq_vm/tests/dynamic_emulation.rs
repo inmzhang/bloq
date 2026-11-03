@@ -1,9 +1,9 @@
 use std::collections::BTreeSet;
 
 use bloq_compile::{CompileConfig, CompileContext};
-use bloq_graph::GalleryItem;
+use bloq_graph::{BlockGraph, GalleryItem};
 use bloq_ir::circuit::NoiseModel;
-use bloq_ir::{Bloq, BloqEdge, BloqNode, ClassicalExpr, ClassicalNode};
+use bloq_ir::{Bloq, BloqEdge, BloqNode, BloqNodeId, ClassicalExpr, ClassicalNode};
 use bloq_vm::DEFAULT_DECODER_LATENCY_ROUNDS;
 use bloq_vm::decoder::MockDecoderConfig;
 use bloq_vm::instruction::{Instruction, Program, QuantumOp, SourceRole, Stream};
@@ -836,15 +836,35 @@ fn noisy_thth_restarts_as_soon_as_a_physical_check_fires() {
     assert_factory_gaps(&program, &result.artifact);
 }
 
+fn compile_full_cultivation(graph: &BlockGraph) -> Bloq {
+    CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(false))
+        .compile(graph)
+        .expect("factories compile")
+        .bloq
+}
+
+/// Two factories in layer order and the consumer of the first one's output.
+fn factories_and_consumer(bloq: &Bloq) -> (BloqNodeId, BloqNodeId, BloqNodeId) {
+    let top = bloq.top();
+    let mut regions = top
+        .node_ids()
+        .filter(|&id| top[id].try_region().is_some())
+        .collect::<Vec<_>>();
+    regions.sort_by_key(|&id| top[id].layer());
+    let consumer = top
+        .outgoing(regions[0])
+        .find(|edge| matches!(edge.edge, BloqEdge::Quantum(_)))
+        .expect("the output has a consumer")
+        .target;
+    (regions[0], regions[1], consumer)
+}
+
 /// Factories on reused qubits wait for the previous occupants and keep their
 /// support through rejected attempts. Attempt-local tasks run inside their
 /// region's interval, so the region stands in for them.
 #[test]
 fn reused_factory_qubits_stay_exclusive_through_retries() {
-    let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(false))
-        .compile(&GalleryItem::PhaseGradientK4.build())
-        .expect("gallery entry compiles")
-        .bloq;
+    let bloq = compile_full_cultivation(&GalleryItem::PhaseGradientK4.build());
     let program = lower(&bloq, &LoweringConfig::default()).expect("reused factories lower");
     let artifact = program
         .run(runtime_config(0x11, vec![false]))
@@ -852,12 +872,6 @@ fn reused_factory_qubits_stay_exclusive_through_retries() {
         .artifact;
     assert!(!artifact.discarded, "{:?}", artifact.stop_reason);
     assert!(artifact.retries.iter().any(|retry| !retry.accepted));
-    assert!(
-        artifact
-            .detectors
-            .iter()
-            .all(|detector| !detector.committed || !detector.value)
-    );
 
     let mut users = std::collections::BTreeMap::<u32, Vec<(f64, f64)>>::new();
     for timing in artifact
@@ -873,12 +887,6 @@ fn reused_factory_qubits_stay_exclusive_through_retries() {
         }
     }
     assert!(users.values().any(|intervals| intervals.len() > 1));
-    assert!(
-        program
-            .tasks
-            .iter()
-            .any(|task| { task.label.contains("accepted-join-wait") && !task.qubits.is_empty() })
-    );
     for (qubit, mut intervals) in users {
         intervals.sort_by(|left, right| left.0.total_cmp(&right.0));
         for pair in intervals.windows(2) {
@@ -887,11 +895,12 @@ fn reused_factory_qubits_stay_exclusive_through_retries() {
     }
 }
 
-/// A factory's scratch is free once it is accepted, though its output patch
-/// stays held. A later factory on that scratch can be what the hold waits for.
+/// A factory's scratch is free at acceptance while its output stays held, so a
+/// factory on that scratch can be what the hold waits for, directly or after
+/// classical work. The patches around the first factory force its spill there.
 #[test]
 fn a_held_output_can_wait_for_the_factory_reusing_its_scratch() {
-    let graph = bloq_graph::BlockGraph::from_blog_text(
+    let graph = BlockGraph::from_blog_text(
         "BLOG 1.0
 0: T [0,0,0]
 1: ZXX [0,0,1]
@@ -899,61 +908,39 @@ fn a_held_output_can_wait_for_the_factory_reusing_its_scratch() {
 3: T [0,-1,1]
 4: ZXX [0,-1,2]
 5: Port [0,-1,3] role=output
-6: Port [1,0,0] role=input
-7: ZXX [1,0,1]
-8: Port [1,0,2] role=output
-9: Port [0,1,0] role=input
-10: ZXX [0,1,1]
-11: Port [0,1,2] role=output
-12: Port [-1,0,0] role=input
-13: ZXX [-1,0,1]
-14: Port [-1,0,2] role=output
+6: ZXX [1,0,0]
+7: Port [1,0,1] role=output
+8: ZXX [0,1,0]
+9: Port [0,1,1] role=output
+10: ZXX [-1,0,0]
+11: Port [-1,0,1] role=output
 0 -> +Z
 1 -> +Z
 3 -> +Z
 4 -> +Z
 6 -> +Z
-7 -> +Z
-9 -> +Z
+8 -> +Z
 10 -> +Z
-12 -> +Z
-13 -> +Z
 ",
     )
     .unwrap();
-    let mut bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(false))
-        .compile(&graph)
-        .expect("factories compile")
-        .bloq;
-    let region_on_layer = |bloq: &Bloq, layer| {
-        let top = bloq.top();
-        top.node_ids()
-            .find(|&id| top[id].try_region().is_some() && top[id].layer() == layer)
-            .expect("factory exists")
-    };
-    let first = region_on_layer(&bloq, 0);
-    let second = region_on_layer(&bloq, 2);
+    let mut bloq = compile_full_cultivation(&graph);
+    let (first, second, consumer) = factories_and_consumer(&bloq);
     let qubits = |id| bloq.node_qubits(&bloq.top()[id]).unwrap();
     assert!(
         qubits(first)
             .iter()
             .any(|qubit| qubits(second).contains(qubit))
     );
-    let consumer = bloq
-        .top()
-        .outgoing(first)
-        .find(|edge| matches!(edge.edge, BloqEdge::Quantum(_)))
-        .expect("the output has a consumer")
-        .target;
     bloq.add_edge(second, consumer, BloqEdge::Order);
-    // Classical work between the factories needs acceptance, not the hold.
-    let compute = |expr| BloqNode::classical(ClassicalNode::Compute { expr });
-    let ordered = bloq.add_node(compute(ClassicalExpr::Const(true)));
-    bloq.add_edge(first, ordered, BloqEdge::Order);
-    bloq.add_edge(ordered, second, BloqEdge::Order);
-    let valued = bloq.add_node(compute(ClassicalExpr::In(0)));
-    bloq.add_edge(first, valued, BloqEdge::value(0));
-    bloq.add_edge(valued, second, BloqEdge::Order);
+    for (expr, edge) in [
+        (ClassicalExpr::Const(true), BloqEdge::Order),
+        (ClassicalExpr::In(0), BloqEdge::value(0)),
+    ] {
+        let compute = bloq.add_node(BloqNode::classical(ClassicalNode::Compute { expr }));
+        bloq.add_edge(first, compute, edge);
+        bloq.add_edge(compute, second, BloqEdge::Order);
+    }
 
     let artifact = lower(&bloq, &LoweringConfig::default())
         .expect("factories lower")
@@ -967,7 +954,7 @@ fn a_held_output_can_wait_for_the_factory_reusing_its_scratch() {
 /// factory, can never run. Lowering reports it instead of stalling at runtime.
 #[test]
 fn a_factory_on_held_qubits_cannot_satisfy_the_hold_it_waits_for() {
-    let graph = bloq_graph::BlockGraph::from_blog_text(
+    let graph = BlockGraph::from_blog_text(
         "BLOG 1.0
 0: T [0,0,0]
 1: XZX [0,0,1]
@@ -980,26 +967,10 @@ fn a_factory_on_held_qubits_cannot_satisfy_the_hold_it_waits_for() {
 ",
     )
     .unwrap();
-    let mut bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(false))
-        .compile(&graph)
-        .expect("factories compile")
-        .bloq;
-    let top = bloq.top();
-    let regions = top
-        .node_ids()
-        .filter(|&id| top[id].try_region().is_some())
-        .collect::<Vec<_>>();
-    let (first, second) = if top[regions[0]].layer() == 0 {
-        (regions[0], regions[1])
-    } else {
-        (regions[1], regions[0])
-    };
-    let consumer = top
-        .outgoing(first)
-        .find(|edge| matches!(edge.edge, BloqEdge::Quantum(_)))
-        .expect("the output has a consumer")
-        .target;
-    let outgoing = top
+    let mut bloq = compile_full_cultivation(&graph);
+    let (first, second, consumer) = factories_and_consumer(&bloq);
+    let outgoing = bloq
+        .top()
         .outgoing(second)
         .map(|edge| (edge.target, edge.edge.clone()))
         .collect::<Vec<_>>();

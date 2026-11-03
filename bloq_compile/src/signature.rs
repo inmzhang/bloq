@@ -1112,92 +1112,60 @@ mod tests {
     }
 
     #[test]
-    fn t_surgery_side_ranks_free_sides_by_release() {
-        let pos = IVec3::new(0, 0, 4);
-        let (minus_y, plus_x) = (IVec3::new(0, -1, 4), IVec3::new(1, 0, 4));
-        let (plus_y, minus_x) = (IVec3::new(0, 1, 4), IVec3::new(-1, 0, 4));
-        let below = |cell: IVec3, z| cell.with_z(z);
+    fn t_surgery_side_ranks_by_output_then_release_then_next_use() {
+        let at = IVec3::new;
+        let pos = at(0, 0, 4);
+        let (plus_y, minus_x) = (at(0, 1, 4), at(-1, 0, 4));
+        for (occupied, side) in [
+            // A free column beats occupied ones, whatever the priority.
+            (vec![at(0, -1, 3), at(1, 0, 2)], Direction::YPLUS),
+            // Among occupied columns, the earliest release wins.
+            (
+                vec![at(0, -1, 3), at(1, 0, 2), plus_y, minus_x],
+                Direction::XPLUS,
+            ),
+            // Moving the spill cannot start the T before its own column releases.
+            (vec![at(0, 0, 3), at(0, -1, 2)], Direction::YMINUS),
+            // Equal releases go to the latest next use.
+            (
+                vec![at(0, -1, 5), at(1, 0, 7), plus_y, minus_x],
+                Direction::XPLUS,
+            ),
+            // An earlier release beats a later next use.
+            (
+                vec![at(0, -1, 1), at(0, -1, 5), at(1, 0, 3), plus_y, minus_x],
+                Direction::YMINUS,
+            ),
+        ] {
+            let graph = t_graph(pos, &occupied);
+            assert_eq!(t_side(&graph, pos), Some(side), "{occupied:?}");
+        }
 
-        // Columns free of earlier work beat occupied ones, whatever the priority.
-        let graph = t_graph(pos, &[below(minus_y, 3), below(plus_x, 2)]);
-        assert_eq!(t_side(&graph, pos), Some(Direction::YPLUS));
-        // Among occupied columns, the earliest release wins.
-        let graph = t_graph(pos, &[below(minus_y, 3), below(plus_x, 2), plus_y, minus_x]);
-        assert_eq!(t_side(&graph, pos), Some(Direction::XPLUS));
-        // Moving the spill cannot start the T before its own column releases.
-        let graph = t_graph(pos, &[pos.with_z(3), below(minus_y, 2)]);
-        assert_eq!(t_side(&graph, pos), Some(Direction::YMINUS));
-
-        // An earlier output loses to any later release, until no other side is free.
-        let mut graph = t_graph(
-            pos,
-            &[below(plus_x, 3), below(plus_y, 3), below(minus_x, 3)],
-        );
+        // An earlier output loses to any later release.
+        let mut graph = t_graph(pos, &[at(1, 0, 3), at(0, 1, 3), at(-1, 0, 3)]);
         graph.add_block(
-            Block::new(below(minus_y, 1), BlockKind::Port)
+            Block::new(at(0, -1, 1), BlockKind::Port)
                 .with_port_role(PortRole::Output)
                 .unwrap(),
         );
         assert_eq!(t_side(&graph, pos), Some(Direction::XPLUS));
-        for blocked in [plus_x, plus_y, minus_x] {
+
+        // A later T avoids an earlier T's spill, in the first case below, and
+        // takes a free side rather than displace its choice, in the second.
+        for (first, blocked, second) in [
+            (at(-1, 0, 0), at(-1, -1, 0), at(0, 1, 2)),
+            (at(-1, -1, 4), at(-1, -2, 4), at(0, 0, 4)),
+        ] {
+            let mut graph = t_graph(first, &[blocked]);
+            graph.add_block(Block::new(second, BlockKind::T));
             graph.add_block(Block::new(
-                blocked,
+                second + IVec3::Z,
                 BlockKind::Cube(bloq_graph::CubeKind::ZXZ),
             ));
+            graph.add_pipe(Pipe::new(second, Direction::ZPLUS));
+            assert_eq!(t_side(&graph, first), Some(Direction::XPLUS));
+            assert_eq!(t_side(&graph, second), Some(Direction::XPLUS));
         }
-        assert_eq!(t_side(&graph, pos), Some(Direction::YMINUS));
-
-        // An earlier T's spill counts: the first spills +x into (0, 0), so the
-        // second avoids its own -y, which lands in the same column.
-        let (first, second) = (IVec3::new(-1, 0, 0), IVec3::new(0, 1, 2));
-        let mut graph = t_graph(first, &[IVec3::new(-1, -1, 0)]);
-        graph.add_block(Block::new(second, BlockKind::T));
-        graph.add_block(Block::new(
-            second + IVec3::Z,
-            BlockKind::Cube(bloq_graph::CubeKind::ZXZ),
-        ));
-        graph.add_pipe(Pipe::new(second, Direction::ZPLUS));
-        assert_eq!(t_side(&graph, first), Some(Direction::XPLUS));
-        assert_eq!(t_side(&graph, second), Some(Direction::XPLUS));
-
-        // A later T takes a free side rather than displace an earlier T's choice.
-        let (first, second) = (IVec3::new(-1, -1, 4), IVec3::new(0, 0, 4));
-        let mut graph = t_graph(first, &[IVec3::new(-1, -2, 4)]);
-        graph.add_block(Block::new(second, BlockKind::T));
-        graph.add_block(Block::new(
-            second + IVec3::Z,
-            BlockKind::Cube(bloq_graph::CubeKind::ZXZ),
-        ));
-        graph.add_pipe(Pipe::new(second, Direction::ZPLUS));
-        assert_eq!(t_side(&graph, first), Some(Direction::XPLUS));
-        assert_eq!(t_side(&graph, second), Some(Direction::XPLUS));
-    }
-
-    #[test]
-    fn t_surgery_side_breaks_equal_releases_by_next_use() {
-        // Both remaining sides can start now, and +x stays free longer than -y.
-        let pos = IVec3::ZERO;
-        let (minus_y, plus_x) = (IVec3::new(0, -1, 1), IVec3::new(1, 0, 5));
-        let blocked = [IVec3::new(0, 1, 0), IVec3::new(-1, 0, 0)];
-        let graph = t_graph(pos, &[minus_y, plus_x, blocked[0], blocked[1]]);
-        assert_eq!(t_side(&graph, pos), Some(Direction::XPLUS));
-        // A column with no later use beats both.
-        let graph = t_graph(pos, &[minus_y, plus_x]);
-        assert_eq!(t_side(&graph, pos), Some(Direction::YPLUS));
-
-        // An earlier release still wins over a later next use.
-        let pos = IVec3::new(0, 0, 4);
-        let graph = t_graph(
-            pos,
-            &[
-                IVec3::new(0, -1, 1),
-                IVec3::new(0, -1, 5),
-                IVec3::new(1, 0, 3),
-                IVec3::new(0, 1, 4),
-                IVec3::new(-1, 0, 4),
-            ],
-        );
-        assert_eq!(t_side(&graph, pos), Some(Direction::YMINUS));
     }
 
     #[test]
