@@ -733,9 +733,11 @@ impl Assembly {
             }
         }
         let mut members = HashMap::default();
-        let mut layers = HashMap::default();
+        let layers = nodes
+            .iter()
+            .map(|&node| (node, self.bloq[node].layer()))
+            .collect::<HashMap<_, _>>();
         for &node in &nodes {
-            layers.insert(node, self.bloq[node].layer());
             let declared = if let Some(quantum) = self.bloq[node].try_quantum() {
                 quantum
                     .instances

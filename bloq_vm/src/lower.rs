@@ -1356,11 +1356,7 @@ impl LowerCx<'_, '_> {
                     // inherits no quantum state. It takes over its support once
                     // the previous occupants finish, and every attempt replays
                     // its own authored resets.
-                    for qubit in qubits.iter() {
-                        if let Some(&previous) = last_qubit.get(qubit) {
-                            dependencies.insert(previous);
-                        }
-                    }
+                    dependencies.extend(qubits.iter().filter_map(|qubit| last_qubit.get(qubit)));
                     let instruction = Instruction::Rus {
                         body,
                         restart: self
@@ -1568,11 +1564,7 @@ impl LowerCx<'_, '_> {
             .flat_map(|moment| moment.operations.iter())
             .flat_map(QuantumOp::qubits)
             .collect::<BTreeSet<_>>();
-        for qubit in &qubits {
-            if let Some(previous) = last_qubit.get(qubit) {
-                dependencies.insert(*previous);
-            }
-        }
+        dependencies.extend(qubits.iter().filter_map(|qubit| last_qubit.get(qubit)));
         let duration = alternatives
             .iter()
             .try_fold(0.0_f64, |longest, alternative| {

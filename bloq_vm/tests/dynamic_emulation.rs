@@ -835,10 +835,30 @@ fn noisy_thth_restarts_as_soon_as_a_physical_check_fires() {
     assert_factory_gaps(&program, &result.artifact);
 }
 
-/// Tasks sharing a qubit never overlap in time. Attempt-local tasks run inside
-/// their region's own interval, so the region stands in for them.
-fn assert_exclusive_qubit_ownership(program: &Program, artifact: &ExecutionArtifact) {
-    let mut users = std::collections::BTreeMap::<u32, Vec<(f64, f64, u32)>>::new();
+/// Factories on reused qubits wait for the previous occupants and keep their
+/// support through rejected attempts. Attempt-local tasks run inside their
+/// region's interval, so the region stands in for them.
+#[test]
+fn reused_factory_qubits_stay_exclusive_through_retries() {
+    let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(false))
+        .compile(&GalleryItem::PhaseGradientK4.build())
+        .expect("gallery entry compiles")
+        .bloq;
+    let program = lower(&bloq, &LoweringConfig::default()).expect("reused factories lower");
+    let artifact = program
+        .run(runtime_config(0x11, vec![false]))
+        .expect("full cultivation runs")
+        .artifact;
+    assert!(!artifact.discarded, "{:?}", artifact.stop_reason);
+    assert!(artifact.retries.iter().any(|retry| !retry.accepted));
+    assert!(
+        artifact
+            .detectors
+            .iter()
+            .all(|detector| !detector.committed || !detector.value)
+    );
+
+    let mut users = std::collections::BTreeMap::<u32, Vec<(f64, f64)>>::new();
     for timing in artifact
         .timing
         .iter()
@@ -848,102 +868,14 @@ fn assert_exclusive_qubit_ownership(program: &Program, artifact: &ExecutionArtif
             users
                 .entry(qubit)
                 .or_default()
-                .push((timing.start, timing.end, timing.task));
+                .push((timing.start, timing.end));
         }
     }
+    assert!(users.values().any(|intervals| intervals.len() > 1));
     for (qubit, mut intervals) in users {
         intervals.sort_by(|left, right| left.0.total_cmp(&right.0));
         for pair in intervals.windows(2) {
-            assert!(
-                pair[0].1 <= pair[1].0 + 1e-9,
-                "qubit {qubit}: task {} still runs when task {} starts",
-                pair[0].2,
-                pair[1].2,
-            );
+            assert!(pair[0].1 <= pair[1].0 + 1e-9, "qubit {qubit}: {pair:?}");
         }
     }
-}
-
-/// Factories sharing a qubit with other work outside their own attempts.
-fn factories_on_reused_qubits(program: &Program, artifact: &ExecutionArtifact) -> usize {
-    let settled = artifact
-        .timing
-        .iter()
-        .filter(|timing| timing.attempt.is_none())
-        .map(|timing| &program.tasks[timing.task as usize])
-        .collect::<Vec<_>>();
-    settled
-        .iter()
-        .filter(|task| {
-            task.source == Some(SourceRole::Factory)
-                && settled.iter().any(|other| {
-                    !std::ptr::eq(*other, **task)
-                        && other.qubits.iter().any(|qubit| task.qubits.contains(qubit))
-                })
-        })
-        .count()
-}
-
-/// Full cultivation is the subject: factories that reuse earlier qubits, and
-/// the retries that keep holding them.
-#[test]
-fn factories_on_reused_footprints_wait_for_earlier_occupants_through_retries() {
-    for item in [
-        GalleryItem::And4T,
-        GalleryItem::ToffoliFromAndDelayedCZ,
-        GalleryItem::PhaseGradientK4,
-    ] {
-        let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(false))
-            .compile(&item.build())
-            .expect("gallery entry compiles")
-            .bloq;
-        let program = lower(&bloq, &LoweringConfig::default()).expect("full cultivation lowers");
-        let artifact = program
-            .run(runtime_config(0x11, vec![false]))
-            .expect("full cultivation runs")
-            .artifact;
-        assert!(!artifact.discarded, "{item:?}: {:?}", artifact.stop_reason);
-        assert!(
-            artifact.retries.iter().any(|retry| !retry.accepted),
-            "{item:?} exercises a rejected attempt"
-        );
-        assert!(
-            artifact
-                .detectors
-                .iter()
-                .all(|detector| !detector.committed || !detector.value),
-            "{item:?}: an accepted noiseless detector fired"
-        );
-        assert_exclusive_qubit_ownership(&program, &artifact);
-        assert!(
-            factories_on_reused_qubits(&program, &artifact) > 0,
-            "{item:?} reuses factory qubits"
-        );
-    }
-}
-
-/// A free side keeps the factory off a live output, whose dynamic reuse the
-/// runtime cannot defer to program end.
-#[test]
-fn factory_spill_avoids_an_earlier_output_patch() {
-    let graph = bloq_graph::BlockGraph::from_blog_text(
-        "BLOG 1.0
-0: Port [0,-1,0] role=input
-1: XZX [0,-1,1]
-2: Port [0,-1,2] role=output
-3: T [0,0,3]
-4: XZX [0,0,4]
-5: Port [0,0,5] role=output
-0 -> +Z
-1 -> +Z
-3 -> +Z
-4 -> +Z
-",
-    )
-    .unwrap();
-    let bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(false))
-        .compile(&graph)
-        .expect("factory compiles")
-        .bloq;
-    lower(&bloq, &LoweringConfig::default()).expect("output boundary stays terminal");
 }

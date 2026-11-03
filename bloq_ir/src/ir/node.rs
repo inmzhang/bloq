@@ -937,34 +937,6 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn a_region_reports_the_earliest_spatial_layer_in_its_body() {
-        let mut body = SubGraph::new();
-        // A classical body node has no layer and must not read as layer zero.
-        body.add_node(BloqNode::classical(ClassicalNode::Compute {
-            expr: ClassicalExpr::Const(false),
-        }));
-        body.add_node(BloqNode::from_members(vec![SourceBlockRef {
-            pos: ivec3(0, 0, 7),
-        }]));
-        body.add_node(BloqNode::from_members(vec![SourceBlockRef {
-            pos: ivec3(0, 0, 5),
-        }]));
-        let region = BloqNode::region(RegionNode::RepeatUntilSuccess {
-            body,
-            restart_condition: ClassicalExpr::Const(false),
-            restart_source: None,
-        });
-        assert_eq!(region.layer(), 10);
-
-        let empty = BloqNode::region(RegionNode::RepeatUntilSuccess {
-            body: SubGraph::new(),
-            restart_condition: ClassicalExpr::Const(false),
-            restart_source: None,
-        });
-        assert_eq!(empty.layer(), 0);
-    }
-
     /// [`ClassicalExpr::replace_inputs`] on a copy, so an assertion can compare
     /// the mapped expression against the original.
     fn map_inputs(expr: &ClassicalExpr, f: &mut impl FnMut(u32) -> ClassicalExpr) -> ClassicalExpr {

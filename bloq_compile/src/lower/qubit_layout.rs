@@ -121,8 +121,7 @@ fn validate_level_qubit_layout(
                         for &(left_id, left_guard) in &interval.users {
                             let allowed =
                                 *allowed_pairs.entry((left_id, right_id)).or_insert_with(|| {
-                                    let left = &level[left_id];
-                                    allows_same_layer_qubit_overlap(source, left, right)
+                                    allows_same_layer_qubit_overlap(source, &level[left_id], right)
                                         || (skip_sequential
                                             && (level.has_path_with_scratch(
                                                 left_id,

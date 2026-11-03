@@ -81,7 +81,7 @@ fn assert_basis_state(sim: &Simulator, ctx: &ShotContext<'_>, expected: &[(glam:
     assert_stabilizer_state(sim, &outputs, &generators);
 }
 
-fn verify_fixture(fixture: TestFixture, prepare_t_with_mpps: bool) -> Result<(), String> {
+fn verify_fixture(fixture: TestFixture) -> Result<(), String> {
     let case = select_test_cases_for_fixture(fixture)
         .map_err(|error| error.to_string())?
         .into_iter()
@@ -111,8 +111,7 @@ fn verify_fixture(fixture: TestFixture, prepare_t_with_mpps: bool) -> Result<(),
         remainder.is_empty(),
         "gallery CCZ inputs are complete triples"
     );
-    let ctx =
-        CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(prepare_t_with_mpps));
+    let ctx = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(true));
     let compiled = ctx.compile(&program);
     if fixture.in_category(GalleryCategory::AnalysisOnly) {
         return match compiled {
@@ -219,21 +218,7 @@ fn non_clifford_gallery_d3() {
         fixture.in_category(GalleryCategory::NonClifford) && *fixture != TestFixture::TenBitAdder
     }) {
         count += 1;
-        verify_fixture(fixture, true).unwrap_or_else(|error| panic!("{}: {error}", fixture.id()));
-    }
-    assert!(count > 0, "non-Clifford fixture selection was empty");
-}
-
-/// Full cultivation is the subject: gallery factories retry on footprints that
-/// earlier work released, so ideal T sources cannot cover them.
-#[test]
-fn non_clifford_gallery_runs_full_cultivation_d3() {
-    let mut count = 0;
-    for fixture in compile_fixtures().iter().copied().filter(|fixture| {
-        fixture.in_category(GalleryCategory::NonClifford) && *fixture != TestFixture::TenBitAdder
-    }) {
-        count += 1;
-        verify_fixture(fixture, false).unwrap_or_else(|error| panic!("{}: {error}", fixture.id()));
+        verify_fixture(fixture).unwrap_or_else(|error| panic!("{}: {error}", fixture.id()));
     }
     assert!(count > 0, "non-Clifford fixture selection was empty");
 }

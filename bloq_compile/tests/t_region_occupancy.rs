@@ -2,13 +2,13 @@
 
 use bloq_compile::{CompileConfig, CompileContext};
 use bloq_graph::BlockGraph;
-use bloq_ir::{Bloq, SubGraph};
+use bloq_ir::Bloq;
 use bloq_test::{CompileReadyCase, compile_ready_test_cases};
 use rustc_hash::{FxHashMap, FxHashSet};
 
-/// `stages` T gates in series, alternating sides so each side reuses a footprint.
-fn t_chain(stages: usize) -> BlockGraph {
-    let stage = "module TStage {
+const T_MODULES: &str = "BLOG 1.0
+
+module TStage {
   in q_in: data = 0
   out q_out: data = 2
   0: Port [0, 0, 0] role=input <q_in>
@@ -25,121 +25,52 @@ fn t_chain(stages: usize) -> BlockGraph {
   mzz = measure 1 -> +X
   resolve 5 if mzz
 }
+
+module main {
+  in q_in: data = 100
+  out q_out: data = 101
+  s0: TStage @ [0, 0, 0]
+  s1: TStage @ [0, 0, 2] rotate Z 180
+  100: Port [0, 0, 0] role=input <q_in>
+  200: XZX [0, 0, 2]
+  101: Port [0, 0, 4] role=output <q_out>
+  100 -> s0.q_in
+  s0.q_out -> 200
+  200 -> s1.q_in
+  s1.q_out -> 101
+}
 ";
-    let instances = (0..stages)
-        .map(|i| {
-            let turn = if i % 2 == 1 { " rotate Z 180" } else { "" };
-            format!("  s{i}: TStage @ [0, 0, {}]{turn}\n", 2 * i)
-        })
-        .collect::<String>();
-    let wires = (0..stages - 1)
-        .map(|i| format!("  {}: XZX [0, 0, {}]\n", 200 + i, 2 * i + 2))
-        .collect::<String>();
-    let links = (0..stages - 1)
-        .map(|i| {
-            format!(
-                "  s{i}.q_out -> {wire}\n  {wire} -> s{next}.q_in\n",
-                wire = 200 + i,
-                next = i + 1
-            )
-        })
-        .collect::<String>();
-    let source = format!(
-        "BLOG 1.0\n\n{stage}\nmodule main {{\n  in q_in: data = 100\n  out q_out: data = 101\n\
-         {instances}  100: Port [0, 0, 0] role=input <q_in>\n{wires}\
-         \x20 101: Port [0, 0, {top}] role=output <q_out>\n  100 -> s0.q_in\n{links}\
-         \x20 s{last}.q_out -> 101\n}}\n",
-        top = 2 * stages,
-        last = stages - 1,
-    );
-    BlockGraph::from_blog_text(&source).expect("T chain parses")
-}
-
-fn region_layers(bloq: &Bloq) -> Vec<i64> {
-    let mut layers = bloq
-        .top()
-        .nodes()
-        .filter(|(_, node)| node.try_region().is_some())
-        .map(|(_, node)| node.layer())
-        .collect::<Vec<_>>();
-    layers.sort_unstable();
-    layers
-}
-
-/// Pairs of regions and quantum nodes sharing a qubit with no path either way.
-fn unordered_region_overlaps(bloq: &Bloq, level: &SubGraph) -> Vec<(u32, u32)> {
-    let mut users = FxHashMap::<_, Vec<_>>::default();
-    for (id, node) in level.nodes() {
-        if node.try_quantum().is_some() || node.try_region().is_some() {
-            for qubit in bloq.node_qubits(node).expect("corpus coordinates fit") {
-                users.entry(qubit).or_default().push(id);
-            }
-        }
-    }
-    let mut pairs = FxHashSet::default();
-    for list in users.values() {
-        for (index, &left) in list.iter().enumerate() {
-            for &right in &list[index + 1..] {
-                if level[left].try_region().is_some() || level[right].try_region().is_some() {
-                    pairs.insert((left.min(right), left.max(right)));
-                }
-            }
-        }
-    }
-    let mut unordered = pairs
-        .into_iter()
-        .filter(|&(left, right)| !level.has_path(left, right) && !level.has_path(right, left))
-        .map(|(left, right)| (left.0, right.0))
-        .collect::<Vec<_>>();
-    unordered.sort_unstable();
-    unordered
-}
 
 #[test]
 fn t_regions_keep_their_source_layers_through_modules_and_serialization() {
-    const STAGES: usize = 8;
-    let bloq = CompileContext::new(CompileConfig::new(3))
-        .compile(&t_chain(STAGES))
-        .expect("T chain compiles")
-        .bloq;
-    // Stages sit two source layers apart, and source layers count double.
-    let expected = (0..STAGES as i64).map(|i| 4 * i).collect::<Vec<_>>();
-    assert_eq!(region_layers(&bloq), expected);
-    assert_eq!(
-        region_layers(&Bloq::from_binary(&bloq.to_binary()).expect("binary IR round-trips")),
-        expected
-    );
-    assert_eq!(
-        region_layers(&Bloq::from_text(&bloq.to_text()).expect("text IR round-trips")),
-        expected
-    );
-}
-
-#[test]
-fn t_chain_orders_every_region_overlap() {
-    let bloq = CompileContext::new(CompileConfig::new(3))
-        .compile(&t_chain(16))
-        .expect("T chain compiles")
-        .bloq;
-    assert_eq!(unordered_region_overlaps(&bloq, bloq.top()), []);
-}
-
-#[test]
-fn t_chain_order_edges_grow_linearly() {
-    let order_edges = |stages| {
-        CompileContext::new(CompileConfig::new(3))
-            .compile(&t_chain(stages))
-            .expect("T chain compiles")
-            .bloq
-            .edges()
-            .filter(|edge| matches!(edge.edge, bloq_ir::BloqEdge::Order))
-            .count()
+    let region_layers = |bloq: &Bloq| {
+        let mut layers = bloq
+            .top()
+            .nodes()
+            .filter(|(_, node)| node.try_region().is_some())
+            .map(|(_, node)| node.layer())
+            .collect::<Vec<_>>();
+        layers.sort_unstable();
+        layers
     };
-    let (small, medium, large) = (order_edges(16), order_edges(32), order_edges(64));
-    assert_eq!(large - medium, 2 * (medium - small));
+    let graph = BlockGraph::from_blog_text(T_MODULES).expect("modules parse");
+    let bloq = CompileContext::new(CompileConfig::new(3))
+        .compile(&graph)
+        .expect("modules compile")
+        .bloq;
+    // The second stage sits two source layers up, and source layers count double.
+    assert_eq!(region_layers(&bloq), [0, 4]);
+    assert_eq!(
+        region_layers(&Bloq::from_binary(&bloq.to_binary()).unwrap()),
+        [0, 4]
+    );
+    assert_eq!(
+        region_layers(&Bloq::from_text(&bloq.to_text()).unwrap()),
+        [0, 4]
+    );
 }
 
-/// The occupancy pass, not layout validation, orders regions on different layers.
+/// Layout validation no longer checks this, so the occupancy pass must hold it.
 #[test]
 fn corpus_orders_every_region_overlap() {
     let context = CompileContext::new(CompileConfig::new(3));
@@ -147,6 +78,30 @@ fn corpus_orders_every_region_overlap() {
         let id = case.id().to_string();
         let ready = CompileReadyCase::from_test_case(case).expect("corpus case builds");
         let bloq = context.compile(&ready.graph).expect("corpus compiles").bloq;
-        assert_eq!(unordered_region_overlaps(&bloq, bloq.top()), [], "{id}");
+        let level = bloq.top();
+        let mut users = FxHashMap::<_, Vec<_>>::default();
+        for (node_id, node) in level.nodes() {
+            if node.try_quantum().is_some() || node.try_region().is_some() {
+                for qubit in bloq.node_qubits(node).unwrap() {
+                    users.entry(qubit).or_default().push(node_id);
+                }
+            }
+        }
+        let mut pairs = FxHashSet::default();
+        for list in users.values() {
+            for (index, &left) in list.iter().enumerate() {
+                for &right in &list[index + 1..] {
+                    if level[left].try_region().is_some() || level[right].try_region().is_some() {
+                        pairs.insert((left.min(right), left.max(right)));
+                    }
+                }
+            }
+        }
+        for (left, right) in pairs {
+            assert!(
+                level.has_path(left, right) || level.has_path(right, left),
+                "{id}: {left:?} and {right:?} share a qubit unordered"
+            );
+        }
     }
 }

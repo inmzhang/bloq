@@ -759,12 +759,9 @@ fn cyclic_reversal_error(
 /// an `Order` edge holds whether or not its endpoints activate. Removing an
 /// edge implied by two others keeps the order of an acyclic union, so a run of
 /// conditional users needs only its consecutive handoffs.
-fn drop_implied_handoffs(
-    mut pairs: Vec<(BloqNodeId, BloqNodeId)>,
-    rank: &[usize],
-) -> Vec<(BloqNodeId, BloqNodeId)> {
+fn drop_implied_handoffs(pairs: &mut Vec<(BloqNodeId, BloqNodeId)>, rank: &[usize]) {
     let present = pairs.iter().copied().collect::<crate::FxSet<_>>();
-    pairs.sort_unstable_by_key(|&(from, to)| (from.0, rank[to.0 as usize], to.0));
+    pairs.sort_unstable_by_key(|&(from, to)| (from.0, rank[to.0 as usize]));
     let mut previous = None;
     pairs.retain(|&(from, to)| {
         let implied =
@@ -772,7 +769,6 @@ fn drop_implied_handoffs(
         previous = Some((from, to));
         !implied
     });
-    pairs
 }
 
 /// Induce occupancy `Order` edges between physical-qubit eras: a terminating
@@ -1179,7 +1175,7 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
         .all(|(from, to)| rank[from.0 as usize] < rank[to.0 as usize])
         || bloq.is_acyclic_with_edges(&candidate_pairs);
     if batch_acyclic {
-        candidate_pairs = drop_implied_handoffs(candidate_pairs, &rank);
+        drop_implied_handoffs(&mut candidate_pairs, &rank);
     }
     // Reset-only overlaps are preferences; settle data-bearing boundaries first.
     let mut pairs = Vec::with_capacity(candidate_pairs.len());
@@ -1283,10 +1279,6 @@ mod tests {
                 offset,
             ));
         bloq.add_node(node)
-    }
-
-    fn has_order_edge(bloq: &Bloq, from: BloqNodeId, to: BloqNodeId) -> bool {
-        order_edges(bloq).contains(&(from.0, to.0))
     }
 
     fn order_edges(bloq: &Bloq) -> Vec<(u32, u32)> {
@@ -2225,28 +2217,11 @@ mod tests {
             user
         });
         induce_occupancy_order_edges(&mut bloq).unwrap();
-        for pair in users.windows(2) {
-            assert!(has_order_edge(&bloq, pair[0], pair[1]));
-        }
-        assert!(!has_order_edge(&bloq, users[0], users[2]));
-        assert!(bloq.has_path(users[0], users[3]));
-    }
-
-    #[test]
-    fn dropping_a_handoff_requires_the_previous_target_to_reach_the_next() {
-        let id = BloqNodeId;
-        let rank = [0, 1, 2, 3];
-        let kept = drop_implied_handoffs(
-            vec![
-                (id(0), id(2)),
-                (id(0), id(1)),
-                (id(1), id(2)),
-                (id(0), id(3)),
-            ],
-            &rank,
+        let [first, second, third, fourth] = users.map(|user| user.0);
+        assert_eq!(
+            order_edges(&bloq),
+            [(first, second), (second, third), (third, fourth)]
         );
-        // 0 -> 2 follows from 0 -> 1 -> 2, but nothing else reaches 3.
-        assert_eq!(kept, vec![(id(0), id(1)), (id(0), id(3)), (id(1), id(2))]);
     }
 
     #[test]
