@@ -977,6 +977,7 @@ impl LowerCx<'_, '_> {
         for id in level.deterministic_emit_order()? {
             let node = &level[id];
             let input_bits = self.input_bits(level, id, &nodes)?;
+            let physical = node.try_quantum().is_some() || node.try_region().is_some();
             let mut activation = node
                 .activation
                 .map(|slot| self.required_slot(id, slot, &input_bits))
@@ -986,6 +987,8 @@ impl LowerCx<'_, '_> {
                 .filter_map(|edge| {
                     nodes.get(&edge.source).map(|producer| match edge.edge {
                         BloqEdge::Compose { .. } => producer.entry,
+                        // Sharing qubits with an output hold goes through `last_qubit`.
+                        BloqEdge::Order if physical => producer.ready,
                         _ => producer.exit,
                     })
                 })
@@ -1403,6 +1406,11 @@ impl LowerCx<'_, '_> {
                         signal
                     };
                     let ready = exit;
+                    // Acceptance frees the scratch, and only the output hold keeps
+                    // its own qubits past it.
+                    for &qubit in qubits.iter() {
+                        last_qubit.insert(qubit, ready);
+                    }
                     if let Some((template, siblings)) =
                         self.hoisted_waits.remove(&(path.clone(), id))
                     {
@@ -1410,14 +1418,15 @@ impl LowerCx<'_, '_> {
                         let origin = self.task_origins[template as usize].clone();
                         hoisted.label = task_label(path, id, "accepted-join-wait");
                         hoisted.dependencies = Box::new([exit]);
+                        let held = hoisted.qubits.clone();
                         let hoisted = self.push_task(hoisted)?;
                         self.set_task_origin(hoisted, origin);
                         stream.push(hoisted);
                         self.pending_waits.push((hoisted, siblings));
                         exit = hoisted;
-                    }
-                    for &qubit in qubits.iter() {
-                        last_qubit.insert(qubit, exit);
+                        for &qubit in held.iter() {
+                            last_qubit.insert(qubit, exit);
+                        }
                     }
                     LoweredNode {
                         entry: task,

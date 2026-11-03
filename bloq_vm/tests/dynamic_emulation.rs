@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 use bloq_compile::{CompileConfig, CompileContext};
 use bloq_graph::GalleryItem;
 use bloq_ir::circuit::NoiseModel;
+use bloq_ir::{Bloq, BloqEdge};
 use bloq_vm::DEFAULT_DECODER_LATENCY_ROUNDS;
 use bloq_vm::decoder::MockDecoderConfig;
 use bloq_vm::instruction::{Instruction, Program, QuantumOp, SourceRole, Stream};
@@ -872,10 +873,84 @@ fn reused_factory_qubits_stay_exclusive_through_retries() {
         }
     }
     assert!(users.values().any(|intervals| intervals.len() > 1));
+    assert!(
+        program
+            .tasks
+            .iter()
+            .any(|task| { task.label.contains("accepted-join-wait") && !task.qubits.is_empty() })
+    );
     for (qubit, mut intervals) in users {
         intervals.sort_by(|left, right| left.0.total_cmp(&right.0));
         for pair in intervals.windows(2) {
             assert!(pair[0].1 <= pair[1].0 + 1e-9, "qubit {qubit}: {pair:?}");
         }
     }
+}
+
+/// A factory's scratch is free once it is accepted, though its output patch
+/// stays held. A later factory on that scratch can be what the hold waits for.
+#[test]
+fn a_held_output_can_wait_for_the_factory_reusing_its_scratch() {
+    let graph = bloq_graph::BlockGraph::from_blog_text(
+        "BLOG 1.0
+0: T [0,0,0]
+1: ZXX [0,0,1]
+2: Port [0,0,2] role=output
+3: T [0,-1,1]
+4: ZXX [0,-1,2]
+5: Port [0,-1,3] role=output
+6: Port [1,0,0] role=input
+7: ZXX [1,0,1]
+8: Port [1,0,2] role=output
+9: Port [0,1,0] role=input
+10: ZXX [0,1,1]
+11: Port [0,1,2] role=output
+12: Port [-1,0,0] role=input
+13: ZXX [-1,0,1]
+14: Port [-1,0,2] role=output
+0 -> +Z
+1 -> +Z
+3 -> +Z
+4 -> +Z
+6 -> +Z
+7 -> +Z
+9 -> +Z
+10 -> +Z
+12 -> +Z
+13 -> +Z
+",
+    )
+    .unwrap();
+    let mut bloq = CompileContext::new(CompileConfig::new(3).with_prepare_t_with_mpps(false))
+        .compile(&graph)
+        .expect("factories compile")
+        .bloq;
+    let region_on_layer = |bloq: &Bloq, layer| {
+        let top = bloq.top();
+        top.node_ids()
+            .find(|&id| top[id].try_region().is_some() && top[id].layer() == layer)
+            .expect("factory exists")
+    };
+    let first = region_on_layer(&bloq, 0);
+    let second = region_on_layer(&bloq, 2);
+    let qubits = |id| bloq.node_qubits(&bloq.top()[id]).unwrap();
+    assert!(
+        qubits(first)
+            .iter()
+            .any(|qubit| qubits(second).contains(qubit))
+    );
+    let consumer = bloq
+        .top()
+        .outgoing(first)
+        .find(|edge| matches!(edge.edge, BloqEdge::Quantum(_)))
+        .expect("the output has a consumer")
+        .target;
+    bloq.add_edge(second, consumer, BloqEdge::Order);
+
+    let artifact = lower(&bloq, &LoweringConfig::default())
+        .expect("factories lower")
+        .run(runtime_config(0x11, vec![]))
+        .expect("the hold finishes")
+        .artifact;
+    assert!(!artifact.discarded, "{:?}", artifact.stop_reason);
 }

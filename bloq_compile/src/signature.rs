@@ -1,5 +1,7 @@
+use std::cmp::Reverse;
 use std::collections::BTreeSet;
 use std::fmt;
+use std::ops::Bound::{Excluded, Unbounded};
 
 use bloq_graph::{
     Basis, Block, BlockGraph, BlockKind, Direction, PortRole, UDirection, checked_add_position,
@@ -397,6 +399,9 @@ pub(crate) fn relocatable_block_signatures(
 ///    before the program ends in the dynamic VM.
 /// 2. Prefer the earliest release across the whole footprint. The T's own
 ///    column counts, so a side wins only if it lets the factory start sooner.
+/// 3. Among equal releases, prefer the spill column whose next use is latest,
+///    with no later use best. This is a geometric heuristic, not a deadline:
+///    retries stay unbounded, and ownership edges enforce safety.
 ///
 /// Remaining ties keep [`SurgeryLayout::SIDE_PRIORITY`]. Source z only ranks
 /// sides here. Occupancy order edges enforce the execution order.
@@ -499,7 +504,17 @@ pub(crate) fn assign_linked_t_surgery_sides(
             let holds_output = earliest_output
                 .get(&column)
                 .is_some_and(|&earliest| earliest < position.z);
-            (holds_output, own_release.max(release_of(column)))
+            let next_use = occupancy.get(&column).and_then(|layers| {
+                layers
+                    .range((Excluded(position.z), Unbounded))
+                    .next()
+                    .copied()
+            });
+            (
+                holds_output,
+                own_release.max(release_of(column)),
+                Reverse(next_use.unwrap_or(i32::MAX)),
+            )
         });
         candidates.push(sides);
         if !augment_surgery_matching(
@@ -1156,6 +1171,33 @@ mod tests {
         graph.add_pipe(Pipe::new(second, Direction::ZPLUS));
         assert_eq!(t_side(&graph, first), Some(Direction::XPLUS));
         assert_eq!(t_side(&graph, second), Some(Direction::XPLUS));
+    }
+
+    #[test]
+    fn t_surgery_side_breaks_equal_releases_by_next_use() {
+        // Both remaining sides can start now, and +x stays free longer than -y.
+        let pos = IVec3::ZERO;
+        let (minus_y, plus_x) = (IVec3::new(0, -1, 1), IVec3::new(1, 0, 5));
+        let blocked = [IVec3::new(0, 1, 0), IVec3::new(-1, 0, 0)];
+        let graph = t_graph(pos, &[minus_y, plus_x, blocked[0], blocked[1]]);
+        assert_eq!(t_side(&graph, pos), Some(Direction::XPLUS));
+        // A column with no later use beats both.
+        let graph = t_graph(pos, &[minus_y, plus_x]);
+        assert_eq!(t_side(&graph, pos), Some(Direction::YPLUS));
+
+        // An earlier release still wins over a later next use.
+        let pos = IVec3::new(0, 0, 4);
+        let graph = t_graph(
+            pos,
+            &[
+                IVec3::new(0, -1, 1),
+                IVec3::new(0, -1, 5),
+                IVec3::new(1, 0, 3),
+                IVec3::new(0, 1, 4),
+                IVec3::new(-1, 0, 4),
+            ],
+        );
+        assert_eq!(t_side(&graph, pos), Some(Direction::YMINUS));
     }
 
     #[test]
