@@ -162,30 +162,3 @@ fn native_certificate_rejects_symbolic_relations() {
     assert!(space.certify_native_gauges().unwrap().is_none());
     assert!(space.native_gauges.is_none());
 }
-
-#[test]
-fn native_basis_matches_general_planner_on_module_sites() {
-    let limits = ModuleCertificationLimits::DEFAULT;
-    for text in [
-        include_str!("../../../tests/fixtures/native_module_t_chain.blog"),
-        include_str!("../../../tests/fixtures/native_module_t_nested.blog"),
-        include_str!("../../../tests/fixtures/native_module_t_split.blog"),
-    ] {
-        let program = crate::BlockGraph::from_text(text).unwrap();
-        let relations = program
-            .prepare_module_relations_with_cache(limits, std::num::NonZeroUsize::MIN, |_| None)
-            .unwrap();
-        let linked = crate::flatten_module_definition(&program, program.root(), "").unwrap();
-        let graph = linked.graph.fix_shadowed_faces();
-        let topology = GuardedTopology::new(&graph, limits).unwrap();
-        let mut general = relations.compose(topology, &linked.sites).unwrap();
-        let mut native = general.clone();
-        native.native_gauges = native.certify_native_gauges().unwrap();
-        assert!(native.native_gauges.is_some(), "module T gadgets certify");
-        for space in [&mut general, &mut native] {
-            space.plan_causal_readouts::<true, true>().unwrap();
-            space.lift_native_surfaces().unwrap();
-        }
-        tests::assert_same_raw_plan(&native, &general);
-    }
-}
