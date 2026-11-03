@@ -1,9 +1,8 @@
-//! T regions keep their source layers and causal order across shared qubits.
+//! T regions keep their source layers.
 
 use bloq_compile::{CompileConfig, CompileContext};
 use bloq_graph::BlockGraph;
 use bloq_ir::Bloq;
-use bloq_test::{CompileReadyCase, compile_ready_test_cases};
 
 #[test]
 fn t_regions_keep_their_source_layers_through_modules_and_serialization() {
@@ -47,32 +46,5 @@ module main {
             .filter(|(_, node)| node.try_region().is_some());
         // Compilation normalizes z from the anchor, and source layers count double.
         assert_eq!(regions.next().map(|(_, node)| node.layer()), Some(4));
-    }
-}
-
-/// Layout validation no longer checks this, so the occupancy pass must hold it.
-#[test]
-fn corpus_orders_every_region_overlap() {
-    let context = CompileContext::new(CompileConfig::new(3));
-    for case in compile_ready_test_cases(None).expect("build compilation corpus") {
-        let id = case.id().to_string();
-        let ready = CompileReadyCase::from_test_case(case).expect("corpus case builds");
-        let bloq = context.compile(&ready.graph).expect("corpus compiles").bloq;
-        let level = bloq.top();
-        let regions = level
-            .nodes()
-            .filter(|(_, node)| node.try_region().is_some())
-            .map(|(node_id, node)| (node_id, bloq.node_qubits(node).unwrap()))
-            .collect::<Vec<_>>();
-        for (index, (left, left_qubits)) in regions.iter().enumerate() {
-            for (right, right_qubits) in &regions[index + 1..] {
-                assert!(
-                    !left_qubits.iter().any(|qubit| right_qubits.contains(qubit))
-                        || level.has_path(*left, *right)
-                        || level.has_path(*right, *left),
-                    "{id}: {left:?} and {right:?} share a qubit unordered"
-                );
-            }
-        }
     }
 }

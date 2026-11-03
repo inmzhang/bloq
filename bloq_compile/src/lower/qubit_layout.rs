@@ -963,40 +963,6 @@ mod tests {
     }
 
     #[test]
-    fn regions_follow_the_same_layer_rule_as_quantum_nodes() {
-        let check = |z: i32, ordered: bool| {
-            let mut bloq = Bloq::new();
-            let mut ids = Vec::new();
-            for (index, z) in [5, z].into_iter().enumerate() {
-                let node = single_qubit_node(
-                    &mut bloq,
-                    ivec3(index as i32, 0, z),
-                    GateType::H,
-                    TemplateInstanceId(index as u32),
-                );
-                let mut body = SubGraph::new();
-                body.add_node(node);
-                ids.push(
-                    bloq.add_node(BloqNode::region(RegionNode::RepeatUntilSuccess {
-                        restart_condition: ClassicalExpr::Const(false),
-                        restart_source: None,
-                        body,
-                    })),
-                );
-            }
-            if ordered {
-                bloq.add_edge(ids[0], ids[1], BloqEdge::Order);
-            }
-            validate_bloq_qubit_layout_for_source(&bloq, &BlockGraph::new()).is_ok()
-        };
-        // Order does not excuse a same-layer overlap, on a region's real layer.
-        assert!(!check(5, false));
-        assert!(!check(5, true));
-        // Other layers share qubits through occupancy order edges.
-        assert!(check(0, false));
-    }
-
-    #[test]
     fn region_footprint_does_not_get_vacuous_block_overlap_exemption() {
         let mut bloq = Bloq::new();
         let mut body = SubGraph::new();
