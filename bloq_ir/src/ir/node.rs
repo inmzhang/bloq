@@ -890,26 +890,43 @@ impl BloqNode {
     /// The node's spatial layer on the doubled-z axis: block layers land on
     /// even values (`2z`) and the pipe seams between them on odd values
     /// (`2z + 1`), so temporally adjacent blocks and their connecting seam
-    /// stay strictly ordered. Classical, frame, and action nodes have no
-    /// spatial layer and report `0`.
+    /// stay strictly ordered. A region reports the earliest layer in its
+    /// bodies. Classical, frame, and action nodes have no spatial layer and
+    /// report `0`.
+    ///
+    /// A layer describes source geometry, not execution time: a retrying
+    /// region can outlast any number of source layers, and only graph edges
+    /// order execution.
     pub fn layer(&self) -> i64 {
+        self.spatial_layer().unwrap_or(0)
+    }
+
+    fn spatial_layer(&self) -> Option<i64> {
+        if let Some(region) = self.try_region() {
+            return region
+                .bodies()
+                .flat_map(|(_, body)| body.nodes())
+                .filter_map(|(_, node)| node.spatial_layer())
+                .min();
+        }
         match &self.provenance {
-            NodeProvenance::BlockComponent { members } => {
-                2 * i64::from(members.iter().map(|member| member.pos.z).min().unwrap_or(0))
-            }
+            NodeProvenance::BlockComponent { members } => members
+                .iter()
+                .map(|member| 2 * i64::from(member.pos.z))
+                .min(),
             NodeProvenance::TemporalPipe { pipe } | NodeProvenance::MemoryPadding { pipe, .. } => {
-                2 * i64::from(pipe.src.z.min(pipe.dst.z)) + 1
+                Some(2 * i64::from(pipe.src.z.min(pipe.dst.z)) + 1)
             }
             // Spec rule SEM-SPATIAL-PORT: positionless boundary layer.
             NodeProvenance::SpatialPortSubstitution { source, role } => {
-                2 * i64::from(source.z) + if role.has_input_boundary() { -1 } else { 1 }
+                Some(2 * i64::from(source.z) + if role.has_input_boundary() { -1 } else { 1 })
             }
             // Classical/frame/action nodes have no spatial layer of their own.
             NodeProvenance::Generator { .. }
             | NodeProvenance::Action { .. }
             | NodeProvenance::BranchSelector { .. }
             | NodeProvenance::OutputFrame { .. }
-            | NodeProvenance::None => 0,
+            | NodeProvenance::None => None,
         }
     }
 }
@@ -919,6 +936,34 @@ mod tests {
     use glam::ivec3;
 
     use super::*;
+
+    #[test]
+    fn a_region_reports_the_earliest_spatial_layer_in_its_body() {
+        let mut body = SubGraph::new();
+        // A classical body node has no layer and must not read as layer zero.
+        body.add_node(BloqNode::classical(ClassicalNode::Compute {
+            expr: ClassicalExpr::Const(false),
+        }));
+        body.add_node(BloqNode::from_members(vec![SourceBlockRef {
+            pos: ivec3(0, 0, 7),
+        }]));
+        body.add_node(BloqNode::from_members(vec![SourceBlockRef {
+            pos: ivec3(0, 0, 5),
+        }]));
+        let region = BloqNode::region(RegionNode::RepeatUntilSuccess {
+            body,
+            restart_condition: ClassicalExpr::Const(false),
+            restart_source: None,
+        });
+        assert_eq!(region.layer(), 10);
+
+        let empty = BloqNode::region(RegionNode::RepeatUntilSuccess {
+            body: SubGraph::new(),
+            restart_condition: ClassicalExpr::Const(false),
+            restart_source: None,
+        });
+        assert_eq!(empty.layer(), 0);
+    }
 
     /// [`ClassicalExpr::replace_inputs`] on a copy, so an assertion can compare
     /// the mapped expression against the original.

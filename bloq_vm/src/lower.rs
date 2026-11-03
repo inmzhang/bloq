@@ -95,7 +95,8 @@ pub struct LoweringConfig<'a> {
 /// Absolute release epochs for independently schedulable source classes.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct SourceTiming {
-    /// Factory source release epoch.
+    /// Factory source release epoch. A factory on reused qubits also waits for
+    /// their previous occupants.
     pub factory: f64,
     /// External logical-input release epoch.
     pub input: f64,
@@ -1351,6 +1352,15 @@ impl LowerCx<'_, '_> {
                         .collect::<Vec<_>>()
                         .into_boxed_slice();
                     let qubits = owned_qubits.clone();
+                    // A supported RUS has no incoming seam (checked above), so it
+                    // inherits no quantum state. It takes over its support once
+                    // the previous occupants finish, and every attempt replays
+                    // its own authored resets.
+                    for qubit in qubits.iter() {
+                        if let Some(&previous) = last_qubit.get(qubit) {
+                            dependencies.insert(previous);
+                        }
+                    }
                     let instruction = Instruction::Rus {
                         body,
                         restart: self
@@ -1364,13 +1374,6 @@ impl LowerCx<'_, '_> {
                         decoder_hold,
                         cultivation_exits,
                     };
-                    // A supported RUS is a true source: it has no incoming
-                    // seam (checked above) and no earlier task owns its support.
-                    // Its first attempt therefore starts on fresh backend |0>
-                    // qubits; later attempts replay the authored preparation.
-                    if qubits.iter().any(|qubit| last_qubit.contains_key(qubit)) {
-                        return Err(LowerError::NonSourceRus(id.0));
-                    }
                     let task = self.push_task(Task {
                         label: task_label(path, id, region.kind_name()),
                         release: 0.0,

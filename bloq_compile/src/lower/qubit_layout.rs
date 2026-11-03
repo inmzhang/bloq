@@ -51,8 +51,8 @@ pub(crate) fn validate_bloq_qubit_layout_with_limits(
         // concurrent — a T block's cultivation and escape stages sit at the same
         // layer and qubits, joined by a temporal seam edge. So bodies skip pairs
         // with a directed path between them and flag only genuinely concurrent
-        // (no path either way) same-layer overlaps. Top-level Region nodes use
-        // the same ordered sharing with adjacent lowering nodes.
+        // (no path either way) same-layer overlaps. Top-level nodes on different
+        // layers share qubits through the order edges of the occupancy pass.
         let skip_sequential = !path.segments().is_empty();
         validate_level_qubit_layout(
             bloq,
@@ -122,10 +122,8 @@ fn validate_level_qubit_layout(
                             let allowed =
                                 *allowed_pairs.entry((left_id, right_id)).or_insert_with(|| {
                                     let left = &level[left_id];
-                                    let region_pair =
-                                        left.try_region().is_some() || right.try_region().is_some();
                                     allows_same_layer_qubit_overlap(source, left, right)
-                                        || ((skip_sequential || region_pair)
+                                        || (skip_sequential
                                             && (level.has_path_with_scratch(
                                                 left_id,
                                                 right_id,
@@ -963,6 +961,58 @@ mod tests {
         let source = BlockGraph::new();
         validate_bloq_qubit_layout_for_source(&bloq, &source)
             .expect("sequential same-layer footprint sharing in a body is valid");
+    }
+
+    /// Two overlapping top-level nodes, each optionally wrapped in a region.
+    fn region_overlap_bloq(left: (i32, bool), right: (i32, bool), ordered: bool) -> Bloq {
+        let mut bloq = Bloq::new();
+        let mut ids = Vec::new();
+        for (index, (z, region)) in [left, right].into_iter().enumerate() {
+            let node = single_qubit_node(
+                &mut bloq,
+                ivec3(index as i32, 0, z),
+                GateType::H,
+                TemplateInstanceId(index as u32),
+            );
+            let node = if region {
+                let mut body = SubGraph::new();
+                body.add_node(node);
+                BloqNode::region(RegionNode::RepeatUntilSuccess {
+                    restart_condition: ClassicalExpr::Const(false),
+                    restart_source: None,
+                    body,
+                })
+            } else {
+                node
+            };
+            ids.push(bloq.add_node(node));
+        }
+        if ordered {
+            bloq.add_edge(ids[0], ids[1], BloqEdge::Order);
+        }
+        bloq
+    }
+
+    #[test]
+    fn regions_follow_the_same_layer_rule_as_quantum_nodes() {
+        let check = |left, right, ordered| {
+            validate_bloq_qubit_layout_for_source(
+                &region_overlap_bloq(left, right, ordered),
+                &BlockGraph::new(),
+            )
+            .is_ok()
+        };
+        // A region's real layer is checked, whatever that layer is.
+        assert!(!check((5, true), (5, false), false));
+        assert!(!check((5, true), (5, true), false));
+        // Order does not excuse a same-layer overlap, as for quantum nodes.
+        assert!(!check((5, true), (5, false), true));
+        assert!(!check((5, true), (5, true), true));
+        assert!(!check((5, false), (5, false), true));
+        // Other layers share qubits through occupancy order edges.
+        assert!(check((5, true), (0, false), false));
+        assert!(check((0, true), (5, true), false));
+        assert!(check((0, false), (5, false), false));
     }
 
     #[test]

@@ -1,11 +1,14 @@
+use std::cmp::Reverse;
+use std::collections::BTreeSet;
 use std::fmt;
+use std::ops::Bound::{Excluded, Unbounded};
 
 use bloq_graph::{
-    Basis, Block, BlockGraph, BlockKind, Direction, UDirection, checked_add_position,
+    Basis, Block, BlockGraph, BlockKind, Direction, PortRole, UDirection, checked_add_position,
 };
 
 use crate::CompileError;
-use glam::IVec3;
+use glam::{IVec2, IVec3};
 
 pub(crate) type BlockSignatureMap = crate::FxMap<IVec3, BlockSignature>;
 
@@ -389,6 +392,18 @@ pub(crate) fn relocatable_block_signatures(
 /// adjacent T blocks from silently sharing spill space.
 /// Ideal preparations need no spill and use one canonical signature side.
 ///
+/// Free sides are ranked by what the factory would wait for, using source
+/// occupancy because the side selects templates before any node exists:
+///
+/// 1. Avoid a column holding an earlier output, whose patch stays live.
+/// 2. Prefer the earliest release across the whole footprint. The T's own
+///    column counts, so a side wins only if it lets the factory start sooner.
+/// 3. Prefer the latest next use of the spill column, so that less work waits
+///    on an unbounded retry.
+///
+/// Remaining ties keep [`SurgeryLayout::SIDE_PRIORITY`]. Source z only ranks
+/// sides here. Occupancy order edges enforce the execution order.
+///
 /// Assignment is deterministic bipartite matching. An augmenting path may move
 /// an earlier T off its first choice when a later T needs that cell; unlike
 /// backtracking, work stays polynomial in the linked layout size.
@@ -413,7 +428,20 @@ pub(crate) fn t_surgery_sides(
             })
             .collect());
     }
-    assign_linked_t_surgery_sides(t_positions, occupied_branch_positions(graph)?)
+    let outputs = graph
+        .blocks()
+        .filter(|block| {
+            block.port_role().is_some_and(|role| {
+                role.has_output_boundary()
+                    || (role == PortRole::Auto
+                        && !graph
+                            .pipes_at(block.pos())
+                            .any(|pipe| pipe.dst().z > block.pos().z))
+            })
+        })
+        .map(Block::pos)
+        .collect();
+    assign_linked_t_surgery_sides(t_positions, occupied_branch_positions(graph)?, outputs)
 }
 
 /// Shared templates must leave room for every authored branch arm.
@@ -437,24 +465,60 @@ pub(crate) fn occupied_branch_positions(
 pub(crate) fn assign_linked_t_surgery_sides(
     mut t_positions: Vec<IVec3>,
     reserved: crate::FxSet<IVec3>,
+    outputs: Vec<IVec3>,
 ) -> Result<crate::FxMap<IVec3, Direction>, CompileError> {
     if t_positions.is_empty() {
         return Ok(crate::FxMap::default());
     }
     t_positions.sort_by_key(|pos| (pos.z, pos.x, pos.y));
 
-    let candidates = t_positions
-        .iter()
-        .map(|&position| {
-            crate::block::fixed_bulk::t::SurgeryLayout::SIDE_PRIORITY
-                .into_iter()
-                .filter_map(|side| {
-                    let cell = checked_add_position(position, side.to_ivec3()).ok()?;
-                    (!reserved.contains(&cell)).then_some((cell, side))
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>();
+    // Source layers occupied per column, grown by each T's preferred spill so
+    // that later T blocks see earlier cultivation space as occupied.
+    let mut occupancy = crate::FxMap::<IVec2, BTreeSet<i32>>::default();
+    for cell in &reserved {
+        occupancy.entry(cell.truncate()).or_default().insert(cell.z);
+    }
+    let mut output_layers = crate::FxMap::<IVec2, i32>::default();
+    for output in outputs {
+        let earliest = output_layers.entry(output.truncate()).or_insert(output.z);
+        *earliest = (*earliest).min(output.z);
+    }
+    let last_below = |occupancy: &crate::FxMap<IVec2, BTreeSet<i32>>, column: IVec2, z: i32| {
+        occupancy
+            .get(&column)
+            .and_then(|layers| layers.range(..z).next_back().copied())
+    };
+
+    let mut candidates = Vec::with_capacity(t_positions.len());
+    for &position in &t_positions {
+        let own_release = last_below(&occupancy, position.truncate(), position.z);
+        let mut sides = crate::block::fixed_bulk::t::SurgeryLayout::SIDE_PRIORITY
+            .into_iter()
+            .filter_map(|side| {
+                let cell = checked_add_position(position, side.to_ivec3()).ok()?;
+                (!reserved.contains(&cell)).then_some((cell, side))
+            })
+            .collect::<Vec<_>>();
+        // The sort is stable, so equal ranks keep the side priority.
+        sides.sort_by_cached_key(|(cell, _)| {
+            let column = cell.truncate();
+            let holds_output = output_layers
+                .get(&column)
+                .is_some_and(|&earliest| earliest < position.z);
+            let release = own_release.max(last_below(&occupancy, column, position.z));
+            let next_use = occupancy.get(&column).and_then(|layers| {
+                layers
+                    .range((Excluded(position.z), Unbounded))
+                    .next()
+                    .copied()
+            });
+            (holds_output, release, Reverse(next_use.unwrap_or(i32::MAX)))
+        });
+        if let Some((cell, _)) = sides.first() {
+            occupancy.entry(cell.truncate()).or_default().insert(cell.z);
+        }
+        candidates.push(sides);
+    }
     let mut owner = crate::FxMap::<IVec3, usize>::default();
     for (index, &position) in t_positions.iter().enumerate() {
         if !augment_surgery_matching(index, &candidates, &mut crate::FxSet::default(), &mut owner) {
@@ -1038,6 +1102,82 @@ mod tests {
             ),
             Some(Direction::YPLUS)
         );
+    }
+
+    #[test]
+    fn t_surgery_side_prefers_the_earliest_released_spill_column() {
+        let pos = IVec3::new(0, 0, 4);
+        // -y held until z = 3 and +x until z = 2, so +y and -x are free longest.
+        let graph = t_graph(pos, &[IVec3::new(0, -1, 3), IVec3::new(1, 0, 2)]);
+        assert_eq!(t_side(&graph, pos), Some(Direction::YPLUS));
+        // With +y and -x blocked at the T's layer, +x releases before -y.
+        let graph = t_graph(
+            pos,
+            &[
+                IVec3::new(0, -1, 3),
+                IVec3::new(1, 0, 2),
+                IVec3::new(0, 1, 4),
+                IVec3::new(-1, 0, 4),
+            ],
+        );
+        assert_eq!(t_side(&graph, pos), Some(Direction::XPLUS));
+    }
+
+    #[test]
+    fn t_surgery_side_keeps_priority_when_its_own_column_releases_last() {
+        // The T must wait for its own column until z = 3, which already covers
+        // the -y column's z = 2, so moving the spill would not start it sooner.
+        let pos = IVec3::new(0, 0, 4);
+        let graph = t_graph(pos, &[IVec3::new(0, 0, 3), IVec3::new(0, -1, 2)]);
+        assert_eq!(t_side(&graph, pos), Some(Direction::YMINUS));
+    }
+
+    #[test]
+    fn t_surgery_side_avoids_earlier_outputs_unless_no_other_side_is_free() {
+        let pos = IVec3::new(0, 0, 4);
+        let output = IVec3::new(0, -1, 2);
+        let mut graph = t_graph(pos, &[]);
+        graph.add_block(
+            Block::new(output, BlockKind::Port)
+                .with_port_role(PortRole::Output)
+                .unwrap(),
+        );
+        assert_eq!(t_side(&graph, pos), Some(Direction::XPLUS));
+        for blocked in [
+            IVec3::new(1, 0, 4),
+            IVec3::new(0, 1, 4),
+            IVec3::new(-1, 0, 4),
+        ] {
+            graph.add_block(Block::new(
+                blocked,
+                BlockKind::Cube(bloq_graph::CubeKind::ZXZ),
+            ));
+        }
+        assert_eq!(t_side(&graph, pos), Some(Direction::YMINUS));
+    }
+
+    #[test]
+    fn t_surgery_side_keeps_later_work_off_the_factory_when_releases_tie() {
+        let pos = IVec3::ZERO;
+        let graph = t_graph(pos, &[IVec3::new(0, -1, 1), IVec3::new(1, 0, 5)]);
+        assert_eq!(t_side(&graph, pos), Some(Direction::YPLUS));
+    }
+
+    #[test]
+    fn t_surgery_side_sees_earlier_cultivation_space_as_occupied() {
+        // The first T's -y is blocked, so it spills +x into column (0, 0).
+        let first = IVec3::new(-1, 0, 0);
+        let second = IVec3::new(0, 1, 2);
+        let mut graph = t_graph(first, &[IVec3::new(-1, -1, 0)]);
+        graph.add_block(Block::new(second, BlockKind::T));
+        graph.add_block(Block::new(
+            second + IVec3::Z,
+            BlockKind::Cube(bloq_graph::CubeKind::ZXZ),
+        ));
+        graph.add_pipe(Pipe::new(second, Direction::ZPLUS));
+        assert_eq!(t_side(&graph, first), Some(Direction::XPLUS));
+        // The second T's -y also lands in (0, 0), so it moves to a fresh column.
+        assert_eq!(t_side(&graph, second), Some(Direction::XPLUS));
     }
 
     #[test]
