@@ -1,0 +1,47 @@
+BLOG 1.0
+
+module TStage {
+  in q_in: data = 0
+  out q_out: data = 2
+  0: Port [0, 0, 0] role=input <q_in>
+  1: XZX [0, 0, 1]
+  2: Port [0, 0, 2] role=output <q_out>
+  3: T [1, 0, 0]
+  4: XZX [1, 0, 1]
+  5: YX [1, 0, 2]
+  [0, 0, 0] -> +Z
+  [0, 0, 1] -> +Z
+  [0, 0, 1] -> +X
+  [1, 0, 0] -> +Z
+  [1, 0, 2] -> -Z
+  mzz = measure 1 -> +X
+  resolve 5 if mzz
+}
+
+module TPair {
+  in q_in: data = 100
+  out q_out: data = 101
+  s0: TStage @ [0, 0, 0]
+  s1: TStage @ [0, 0, 2] rotate Z 180
+  100: Port [0, 0, 0] role=input <q_in>
+  200: XZX [0, 0, 2]
+  101: Port [0, 0, 4] role=output <q_out>
+  100 -> s0.q_in
+  s0.q_out -> 200
+  200 -> s1.q_in
+  s1.q_out -> 101
+}
+
+module main {
+  in q_in: data = 100
+  out q_out: data = 101
+  p0: TPair @ [0, 0, 0]
+  p1: TPair @ [0, 0, 4]
+  100: Port [0, 0, 0] role=input <q_in>
+  200: XZX [0, 0, 4]
+  101: Port [0, 0, 8] role=output <q_out>
+  100 -> p0.q_in
+  p0.q_out -> 200
+  200 -> p1.q_in
+  p1.q_out -> 101
+}

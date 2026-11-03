@@ -10,6 +10,7 @@ use bloq_ir::{BloqEdge, ValueRole};
 use glam::ivec3;
 
 mod common;
+use common::choi::exact::ExactChoi;
 
 fn compile_blog(source: &str) -> bloq_ir::Bloq {
     let program = bloq_graph::BlockGraph::from_text(source).unwrap();
@@ -790,3 +791,39 @@ module main {
   wire.q_out -> 10
 }
 "#;
+
+#[rstest::rstest]
+#[case::chain(include_str!("../../bloq_graph/tests/fixtures/native_module_t_chain.blog"), 3)]
+#[case::nested(include_str!("../../bloq_graph/tests/fixtures/native_module_t_nested.blog"), 4)]
+#[case::split_across_seams(include_str!("../../bloq_graph/tests/fixtures/native_module_t_split.blog"), 1)]
+fn certified_module_t_gadgets_preserve_choi_state(#[case] source: &str, #[case] t_gates: usize) {
+    let bloq = compile_blog(source);
+    let inputs = bloq
+        .logical_inputs()
+        .iter()
+        .map(|input| input.port)
+        .collect::<Vec<_>>();
+    let outputs = bloq
+        .logical_outputs()
+        .iter()
+        .map(|output| output.port)
+        .collect::<Vec<_>>();
+    let oracle = ExactChoi::new(&inputs, &outputs, |sim| {
+        for _ in 0..t_gates {
+            sim.t(0)?;
+        }
+        Ok(())
+    });
+    let mut selectors = std::collections::BTreeSet::new();
+    for seed in [0x11, 0x22, 0x33] {
+        oracle.run(&bloq, 6, seed, |_, context| {
+            selectors.extend(context.branch_selectors.iter().copied().enumerate());
+            Ok(())
+        });
+    }
+    assert_eq!(
+        selectors.len(),
+        2 * t_gates,
+        "every selector takes both values"
+    );
+}
