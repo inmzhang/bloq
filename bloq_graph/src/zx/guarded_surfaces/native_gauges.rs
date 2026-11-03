@@ -267,8 +267,7 @@ impl GuardedSurfaceSpace {
                     work.saturating_add(row.terms().len()).saturating_add(1)
                 })),
         )?;
-        if self.module_sites.values().any(|&owner| owner != 0)
-            || self.topology.domain != ONE
+        if self.topology.domain != ONE
             || !self.topology.branches.is_empty()
             || self
                 .local
