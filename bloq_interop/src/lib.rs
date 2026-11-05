@@ -32,6 +32,8 @@ use glam::{IVec2, IVec3};
 use quizx::{circuit::Circuit, vec_graph::Graph};
 
 pub use grid::GridOptions;
+/// Parse and normalize one static Clifford+T QASM source.
+pub use source::qasm as parse_qasm;
 pub use topols::TopologyOptions;
 
 /// Native graph planning strategy.

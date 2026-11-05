@@ -25,6 +25,7 @@ bloq_compile.workspace = true
 bloq_graph = { workspace = true, features = ["verify"] }
 bloq_stim = { path = "../bloq_stim", features = ["verify"] }
 bloq_test.workspace = true
+bloq_tblock.workspace = true
 quizx.workspace = true
 rstest.workspace = true
 stim.workspace = true

@@ -2,7 +2,12 @@ use quizx::circuit::Circuit;
 use quizx::gate::{GType, Gate};
 use quizx::params::Parity;
 
-pub(crate) fn qasm(text: &str) -> Result<Circuit, String> {
+/// Parse and normalize one static Clifford+T QASM source.
+///
+/// # Errors
+///
+/// Returns an error for unparsable sources and non-Clifford+T or dynamic operations.
+pub fn qasm(text: &str) -> Result<Circuit, String> {
     // openqasm 0.1's conditional lowering indexes a classical name as a
     // quantum register and panics before QuiZX can reject the operation.
     if has_conditional(text) {

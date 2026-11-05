@@ -9,6 +9,7 @@ members = [
   "bloq_circuit",
   "bloq_ir",
   "bloq_interop",
+  "bloq_tblock",
   "bloq_compile",
   "bloq_vm",
   "bloq_stim",
@@ -50,6 +51,8 @@ bloq_vm = { path = "bloq_vm", version = "=0.1.2-dev" }
 # Deliberately version-less: bloq_test is dev-only and unpublished; cargo
 # strips path-only dev-deps from published manifests, keeping it private.
 bloq_test = { path = "bloq_test" }
+# Dev-only and unpublished, like bloq_test.
+bloq_tblock = { package = "bloq-tblock", path = "bloq_tblock" }
 bloq_utils = { path = "bloq_utils", version = "=0.1.2-dev" }
 chumsky = { version = "0.13", default-features = false, features = ["std", "pratt"] }
 clap = { version = "4.6.7", features = ["derive"] }
