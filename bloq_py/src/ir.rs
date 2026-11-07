@@ -203,14 +203,7 @@ impl PyInstanceMeasurement {
 /// One terminal output's logical Pauli-frame sign bits: the `Compute` nodes
 /// carrying the X- and Z-frame corrections for the source output port.
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "FramePair",
-    module = "bloq._core",
-    eq,
-    frozen,
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "FramePair", module = "bloq._core", eq, frozen, get_all)]
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PyFramePair {
     /// The source output port this frame corrects.
@@ -235,14 +228,7 @@ impl PyFramePair {
 /// Complete terminal logical operators for one output, in layout-global
 /// coordinates.
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "LogicalOutput",
-    module = "bloq._core",
-    eq,
-    frozen,
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "LogicalOutput", module = "bloq._core", eq, frozen, get_all)]
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PyLogicalOutput {
     port: (i32, i32, i32),
@@ -288,19 +274,14 @@ impl PyLogicalOutput {
 /// An XOR of measurement (and loop-state) terms — a detector or restart
 /// parity in instance-measurement space.
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "NodeParity",
-    module = "bloq._core",
-    frozen,
-    skip_from_py_object
-)]
+#[pyclass(name = "NodeParity", module = "bloq._core", frozen)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyNodeParity(NodeDetectorParity);
 
 /// One XOR term of a `NodeParity`: a template-instance measurement or a
 /// loop-carried detector state.
 #[gen_stub_pyclass_complex_enum]
-#[pyclass(name = "DetectorTerm", module = "bloq._core", skip_from_py_object)]
+#[pyclass(name = "DetectorTerm", module = "bloq._core")]
 #[derive(Debug, Clone)]
 pub(crate) enum PyDetectorTerm {
     Measurement { measurement: PyInstanceMeasurement },
@@ -383,13 +364,7 @@ impl PyNodeParity {
 /// One top-level detector on a quantum node: a parity and optional decoder
 /// coordinates.
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "NodeDetector",
-    module = "bloq._core",
-    frozen,
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "NodeDetector", module = "bloq._core", frozen, get_all)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyNodeDetector {
     /// The detector's measurement parity.
@@ -421,11 +396,7 @@ impl PyNodeDetector {
 
 /// One shared detector row in bundle-local owner coordinates.
 #[gen_stub_pyclass_complex_enum]
-#[pyclass(
-    name = "BundleDetectorTerm",
-    module = "bloq._core",
-    skip_from_py_object
-)]
+#[pyclass(name = "BundleDetectorTerm", module = "bloq._core")]
 #[derive(Debug, Clone)]
 pub(crate) enum PyBundleDetectorTerm {
     Measurement { owner: u32, measurement: u32 },
@@ -447,13 +418,7 @@ impl PyBundleDetectorTerm {
 
 /// One shared detector row in bundle-local owner coordinates.
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "BundleDetector",
-    module = "bloq._core",
-    frozen,
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "BundleDetector", module = "bloq._core", frozen, get_all)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyBundleDetector {
     /// Ordered measurement and loop-state terms.
@@ -502,13 +467,7 @@ impl PyBundleDetector {
 
 /// Detector rows shared by placed uses of a bundle.
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "DetectorBundle",
-    module = "bloq._core",
-    frozen,
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "DetectorBundle", module = "bloq._core", frozen, get_all)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyDetectorBundle {
     /// Expected template id for each owner slot.
@@ -540,13 +499,7 @@ impl PyDetectorBundle {
 
 /// Bind a shared detector bundle to instances at a layout offset.
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "DetectorBundleUse",
-    module = "bloq._core",
-    frozen,
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "DetectorBundleUse", module = "bloq._core", frozen, get_all)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyDetectorBundleUse {
     /// Shared bundle pool id.
@@ -585,13 +538,7 @@ impl PyDetectorBundleUse {
 /// repeat-until-success attempt restarts. Only meaningful on a node inside
 /// a `RepeatUntilSuccess` body.
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "NodeRestart",
-    module = "bloq._core",
-    frozen,
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "NodeRestart", module = "bloq._core", frozen, get_all)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyNodeRestart {
     /// The parity that, when odd (failure syndrome), restarts the RUS attempt.
@@ -615,11 +562,7 @@ impl PyNodeRestart {
 }
 
 #[gen_stub_pyclass_complex_enum]
-#[pyclass(
-    name = "InstanceProvenance",
-    module = "bloq._core",
-    skip_from_py_object
-)]
+#[pyclass(name = "InstanceProvenance", module = "bloq._core")]
 #[derive(Debug, Clone)]
 pub(crate) enum PyInstanceProvenance {
     Source(),
@@ -695,13 +638,7 @@ impl PyInstanceProvenance {
 /// program-unique — unlike node ids, they are not level-local — and
 /// instance-space references such as `InstanceMeasurement` key on them.
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "TemplateInstance",
-    module = "bloq._core",
-    frozen,
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "TemplateInstance", module = "bloq._core", frozen, get_all)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyTemplateInstance {
     /// The program-unique instance id.
@@ -1003,14 +940,7 @@ impl PyClassicalExpr {
 /// before the instance circuit; an `Output` operator reads on exit, so it emits
 /// after.
 #[gen_stub_pyclass_enum]
-#[pyclass(
-    name = "BoundaryFace",
-    module = "bloq._core",
-    frozen,
-    eq,
-    hash,
-    skip_from_py_object
-)]
+#[pyclass(name = "BoundaryFace", module = "bloq._core", frozen, eq, hash)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum PyBoundaryFace {
     Input,
@@ -1275,7 +1205,7 @@ impl PyValueRole {
 /// A graph edge payload: a quantum face seam, a classical-bit dataflow
 /// dependency, or a payload-free ordering constraint.
 #[gen_stub_pyclass_complex_enum]
-#[pyclass(name = "BloqEdge", module = "bloq._core", skip_from_py_object)]
+#[pyclass(name = "BloqEdge", module = "bloq._core")]
 #[derive(Debug, Clone)]
 pub(crate) enum PyBloqEdge {
     /// A quantum face seam: its temporal pipes, each with its edge-owned
@@ -1345,13 +1275,7 @@ impl PyBloqEdge {
 /// `edge` is the `BloqEdge` payload (dispatch on its variant with
 /// `isinstance`).
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "BloqEdgeRef",
-    module = "bloq._core",
-    frozen,
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "BloqEdgeRef", module = "bloq._core", frozen, get_all)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyBloqEdgeRef {
     /// The source node id.
@@ -1418,14 +1342,7 @@ impl PyBloqEdgeRef {
 /// The producer feeds the consumer's slot with the selected output and role;
 /// `output=None` identifies structural recipe composition.
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "ValueInput",
-    module = "bloq._core",
-    eq,
-    frozen,
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "ValueInput", module = "bloq._core", eq, frozen, get_all)]
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PyValueInput {
     /// The consumer input slot this producer feeds.
@@ -1474,7 +1391,7 @@ impl PyValueInput {
 /// its consumers are `Bloq.output_frames()`, program views, and decoder
 /// runtimes. Dispatch on the variant with `isinstance`.
 #[gen_stub_pyclass_complex_enum]
-#[pyclass(name = "NodeProvenance", module = "bloq._core", skip_from_py_object)]
+#[pyclass(name = "NodeProvenance", module = "bloq._core")]
 #[derive(Debug, Clone)]
 pub(crate) enum PyNodeProvenance {
     /// A fused component of source blocks.
@@ -1651,7 +1568,7 @@ impl PyRegionNode {
 /// `is_classical()` / `is_region()` test the variant without an
 /// `isinstance` check.
 #[gen_stub_pyclass_complex_enum]
-#[pyclass(name = "BloqNodeKind", module = "bloq._core", skip_from_py_object)]
+#[pyclass(name = "BloqNodeKind", module = "bloq._core")]
 #[derive(Debug, Clone)]
 pub(crate) enum PyBloqNodeKind {
     Quantum { node: PyQuantumNode },
@@ -1691,13 +1608,7 @@ impl PyBloqNodeKind {
 ///     >>> node.is_quantum(), node.is_classical()
 ///     (True, False)
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "BloqNode",
-    module = "bloq._core",
-    frozen,
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "BloqNode", module = "bloq._core", frozen, get_all)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyBloqNode {
     /// What the node computes (quantum, classical, or region).
@@ -1893,13 +1804,7 @@ impl PyBloqNode {
 /// >>> program.node(nested.top_level_ancestor()).is_region()
 /// True
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "WalkNode",
-    module = "bloq._core",
-    frozen,
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "WalkNode", module = "bloq._core", frozen, get_all)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyWalkNode {
     /// The `(owner_node_id, body_selector)` hops from the top level down to
@@ -2173,15 +2078,7 @@ impl PyRegionKind {
 /// `path` is in the same `(owner_node_id, body_selector)` shape as
 /// `WalkNode.path`, so it can be passed straight back to any `path=` argument.
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "RegionRef",
-    module = "bloq._core",
-    frozen,
-    eq,
-    hash,
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "RegionRef", module = "bloq._core", frozen, eq, hash, get_all)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PyRegionRef {
     /// The `(owner_id, selector)` hops to the region's level; empty at the top.
@@ -2264,16 +2161,7 @@ impl PyRegionRef {
 ///     >>> set(keys) & set(proxy) != set()
 ///     True
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "NodeKey",
-    module = "bloq._core",
-    frozen,
-    eq,
-    ord,
-    hash,
-    str,
-    skip_from_py_object
-)]
+#[pyclass(name = "NodeKey", module = "bloq._core", frozen, eq, ord, hash, str)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct PyNodeKey(NodeKey);
 
@@ -2321,8 +2209,7 @@ impl PyNodeKey {
     module = "bloq._core",
     frozen,
     eq,
-    get_all,
-    skip_from_py_object
+    get_all
 )]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PyClassicalResolution {

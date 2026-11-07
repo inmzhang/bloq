@@ -408,14 +408,7 @@ fn compile_random_clifford_proxy(
 ///     >>> segment.measurement_count > 0
 ///     True
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "StimSegment",
-    module = "bloq._core",
-    frozen,
-    eq,
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "StimSegment", module = "bloq._core", frozen, eq, get_all)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PyStimSegment {
     /// The id of the node this chunk was emitted from.
@@ -526,8 +519,7 @@ impl PyStimSegments {
     name = "IsolatedTAttemptManifest",
     module = "bloq._core",
     frozen,
-    get_all,
-    skip_from_py_object
+    get_all
 )]
 #[derive(Debug, Clone)]
 pub(crate) struct PyIsolatedTAttemptManifest {
@@ -619,8 +611,7 @@ impl PyIsolatedTAttemptManifest {
     name = "IsolatedTAttemptArtifacts",
     module = "bloq._core",
     frozen,
-    get_all,
-    skip_from_py_object
+    get_all
 )]
 #[derive(Debug, Clone)]
 pub(crate) struct PyIsolatedTAttemptArtifacts {
