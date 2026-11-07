@@ -65,8 +65,8 @@ instances:
 
 ```{mermaid}
 flowchart LR
-  q["q and addend i"] --> ands["3 InjectedAnd instances"]
-  ands --> head["HeadMaj: bit 0"] --> bulk["BulkMaj: bit 1"] --> tail["TailParity: bit 2"]
+  q["q and addend i"] --> injected["3 InjectedAnd instances"]
+  injected --> head["HeadMaj: bit 0"] --> bulk["BulkMaj: bit 1"] --> tail["TailParity: bit 2"]
   tail -. corrected carry bit .-> uma1["BulkUmaParked: bit 1"]
   uma1 -. corrected carry bit .-> uma0["HeadUmaParked: bit 0"]
   tail --> s2["s2"]

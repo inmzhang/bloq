@@ -345,10 +345,10 @@ mod tests {
         let absent = ValueRef::from(compute(&mut graph, Const(false), &[]));
         let negative = ValueRef::from(compute(&mut graph, ClassicalExpr::parity([0], true), &[a]));
         let repeated = ValueRef::from(compute(&mut graph, selected(), &[negative, a]));
-        let ab = ValueRef::from(compute(&mut graph, selected(), &[a, b]));
-        let ba = ValueRef::from(compute(&mut graph, selected(), &[b, a]));
+        let forward = ValueRef::from(compute(&mut graph, selected(), &[a, b]));
+        let reversed = ValueRef::from(compute(&mut graph, selected(), &[b, a]));
         let parity = ValueRef::from(compute(&mut graph, Xor(Box::new([In(0), In(1)])), &[a, b]));
-        for roots in [vec![repeated], vec![ab, ba], vec![parity]] {
+        for roots in [vec![repeated], vec![forward, reversed], vec![parity]] {
             let mut analysis =
                 PredicateAnalysis::for_membership_references(&graph, BooleanLimits::default());
             analysis.prepare_membership_order(&roots, absent).unwrap();
