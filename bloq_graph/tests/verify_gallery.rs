@@ -440,7 +440,7 @@ fn verify_controlled_adder(gallery: GalleryItem, expected: &QuizxGraph, samples:
     let normalize = |mut map: QuizxGraph| {
         quizx::simplify::full_simp(&mut map);
         assert!(map.scalar().complex_value().norm() > 0.0);
-        *map.scalar_mut() = quizx::scalar::Scalar4::one();
+        *map.scalar_mut() = quizx::scalar::Scalar4::real(1.0);
         map
     };
     let amplitude = |map: &QuizxGraph, input: usize, output: usize| {
