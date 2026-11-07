@@ -16,10 +16,10 @@
       "allowedVersions": "^0.33.2"
     },
     {
-      "description": "Keep the getrandom_02 wasm backend aligned with QuiZX's rand 0.8 dependency; remove when QuiZX upgrades.",
+      "description": "Keep the getrandom_03 wasm backend aligned with QuiZX's rand 0.9 dependency; update when QuiZX upgrades rand.",
       "matchManagers": ["cargo"],
-      "matchDepNames": ["getrandom_02"],
-      "allowedVersions": "^0.2"
+      "matchDepNames": ["getrandom_03"],
+      "allowedVersions": "^0.3"
     }
   ],
   "lockFileMaintenance": {
