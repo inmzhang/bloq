@@ -4,11 +4,11 @@
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>std::sync::{Arc, Mutex};
 <a href=#5 id=5 data-nosnippet>5</a>
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>glam::IVec3;
-<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>quizx::fscalar::Zero;
-<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>quizx::graph::{EType, GraphLike, V, VType};
-<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>quizx::params::{Parity, Var};
-<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>quizx::phase::Phase;
-<a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>quizx::tensor::{CompareTensors, TensorF, ToTensor};
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>quizx::graph::{EType, GraphLike, V, VType};
+<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>quizx::params::{Parity, Var};
+<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>quizx::phase::Phase;
+<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>quizx::scalar::Zero;
+<a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>quizx::tensor::{CompareTensors, Tensor4, ToTensor};
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>rand::{Rng, RngExt, SeedableRng, rngs::StdRng};
 <a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>rustc_hash::FxHashMap;
 <a href=#14 id=14 data-nosnippet>14</a>
@@ -797,7 +797,7 @@
 <a href=#797 id=797 data-nosnippet>797</a><span class="kw">fn </span>compare_branch(
 <a href=#798 id=798 data-nosnippet>798</a>    <span class="kw-2">mut </span>branch: LogicalBranch,
 <a href=#799 id=799 data-nosnippet>799</a>    diagram: <span class="prelude-ty">Option</span>&lt;QuizxGraph&gt;,
-<a href=#800 id=800 data-nosnippet>800</a>    expected: <span class="kw-2">&amp;</span>TensorF,
+<a href=#800 id=800 data-nosnippet>800</a>    expected: <span class="kw-2">&amp;</span>Tensor4,
 <a href=#801 id=801 data-nosnippet>801</a>) -&gt; <span class="prelude-ty">Result</span>&lt;LogicalBranch, VerifyLogicalError&gt; {
 <a href=#802 id=802 data-nosnippet>802</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(diagram) = diagram <span class="kw">else </span>{
 <a href=#803 id=803 data-nosnippet>803</a>        branch.status = BranchStatus::Rejected;
@@ -808,7 +808,7 @@
 <a href=#808 id=808 data-nosnippet>808</a>        branch.status = BranchStatus::Impossible;
 <a href=#809 id=809 data-nosnippet>809</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(branch);
 <a href=#810 id=810 data-nosnippet>810</a>    }
-<a href=#811 id=811 data-nosnippet>811</a>    <span class="kw">if </span>!&lt;TensorF <span class="kw">as </span>CompareTensors&gt;::scalar_eq(<span class="kw-2">&amp;</span>actual, expected) {
+<a href=#811 id=811 data-nosnippet>811</a>    <span class="kw">if </span>!&lt;Tensor4 <span class="kw">as </span>CompareTensors&gt;::scalar_eq(<span class="kw-2">&amp;</span>actual, expected) {
 <a href=#812 id=812 data-nosnippet>812</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(VerifyLogicalError::MapMismatch {
 <a href=#813 id=813 data-nosnippet>813</a>            classical_state: branch.classical_state,
 <a href=#814 id=814 data-nosnippet>814</a>        });
@@ -817,14 +817,14 @@
 <a href=#817 id=817 data-nosnippet>817</a>    <span class="prelude-val">Ok</span>(branch)
 <a href=#818 id=818 data-nosnippet>818</a>}
 <a href=#819 id=819 data-nosnippet>819</a>
-<a href=#820 id=820 data-nosnippet>820</a><span class="kw">fn </span>tensor_is_nonzero(tensor: <span class="kw-2">&amp;</span>TensorF) -&gt; bool {
+<a href=#820 id=820 data-nosnippet>820</a><span class="kw">fn </span>tensor_is_nonzero(tensor: <span class="kw-2">&amp;</span>Tensor4) -&gt; bool {
 <a href=#821 id=821 data-nosnippet>821</a>    tensor.iter().any(|value| !value.is_zero())
 <a href=#822 id=822 data-nosnippet>822</a>}
 <a href=#823 id=823 data-nosnippet>823</a>
-<a href=#824 id=824 data-nosnippet>824</a><span class="kw">fn </span>contract(diagram: <span class="kw-2">&amp;</span>QuizxGraph) -&gt; TensorF {
+<a href=#824 id=824 data-nosnippet>824</a><span class="kw">fn </span>contract(diagram: <span class="kw-2">&amp;</span>QuizxGraph) -&gt; Tensor4 {
 <a href=#825 id=825 data-nosnippet>825</a>    <span class="kw">let </span><span class="kw-2">mut </span>reduced = diagram.clone();
 <a href=#826 id=826 data-nosnippet>826</a>    quizx::simplify::full_simp(<span class="kw-2">&amp;mut </span>reduced);
-<a href=#827 id=827 data-nosnippet>827</a>    reduced.to_tensorf()
+<a href=#827 id=827 data-nosnippet>827</a>    reduced.to_tensor4()
 <a href=#828 id=828 data-nosnippet>828</a>}
 <a href=#829 id=829 data-nosnippet>829</a>
 <a href=#830 id=830 data-nosnippet>830</a><span class="kw">fn </span>eval_expr(expr: <span class="kw-2">&amp;</span>Expr, values: <span class="kw-2">&amp;</span>BTreeMap&lt;String, bool&gt;) -&gt; bool {

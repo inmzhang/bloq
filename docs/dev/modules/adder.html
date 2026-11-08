@@ -2624,8 +2624,8 @@ instances:</p>
 <div class="mermaid-diagram docutils">
 <pre class="mermaid">
 <div class="highlight-none notranslate"><div class="highlight"><pre><span></span><code>flowchart LR
-  q["q and addend i"] --&gt; ands["3 InjectedAnd instances"]
-  ands --&gt; head["HeadMaj: bit 0"] --&gt; bulk["BulkMaj: bit 1"] --&gt; tail["TailParity: bit 2"]
+  q["q and addend i"] --&gt; injected["3 InjectedAnd instances"]
+  injected --&gt; head["HeadMaj: bit 0"] --&gt; bulk["BulkMaj: bit 1"] --&gt; tail["TailParity: bit 2"]
   tail -. corrected carry bit .-&gt; uma1["BulkUmaParked: bit 1"]
   uma1 -. corrected carry bit .-&gt; uma0["HeadUmaParked: bit 0"]
   tail --&gt; s2["s2"]
