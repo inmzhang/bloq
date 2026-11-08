@@ -68,8 +68,8 @@ bevy = { workspace = true, features = [
 bevy = { workspace = true, features = ["webgpu"] }
 # Enables bloq_graph's rand-based helpers when compiling the web editor to wasm.
 getrandom = { workspace = true, features = ["wasm_js"] }
-# QuiZX's rand 0.8 still needs the getrandom 0.2 web backend enabled separately.
-getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
+# QuiZX's rand 0.9 needs the getrandom 0.3 web backend enabled separately.
+getrandom_03 = { package = "getrandom", version = "0.3.4", features = ["wasm_js"] }
 js-sys.workspace = true
 wasm-bindgen.workspace = true
 web-sys = { workspace = true, features = [
@@ -94,7 +94,7 @@ web-sys = { workspace = true, features = [
 
 [package.metadata.cargo-machete]
 # winresource is used by build.rs for the Windows executable icon.
-ignored = ["getrandom", "getrandom_02", "winresource"]
+ignored = ["getrandom", "getrandom_03", "winresource"]
 
 [build-dependencies]
 winresource.workspace = true

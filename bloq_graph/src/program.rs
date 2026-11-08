@@ -2805,8 +2805,8 @@ mod tests {
             }
         );
         let previous = limits;
-        let error = limits.set("max_booleen_steps", 0).unwrap_err();
-        assert_eq!(error, UnknownCertificationLimit("max_booleen_steps".into()));
+        let error = limits.set("max_boolean_step", 0).unwrap_err();
+        assert_eq!(error, UnknownCertificationLimit("max_boolean_step".into()));
         assert_eq!(limits, previous);
         assert!(error.to_string().contains("max_boolean_steps"));
     }

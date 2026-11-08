@@ -4,11 +4,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
 
 use glam::IVec3;
-use quizx::fscalar::Zero;
 use quizx::graph::{EType, GraphLike, V, VType};
 use quizx::params::{Parity, Var};
 use quizx::phase::Phase;
-use quizx::tensor::{CompareTensors, TensorF, ToTensor};
+use quizx::scalar::Zero;
+use quizx::tensor::{CompareTensors, Tensor4, ToTensor};
 use rand::{Rng, RngExt, SeedableRng, rngs::StdRng};
 use rustc_hash::FxHashMap;
 
@@ -797,7 +797,7 @@ pub fn verify_logical(
 fn compare_branch(
     mut branch: LogicalBranch,
     diagram: Option<QuizxGraph>,
-    expected: &TensorF,
+    expected: &Tensor4,
 ) -> Result<LogicalBranch, VerifyLogicalError> {
     let Some(diagram) = diagram else {
         branch.status = BranchStatus::Rejected;
@@ -808,7 +808,7 @@ fn compare_branch(
         branch.status = BranchStatus::Impossible;
         return Ok(branch);
     }
-    if !<TensorF as CompareTensors>::scalar_eq(&actual, expected) {
+    if !<Tensor4 as CompareTensors>::scalar_eq(&actual, expected) {
         return Err(VerifyLogicalError::MapMismatch {
             classical_state: branch.classical_state,
         });
@@ -817,14 +817,14 @@ fn compare_branch(
     Ok(branch)
 }
 
-fn tensor_is_nonzero(tensor: &TensorF) -> bool {
+fn tensor_is_nonzero(tensor: &Tensor4) -> bool {
     tensor.iter().any(|value| !value.is_zero())
 }
 
-fn contract(diagram: &QuizxGraph) -> TensorF {
+fn contract(diagram: &QuizxGraph) -> Tensor4 {
     let mut reduced = diagram.clone();
     quizx::simplify::full_simp(&mut reduced);
-    reduced.to_tensorf()
+    reduced.to_tensor4()
 }
 
 fn eval_expr(expr: &Expr, values: &BTreeMap<String, bool>) -> bool {

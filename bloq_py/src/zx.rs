@@ -34,7 +34,7 @@ fn zx_err(e: impl std::fmt::Display) -> PyErr {
 /// boundary), and `"Selective(...)"` (a boundary whose basis is resolved at
 /// runtime). `is_boundary` is true for all three boundary kinds.
 #[gen_stub_pyclass]
-#[pyclass(name = "ZXNode", module = "bloq._core", frozen, skip_from_py_object)]
+#[pyclass(name = "ZXNode", module = "bloq._core", frozen)]
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct PyZXNode(pub(crate) bloq_graph::ZXNode);
 
@@ -101,7 +101,7 @@ impl PyZXNode {
 /// Edge ids live in the same id space as node ids, following them (the space
 /// that `ZXGraph.total_ids` sizes and stabilizer Pauli strings index into).
 #[gen_stub_pyclass]
-#[pyclass(name = "ZXEdge", module = "bloq._core", frozen, skip_from_py_object)]
+#[pyclass(name = "ZXEdge", module = "bloq._core", frozen)]
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct PyZXEdge(pub(crate) bloq_graph::ZXEdge);
 
@@ -169,7 +169,7 @@ impl PyZXEdge {
 ///     >>> zx.is_clifford_computation
 ///     True
 #[gen_stub_pyclass]
-#[pyclass(name = "ZXGraph", module = "bloq._core", frozen, skip_from_py_object)]
+#[pyclass(name = "ZXGraph", module = "bloq._core", frozen)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyZXGraph(pub(crate) bloq_graph::ZXGraph);
 

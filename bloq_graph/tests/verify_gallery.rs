@@ -13,7 +13,7 @@ use bloq_graph::{
 use glam::IVec3;
 use quizx::circuit::Circuit;
 use quizx::graph::{BasisElem, GraphLike};
-use quizx::tensor::{CompareTensors, TensorF, ToTensor};
+use quizx::tensor::{CompareTensors, Tensor4, ToTensor};
 use rand::{RngExt, SeedableRng, rngs::StdRng};
 
 #[test]
@@ -440,7 +440,7 @@ fn verify_controlled_adder(gallery: GalleryItem, expected: &QuizxGraph, samples:
     let normalize = |mut map: QuizxGraph| {
         quizx::simplify::full_simp(&mut map);
         assert!(map.scalar().complex_value().norm() > 0.0);
-        *map.scalar_mut() = quizx::fscalar::FScalar::real(1.0);
+        *map.scalar_mut() = quizx::scalar::Scalar4::real(1.0);
         map
     };
     let amplitude = |map: &QuizxGraph, input: usize, output: usize| {
@@ -657,10 +657,10 @@ fn maj_ports_are_exterior_and_match_and_uma_frames() {
     }
 }
 
-fn contract(graph: &QuizxGraph) -> TensorF {
+fn contract(graph: &QuizxGraph) -> Tensor4 {
     let mut graph = graph.clone();
     quizx::simplify::full_simp(&mut graph);
-    graph.to_tensorf()
+    graph.to_tensor4()
 }
 
 fn verify_prepared_branches(
@@ -686,7 +686,7 @@ fn verify_prepared_branches(
         let mut prepared = prepare();
         prepared.plug(&actual.expect("reachable branch"));
         assert!(
-            <TensorF as CompareTensors>::scalar_eq(&contract(&prepared), &ideal),
+            <Tensor4 as CompareTensors>::scalar_eq(&contract(&prepared), &ideal),
             "{label} branch {mask:b} differs from its declared map"
         );
     }

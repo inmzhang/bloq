@@ -1615,7 +1615,10 @@ mod tests {
                 "{name}: prepared routes changed"
             );
             assert_eq!(decoded.bounds, view.bounds);
-            assert_eq!(decoded.graph.scalar(), view.graph.scalar());
+            // QuiZX JSON decoding flags scalars approximate; the coefficients stay exact.
+            let mut scalar = *decoded.graph.scalar();
+            scalar.set_approx(false);
+            assert_eq!(&scalar, view.graph.scalar());
             assert_eq!(decoded.graph.to_tensorf(), view.graph.to_tensorf());
             let boundary_positions = |view: &SimplifiedZxView| {
                 view.graph
