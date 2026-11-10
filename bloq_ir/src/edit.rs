@@ -4,8 +4,11 @@
 //! before the graph is mutated, so failed verification leaves it unchanged.
 
 use std::cmp::Ordering;
+use std::collections::BTreeSet;
 
-use bloq_circuit::{ComposedChain, DetectorCoords, DetectorTerm, FlowEngine, OffsetFlows, Op};
+use bloq_circuit::{
+    ComposedChain, DetectorCoords, DetectorTerm, FlowEngine, FlowKey, OffsetFlows, Op, PauliMap,
+};
 use glam::IVec2;
 use petgraph::Direction;
 use petgraph::stable_graph::NodeIndex;
@@ -126,7 +129,7 @@ pub enum EditError {
         /// Terminal node.
         node: BloqNodeId,
     },
-    /// Several terminal instances occupy the same offset.
+    /// Several padding seams claim one terminal instance.
     #[error("node {node:?} has ambiguous terminal instance placement at offset {offset:?}")]
     AfterPaddingAmbiguous {
         /// Ambiguous node.
@@ -263,9 +266,8 @@ pub(crate) struct PaddingVariant {
     pub(crate) rounds: u32,
 }
 
-#[derive(Clone, Copy)]
 struct TerminalMember {
-    source: TemplateInstance,
+    sources: Vec<TemplateInstance>,
     pipe: TemporalPipeRef,
     padding: PipePadding,
 }
@@ -327,6 +329,10 @@ impl SeamComposition {
 
 /// Recompose a seam from persisted [`crate::BloqTemplate::boundary_flows`].
 ///
+/// Each node is one parallel layer, as in compile-time lowering: its instances
+/// consume the previous layer before any of them publishes an output, so
+/// adjacent walks never compose with each other.
+///
 /// This is partial: unmatched inputs and creators left open are omitted because
 /// their peers may be outside the supplied nodes. Callers must verify the
 /// resulting composition.
@@ -337,6 +343,8 @@ fn compose_seam_detectors(
     let mut engine: FlowEngine<'_, DetectorTerm<InstanceMeasurement>> = FlowEngine::new();
     let mut composition = SeamComposition::default();
     for (position, instances) in nodes.iter().enumerate() {
+        let mut owners = Vec::with_capacity(instances.len());
+        let mut parts = Vec::with_capacity(instances.len());
         for instance in *instances {
             let template =
                 templates
@@ -344,26 +352,26 @@ fn compose_seam_detectors(
                     .ok_or(EditError::UnknownTemplate {
                         template: instance.template_id,
                     })?;
-            if template.boundary_flows.is_empty() {
-                continue;
+            if !template.boundary_flows.is_empty() {
+                owners.push(instance.id);
+                parts.push(OffsetFlows::new(&template.boundary_flows, instance.offset));
             }
-            let parts = [OffsetFlows::new(&template.boundary_flows, instance.offset)];
-            engine
-                .append_group_skipping_unmatched_inputs(&parts, |_, &measurement| {
-                    DetectorTerm::Measurement(InstanceMeasurement {
-                        instance: instance.id,
-                        measurement,
-                    })
-                })
-                .map_err(|source| EditError::SeamCompositionFailed { source })?;
-            let (detectors, restarts) = drain_composed_chains(&mut engine);
-            composition
-                .detectors
-                .extend(detectors.into_iter().map(|detector| (position, detector)));
-            composition
-                .restarts
-                .extend(restarts.into_iter().map(|restart| (position, restart)));
         }
+        engine
+            .append_group_skipping_unmatched_inputs(&parts, |part, &measurement| {
+                DetectorTerm::Measurement(InstanceMeasurement {
+                    instance: owners[part],
+                    measurement,
+                })
+            })
+            .map_err(|source| EditError::SeamCompositionFailed { source })?;
+        let (detectors, restarts) = drain_composed_chains(&mut engine);
+        composition
+            .detectors
+            .extend(detectors.into_iter().map(|detector| (position, detector)));
+        composition
+            .restarts
+            .extend(restarts.into_iter().map(|restart| (position, restart)));
     }
     // Open creators may close against nodes outside this partial seam.
     Ok(composition)
@@ -382,54 +390,77 @@ fn removal_mask<T: PartialEq>(stored: &[T], seam: &[T]) -> Option<Vec<bool>> {
     Some(remove)
 }
 
-/// The `instances` whose patch ends under a padding template placed at `offset`.
+fn placed_boundary(map: &PauliMap, offset: IVec2) -> Result<FlowKey<'_>, EditError> {
+    FlowKey::try_new(map, offset).map_err(|error| EditError::SeamCompositionFailed {
+        source: error.into(),
+    })
+}
+
+/// The `instances` each padding item continues, one list per item.
 ///
-/// A walk or patch rotation ends away from its placement, so open output flows
-/// locate an instance. Placement decides when there is nothing to compare.
-fn padding_candidates(
+/// Boundaries match exactly as flow composition matches them, so a walk is
+/// found at its destination, and a patch whose output stabilizers are split
+/// between a cube and its spatial Hadamard pipe is found on both. An item with
+/// no matching boundary falls back to the sole instance at its placement.
+fn padding_sources(
     templates: &BloqTemplatePool,
     instances: &[TemplateInstance],
-    template: TemplateId,
-    offset: IVec2,
-) -> Vec<TemplateInstance> {
-    let footprint: FxSet<IVec2> = templates
-        .get(template)
-        .into_iter()
-        .flat_map(BloqTemplate::qubits)
-        .map(|&qubit| qubit + offset)
-        .collect();
-    instances
-        .iter()
-        .filter(|instance| {
-            let mut outputs = templates
-                .get(instance.template_id)
-                .into_iter()
-                .flat_map(|template| &template.boundary_flows)
-                .flat_map(|flow| flow.end.iter())
-                .map(|(&qubit, _)| qubit + instance.offset)
-                .peekable();
-            if footprint.is_empty() || outputs.peek().is_none() {
-                instance.offset == offset
-            } else {
-                outputs.all(|qubit| footprint.contains(&qubit))
+    padding: &[PaddingInstance],
+) -> Result<Vec<Vec<TemplateInstance>>, EditError> {
+    let flows = |template| {
+        templates
+            .get(template)
+            .map(|template: &BloqTemplate| template.boundary_flows.as_slice())
+            .ok_or(EditError::UnknownTemplate { template })
+    };
+    let mut producers = FxMap::default();
+    for (index, instance) in instances.iter().enumerate() {
+        for flow in flows(instance.template_id)? {
+            if !flow.end.is_empty() {
+                producers.insert(placed_boundary(&flow.end, instance.offset)?, index);
             }
+        }
+    }
+    padding
+        .iter()
+        .map(|item| {
+            let mut sources = BTreeSet::new();
+            for flow in flows(item.template)? {
+                if !flow.start.is_empty()
+                    && let Some(&index) = producers.get(&placed_boundary(&flow.start, item.offset)?)
+                {
+                    sources.insert(index);
+                }
+            }
+            if sources.is_empty() {
+                let mut placed = instances
+                    .iter()
+                    .filter(|instance| instance.offset == item.offset);
+                return Ok(match (placed.next(), placed.next()) {
+                    (Some(&only), None) => vec![only],
+                    _ => Vec::new(),
+                });
+            }
+            Ok(sources.into_iter().map(|index| instances[index]).collect())
         })
-        .copied()
         .collect()
 }
 
-/// Map each source to its padding, requiring a one-to-one correspondence.
+/// Map every source to the padding that replaces it. Each padding item needs a
+/// source, and no source may feed two items.
 fn padding_replacements(
-    candidates: &[Vec<TemplateInstance>],
+    sources: &[Vec<TemplateInstance>],
     padding: &[TemplateInstance],
 ) -> Option<FxMap<TemplateInstanceId, TemplateInstance>> {
     let mut replacements = FxMap::default();
-    for (candidates, &instance) in candidates.iter().zip(padding) {
-        let [source] = candidates[..] else {
+    for (sources, &instance) in sources.iter().zip(padding) {
+        if sources.is_empty() {
             return None;
-        };
-        if replacements.insert(source.id, instance).is_some() {
-            return None;
+        }
+        for source in sources {
+            if replacements.insert(source.id, instance).is_some() {
+                return None;
+            }
         }
     }
     Some(replacements)
@@ -933,28 +964,8 @@ impl Bloq {
 
         // Only instances carried by this edge are adjacent to `upper`; other
         // members of the same node may reach it through later seams.
-        let candidates: Vec<_> = padding
-            .iter()
-            .map(|item| {
-                padding_candidates(
-                    self.templates(),
-                    &lower_quantum.instances,
-                    item.template,
-                    item.offset,
-                )
-            })
-            .collect();
-        let lower_before: Vec<_> = lower_quantum
-            .instances
-            .iter()
-            .filter(|instance| {
-                candidates
-                    .iter()
-                    .flatten()
-                    .any(|item| item.id == instance.id)
-            })
-            .copied()
-            .collect();
+        let sources = padding_sources(self.templates(), &lower_quantum.instances, padding)?;
+        let lower_before: Vec<_> = sources.iter().flatten().copied().collect();
 
         // Recomposition catches Hadamard-aligned chains that parity alone cannot.
         let original =
@@ -989,12 +1000,8 @@ impl Bloq {
             .ok_or(EditError::InvalidStoredSeam)?;
 
         let padding_instances = self.allocate_padding_instances(padding)?;
-        let replacements = padding_replacements(&candidates, &padding_instances)
+        let replacements = padding_replacements(&sources, &padding_instances)
             .ok_or(EditError::InvalidQuantumEdge { from, to })?;
-        let lower_after: Vec<_> = lower_before
-            .iter()
-            .map(|instance| replacements.get(&instance.id).copied().unwrap_or(*instance))
-            .collect();
 
         let internal =
             compose_seam_detectors(self.templates(), &[&lower_before, &padding_instances])?;
@@ -1008,8 +1015,10 @@ impl Bloq {
             return Err(EditError::InvalidStoredSeam);
         }
 
-        let replacement =
-            compose_seam_detectors(self.templates(), &[&lower_after, &upper_quantum.instances])?;
+        let replacement = compose_seam_detectors(
+            self.templates(),
+            &[&padding_instances, &upper_quantum.instances],
+        )?;
         let (upper_detectors, upper_restarts) = replacement.after(0);
 
         // Only the seam against `upper` has a counterpart to reproduce. The
@@ -1023,7 +1032,7 @@ impl Bloq {
         {
             return Err(EditError::SeamRecompositionMismatch);
         }
-        let partial_seam = padding_instances.len() < lower_quantum.instances.len();
+        let partial_seam = replacements.len() < lower_quantum.instances.len();
 
         // Apply only after all checks pass. Any pipe gives the shared seam layer.
         let mut node = BloqNode::memory_padding(quantum_edge.pipes[0].pipe, rounds);
@@ -1075,35 +1084,11 @@ impl Bloq {
         mut source: crate::QuantumNode,
         entries: Vec<QuantumBoundaryEntry>,
     ) -> Result<BloqNodeId, EditError> {
-        let candidates: Vec<_> = padding
-            .iter()
-            .map(|item| {
-                padding_candidates(
-                    self.templates(),
-                    &source.instances,
-                    item.template,
-                    item.offset,
-                )
-            })
-            .collect();
-        let source_before: Vec<_> = source
-            .instances
-            .iter()
-            .filter(|instance| {
-                candidates
-                    .iter()
-                    .flatten()
-                    .any(|item| item.id == instance.id)
-            })
-            .copied()
-            .collect();
+        let sources = padding_sources(self.templates(), &source.instances, padding)?;
+        let source_before: Vec<_> = sources.iter().flatten().copied().collect();
         let padding_instances = self.allocate_padding_instances(padding)?;
-        let replacements = padding_replacements(&candidates, &padding_instances)
+        padding_replacements(&sources, &padding_instances)
             .ok_or(EditError::InvalidQuantumEdge { from, to })?;
-        let lower_after: Vec<_> = source_before
-            .iter()
-            .map(|instance| replacements.get(&instance.id).copied().unwrap_or(*instance))
-            .collect();
 
         let internal =
             compose_seam_detectors(self.templates(), &[&source_before, &padding_instances])?;
@@ -1125,7 +1110,7 @@ impl Bloq {
                 &entry.path,
                 entry.target,
                 &source_before,
-                &lower_after,
+                &padding_instances,
             )?;
             rewrites.push(QuantumBoundaryRewrite {
                 path: entry.path,
@@ -1333,28 +1318,31 @@ impl Bloq {
                     let Some(padding) = seam.padding else {
                         continue;
                     };
-                    let instances = padding_candidates(
+                    let sources = padding_sources(
                         self.templates(),
                         &source_instances,
-                        padding.one_round,
-                        padding.offset,
-                    );
-                    let instance = match instances[..] {
-                        [] => continue,
-                        [instance]
-                            if !members.iter().any(|member| member.source.id == instance.id) =>
-                        {
-                            instance
-                        }
-                        _ => {
-                            return Err(EditError::AfterPaddingAmbiguous {
-                                node: source,
-                                offset: padding.offset,
-                            });
-                        }
-                    };
+                        &[PaddingInstance {
+                            template: padding.one_round,
+                            offset: padding.offset,
+                        }],
+                    )?
+                    .remove(0);
+                    if sources.is_empty() {
+                        continue;
+                    }
+                    if sources.iter().any(|instance| {
+                        members
+                            .iter()
+                            .flat_map(|member| &member.sources)
+                            .any(|claimed| claimed.id == instance.id)
+                    }) {
+                        return Err(EditError::AfterPaddingAmbiguous {
+                            node: source,
+                            offset: padding.offset,
+                        });
+                    }
                     members.push(TerminalMember {
-                        source: instance,
+                        sources,
                         pipe: seam.pipe,
                         padding,
                     });
@@ -1381,7 +1369,10 @@ impl Bloq {
             return Err(EditError::AfterPaddingMissing { node: source });
         }
         let mut source_quantum = source_quantum.clone();
-        let touched = members.iter().map(|member| member.source.id).collect();
+        let touched = members
+            .iter()
+            .flat_map(|member| member.sources.iter().map(|instance| instance.id))
+            .collect();
         demote_touched_bundles(self, &mut source_quantum, &touched)?;
         let source_detectors = source_quantum.detectors.clone();
         let source_restarts = source_quantum.restarts.clone();
@@ -1399,11 +1390,18 @@ impl Bloq {
         let replacements: FxMap<_, _> = members
             .iter()
             .zip(&padding_instances)
-            .map(|(member, &padding)| (member.source.id, padding))
+            .flat_map(|(member, &padding)| {
+                member
+                    .sources
+                    .iter()
+                    .map(move |source| (source.id, padding))
+            })
             .collect();
         let lower_after: Vec<_> = source_instances
             .iter()
-            .map(|instance| replacements.get(&instance.id).copied().unwrap_or(*instance))
+            .filter(|instance| !replacements.contains_key(&instance.id))
+            .chain(&padding_instances)
+            .copied()
             .collect();
 
         let internal =
@@ -1795,11 +1793,11 @@ mod tests {
         ));
     }
 
+    /// A node is one parallel layer: a neighbor's output is not its input.
     #[test]
-    fn self_closing_lower_template_is_rejected() {
+    fn instances_of_one_node_do_not_compose_with_each_other() {
         use bloq_circuit::{Flow, Pauli, PauliMap};
 
-        // Compile-time templates never self-close within one node.
         let key: PauliMap = [(IVec2::ZERO, Pauli::Z)].into_iter().collect();
         let mut creator = BloqTemplate::new(CoordCircuit::new());
         creator.boundary_flows =
@@ -1810,28 +1808,14 @@ mod tests {
         let mut bloq = Bloq::new();
         let creator = bloq.add_template(creator);
         let consumer = bloq.add_template(consumer);
-        let empty = bloq.add_template(BloqTemplate::new(CoordCircuit::new()));
-        let mut lower = BloqNode::from_members(vec![]);
-        lower.expect_quantum_mut().instances.extend([
+        let node = [
             TemplateInstance::new(TemplateInstanceId(0), creator, IVec2::ZERO),
             TemplateInstance::new(TemplateInstanceId(1), consumer, IVec2::ZERO),
-        ]);
-        let lower = bloq.add_node(lower);
-        let upper = bloq.add_node(BloqNode::from_members(vec![]));
-        bloq.add_edge(lower, upper, BloqEdge::quantum(vec![plain_pipe()]));
+        ];
 
-        assert!(matches!(
-            bloq.subdivide_quantum_edge(
-                lower,
-                upper,
-                &[PaddingInstance {
-                    template: empty,
-                    offset: IVec2::ZERO,
-                }],
-                1,
-            ),
-            Err(EditError::InvalidStoredSeam)
-        ));
+        let composition = compose_seam_detectors(bloq.templates(), &[&node]).unwrap();
+        assert!(composition.detectors.is_empty());
+        assert!(composition.restarts.is_empty());
     }
 
     /// A flowless padding template with one top-level repeat.
