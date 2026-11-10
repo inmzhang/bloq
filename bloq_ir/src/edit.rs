@@ -382,6 +382,59 @@ fn removal_mask<T: PartialEq>(stored: &[T], seam: &[T]) -> Option<Vec<bool>> {
     Some(remove)
 }
 
+/// The `instances` whose patch ends under a padding template placed at `offset`.
+///
+/// A walk or patch rotation ends away from its placement, so open output flows
+/// locate an instance. Placement decides when there is nothing to compare.
+fn padding_candidates(
+    templates: &BloqTemplatePool,
+    instances: &[TemplateInstance],
+    template: TemplateId,
+    offset: IVec2,
+) -> Vec<TemplateInstance> {
+    let footprint: FxSet<IVec2> = templates
+        .get(template)
+        .into_iter()
+        .flat_map(BloqTemplate::qubits)
+        .map(|&qubit| qubit + offset)
+        .collect();
+    instances
+        .iter()
+        .filter(|instance| {
+            let mut outputs = templates
+                .get(instance.template_id)
+                .into_iter()
+                .flat_map(|template| &template.boundary_flows)
+                .flat_map(|flow| flow.end.iter())
+                .map(|(&qubit, _)| qubit + instance.offset)
+                .peekable();
+            if footprint.is_empty() || outputs.peek().is_none() {
+                instance.offset == offset
+            } else {
+                outputs.all(|qubit| footprint.contains(&qubit))
+            }
+        })
+        .copied()
+        .collect()
+}
+
+/// Map each source to its padding, requiring a one-to-one correspondence.
+fn padding_replacements(
+    candidates: &[Vec<TemplateInstance>],
+    padding: &[TemplateInstance],
+) -> Option<FxMap<TemplateInstanceId, TemplateInstance>> {
+    let mut replacements = FxMap::default();
+    for (candidates, &instance) in candidates.iter().zip(padding) {
+        let [source] = candidates[..] else {
+            return None;
+        };
+        if replacements.insert(source.id, instance).is_some() {
+            return None;
+        }
+    }
+    Some(replacements)
+}
+
 /// Total order on detector centers, so sorting makes a `Vec` comparison a
 /// multiset comparison. `None` — a chain carrying no center — sorts before
 /// every `Some` and stays distinct from `Some([])`.
@@ -880,10 +933,26 @@ impl Bloq {
 
         // Only instances carried by this edge are adjacent to `upper`; other
         // members of the same node may reach it through later seams.
+        let candidates: Vec<_> = padding
+            .iter()
+            .map(|item| {
+                padding_candidates(
+                    self.templates(),
+                    &lower_quantum.instances,
+                    item.template,
+                    item.offset,
+                )
+            })
+            .collect();
         let lower_before: Vec<_> = lower_quantum
             .instances
             .iter()
-            .filter(|instance| padding.iter().any(|item| item.offset == instance.offset))
+            .filter(|instance| {
+                candidates
+                    .iter()
+                    .flatten()
+                    .any(|item| item.id == instance.id)
+            })
             .copied()
             .collect();
 
@@ -920,19 +989,8 @@ impl Bloq {
             .ok_or(EditError::InvalidStoredSeam)?;
 
         let padding_instances = self.allocate_padding_instances(padding)?;
-        let mut replacements = FxMap::default();
-        for (padding, instance) in padding.iter().zip(&padding_instances) {
-            let mut sources = lower_quantum
-                .instances
-                .iter()
-                .filter(|source| source.offset == padding.offset);
-            let Some(source) = sources.next() else {
-                return Err(EditError::InvalidQuantumEdge { from, to });
-            };
-            if sources.next().is_some() || replacements.insert(source.id, *instance).is_some() {
-                return Err(EditError::InvalidQuantumEdge { from, to });
-            }
-        }
+        let replacements = padding_replacements(&candidates, &padding_instances)
+            .ok_or(EditError::InvalidQuantumEdge { from, to })?;
         let lower_after: Vec<_> = lower_before
             .iter()
             .map(|instance| replacements.get(&instance.id).copied().unwrap_or(*instance))
@@ -1017,26 +1075,31 @@ impl Bloq {
         mut source: crate::QuantumNode,
         entries: Vec<QuantumBoundaryEntry>,
     ) -> Result<BloqNodeId, EditError> {
+        let candidates: Vec<_> = padding
+            .iter()
+            .map(|item| {
+                padding_candidates(
+                    self.templates(),
+                    &source.instances,
+                    item.template,
+                    item.offset,
+                )
+            })
+            .collect();
         let source_before: Vec<_> = source
             .instances
             .iter()
-            .filter(|instance| padding.iter().any(|item| item.offset == instance.offset))
+            .filter(|instance| {
+                candidates
+                    .iter()
+                    .flatten()
+                    .any(|item| item.id == instance.id)
+            })
             .copied()
             .collect();
         let padding_instances = self.allocate_padding_instances(padding)?;
-        let mut replacements = FxMap::default();
-        for (padding, instance) in padding.iter().zip(&padding_instances) {
-            let mut sources = source
-                .instances
-                .iter()
-                .filter(|source| source.offset == padding.offset);
-            let Some(source) = sources.next() else {
-                return Err(EditError::InvalidQuantumEdge { from, to });
-            };
-            if sources.next().is_some() || replacements.insert(source.id, *instance).is_some() {
-                return Err(EditError::InvalidQuantumEdge { from, to });
-            }
-        }
+        let replacements = padding_replacements(&candidates, &padding_instances)
+            .ok_or(EditError::InvalidQuantumEdge { from, to })?;
         let lower_after: Vec<_> = source_before
             .iter()
             .map(|instance| replacements.get(&instance.id).copied().unwrap_or(*instance))
@@ -1270,20 +1333,26 @@ impl Bloq {
                     let Some(padding) = seam.padding else {
                         continue;
                     };
-                    let mut instances = source_instances
-                        .iter()
-                        .filter(|instance| instance.offset == padding.offset);
-                    let Some(&instance) = instances.next() else {
-                        continue;
+                    let instances = padding_candidates(
+                        self.templates(),
+                        &source_instances,
+                        padding.one_round,
+                        padding.offset,
+                    );
+                    let instance = match instances[..] {
+                        [] => continue,
+                        [instance]
+                            if !members.iter().any(|member| member.source.id == instance.id) =>
+                        {
+                            instance
+                        }
+                        _ => {
+                            return Err(EditError::AfterPaddingAmbiguous {
+                                node: source,
+                                offset: padding.offset,
+                            });
+                        }
                     };
-                    if instances.next().is_some()
-                        || members.iter().any(|member| member.source.id == instance.id)
-                    {
-                        return Err(EditError::AfterPaddingAmbiguous {
-                            node: source,
-                            offset: padding.offset,
-                        });
-                    }
                     members.push(TerminalMember {
                         source: instance,
                         pipe: seam.pipe,

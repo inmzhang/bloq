@@ -556,3 +556,46 @@ fn misplaced_padding_is_rejected_and_program_untouched() {
         baseline
     );
 }
+
+/// q0 walks onto the cell q1 started from, so a placement offset names the
+/// wrong patch: each wait must follow the patch that ends beneath it.
+#[test]
+fn waits_after_parallel_walks_follow_each_patch() {
+    let graph = BlockGraph::from_blog_text(
+        "BLOG 1.0\nmodule main {\nout q0: data = 6\nout q1: data = 7\n\
+         0: ZXZ [2,1,0]\n1: ZXZ [1,1,0]\n\
+         2: walk ZXZ [2,1,1] -> [1,1,2]\n3: walk ZXZ [1,1,1] -> [0,1,2]\n\
+         4: ZXZ [1,1,3]\n5: ZXZ [0,1,3]\n6: Port [1,1,4]\n7: Port [0,1,4]\n\
+         [2,1,0] -> +Z\n[1,1,0] -> +Z\n[1,1,2] -> +Z\n[0,1,2] -> +Z\n\
+         [1,1,3] -> +Z\n[0,1,3] -> +Z\n}\n",
+    )
+    .expect("parallel walks parse");
+    let mut bloq = bloq_compile::compile(&graph, DISTANCE).expect("parallel walks compile");
+    let observables = parsed_emit(&bloq).num_observables();
+    let walks = bloq
+        .nodes()
+        .find_map(|(id, node)| {
+            node.block_members()
+                .iter()
+                .any(|member| member.pos == ivec3(2, 1, 1))
+                .then_some(id)
+        })
+        .expect("walk node exists");
+    let targets: Vec<_> = bloq
+        .outgoing(walks)
+        .filter(|edge| matches!(edge.edge, BloqEdge::Quantum(_)))
+        .map(|edge| MemoryRoundTarget::Edge {
+            path: LevelPath::default(),
+            from: walks,
+            to: edge.target,
+        })
+        .collect();
+    assert_eq!(targets.len(), 2);
+
+    bloq.insert_memory_rounds_batch(&targets, 2)
+        .expect("each wait resolves its walking source");
+
+    bloq.validate().expect("spliced program validates");
+    assert_eq!(parsed_emit(&bloq).num_observables(), observables);
+    assert_detectors_deterministic(&bloq, "waits after parallel walks");
+}
