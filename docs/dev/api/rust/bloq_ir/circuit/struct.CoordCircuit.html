@@ -52,7 +52,7 @@ Indices are assigned by sorting coordinates by (x, y).</p>
 given an odd number of targets.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.measure" class="method"><a class="src rightside" href="../../src/bloq_circuit/circuit.rs.html#324-328">Source</a><h4 class="code-header">pub fn <a href="#method.measure" class="fn">measure</a>(
     &amp;mut self,
-    basis: PauliBasis,
+    basis: <a class="enum" href="../../bloq_utils/pauli/enum.PauliBasis.html" title="enum bloq_utils::pauli::PauliBasis">PauliBasis</a>,
     targets: impl <a class="trait" href="https://doc.rust-lang.org/1.99.1/core/iter/traits/collect/trait.IntoIterator.html" title="trait core::iter::traits::collect::IntoIterator">IntoIterator</a>&lt;Item = IVec2&gt;,
 ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.99.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.99.1/std/primitive.u32.html">u32</a>&gt;</h4></section></summary><div class="docblock"><p>Appends a noiseless single-qubit measurement of each target in <code>basis</code>,
 returning one freshly allocated measurement id per target (in target

@@ -19,7 +19,7 @@ semantics — run <a href="struct.Bloq.html#method.validate" title="method bloq_
 <h5 id="errors"><a class="doc-anchor" href="#errors">§</a>Errors</h5>
 <p>Returns <a href="enum.BinaryDecodeError.html" title="enum bloq_ir::BinaryDecodeError"><code>BinaryDecodeError</code></a> for an invalid header, unsupported
 version, malformed payload, or trailing data.</p>
-</div></details></div></details><details class="toggle implementors-toggle" open><summary><section id="impl-Bloq-1" class="impl"><a class="src rightside" href="../src/bloq_ir/edit.rs.html#521-1468">Source</a><a href="#impl-Bloq-1" class="anchor">§</a><h3 class="code-header">impl <a class="struct" href="struct.Bloq.html" title="struct bloq_ir::Bloq">Bloq</a></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.insert_memory_rounds" class="method"><a class="src rightside" href="../src/bloq_ir/edit.rs.html#533-539">Source</a><h4 class="code-header">pub fn <a href="#method.insert_memory_rounds" class="fn">insert_memory_rounds</a>(
+</div></details></div></details><details class="toggle implementors-toggle" open><summary><section id="impl-Bloq-1" class="impl"><a class="src rightside" href="../src/bloq_ir/edit.rs.html#605-1535">Source</a><a href="#impl-Bloq-1" class="anchor">§</a><h3 class="code-header">impl <a class="struct" href="struct.Bloq.html" title="struct bloq_ir::Bloq">Bloq</a></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.insert_memory_rounds" class="method"><a class="src rightside" href="../src/bloq_ir/edit.rs.html#617-623">Source</a><h4 class="code-header">pub fn <a href="#method.insert_memory_rounds" class="fn">insert_memory_rounds</a>(
     &amp;mut self,
     target: <a class="enum" href="enum.MemoryRoundTarget.html" title="enum bloq_ir::MemoryRoundTarget">MemoryRoundTarget</a>,
     rounds: <a class="primitive" href="https://doc.rust-lang.org/1.99.1/std/primitive.u32.html">u32</a>,
@@ -31,7 +31,7 @@ transactional: any error leaves <code>self</code> unchanged.</p>
 <h5 id="errors-1"><a class="doc-anchor" href="#errors-1">§</a>Errors</h5>
 <p>Returns <a href="enum.EditError.html" title="enum bloq_ir::EditError"><code>EditError</code></a> when the target or stored seam provenance is
 invalid, membership is unresolved, or <code>rounds</code> is zero.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.set_template_repetitions" class="method"><a class="src rightside" href="../src/bloq_ir/edit.rs.html#617-639">Source</a><h4 class="code-header">pub fn <a href="#method.set_template_repetitions" class="fn">set_template_repetitions</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.set_template_repetitions" class="method"><a class="src rightside" href="../src/bloq_ir/edit.rs.html#701-723">Source</a><h4 class="code-header">pub fn <a href="#method.set_template_repetitions" class="fn">set_template_repetitions</a>(
     &amp;mut self,
     template: <a class="struct" href="struct.TemplateId.html" title="struct bloq_ir::TemplateId">TemplateId</a>,
     repetitions: <a class="primitive" href="https://doc.rust-lang.org/1.99.1/std/primitive.u32.html">u32</a>,
@@ -55,7 +55,7 @@ there is no loop to retune, and with several the call would silently
 mean “all of them”.</p>
 <h5 id="panics-1"><a class="doc-anchor" href="#panics-1">§</a>Panics</h5>
 <p>Panics only if a template disappears after it is read from the pool.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.insert_memory_rounds_batch" class="method"><a class="src rightside" href="../src/bloq_ir/edit.rs.html#655-673">Source</a><h4 class="code-header">pub fn <a href="#method.insert_memory_rounds_batch" class="fn">insert_memory_rounds_batch</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.insert_memory_rounds_batch" class="method"><a class="src rightside" href="../src/bloq_ir/edit.rs.html#739-757">Source</a><h4 class="code-header">pub fn <a href="#method.insert_memory_rounds_batch" class="fn">insert_memory_rounds_batch</a>(
     &amp;mut self,
     targets: &amp;[<a class="enum" href="enum.MemoryRoundTarget.html" title="enum bloq_ir::MemoryRoundTarget">MemoryRoundTarget</a>],
     rounds: <a class="primitive" href="https://doc.rust-lang.org/1.99.1/std/primitive.u32.html">u32</a>,
@@ -70,7 +70,7 @@ batch, where looping over the public <a href="struct.Bloq.html#method.insert_mem
 would clone once per target <em>and</em> leave the earlier targets padded when
 a later one fails. Targets are applied in order. A duplicate or overlapping
 target that becomes invalid also rolls back the whole batch.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.subdivide_quantum_edge" class="method"><a class="src rightside" href="../src/bloq_ir/edit.rs.html#752-760">Source</a><h4 class="code-header">pub fn <a href="#method.subdivide_quantum_edge" class="fn">subdivide_quantum_edge</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.subdivide_quantum_edge" class="method"><a class="src rightside" href="../src/bloq_ir/edit.rs.html#836-844">Source</a><h4 class="code-header">pub fn <a href="#method.subdivide_quantum_edge" class="fn">subdivide_quantum_edge</a>(
     &amp;mut self,
     from: <a class="struct" href="struct.BloqNodeId.html" title="struct bloq_ir::BloqNodeId">BloqNodeId</a>,
     to: <a class="struct" href="struct.BloqNodeId.html" title="struct bloq_ir::BloqNodeId">BloqNodeId</a>,

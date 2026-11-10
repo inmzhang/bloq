@@ -7,7 +7,7 @@
 <p>These engine-index <a href="struct.EnginePauliString.html" title="struct bloq_vm::EnginePauliString"><code>PauliString</code></a>s are ready to measure at the end of a
 shot. <a href="fn.run_bloq_with_hook.html" title="fn bloq_vm::run_bloq_with_hook"><code>run_bloq_with_hook</code></a> builds them once and lends them to every shot’s
 hook via <a href="struct.ShotContext.html" title="struct bloq_vm::ShotContext"><code>ShotContext</code></a>.</p>
-<p>Both maps come directly from [<code>Bloq::logical_outputs</code>], so execution needs
+<p>Both maps come directly from <a href="../bloq_ir/ir/program/struct.Bloq.html#method.logical_outputs" title="method bloq_ir::ir::program::Bloq::logical_outputs"><code>Bloq::logical_outputs</code></a>, so execution needs
 no compiler geometry.</p>
 </div></details><h2 id="fields" class="fields section-header">Fields<a href="#fields" class="anchor">§</a></h2><span id="structfield.port" class="structfield section-header"><a href="#structfield.port" class="anchor field">§</a><code>port: IVec3</code></span><div class="docblock"><p>The source output port.</p>
 </div><span id="structfield.logical_x" class="structfield section-header"><a href="#structfield.logical_x" class="anchor field">§</a><code>logical_x: <a class="struct" href="struct.EnginePauliString.html" title="struct bloq_vm::EnginePauliString">PauliString</a></code></span><div class="docblock"><p>Logical <code>X</code> over engine indices.</p>
