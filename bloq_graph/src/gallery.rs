@@ -104,6 +104,12 @@ gallery! {
     S => ("S gate teleportation.", CLIFFORD, "../assets/s.blog"),
     #[strum(to_string = "t_gate")]
     T => ("T gate teleportation.", NON_CLIFFORD, "../assets/t.blog"),
+    #[strum(to_string = "t_gate_structural_branch")]
+    TGateStructuralBranch => (
+        "T gate teleportation with a structural branch for the Clifford correction.",
+        &[GalleryCategory::NonClifford, GalleryCategory::Adaptive],
+        "../assets/t_gate_structural_branch.blog",
+    ),
     #[strum(to_string = "t_with_prepared_y")]
     TWithPreparedY => (
         "T gate teleportation with a prepared Y for Clifford fix.",

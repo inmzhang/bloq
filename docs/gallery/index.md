@@ -24,6 +24,7 @@ Here we show the construction of some compilable surface code computations.
 <a class="bloq-gallery-card" href="cz_temporal_h.html" aria-label="CZ with a temporal Hadamard" data-categories="clifford"><img src="../_static/gallery/cz_temporal_h.png" alt="CZ with a temporal Hadamard block graph" width="128" height="104" loading="lazy"><span>CZ with a temporal Hadamard</span></a>
 <a class="bloq-gallery-card" href="s_gate.html" aria-label="S gate" data-categories="clifford"><img src="../_static/gallery/s_gate.png" alt="S gate block graph" width="128" height="104" loading="lazy"><span>S gate</span></a>
 <a class="bloq-gallery-card" href="t_gate.html" aria-label="T gate" data-categories="non_clifford"><img src="../_static/gallery/t_gate.png" alt="T gate block graph" width="128" height="104" loading="lazy"><span>T gate</span></a>
+<a class="bloq-gallery-card" href="t_gate_structural_branch.html" aria-label="T gate with a structural branch" data-categories="non_clifford adaptive"><img src="../_static/gallery/t_gate_structural_branch.png" alt="T gate with a structural branch block graph" width="128" height="104" loading="lazy"><span>T gate with a structural branch</span></a>
 <a class="bloq-gallery-card" href="t_with_prepared_y.html" aria-label="T gate with a prepared Y state" data-categories="non_clifford"><img src="../_static/gallery/t_with_prepared_y.png" alt="T gate with a prepared Y state block graph" width="128" height="104" loading="lazy"><span>T gate with a prepared Y state</span></a>
 <a class="bloq-gallery-card" href="t_comparison.html" aria-label="T-state comparison" data-categories="non_clifford"><img src="../_static/gallery/t_comparison.png" alt="T-state comparison block graph" width="128" height="104" loading="lazy"><span>T-state comparison</span></a>
 <a class="bloq-gallery-card" href="phase_gradient.html" aria-label="Phase-gradient sequence" data-categories="non_clifford"><img src="../_static/gallery/phase_gradient.png" alt="Phase-gradient sequence block graph" width="128" height="104" loading="lazy"><span>Phase-gradient sequence</span></a>
@@ -61,6 +62,7 @@ cz_spatial_h
 cz_temporal_h
 s_gate
 t_gate
+t_gate_structural_branch
 t_with_prepared_y
 t_comparison
 phase_gradient

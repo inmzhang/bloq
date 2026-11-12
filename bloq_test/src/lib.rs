@@ -95,6 +95,8 @@ fixtures! {
     Stability => ("stability", Some(GalleryItem::Stability)),
     /// T gate teleportation (non-Clifford).
     TGate => ("t_gate", Some(GalleryItem::T)),
+    /// T gate teleportation with a structural branch for the Clifford correction.
+    TGateStructuralBranch => ("t_gate_structural_branch", Some(GalleryItem::TGateStructuralBranch)),
     /// T gate teleportation with a prepared Y for Clifford fix (non-Clifford).
     TWithPreparedY => ("t_with_prepared_y", Some(GalleryItem::TWithPreparedY)),
     /// k=4 phase-gradient Rz synthesis (non-Clifford).

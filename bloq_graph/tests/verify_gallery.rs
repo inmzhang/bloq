@@ -700,6 +700,7 @@ fn expected_map(gallery: GalleryItem) -> (QuizxGraph, usize) {
         }
         GalleryItem::S => (circuit_graph(1, &[("s", vec![0])]), 1),
         GalleryItem::T | GalleryItem::TWithPreparedY => (circuit_graph(1, &[("t", vec![0])]), 32),
+        GalleryItem::TGateStructuralBranch => (circuit_graph(1, &[("t", vec![0])]), 2),
         GalleryItem::TComparison => (QuizxGraph::new(), 64),
         GalleryItem::PhaseGradientK4 => (phase_gradient_map(), 32),
         GalleryItem::And4T => {
@@ -780,6 +781,15 @@ fn every_gallery_map_verifies() {
                 | GalleryItem::ToffoliFromAndDelayedCZ
         ) {
             verify_gate_branches(gallery, &graph, &expected);
+            continue;
+        }
+        if gallery == GalleryItem::TGateStructuralBranch {
+            let verifier = LogicalVerifier::new(&graph).unwrap();
+            for outcome in [false, true] {
+                let assignment = [("mzz".to_owned(), outcome)].into_iter().collect();
+                let branch = verifier.verify_branch(&expected, &assignment).unwrap();
+                assert_eq!(branch.status(), BranchStatus::Verified, "mzz={outcome}");
+            }
             continue;
         }
         if gallery == GalleryItem::CCZInjectedAnd {

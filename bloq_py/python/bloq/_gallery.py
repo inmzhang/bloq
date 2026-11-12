@@ -35,6 +35,7 @@ class GalleryItem(str, enum.Enum):
     CZ_TEMPORAL_H = "cz_temporal_h"
     S_GATE = "s_gate"
     T_GATE = "t_gate"
+    T_GATE_STRUCTURAL_BRANCH = "t_gate_structural_branch"
     T_WITH_PREPARED_Y = "t_with_prepared_y"
     T_COMPARISON = "t_comparison"
     PHASE_GRADIENT = "phase_gradient"

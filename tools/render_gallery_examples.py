@@ -20,6 +20,7 @@ EXAMPLES = {
     "cz_temporal_h": ("CZ with a temporal Hadamard", "This alternative CZ layout places the Hadamard on a temporal connection. Compare its pipe orientation with the spatial-Hadamard version to see two layouts for the same gate."),
     "s_gate": ("S gate", "The data patch interacts with an ancilla that ends in a Y-basis measurement. The data input and output stay open, so this component can be placed between other gates."),
     "t_gate": ("T gate", "A T resource couples to the data patch. A named parity readout chooses the resource patch's X or Y measurement, while the data patch continues to the output."),
+    "t_gate_structural_branch": ("T gate with a structural branch", "The ZZ parity measurement selects the geometry after T injection. The true arm adds a Y cap and applies Z feedback to the output."),
     "t_with_prepared_y": ("T gate with a prepared Y state", "This variant supplies a prepared Y ancilla for the Clifford correction. Its explicit ancilla geometry makes the correction part of the teleportation layout."),
     "t_comparison": ("T-state comparison", "Two T resources are compared through a joint parity readout and a selective X/Y measurement. A final discard action rejects the shot when its corrected comparison result is one."),
     "phase_gradient": ("Phase-gradient sequence", "Reusable injection modules form a single-qubit chain of 22 signed π/4 rotations about X and Z, followed by a Hadamard. The source shows repeated definitions, rotated instances, and explicit quantum seams."),

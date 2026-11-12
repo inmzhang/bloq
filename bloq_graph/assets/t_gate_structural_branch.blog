@@ -1,0 +1,35 @@
+BLOG 1.0
+
+module main {
+  in q0: data = 0
+  out q1: data = 4
+
+  0: Port [0, 0, 0] <In>
+  1: XZX [0, 0, 1]
+  2: XZX [1, 0, 1]
+  3: T [1, 0, 0]
+  4: Port [0, 0, 3] <Out>
+  0 -> +Z
+  1 -> +Z
+  1 -> +X
+  2 -> -Z
+  branch b0 {
+    false {
+      5: XZZ [0, 0, 2]
+      5 -> +Z
+    }
+    true {
+      6: XZX [0, 0, 2]
+      7: XZX [1, 0, 2]
+      8: Y [1, 0, 3]
+      4 -> -Z
+      6 -> +X
+      7 -> +Z
+    }
+  }
+
+  mzz = measure 1 -> +X
+  resolve b0 if mzz
+  feedback Z 4 if mzz
+
+}
