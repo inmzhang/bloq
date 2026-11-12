@@ -1295,7 +1295,7 @@ impl<'a> BloqStimEmitter<'a> {
                 },
             )?;
 
-            let qubits = circuit.qubits().into_iter().collect::<Vec<_>>();
+            let qubits = circuit.qubits();
             let mut ideal_qubits = FxHashSet::default();
             if self.noise.is_some()
                 && quantum
@@ -1303,32 +1303,23 @@ impl<'a> BloqStimEmitter<'a> {
                     .iter()
                     .any(|instance| instance.provenance.is_ideal_boundary())
             {
-                let mut source_qubits = FxHashSet::default();
+                ideal_qubits.clone_from(&qubits);
                 for instance in quantum
                     .instances
                     .iter()
                     .filter(|instance| !instance.provenance.is_ideal_boundary())
                 {
                     for &qubit in self.program.templates()[instance.template_id].qubits() {
-                        source_qubits.insert(checked_translate_coordinate(qubit, instance.offset)?);
+                        ideal_qubits.remove(&checked_translate_coordinate(qubit, instance.offset)?);
                     }
                 }
-                ideal_qubits.extend(
-                    qubits
-                        .iter()
-                        .filter(|qubit| !source_qubits.contains(*qubit)),
-                );
             }
-            let noisy_qubits =
-                self.noise
-                    .filter(|noise| noise.p_idle != 0.0)
-                    .map_or_else(Vec::new, |_| {
-                        qubits
-                            .iter()
-                            .filter(|qubit| !ideal_qubits.contains(*qubit))
-                            .copied()
-                            .collect()
-                    });
+            let noisy_qubits = self
+                .noise
+                .filter(|noise| noise.p_idle != 0.0)
+                .map_or_else(Vec::new, |_| {
+                    qubits.difference(&ideal_qubits).copied().collect()
+                });
             let entry = circuit.entry_body();
             let body = circuit
                 .body_mut(entry)
@@ -1360,7 +1351,7 @@ impl<'a> BloqStimEmitter<'a> {
             lanes.push(MomentLane {
                 node: node_id,
                 moments: kinds,
-                qubits,
+                qubits: qubits.into_iter().collect(),
             });
             nodes.insert(
                 node_id,
@@ -1386,10 +1377,12 @@ impl<'a> BloqStimEmitter<'a> {
         active: &mut FxHashSet<IVec2>,
     ) -> Result<bool, StimEmissionError> {
         let moment_count = emission.moments.len();
-        let ops = emission
-            .moments
-            .get_mut(moment)
-            .expect("alignment returns a submitted moment");
+        let mut ops = std::mem::take(
+            emission
+                .moments
+                .get_mut(moment)
+                .expect("alignment returns a submitted moment"),
+        );
         let last = moment + 1 == moment_count;
         let finalize_now = last && !emission.ends_with_tick;
 
@@ -1403,29 +1396,23 @@ impl<'a> BloqStimEmitter<'a> {
 
         let entry = emission.circuit.entry_body();
         if let Some(noise) = self.noise {
-            *ops = noise.noisy_moment(std::mem::take(ops), active, &emission.ideal_qubits);
+            ops = noise.noisy_moment(ops, active, &emission.ideal_qubits);
         }
-        std::mem::swap(
-            emission
-                .circuit
-                .body_mut(entry)
-                .expect("entry body is created with the circuit")
-                .ops_mut(),
-            ops,
-        );
-        let result = self.emit_aligned_circuit(
+        *emission
+            .circuit
+            .body_mut(entry)
+            .expect("entry body is created with the circuit")
+            .ops_mut() = ops;
+        self.emit_aligned_circuit(
             &emission.circuit,
             finalize_now.then_some(&emission.annotations),
-        );
-        std::mem::swap(
-            emission
-                .circuit
-                .body_mut(entry)
-                .expect("entry body is created with the circuit")
-                .ops_mut(),
-            ops,
-        );
-        result?;
+        )?;
+        emission
+            .circuit
+            .body_mut(entry)
+            .expect("entry body is created with the circuit")
+            .ops_mut()
+            .clear();
 
         Ok(last)
     }
