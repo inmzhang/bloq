@@ -97,7 +97,8 @@ Segmented emission stores a shared header and node chunks with one global
 measurement record. Sample the assembled circuit.
 
 Aligned emission (`align_moments=True`) merges compatible moments in noiseless
-whole-program emission. It adds no memory rounds or hardware durations.
+whole-program emission. At a temporal Hadamard layer, live patches on ordinary
+temporal seams run a memory round alongside the Hadamard realignment.
 :::
 
 ## Bloq VM

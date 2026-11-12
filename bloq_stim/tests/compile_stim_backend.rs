@@ -1,4 +1,5 @@
 use bloq_compile::{CompileConfig, CompileContext, validate_bloq_qubit_layout_for_source};
+use bloq_graph::BlockGraph;
 use bloq_ir::{Bloq, LevelPath, MemoryRoundTarget};
 use bloq_stim::{
     BloqStimOptions, emit_bloq_stim, emit_bloq_stim_with, emit_bloq_stim_with_stim_noise,
@@ -300,6 +301,30 @@ module main {
 #[test]
 fn all_clifford_fixtures_d3() {
     run_backend_fixtures(clifford_fixtures(), 3);
+}
+
+#[test]
+fn aligned_temporal_hadamard_pads_live_neighbor() {
+    let hadamard = "BLOG 1.0\n0: XZX [0,0,0]\n1: ZXZ [0,0,1]\n0 -H> +Z\n";
+    let peer = "2: XZX [1,0,0]\n3: XZX [1,0,1]\n2 -> +Z\n";
+    let emit = |source: &str, align| -> Circuit {
+        let graph = BlockGraph::from_blog_text(source).unwrap();
+        let program = bloq_compile::compile(&graph, 3).unwrap();
+        emit_bloq_stim_with(&program, &BloqStimOptions::new().with_align_moments(align))
+            .unwrap()
+            .parse()
+            .unwrap()
+    };
+    let source = format!("{hadamard}{peer}");
+    let aligned = emit(&source, true);
+
+    assert_eq!(
+        aligned.num_measurements(),
+        emit(&source, false).num_measurements() + 8,
+        "one d3 memory round on the ordinary temporal seam"
+    );
+    assert_eq!(aligned.num_ticks(), emit(hadamard, true).num_ticks());
+    aligned.detector_error_model().unwrap();
 }
 
 #[test]
