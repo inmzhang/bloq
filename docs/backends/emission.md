@@ -96,8 +96,8 @@ hardware timings, and external idle-noise models may over-count errors.
 Segmented emission stores a shared header and node chunks with one global
 measurement record. Sample the assembled circuit.
 
-Aligned emission (`align_moments=True`) merges compatible moments in noiseless
-whole-program emission. It adds no memory rounds or hardware durations.
+Aligned emission (`align_moments=True`) merges compatible moments in whole-program
+emission.
 :::
 
 ## Bloq VM
