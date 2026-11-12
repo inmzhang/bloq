@@ -353,7 +353,7 @@ fn aligned_temporal_hadamard_pads_live_neighbor() {
         let targets = moment
             .iter()
             .filter(|op| op.name().starts_with(gate))
-            .flat_map(|op| op.targets())
+            .flat_map(stim::CircuitInstruction::targets)
             .filter_map(|target| target.qubit_value())
             .map(|qubit| coords[qubit as usize].x);
         let (left, right): (Vec<_>, Vec<_>) = targets.partition(|&x| x <= hadamard_max_x);
