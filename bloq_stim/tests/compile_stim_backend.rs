@@ -8,7 +8,7 @@ use bloq_test::{
     CompileReadyCase, TestCaseError, TestFixture, compile_fixtures, select_test_cases_for_fixture,
 };
 use glam::ivec3;
-use stim::{Circuit, DemInstructionTarget, DemInstructionType, DemItem};
+use stim::{Circuit, CircuitItem, DemInstructionTarget, DemInstructionType, DemItem};
 
 mod common;
 use common::uniform_depolarizing;
@@ -307,23 +307,61 @@ fn all_clifford_fixtures_d3() {
 fn aligned_temporal_hadamard_pads_live_neighbor() {
     let hadamard = "BLOG 1.0\n0: XZX [0,0,0]\n1: ZXZ [0,0,1]\n0 -H> +Z\n";
     let peer = "2: XZX [1,0,0]\n3: XZX [1,0,1]\n2 -> +Z\n";
-    let emit = |source: &str, align| -> Circuit {
-        let graph = BlockGraph::from_blog_text(source).unwrap();
-        let program = bloq_compile::compile(&graph, 3).unwrap();
-        emit_bloq_stim_with(&program, &BloqStimOptions::new().with_align_moments(align))
+    let compile = |source: &str| {
+        bloq_compile::compile(&BlockGraph::from_blog_text(source).unwrap(), 3).unwrap()
+    };
+    let emit = |program: &Bloq, align| -> Circuit {
+        emit_bloq_stim_with(program, &BloqStimOptions::new().with_align_moments(align))
             .unwrap()
             .parse()
             .unwrap()
     };
-    let source = format!("{hadamard}{peer}");
-    let aligned = emit(&source, true);
+    let program = compile(&format!("{hadamard}{peer}"));
+    let aligned = emit(&program, true);
 
     assert_eq!(
         aligned.num_measurements(),
-        emit(&source, false).num_measurements() + 8,
+        emit(&program, false).num_measurements() + 8,
         "one d3 memory round on the ordinary temporal seam"
     );
-    assert_eq!(aligned.num_ticks(), emit(hadamard, true).num_ticks());
+    let hadamard_only = compile(hadamard);
+    assert_eq!(aligned.num_ticks(), emit(&hadamard_only, true).num_ticks());
+
+    let coords = program.sorted_layout_coords().unwrap();
+    let hadamard_max_x = hadamard_only
+        .sorted_layout_coords()
+        .unwrap()
+        .last()
+        .unwrap()
+        .x;
+    let instructions: Vec<_> = (&aligned)
+        .into_iter()
+        .map(|item| match item {
+            CircuitItem::Instruction(instruction) => instruction,
+            CircuitItem::RepeatBlock(_) => panic!("aligned circuit is flat"),
+        })
+        .collect();
+    let moments: Vec<_> = instructions.split(|op| op.name() == "TICK").collect();
+    let transition = moments
+        .iter()
+        .position(|moment| moment.iter().any(|op| op.name() == "H"))
+        .expect("the transversal Hadamard identifies the realignment");
+    let shared = moments[transition - 5..transition]
+        .iter()
+        .chain(std::iter::once(&moments[transition + 1]));
+    for (moment, gate) in shared.zip(["R", "CX", "CX", "CX", "CX", "M"]) {
+        let targets = moment
+            .iter()
+            .filter(|op| op.name().starts_with(gate))
+            .flat_map(|op| op.targets())
+            .filter_map(|target| target.qubit_value())
+            .map(|qubit| coords[qubit as usize].x);
+        let (left, right): (Vec<_>, Vec<_>) = targets.partition(|&x| x <= hadamard_max_x);
+        assert!(
+            !left.is_empty() && !right.is_empty(),
+            "both patches share {gate}"
+        );
+    }
     aligned.detector_error_model().unwrap();
 }
 
