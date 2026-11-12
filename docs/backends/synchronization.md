@@ -56,6 +56,10 @@ n1 -> n2 quantum (1,0,1)>(1,0,2) padding offset (8,0) one t8 loop t9
 Waits can therefore be inserted into a compiled or loaded program without the
 source graph or the compiler.
 
+[Aligned Stim emission](emission.md#stim) uses these templates at temporal
+Hadamard layers. Live patches on ordinary temporal seams run a memory round
+alongside the Hadamard realignment.
+
 ### Memory padding nodes
 
 An insertion splits a quantum edge with a new quantum node that has

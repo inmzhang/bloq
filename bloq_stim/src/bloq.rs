@@ -11,9 +11,9 @@ use bloq_circuit::{
     Pauli, PauliMap, checked_translate_coordinate,
 };
 use bloq_ir::{
-    Bloq, BloqNode, BloqNodeId, BloqNodeKind, BodySelector, ClassicalAssignment, ClassicalNode,
-    LevelPath, MomentLane, RegionNode, SubGraph, TemplateId, ValidatedPlans, align_moment_lanes,
-    aligned_moment_segments,
+    Bloq, BloqEdge, BloqNode, BloqNodeId, BloqNodeKind, BodySelector, ClassicalAssignment,
+    ClassicalNode, LevelPath, MemoryRoundTarget, MomentLane, NodeProvenance, RegionNode, SubGraph,
+    TemplateId, ValidatedPlans, align_moment_lanes, aligned_moment_segments,
     lowering::{
         InstanceMeasurement, InstantiationOptions, NodeEmissionPlan, TemplateDetectorScope,
         TemplateInstanceId,
@@ -185,6 +185,8 @@ pub fn emit_bloq_stim(program: &Bloq) -> Result<String, StimEmissionError> {
 ///
 /// With moment alignment enabled, repeat bodies are flattened and compatible raw moments from
 /// quantum nodes occupying the same source layer share global `TICK` slots.
+/// Ordinary temporal seams alongside a temporal Hadamard receive one memory round
+/// using the compiled program's padding templates.
 ///
 /// # Errors
 ///
@@ -199,6 +201,7 @@ pub fn emit_bloq_stim_with(
         }
         reject_unsupported(program)?;
         let mut flat = program.clone();
+        pad_temporal_hadamard_layers(&mut flat)?;
         flat.flatten()?;
         let plans = flat.emission_plans(&InstantiationOptions::default())?;
         let order = flat.deterministic_emit_order()?;
@@ -206,6 +209,51 @@ pub fn emit_bloq_stim_with(
     }
     let (plans, order) = prepare_untransformed(program, options)?;
     BloqStimEmitter::new(program, options.noise, &plans).emit_order_untransformed(&order)
+}
+
+fn pad_temporal_hadamard_layers(program: &mut Bloq) -> Result<(), StimEmissionError> {
+    let hadamard_layers: FxHashSet<_> = program
+        .nodes()
+        .filter_map(|(_, node)| match node.provenance {
+            NodeProvenance::TemporalPipe { pipe } if pipe.hadamard => {
+                Some(pipe.endpoints_by_z().0.z)
+            }
+            _ => None,
+        })
+        .collect();
+    if hadamard_layers.is_empty() {
+        return Ok(());
+    }
+
+    let is_padding = |id| {
+        program
+            .node(id)
+            .is_some_and(|node| node.memory_rounds().is_some())
+    };
+    let targets: Vec<_> = program
+        .edges()
+        .filter_map(|edge| {
+            let BloqEdge::Quantum(quantum) = edge.edge else {
+                return None;
+            };
+            let seam = quantum.pipes.first()?;
+            let (lower, upper) = seam.pipe.endpoints_by_z();
+            (!seam.pipe.hadamard
+                && lower.z != upper.z
+                && hadamard_layers.contains(&lower.z)
+                && !is_padding(edge.source)
+                && !is_padding(edge.target))
+            .then(|| MemoryRoundTarget::Edge {
+                path: LevelPath::default(),
+                from: edge.source,
+                to: edge.target,
+            })
+        })
+        .collect();
+    if !targets.is_empty() {
+        program.insert_memory_rounds_batch(&targets, 1)?;
+    }
+    Ok(())
 }
 
 /// Shared plans and order for whole-text and segmented emission.
@@ -2370,8 +2418,8 @@ mod tests {
     use super::*;
     use bloq_circuit::{CircuitBody, DetectorParity, DetectorTerm, PauliBasis};
     use bloq_ir::{
-        BloqEdge, BoundaryFace, ClassicalExpr, MemoryRoundTarget, NodeDetector, QuantumTimeline,
-        SourceBlockRef, TemplateDetector,
+        BoundaryFace, ClassicalExpr, NodeDetector, QuantumTimeline, SourceBlockRef,
+        TemplateDetector,
         lowering::{BloqTemplate, InstanceBoundaryOperator, TemplateInstance, TemplateRepeatState},
     };
     use glam::{ivec2, ivec3};
