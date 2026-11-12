@@ -1221,7 +1221,7 @@ impl<'a> BloqStimEmitter<'a> {
                 if let Some(error) = noise.idle_error(live.difference(&active).copied()) {
                     let ops = idle_circuit
                         .body_mut(idle_circuit.entry_body())
-                        .unwrap()
+                        .expect("entry body is created with the circuit")
                         .ops_mut();
                     ops.clear();
                     ops.push(error);
