@@ -28871,7 +28871,8 @@ produced elsewhere: the backend assumes a well-formed program and
 may otherwise emit a silently wrong circuit.</p>
 </dd>
 <dt id="bloq.emit_stim.align_moments"><span class="n sig-name">align_moments</span><span class="p">:</span><span class="w"> </span><span class="n"><span class="desctype">bool</span></span><span class="w"> </span><span class="o">=</span><span class="w"> </span><code class="code python default_value docutils literal highlight highlight-python"><span class="kc">False</span></code><a class="headerlink" href="#bloq.emit_stim.align_moments" title="Permalink to this definition">¶</a></dt><dd><p>Flatten repeats and merge compatible Clifford moments by
-z layer. Requires noiseless emission; defaults to <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p>
+z layer. Noise, if requested, is applied to the aligned schedule.
+Defaults to <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p>
 </dd>
 </dl>
 </dd>

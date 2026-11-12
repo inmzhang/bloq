@@ -256,7 +256,7 @@
 <a href=#256 id=256 data-nosnippet>256</a>    }
 <a href=#257 id=257 data-nosnippet>257</a>
 <a href=#258 id=258 data-nosnippet>258</a>    <span class="attr">#[test]
-<a href=#259 id=259 data-nosnippet>259</a>    </span><span class="kw">fn </span>multiplex_port_qubits_stay_ideal_in_both_noise_paths() {
+<a href=#259 id=259 data-nosnippet>259</a>    </span><span class="kw">fn </span>multiplex_port_qubits_stay_ideal_in_noise_paths() {
 <a href=#260 id=260 data-nosnippet>260</a>        <span class="kw">let </span><span class="kw-2">mut </span>graph = BlockGraph::new();
 <a href=#261 id=261 data-nosnippet>261</a>        graph.add_block(
 <a href=#262 id=262 data-nosnippet>262</a>            Block::new(IVec3::ZERO, BlockKind::Port)
@@ -281,40 +281,39 @@
 <a href=#281 id=281 data-nosnippet>281</a>        <span class="macro">assert!</span>(ideal.contains(<span class="kw-2">&amp;</span>layout[output]));
 <a href=#282 id=282 data-nosnippet>282</a>
 <a href=#283 id=283 data-nosnippet>283</a>        <span class="kw">let </span>internal = bloq_circuit::NoiseModel::uniform_depolarizing(<span class="number">1e-3</span>);
-<a href=#284 id=284 data-nosnippet>284</a>        <span class="kw">let </span>internal_text = <span class="kw">crate</span>::emit_bloq_stim_with(
-<a href=#285 id=285 data-nosnippet>285</a>            <span class="kw-2">&amp;</span>program,
-<a href=#286 id=286 data-nosnippet>286</a>            <span class="kw-2">&amp;</span><span class="kw">crate</span>::BloqStimOptions::new().with_noise(<span class="kw-2">&amp;</span>internal),
-<a href=#287 id=287 data-nosnippet>287</a>        )
-<a href=#288 id=288 data-nosnippet>288</a>        .unwrap();
-<a href=#289 id=289 data-nosnippet>289</a>        <span class="kw">let </span>external = stim::noise::UniformDepolarizing::new(<span class="number">1e-3</span>).unwrap();
-<a href=#290 id=290 data-nosnippet>290</a>        <span class="kw">let </span>external_text = emit_bloq_stim_with_stim_noise(<span class="kw-2">&amp;</span>program, <span class="kw-2">&amp;</span>external).unwrap();
-<a href=#291 id=291 data-nosnippet>291</a>
-<a href=#292 id=292 data-nosnippet>292</a>        <span class="kw">for </span>text <span class="kw">in </span>[internal_text, external_text] {
-<a href=#293 id=293 data-nosnippet>293</a>            <span class="kw">let </span>circuit = text.parse::&lt;Circuit&gt;().unwrap();
-<a href=#294 id=294 data-nosnippet>294</a>            assert_noise_free(<span class="kw-2">&amp;</span>circuit, <span class="kw-2">&amp;</span>ideal);
-<a href=#295 id=295 data-nosnippet>295</a>        }
-<a href=#296 id=296 data-nosnippet>296</a>    }
-<a href=#297 id=297 data-nosnippet>297</a>
-<a href=#298 id=298 data-nosnippet>298</a>    <span class="kw">fn </span>assert_noise_free(circuit: <span class="kw-2">&amp;</span>Circuit, ideal: <span class="kw-2">&amp;</span>FxHashSet&lt;u32&gt;) {
-<a href=#299 id=299 data-nosnippet>299</a>        <span class="kw">for </span>item <span class="kw">in </span>circuit {
-<a href=#300 id=300 data-nosnippet>300</a>            <span class="kw">match </span>item {
-<a href=#301 id=301 data-nosnippet>301</a>                CircuitItem::Instruction(instruction) =&gt; {
-<a href=#302 id=302 data-nosnippet>302</a>                    <span class="kw">let </span>touches_ideal = instruction
-<a href=#303 id=303 data-nosnippet>303</a>                        .targets()
-<a href=#304 id=304 data-nosnippet>304</a>                        .iter()
-<a href=#305 id=305 data-nosnippet>305</a>                        .filter_map(|target| target.qubit_value())
-<a href=#306 id=306 data-nosnippet>306</a>                        .any(|qubit| ideal.contains(<span class="kw-2">&amp;</span>qubit));
-<a href=#307 id=307 data-nosnippet>307</a>                    <span class="kw">if </span>touches_ideal &amp;&amp; instruction.gate().is_noisy_gate() {
-<a href=#308 id=308 data-nosnippet>308</a>                        <span class="macro">assert!</span>(
-<a href=#309 id=309 data-nosnippet>309</a>                            instruction.gate().produces_measurements()
-<a href=#310 id=310 data-nosnippet>310</a>                                &amp;&amp; instruction.gate_args().iter().all(|<span class="kw-2">&amp;</span>arg| arg == <span class="number">0.0</span>),
-<a href=#311 id=311 data-nosnippet>311</a>                            <span class="string">"{instruction:?}"
-<a href=#312 id=312 data-nosnippet>312</a>                        </span>);
-<a href=#313 id=313 data-nosnippet>313</a>                    }
-<a href=#314 id=314 data-nosnippet>314</a>                }
-<a href=#315 id=315 data-nosnippet>315</a>                CircuitItem::RepeatBlock(block) =&gt; assert_noise_free(block.body(), ideal),
-<a href=#316 id=316 data-nosnippet>316</a>            }
-<a href=#317 id=317 data-nosnippet>317</a>        }
-<a href=#318 id=318 data-nosnippet>318</a>    }
-<a href=#319 id=319 data-nosnippet>319</a>}
+<a href=#284 id=284 data-nosnippet>284</a>        <span class="kw">let </span>options = <span class="kw">crate</span>::BloqStimOptions::new().with_noise(<span class="kw-2">&amp;</span>internal);
+<a href=#285 id=285 data-nosnippet>285</a>        <span class="kw">let </span>internal_text = <span class="kw">crate</span>::emit_bloq_stim_with(<span class="kw-2">&amp;</span>program, <span class="kw-2">&amp;</span>options).unwrap();
+<a href=#286 id=286 data-nosnippet>286</a>        <span class="kw">let </span>aligned_text =
+<a href=#287 id=287 data-nosnippet>287</a>            <span class="kw">crate</span>::emit_bloq_stim_with(<span class="kw-2">&amp;</span>program, <span class="kw-2">&amp;</span>options.with_align_moments(<span class="bool-val">true</span>)).unwrap();
+<a href=#288 id=288 data-nosnippet>288</a>        <span class="kw">let </span>external = stim::noise::UniformDepolarizing::new(<span class="number">1e-3</span>).unwrap();
+<a href=#289 id=289 data-nosnippet>289</a>        <span class="kw">let </span>external_text = emit_bloq_stim_with_stim_noise(<span class="kw-2">&amp;</span>program, <span class="kw-2">&amp;</span>external).unwrap();
+<a href=#290 id=290 data-nosnippet>290</a>
+<a href=#291 id=291 data-nosnippet>291</a>        <span class="kw">for </span>text <span class="kw">in </span>[internal_text, aligned_text, external_text] {
+<a href=#292 id=292 data-nosnippet>292</a>            <span class="kw">let </span>circuit = text.parse::&lt;Circuit&gt;().unwrap();
+<a href=#293 id=293 data-nosnippet>293</a>            assert_noise_free(<span class="kw-2">&amp;</span>circuit, <span class="kw-2">&amp;</span>ideal);
+<a href=#294 id=294 data-nosnippet>294</a>        }
+<a href=#295 id=295 data-nosnippet>295</a>    }
+<a href=#296 id=296 data-nosnippet>296</a>
+<a href=#297 id=297 data-nosnippet>297</a>    <span class="kw">fn </span>assert_noise_free(circuit: <span class="kw-2">&amp;</span>Circuit, ideal: <span class="kw-2">&amp;</span>FxHashSet&lt;u32&gt;) {
+<a href=#298 id=298 data-nosnippet>298</a>        <span class="kw">for </span>item <span class="kw">in </span>circuit {
+<a href=#299 id=299 data-nosnippet>299</a>            <span class="kw">match </span>item {
+<a href=#300 id=300 data-nosnippet>300</a>                CircuitItem::Instruction(instruction) =&gt; {
+<a href=#301 id=301 data-nosnippet>301</a>                    <span class="kw">let </span>touches_ideal = instruction
+<a href=#302 id=302 data-nosnippet>302</a>                        .targets()
+<a href=#303 id=303 data-nosnippet>303</a>                        .iter()
+<a href=#304 id=304 data-nosnippet>304</a>                        .filter_map(|target| target.qubit_value())
+<a href=#305 id=305 data-nosnippet>305</a>                        .any(|qubit| ideal.contains(<span class="kw-2">&amp;</span>qubit));
+<a href=#306 id=306 data-nosnippet>306</a>                    <span class="kw">if </span>touches_ideal &amp;&amp; instruction.gate().is_noisy_gate() {
+<a href=#307 id=307 data-nosnippet>307</a>                        <span class="macro">assert!</span>(
+<a href=#308 id=308 data-nosnippet>308</a>                            instruction.gate().produces_measurements()
+<a href=#309 id=309 data-nosnippet>309</a>                                &amp;&amp; instruction.gate_args().iter().all(|<span class="kw-2">&amp;</span>arg| arg == <span class="number">0.0</span>),
+<a href=#310 id=310 data-nosnippet>310</a>                            <span class="string">"{instruction:?}"
+<a href=#311 id=311 data-nosnippet>311</a>                        </span>);
+<a href=#312 id=312 data-nosnippet>312</a>                    }
+<a href=#313 id=313 data-nosnippet>313</a>                }
+<a href=#314 id=314 data-nosnippet>314</a>                CircuitItem::RepeatBlock(block) =&gt; assert_noise_free(block.body(), ideal),
+<a href=#315 id=315 data-nosnippet>315</a>            }
+<a href=#316 id=316 data-nosnippet>316</a>        }
+<a href=#317 id=317 data-nosnippet>317</a>    }
+<a href=#318 id=318 data-nosnippet>318</a>}
 </code></pre></div></section></main></body></html>
