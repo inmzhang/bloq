@@ -82,6 +82,30 @@ impl NoiseModel {
         }
         Ok(noisy)
     }
+
+    /// Annotate the operations of one tick-free moment and accumulate its
+    /// active qubits. The caller applies idle noise after the aligned tick.
+    pub fn noisy_moment(
+        &self,
+        ops: Vec<Op>,
+        active: &mut FxHashSet<IVec2>,
+        ideal_qubits: &FxHashSet<IVec2>,
+    ) -> Vec<Op> {
+        annotate_ops(ops, &FxHashSet::default(), ideal_qubits, active, self)
+    }
+
+    /// Build the idle error for a tick from its idle, nonideal qubits.
+    pub fn idle_error(&self, qubits: impl IntoIterator<Item = IVec2>) -> Option<Op> {
+        if self.p_idle == 0.0 {
+            return None;
+        }
+        let mut qubits: Vec<_> = qubits.into_iter().collect();
+        qubits.sort_unstable_by_key(|coord| (coord.x, coord.y));
+        (!qubits.is_empty()).then_some(Op::Depolarize1 {
+            probability: self.p_idle,
+            qubits,
+        })
+    }
 }
 
 // `Some(active)` means body-local noising is sound and reports whether the
@@ -144,9 +168,24 @@ fn annotate_body(
     let body = circuit
         .body_mut(body)
         .expect("body id comes from this circuit's dense body range");
-    let source = std::mem::take(body.ops_mut());
+    let ops = body.ops_mut();
+    *ops = annotate_ops(
+        std::mem::take(ops),
+        footprint,
+        ideal_qubits,
+        &mut FxHashSet::default(),
+        noise,
+    );
+}
+
+fn annotate_ops(
+    source: Vec<Op>,
+    footprint: &FxHashSet<IVec2>,
+    ideal_qubits: &FxHashSet<IVec2>,
+    active: &mut FxHashSet<IVec2>,
+    noise: &NoiseModel,
+) -> Vec<Op> {
     let mut ops = Vec::with_capacity(source.len() * 2);
-    let mut active = FxHashSet::default();
 
     for mut op in source {
         match &mut op {
@@ -200,19 +239,13 @@ fn annotate_body(
             }
             Op::Tick => {
                 ops.push(op);
-                if noise.p_idle != 0.0 {
-                    let mut idle: Vec<_> = footprint
-                        .difference(&active)
+                if let Some(error) = noise.idle_error(
+                    footprint
+                        .difference(active)
                         .filter(|qubit| !ideal_qubits.contains(*qubit))
-                        .copied()
-                        .collect();
-                    idle.sort_unstable_by_key(|coord| (coord.x, coord.y));
-                    if !idle.is_empty() {
-                        ops.push(Op::Depolarize1 {
-                            probability: noise.p_idle,
-                            qubits: idle,
-                        });
-                    }
+                        .copied(),
+                ) {
+                    ops.push(error);
                 }
                 active.clear();
             }
@@ -232,7 +265,7 @@ fn annotate_body(
         }
     }
 
-    *body.ops_mut() = ops;
+    ops
 }
 
 fn gate_noise(

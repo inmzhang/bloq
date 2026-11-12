@@ -39,7 +39,7 @@ pub enum StimEmissionError {
     /// conditional activation), rejected by name before any emission work.
     #[error("unsupported Stim backend node: {0}")]
     UnsupportedNode(&'static str),
-    /// Alignment is noiseless.
+    /// Legacy error retained for compatibility. Aligned emission supports noise.
     #[error("moment-aligned Stim emission does not support noise")]
     AlignMomentsWithNoise,
     /// Alignment cannot preserve per-node segments.

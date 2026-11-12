@@ -256,7 +256,7 @@ mod tests {
     }
 
     #[test]
-    fn multiplex_port_qubits_stay_ideal_in_both_noise_paths() {
+    fn multiplex_port_qubits_stay_ideal_in_noise_paths() {
         let mut graph = BlockGraph::new();
         graph.add_block(
             Block::new(IVec3::ZERO, BlockKind::Port)
@@ -281,15 +281,14 @@ mod tests {
         assert!(ideal.contains(&layout[output]));
 
         let internal = bloq_circuit::NoiseModel::uniform_depolarizing(1e-3);
-        let internal_text = crate::emit_bloq_stim_with(
-            &program,
-            &crate::BloqStimOptions::new().with_noise(&internal),
-        )
-        .unwrap();
+        let options = crate::BloqStimOptions::new().with_noise(&internal);
+        let internal_text = crate::emit_bloq_stim_with(&program, &options).unwrap();
+        let aligned_text =
+            crate::emit_bloq_stim_with(&program, &options.with_align_moments(true)).unwrap();
         let external = stim::noise::UniformDepolarizing::new(1e-3).unwrap();
         let external_text = emit_bloq_stim_with_stim_noise(&program, &external).unwrap();
 
-        for text in [internal_text, external_text] {
+        for text in [internal_text, aligned_text, external_text] {
             let circuit = text.parse::<Circuit>().unwrap();
             assert_noise_free(&circuit, &ideal);
         }
