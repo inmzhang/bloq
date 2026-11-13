@@ -46,8 +46,7 @@ const HELP_BINDINGS: &[(&str, &str)] = &[
     ("Cancel Move", "Esc while dragging"),
     ("Select All Elements", "Ctrl + A"),
     ("Clear Selection", "Esc"),
-    ("Delete Selected", "Delete / Backspace (D in View)"),
-    ("Delete Hovered", "Middle Mouse Click (Edit / View)"),
+    ("Delete Selected", "Delete / Backspace"),
     (
         "Translate Graph / Selection",
         "< / > / ^ / Shift+V / z< / z> (View)",

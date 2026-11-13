@@ -2,10 +2,6 @@
 use super::*;
 use crate::resources::ImportExportState;
 
-/// Prevents a middle-button camera drag from also deleting its start element.
-#[derive(Resource, Default)]
-pub(crate) struct MiddleButtonDrag(bool);
-
 /// Pointer observer: records the hovered graph element, ignoring elements the
 /// current-layer filter hides.
 pub(crate) fn on_element_over(
@@ -40,37 +36,17 @@ pub(crate) fn on_element_out(
     }
 }
 
-pub(crate) fn on_element_drag_start(
-    trigger: On<PointerDragStart>,
-    mut middle_drag: ResMut<MiddleButtonDrag>,
-) {
-    if trigger.button == PointerButton::Middle {
-        middle_drag.0 = true;
-    }
-}
-
-pub(crate) fn on_element_drag_end(
-    trigger: On<PointerDragEnd>,
-    mut middle_drag: ResMut<MiddleButtonDrag>,
-) {
-    if trigger.button == PointerButton::Middle {
-        middle_drag.0 = false;
-    }
-}
-
-/// Pointer observer: handles clicks on a graph element (selection in View mode,
-/// deletion with the middle button, or attribute editing in Edit mode).
+/// Pointer observer: selects graph elements or opens their attributes.
 pub(crate) fn on_element_click(
     trigger: On<PointerClick>,
     import_export: Res<ImportExportState>,
     mut intents: ResMut<UiIntentBuffer>,
     time: Res<Time>,
     mut editor_state: ResMut<EditorState>,
-    mut graph_state: ResMut<GraphState>,
+    graph_state: Res<GraphState>,
     mut target_state: ResMut<TargetState>,
     mut action_edit: ResMut<ActionEditState>,
     mut notifications: ResMut<Notifications>,
-    mut middle_drag: ResMut<MiddleButtonDrag>,
     translation_drag: Res<TranslationDrag>,
     keys: Res<ButtonInput<KeyCode>>,
     query_element: Query<&GraphElement>,
@@ -91,16 +67,6 @@ pub(crate) fn on_element_click(
         return;
     }
 
-    if trigger.button == PointerButton::Middle {
-        delete_middle_clicked_element(
-            element,
-            std::mem::take(&mut middle_drag.0),
-            &mut editor_state,
-            &mut graph_state,
-            &mut notifications,
-        );
-        return;
-    }
     if trigger.button != PointerButton::Primary {
         return;
     }
@@ -126,18 +92,6 @@ pub(crate) fn on_element_click(
     );
 }
 
-pub(super) fn delete_middle_clicked_element(
-    element: GraphElement,
-    was_dragged: bool,
-    editor_state: &mut EditorState,
-    graph_state: &mut GraphState,
-    notifications: &mut Notifications,
-) {
-    if !was_dragged && matches!(editor_state.mode, EditorMode::Edit | EditorMode::View) {
-        delete_elements(&[element], editor_state, graph_state, notifications);
-    }
-}
-
 pub(super) fn handle_element_click(
     element: GraphElement,
     now: f64,
@@ -158,20 +112,11 @@ pub(super) fn handle_element_click(
     }
 
     // An armed action pick owns the click: it was requested by an explicit
-    // keypress, so it outranks selection and hold-to-edit alike.
+    // keypress, so it outranks selection and attribute editing.
     if action_edit.picking().is_some() {
         if let Err(message) = action_edit.accept_pick(element, &graph_state.graph) {
             notifications.push_warn(message);
         }
-        return;
-    }
-
-    // Hold-to-edit wins over every other click meaning, in both modes: it is the
-    // legacy shortcut; double-click and the Attributes button also open it.
-    if is_attribute_edit_modifier_pressed(keys) {
-        editor_state.pipe_start = None;
-        editor_state.last_element_click = None;
-        open_target_editor(element, graph_state, target_state, notifications);
         return;
     }
 
@@ -272,25 +217,6 @@ pub(crate) fn on_preview_endpoint_click(
     let Some(target) = endpoint.target_pos else {
         return;
     };
-    // Endpoint previews sit on top of the blocks they grow from, so hold-to-edit
-    // has to be honoured here too or the modifier would appear to do nothing.
-    if is_attribute_edit_modifier_pressed(&keys) {
-        if let Some(block) = graph_state
-            .graph
-            .get_endpoint_block(target)
-            .or_else(|| graph_state.graph.get_endpoint_block(start))
-        {
-            editor_state.pipe_start = None;
-            editor_state.last_element_click = None;
-            open_target_editor(
-                GraphElement::Block(block.pos()),
-                &graph_state,
-                &mut target_state,
-                &mut notifications,
-            );
-        }
-        return;
-    }
     if target == start {
         if open_pipe_start_editor_if_double_clicked(
             start,
@@ -393,7 +319,6 @@ mod observer_tests {
             .init_resource::<TargetState>()
             .init_resource::<ActionEditState>()
             .init_resource::<Notifications>()
-            .init_resource::<MiddleButtonDrag>()
             .init_resource::<TranslationDrag>()
             .init_resource::<ButtonInput<KeyCode>>();
         app.world_mut()
@@ -436,8 +361,6 @@ mod observer_tests {
             .observe(on_element_over)
             .observe(on_element_out)
             .observe(on_element_click)
-            .observe(on_element_drag_start)
-            .observe(on_element_drag_end)
             .id();
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
@@ -478,25 +401,28 @@ mod observer_tests {
                 hit: HitData::new(window, 0.0, None, None),
             });
             assert_eq!(app.world().resource::<EditorState>().hovered_element, None);
-            app.world_mut().trigger(PointerDragStart {
-                entity: mesh,
-                pointer: pointer.clone(),
-                button: PointerButton::Middle,
-                hit: HitData::new(window, 0.0, None, None),
-            });
-            assert!(app.world().resource::<MiddleButtonDrag>().0);
-            app.world_mut().trigger(PointerDragEnd {
-                entity: mesh,
-                pointer: pointer.clone(),
-                button: PointerButton::Middle,
-                distance: Vec2::X,
-            });
-            assert!(!app.world().resource::<MiddleButtonDrag>().0);
             app.world_mut().despawn(element);
         }
         let outside = app.world_mut().spawn(GraphElement::Block(IVec3::ZERO)).id();
         click(&mut app, outside, window, PointerButton::Primary);
         assert_eq!(app.world().resource::<EditorState>().selection_count(), 0);
+    }
+
+    #[test]
+    fn middle_click_never_deletes_or_selects_an_element() {
+        for mode in [EditorMode::View, EditorMode::Edit] {
+            let (mut app, window) = observer_app();
+            app.add_observer(on_element_click);
+            app.world_mut().resource_mut::<EditorState>().mode = mode;
+            let element = app.world_mut().spawn(GraphElement::Block(IVec3::ZERO)).id();
+            let before = app.world().resource::<GraphState>().graph.to_blog_text();
+            click(&mut app, element, window, PointerButton::Middle);
+            assert_eq!(
+                app.world().resource::<GraphState>().graph.to_blog_text(),
+                before
+            );
+            assert_eq!(app.world().resource::<EditorState>().selection_count(), 0);
+        }
     }
 
     #[test]

@@ -9,8 +9,8 @@ use crate::resources::{EditorState, EditorTabs};
 use crate::systems::EditorUpdateSet;
 use crate::systems::camera::{MAX_CAMERA_RADIUS, camera_transform_for_settings};
 use crate::systems::input::{
-    on_element_click, on_element_drag_end, on_element_drag_start, on_element_out, on_element_over,
-    on_preview_endpoint_click, on_preview_endpoint_out, on_preview_endpoint_over,
+    on_element_click, on_element_out, on_element_over, on_preview_endpoint_click,
+    on_preview_endpoint_out, on_preview_endpoint_over,
 };
 use crate::theme::ThemePreset;
 use bevy::asset::RenderAssetUsages;
@@ -265,12 +265,10 @@ pub(crate) fn setup(
             GraphRoot,
         ))
         // Picking events bubble from every graph element to this shared root.
-        // Five observers per scene, rather than per block/pipe, avoid thousands of
+        // Three observers per scene, rather than per block/pipe, avoid thousands of
         // duplicate observer systems during large scene installation.
         .observe(on_element_over)
         .observe(on_element_out)
-        .observe(on_element_drag_start)
-        .observe(on_element_drag_end)
         .observe(on_element_click);
 
     commands.spawn((

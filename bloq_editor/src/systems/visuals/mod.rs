@@ -1988,10 +1988,7 @@ mod tests {
     #[ignore = "manual large-scene CPU render synchronization benchmark"]
     fn benchmark_large_scene_updates() {
         use super::*;
-        use crate::systems::input::{
-            on_element_click, on_element_drag_end, on_element_drag_start, on_element_out,
-            on_element_over,
-        };
+        use crate::systems::input::{on_element_click, on_element_out, on_element_over};
         let mut graph = BlockGraph::new();
         for x in 0..1000 {
             for z in 0..4 {
@@ -2033,8 +2030,6 @@ mod tests {
             .spawn((GraphRoot, Transform::default()))
             .observe(on_element_over)
             .observe(on_element_out)
-            .observe(on_element_drag_start)
-            .observe(on_element_drag_end)
             .observe(on_element_click);
         let start = std::time::Instant::now();
         app.update();

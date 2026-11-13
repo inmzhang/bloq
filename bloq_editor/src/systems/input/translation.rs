@@ -298,7 +298,6 @@ pub(crate) fn translation_drag_system(
         }
         if ui.blocks_viewport_pointer_input()
             || action_edit.picking().is_some()
-            || is_attribute_edit_modifier_pressed(&keys)
             || is_shift_pressed(&keys)
             || !matches!(
                 editor.mode,
@@ -556,7 +555,6 @@ mod tests {
             .init_resource::<ActionEditState>()
             .init_resource::<TargetState>()
             .init_resource::<Notifications>()
-            .init_resource::<super::super::picking::MiddleButtonDrag>()
             .init_resource::<UiInputState>()
             .init_resource::<ButtonInput<KeyCode>>()
             .init_resource::<ButtonInput<MouseButton>>()
