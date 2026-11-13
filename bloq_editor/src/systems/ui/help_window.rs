@@ -4,7 +4,7 @@ use crate::resources::EditorState;
 use crate::theme;
 use bevy_egui::egui;
 
-// Keep in sync with the key handlers in `systems/input.rs` (and the Bloq-mode
+// Keep in sync with the key handlers in `systems/input/mod.rs` and `systems/input/placement.rs` (and the Bloq-mode
 // shortcuts in `systems/ui/circuit_viewer.rs`); those are the source of truth.
 const HELP_BINDINGS: &[(&str, &str)] = &[
     ("Command Palette", "Ctrl + Shift + P / F1"),
@@ -30,7 +30,10 @@ const HELP_BINDINGS: &[(&str, &str)] = &[
         "Extend Pipe To Empty Endpoint",
         "P, click block, click empty adjacent cell",
     ),
-    ("Extend / Follow Existing Pipe", "W / A / S / D / Up / Down"),
+    (
+        "Extend / Follow Existing Pipe",
+        "W/S: +Y/-Y; A/D: -X/+X; Up/Down: +Z/-Z (Pipe tool)",
+    ),
     ("Repeat Last Pipe Placement", "R"),
     ("Hadamard Pipe Placement", "Toolbar checkbox or hold H"),
     ("Program Mode", "C"),
@@ -45,7 +48,7 @@ const HELP_BINDINGS: &[(&str, &str)] = &[
     ),
     ("Cancel Move", "Esc while dragging"),
     ("Select All Elements", "Ctrl + A"),
-    ("Clear Selection", "Esc"),
+    ("Clear Selection", "Esc (viewport)"),
     ("Delete Selected", "Delete / Backspace"),
     (
         "Translate Graph / Selection",
@@ -66,7 +69,15 @@ const HELP_BINDINGS: &[(&str, &str)] = &[
         "Edit Or Remove An Action",
         "Actions window: click a node, then Edit / Remove",
     ),
-    ("Cancel A Draft Or Pick", "Esc"),
+    (
+        "Commit / Cancel Action Draft",
+        "Enter / Esc in a draft field; Add/Edit or Cancel buttons",
+    ),
+    ("Cancel Action Pick", "Esc (viewport)"),
+    (
+        "Apply / Cancel Attributes",
+        "Enter / Esc in Tag or Color; OK or Cancel buttons",
+    ),
     ("Toggle Stabilizers", "S (View)"),
     ("Prev/Next Stabilizer", "Q / E (Stabilizer View)"),
 ];
@@ -104,10 +115,13 @@ pub(crate) fn draw_help_window(
                 );
                 ui.small("Mac: use Command instead of Ctrl.");
                 ui.collapsing("Editing tips", |ui| {
-                    ui.label("Edit → place a block → P to connect. Space switches to selection.");
+                    ui.label("Edit → click an empty cell to place → P to connect. Space switches to selection.");
+                    ui.label("With the block tool, click an existing block to select it; double-click opens attributes. Placement does not replace it.");
                     ui.label(
-                        "Deleting a block also removes its connecting pipes. Undo restores them.",
+                        "Select, then Delete/Backspace to remove. Connected pipes are removed with a block; Undo restores them. Middle mouse only orbits the camera.",
                     );
+                    ui.label("File Save/Download exports the graph. BLOG Save/Download draft preserves exact text, including comments and invalid or unfinished input.");
+                    ui.label("Graph and text conflicts require an explicit choice; text replaced from the graph remains in Text history.");
                 });
                 let query = query.trim().to_lowercase();
                 let mut count = 0;

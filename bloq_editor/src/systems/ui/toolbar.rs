@@ -257,6 +257,7 @@ fn draw_file_actions(
             } else {
                 "Save"
             })
+            .on_hover_text("Export the graph as BLOG. To preserve comments or unfinished text exactly, use Save/Download draft in the BLOG panel.")
             .clicked()
         {
             intents.push(UiIntent::ExportBlog {

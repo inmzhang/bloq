@@ -205,7 +205,7 @@ fn mode_shortcut_hints(editor_state: &EditorState) -> ShortcutHints {
             hints.extend([
                 ("Click", "Select"),
                 ("Shift+Click", "Add/remove"),
-                ("Drag", "Box select"),
+                ("Empty drag", "Box select"),
                 ("Ctrl+A", "Select all"),
                 ("J/K", "Plane"),
             ]);
@@ -247,7 +247,7 @@ fn mode_shortcut_hints(editor_state: &EditorState) -> ShortcutHints {
                     ("Click", "Place pipe endpoint"),
                     ("Double-click", "Attributes"),
                     ("W/A/S/D", "Extend/follow"),
-                    ("Up/Down", "Pipe top/bottom"),
+                    ("Up/Down", "Pipe ±Z"),
                     ("R", "Repeat pipe"),
                     ("B", "BLOG"),
                     ("H/checkbox", "Hadamard"),

@@ -16,20 +16,23 @@ for setup.
   it. The **Hadamard** checkbox lets trackpad users place Hadamard pipes without
   holding a key; holding **H** is also supported.
 - **View** selects, inspects, and moves geometry. **V** enters View, and **Space**
-  switches between View and Edit. Shift-click toggles selection; Shift-drag on
-  empty space adds a selection rectangle. Select one element and click **Attributes** (or press **Enter**), or double-click it, to edit
-  its attributes, including changing a port's block type. Shift+V translates the
+  switches between View and Edit. Shift-click toggles selection; drag on empty
+  space to box-select, or Shift-drag to add to the selection. Select one element
+  and click **Attributes** (or press **Enter**), or double-click it, to edit its
+  attributes, including changing a port's block type. Shift+V translates the
   graph or selection down in View. Choosing a placement tool is different from
   editing attributes: it creates new geometry.
 - **Delete/Backspace** remove the selection in View or Edit. Deleting a block
   also removes its connecting pipes and orphan ports. Undo restores the edit.
+  Middle-click never deletes geometry; the middle button is reserved for camera
+  orbit.
 - **Actions** opens the action DAG for measurements, feedback, and other dynamic
   behavior. It is available in the toolbar even while pipe placement owns the
   **A** key.
 - **BLOG** edits the active graph live in both directions. After a short typing
-  pause (250 ms), background analysis applies valid text; visual edits refresh the text. Incomplete or invalid text
-  stays intact and pauses viewport editing. **Keep graph** discards pending text
-  after confirmation. If the graph changes meanwhile, **Use text** explicitly
+  pause (250 ms), background analysis applies valid text; visual edits refresh
+  the text. Incomplete or invalid text stays intact and pauses viewport editing.
+  **Keep graph** discards pending text after confirmation. If the graph changes meanwhile, **Use text** explicitly
   applies the text instead. Visual edits regenerate formatting and comments;
   **Text history** retains previous source versions for recovery, including after
   restarting. **Save draft** (desktop) or **Download draft** (browser) saves the
@@ -56,7 +59,8 @@ stay off the UI thread. Checked snapshots transfer source graphs without
 repeating BLOG parsing or module geometry certification on the UI thread;
 normal validation and compilation checks still apply. Comment-only edits transfer
 no replacement graph. Structured copying, snapshot decoding/index construction
-and scene rendering still scale with document size. Failed browser saves back
+and scene rendering still scale with document size. Very large BLOG text buffers
+can still slow text layout and painting. Failed browser saves back
 off for unchanged sessions; new changes retry normally.
 Live BLOG analysis reuses one idle worker to avoid repeated WebAssembly startup;
 canceling an in-flight analysis still terminates it. The idle worker retains its
