@@ -1,5 +1,8 @@
 //! The editable block graph and its topology-preserving operations.
 
+mod snapshot;
+pub use snapshot::{BranchSnapshot, DefinitionSnapshot, SnapshotError, SourceSnapshot};
+
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::ops::RangeInclusive;
 use std::str::FromStr;
