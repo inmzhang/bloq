@@ -299,6 +299,7 @@ pub(crate) fn translation_drag_system(
         if ui.blocks_viewport_pointer_input()
             || action_edit.picking().is_some()
             || is_attribute_edit_modifier_pressed(&keys)
+            || is_shift_pressed(&keys)
             || !matches!(
                 editor.mode,
                 EditorMode::View | EditorMode::Edit | EditorMode::Module
@@ -321,7 +322,9 @@ pub(crate) fn translation_drag_system(
         } else {
             editor.hovered_element
         };
-        if axis.is_none() && (element.is_none() || editor.is_pipe_tool_active()) {
+        if axis.is_none()
+            && (element.is_none() || editor.is_pipe_tool_active() || editor.is_block_tool_active())
+        {
             return;
         }
         let (target, elements) = match drag_target(&editor, &graph, &files, element) {
@@ -563,8 +566,7 @@ mod tests {
                 current: None,
                 suppress_click: true,
             })
-            .add_systems(Update, translation_drag_system)
-            .add_observer(super::super::picking::on_element_click);
+            .add_systems(Update, translation_drag_system);
         app.world_mut().resource_mut::<GraphState>().graph =
             crate::module_authoring::tests::stage().flatten().unwrap();
         app.world_mut()
@@ -578,7 +580,11 @@ mod tests {
             .world_mut()
             .spawn((Window::default(), PrimaryWindow))
             .id();
-        let cube = app.world_mut().spawn(GraphElement::Block(IVec3::Z)).id();
+        let cube = app
+            .world_mut()
+            .spawn(GraphElement::Block(IVec3::Z))
+            .observe(super::super::picking::on_element_click)
+            .id();
         let click = PointerClick {
             entity: cube,
             pointer: Pointer::new(
@@ -616,7 +622,7 @@ mod tests {
     }
 
     #[test]
-    fn edit_mode_keeps_and_changes_selection_for_mouse_moves() {
+    fn edit_mode_preserves_selection_and_modifier_click_can_select_for_handles() {
         let mut graph = GraphState {
             graph: crate::module_authoring::tests::stage().flatten().unwrap(),
             ..Default::default()
@@ -627,6 +633,7 @@ mod tests {
         assert_eq!(editor.selection_count(), 5);
         editor.clear_selection();
         let mut keys = ButtonInput::default();
+        keys.press(KeyCode::ControlLeft);
         let mut target = TargetState::default();
         let mut action = ActionEditState::default();
         let mut notifications = Notifications::default();

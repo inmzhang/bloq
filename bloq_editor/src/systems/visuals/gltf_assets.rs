@@ -246,13 +246,13 @@ pub(super) fn spawn_gltf_data_parts_ref(
             .unwrap_or_else(|| resting_material.clone());
         let child = spawn_mesh_part(
             commands,
+            parent,
             mesh,
             display_material,
             resting_material,
             render_layers.as_ref(),
             &pickable,
         );
-        commands.entity(parent).add_child(child);
         parts.triangles.push(child);
     }
 
@@ -279,13 +279,13 @@ pub(super) fn spawn_gltf_data_parts_ref(
             .unwrap_or_else(|| resting_material.clone());
         let child = spawn_mesh_part(
             commands,
+            parent,
             mesh,
             display_material,
             resting_material,
             render_layers.as_ref(),
             &pickable,
         );
-        commands.entity(parent).add_child(child);
         parts.lines.push(child);
     }
 
@@ -324,29 +324,21 @@ pub(super) fn text_label_style(color: Srgba, world_scale: f32) -> Text3dStyling 
 
 fn spawn_mesh_part(
     commands: &mut Commands,
+    parent: Entity,
     mesh: Handle<Mesh>,
     display_material: Handle<StandardMaterial>,
     original_material: Handle<StandardMaterial>,
     render_layers: Option<&RenderLayers>,
     pickable: &Pickable,
 ) -> Entity {
-    let mut child = commands.spawn((Mesh3d(mesh), MeshMaterial3d(display_material)));
-    child.insert(OriginalMaterial(original_material));
-    child.insert(NotShadowCaster);
-    // A pipe/block is a parent transform with several child mesh-parts (outline
-    // lines, colored faces) that share interned mesh+material handles across
-    // elements. The web build's wgpu reports `BrowserWebGpu` with only
-    // `GpuPreprocessingMode::PreprocessingOnly` (bevy_render
-    // batching/gpu_preprocessing.rs:1372), whose batched per-instance indexing
-    // resolves the wrong slot: a part reads a sibling element's transform, so one
-    // element's faces and wireframe scatter to wrong positions. Opting each part
-    // out of
-    // batching keeps its instance data self-contained. Restricted to wasm: on
-    // desktop wgpu reports full `Culling` support, batches these correctly, and
-    // benefits from the lower draw-call count, so it keeps automatic batching.
-    #[cfg(target_arch = "wasm32")]
-    child.insert(NoAutomaticBatching);
-    child.insert(*pickable);
+    let mut child = commands.spawn((
+        Mesh3d(mesh),
+        MeshMaterial3d(display_material),
+        OriginalMaterial(original_material),
+        NotShadowCaster,
+        *pickable,
+        ChildOf(parent),
+    ));
     if let Some(layers) = render_layers {
         child.insert(layers.clone());
     }
@@ -365,5 +357,60 @@ pub(super) const fn editor_triangle_material_style() -> MaterialStyle {
         unlit: false,
         double_sided: true,
         cull_none: true,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mesh_part_bundle_preserves_materials_picking_and_required_components() {
+        let mut world = World::new();
+        // VisibilityPlugin registers this requirement in the running editor.
+        world.register_required_components::<Mesh3d, Visibility>();
+        let mut materials = Assets::<StandardMaterial>::default();
+        let display = materials.add(StandardMaterial::default());
+        let original = materials.add(StandardMaterial::default());
+        let parent = world.spawn_empty().id();
+        for layers in [None, Some(RenderLayers::layer(3))] {
+            let entity = spawn_mesh_part(
+                &mut world.commands(),
+                parent,
+                Handle::default(),
+                display.clone(),
+                original.clone(),
+                layers.as_ref(),
+                &Pickable::IGNORE,
+            );
+            world.flush();
+            let part = world.entity(entity);
+            assert_eq!(
+                part.get::<MeshMaterial3d<StandardMaterial>>().unwrap().0,
+                display
+            );
+            assert_eq!(part.get::<OriginalMaterial>().unwrap().0, original);
+            assert!(part.contains::<NotShadowCaster>());
+            assert!(part.contains::<Transform>());
+            assert!(part.contains::<Visibility>());
+            let pickable = part.get::<Pickable>().unwrap();
+            assert!(!pickable.is_hoverable && !pickable.should_block_lower);
+            assert_eq!(part.get::<RenderLayers>(), layers.as_ref());
+            assert_eq!(part.get::<ChildOf>().unwrap().parent(), parent);
+            assert!(
+                world
+                    .entity(parent)
+                    .get::<Children>()
+                    .unwrap()
+                    .contains(&entity)
+            );
+        }
+        let children = world.entity(parent).get::<Children>().unwrap().to_vec();
+        world.despawn(parent);
+        assert!(
+            children
+                .iter()
+                .all(|child| world.get_entity(*child).is_err())
+        );
     }
 }

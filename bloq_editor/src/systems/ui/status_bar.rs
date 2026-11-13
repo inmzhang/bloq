@@ -1,4 +1,4 @@
-//! The bottom status bar: graph counts, mode, validation/compile status, and
+//! The bottom status bar: graph counts, tool, validation/compile status, and
 //! contextual shortcut hints.
 
 use crate::components::GraphElement;
@@ -192,7 +192,10 @@ fn mode_shortcut_hints(editor_state: &EditorState) -> ShortcutHints {
         EditorMode::View => {
             let mut hints = ShortcutHints::new();
             if editor_state.selection_count() > 0 {
-                hints.push(("D/Backspace", "Delete"));
+                if editor_state.selection_count() == 1 {
+                    hints.push(("Enter", "Attributes"));
+                }
+                hints.push(("Del/Backspace", "Delete"));
             } else {
                 hints.push(("B", "BLOG"));
                 hints.push(("P", "Pipe"));
@@ -201,7 +204,7 @@ fn mode_shortcut_hints(editor_state: &EditorState) -> ShortcutHints {
             }
             hints.extend([
                 ("Click", "Select"),
-                ("Ctrl+Click", "Add/remove"),
+                ("Shift+Click", "Add/remove"),
                 ("Drag", "Box select"),
                 ("Ctrl+A", "Select all"),
                 ("J/K", "Plane"),
@@ -211,7 +214,7 @@ fn mode_shortcut_hints(editor_state: &EditorState) -> ShortcutHints {
             } else {
                 hints.push(("S", "Stabilizers"));
             }
-            hints.extend([("A", "Actions"), ("I+Click", "Edit")]);
+            hints.extend([("A", "Actions"), ("Double-click", "Attributes")]);
             hints
         }
         EditorMode::Module => vec![
@@ -226,29 +229,29 @@ fn mode_shortcut_hints(editor_state: &EditorState) -> ShortcutHints {
                         vec![
                             ("Click", "Place walking start"),
                             ("P", "Pipe"),
-                            ("Space/V", "View"),
+                            ("Space/V", "Select"),
                             ("J/K", "Plane"),
                             ("Esc", "Cancel"),
                         ]
                     } else {
                         vec![
                             ("Click", "Place block"),
-                            ("I+Click", "Edit"),
+                            ("Double-click", "Attributes"),
                             ("P", "Pipe"),
-                            ("Space/V", "View"),
+                            ("Space/V", "Select"),
                             ("J/K", "Plane"),
                         ]
                     }
                 }
                 PlacementTool::Pipe => vec![
                     ("Click", "Place pipe endpoint"),
-                    ("I+Click", "Edit"),
-                    ("W/A/S/D", "Pipe around"),
+                    ("Double-click", "Attributes"),
+                    ("W/A/S/D", "Extend/follow"),
                     ("Up/Down", "Pipe top/bottom"),
                     ("R", "Repeat pipe"),
                     ("B", "BLOG"),
-                    ("H", "Hadamard"),
-                    ("Space/V", "View"),
+                    ("H/checkbox", "Hadamard"),
+                    ("Space/V", "Select"),
                     ("J/K", "Plane"),
                     ("Esc", "Cancel"),
                 ],
@@ -263,7 +266,7 @@ fn mode_shortcut_hints(editor_state: &EditorState) -> ShortcutHints {
         EditorMode::Bloq => vec![
             ("Q/E", "Node moment"),
             ("Mouse wheel", "Zoom"),
-            ("Space/V", "View"),
+            ("Space/V", "Select"),
             ("B", "BLOG"),
             ("P", "Pipe"),
         ],
@@ -309,12 +312,6 @@ fn draw_status_chips(
             palette,
         );
     }
-    theme::status_chip(
-        ui,
-        "\u{f085}",
-        super::toolbar::compact_mode_label(editor_state.mode),
-        palette.accent_primary,
-    );
     if editor_state.mode == EditorMode::Edit {
         match editor_state.placement_tool {
             PlacementTool::Block => theme::status_chip(
@@ -532,6 +529,14 @@ mod tests {
     }
 
     #[test]
+    fn status_bar_does_not_repeat_toolbar_mode_label() {
+        let paints =
+            render_status_bar_text_paints(&EditorState::default(), &GraphState::default(), 1920.0);
+        assert!(!paints.iter().any(|paint| paint.text == "View"));
+        find_text(&paints, "Z=0");
+    }
+
+    #[test]
     fn status_items_start_at_the_left_edge_and_notifications_have_a_separator() {
         for width in [1024.0, 1280.0, 1920.0] {
             let paints = render_status_bar_text_paints(
@@ -603,7 +608,18 @@ mod tests {
         let selected_hints = visible_shortcut_hints(&mode_shortcut_hints(&selected), 320.0);
 
         assert!(unselected_hints.contains(&("B", "BLOG")));
-        assert!(selected_hints.contains(&("D/Backspace", "Delete")));
+        assert!(selected_hints.contains(&("Del/Backspace", "Delete")));
+    }
+
+    #[test]
+    fn attributes_hint_requires_one_selected_element() {
+        let mut editor = EditorState::default();
+        editor.select_element(GraphElement::Block(ivec3(0, 0, 0)), false);
+        assert!(mode_shortcut_hints(&editor).contains(&("Enter", "Attributes")));
+        editor.select_element(GraphElement::Block(ivec3(1, 0, 0)), true);
+        let hints = mode_shortcut_hints(&editor);
+        assert!(!hints.contains(&("Enter", "Attributes")));
+        assert!(hints.contains(&("Del/Backspace", "Delete")));
     }
 
     #[test]

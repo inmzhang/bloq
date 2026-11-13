@@ -1,5 +1,6 @@
 //! Pointer observers for element and preview-endpoint picking.
 use super::*;
+use crate::resources::ImportExportState;
 
 /// Prevents a middle-button camera drag from also deleting its start element.
 #[derive(Resource, Default)]
@@ -14,7 +15,7 @@ pub(crate) fn on_element_over(
     query_element: Query<&GraphElement>,
     child_of_query: Query<&ChildOf>,
 ) {
-    let entity = trigger.entity;
+    let entity = trigger.original_event_target();
     if let Some(element) = picked_graph_element(entity, &query_element, &child_of_query) {
         if element_hidden_by_layer_filter(element, &graph_state.graph, &editor_state) {
             return;
@@ -31,7 +32,7 @@ pub(crate) fn on_element_out(
     query_element: Query<&GraphElement>,
     child_of_query: Query<&ChildOf>,
 ) {
-    let entity = trigger.entity;
+    let entity = trigger.original_event_target();
     if let Some(element) = picked_graph_element(entity, &query_element, &child_of_query)
         && editor_state.hovered_element == Some(element)
     {
@@ -61,6 +62,7 @@ pub(crate) fn on_element_drag_end(
 /// deletion with the middle button, or attribute editing in Edit mode).
 pub(crate) fn on_element_click(
     trigger: On<PointerClick>,
+    import_export: Res<ImportExportState>,
     mut intents: ResMut<UiIntentBuffer>,
     time: Res<Time>,
     mut editor_state: ResMut<EditorState>,
@@ -74,7 +76,13 @@ pub(crate) fn on_element_click(
     query_element: Query<&GraphElement>,
     child_of_query: Query<&ChildOf>,
 ) {
-    let entity = trigger.entity;
+    if import_export.blocks_graph_editing()
+        || target_state.open_window
+        || target_state.capture_input
+    {
+        return;
+    }
+    let entity = trigger.original_event_target();
     let Some(element) = picked_graph_element(entity, &query_element, &child_of_query) else {
         return;
     };
@@ -144,6 +152,11 @@ pub(super) fn handle_element_click(
         return;
     }
 
+    // Camera gestures must never select or edit the object beneath the pointer.
+    if is_alt_pressed(keys) {
+        return;
+    }
+
     // An armed action pick owns the click: it was requested by an explicit
     // keypress, so it outranks selection and hold-to-edit alike.
     if action_edit.picking().is_some() {
@@ -154,7 +167,7 @@ pub(super) fn handle_element_click(
     }
 
     // Hold-to-edit wins over every other click meaning, in both modes: it is the
-    // only way to reach a pipe's attributes while the Pipe tool owns the click.
+    // legacy shortcut; double-click and the Attributes button also open it.
     if is_attribute_edit_modifier_pressed(keys) {
         editor_state.pipe_start = None;
         editor_state.last_element_click = None;
@@ -162,7 +175,16 @@ pub(super) fn handle_element_click(
         return;
     }
 
-    if editor_state.mode == EditorMode::Edit && !is_ctrl_pressed(keys) && !is_alt_pressed(keys) {
+    // Selection modifiers have the same meaning with every placement tool.
+    if matches!(editor_state.mode, EditorMode::View | EditorMode::Edit)
+        && (is_ctrl_pressed(keys) || is_shift_pressed(keys))
+    {
+        editor_state.last_element_click = None;
+        editor_state.click_select_element(element, true);
+        return;
+    }
+
+    if matches!(editor_state.mode, EditorMode::View | EditorMode::Edit) {
         let double = matches!(
             editor_state.last_element_click,
             Some((last_element, last_time))
@@ -178,13 +200,13 @@ pub(super) fn handle_element_click(
 
     if !editor_state.is_pipe_tool_active() {
         if matches!(editor_state.mode, EditorMode::View | EditorMode::Edit) {
-            editor_state.click_select_element(element, is_ctrl_pressed(keys));
+            editor_state.click_select_element(element, false);
         }
         return;
     }
 
     if let GraphElement::Block(pos) = element {
-        let hadamard = is_hadamard_pipe_modifier_pressed(keys);
+        let hadamard = editor_state.pipe_hadamard || is_hadamard_pipe_modifier_pressed(keys);
         if editor_state.pipe_start.is_none() {
             let pos = pipe_endpoint_for_block_click(
                 &graph_state.graph,
@@ -193,7 +215,12 @@ pub(super) fn handle_element_click(
                 hadamard,
             );
             editor_state.pipe_start = Some(pos);
+            editor_state.click_select_element(element, false);
         }
+    } else {
+        // Selecting an existing pipe exposes its attributes without moving the
+        // independent placement cursor or changing the graph.
+        editor_state.click_select_element(element, false);
     }
 }
 
@@ -213,6 +240,7 @@ pub(super) fn picked_graph_element(
 /// endpoint's target while the pipe tool is active.
 pub(crate) fn on_preview_endpoint_click(
     trigger: On<PointerClick>,
+    import_export: Res<ImportExportState>,
     translation_drag: Res<TranslationDrag>,
     time: Res<Time>,
     mut editor_state: ResMut<EditorState>,
@@ -222,9 +250,15 @@ pub(crate) fn on_preview_endpoint_click(
     keys: Res<ButtonInput<KeyCode>>,
     query_endpoint: Query<&PreviewEndpointMesh>,
 ) {
-    if trigger.button != PointerButton::Primary
+    if import_export.blocks_graph_editing()
+        || trigger.button != PointerButton::Primary
+        || target_state.open_window
+        || target_state.capture_input
         || !editor_state.is_pipe_tool_active()
         || translation_drag.suppress_click
+        || is_alt_pressed(&keys)
+        || is_ctrl_pressed(&keys)
+        || is_shift_pressed(&keys)
     {
         return;
     }
@@ -276,7 +310,7 @@ pub(crate) fn on_preview_endpoint_click(
     place_pipe_or_walking_target(
         start,
         target,
-        is_hadamard_pipe_modifier_pressed(&keys),
+        editor_state.pipe_hadamard || is_hadamard_pipe_modifier_pressed(&keys),
         true,
         &mut editor_state,
         &mut graph_state,
@@ -336,5 +370,273 @@ pub(crate) fn on_preview_endpoint_out(
     if endpoint.target_pos == editor_state.hovered_preview_endpoint {
         editor_state.hovered_preview_source = None;
         editor_state.hovered_preview_endpoint = None;
+    }
+}
+
+#[cfg(test)]
+mod observer_tests {
+    use super::*;
+    use crate::components::PreviewEndpoint;
+    use bevy::camera::NormalizedRenderTarget;
+    use bevy::picking::backend::HitData;
+    use bevy::picking::pointer::{Location, PointerId};
+    use bevy::window::WindowRef;
+    use bloq_graph::CubeKind;
+
+    fn observer_app() -> (App, Entity) {
+        let mut app = App::new();
+        app.init_resource::<ImportExportState>()
+            .init_resource::<UiIntentBuffer>()
+            .init_resource::<Time>()
+            .init_resource::<EditorState>()
+            .init_resource::<GraphState>()
+            .init_resource::<TargetState>()
+            .init_resource::<ActionEditState>()
+            .init_resource::<Notifications>()
+            .init_resource::<MiddleButtonDrag>()
+            .init_resource::<TranslationDrag>()
+            .init_resource::<ButtonInput<KeyCode>>();
+        app.world_mut()
+            .resource_mut::<GraphState>()
+            .graph
+            .add_block(Block::new(IVec3::ZERO, BlockKind::Cube(CubeKind::ZXZ)));
+        let window = app.world_mut().spawn_empty().id();
+        (app, window)
+    }
+
+    fn click(app: &mut App, entity: Entity, window: Entity, button: PointerButton) {
+        app.world_mut().trigger(PointerClick {
+            entity,
+            pointer: Pointer::new(
+                PointerId::Mouse,
+                Location {
+                    target: NormalizedRenderTarget::Window(
+                        WindowRef::Entity(window).normalize(Some(window)).unwrap(),
+                    ),
+                    position: Vec2::ZERO,
+                },
+            ),
+            button,
+            hit: HitData::new(window, 0.0, None, None),
+            duration: std::time::Duration::from_millis(10),
+            count: 1,
+        });
+        app.update();
+    }
+
+    #[test]
+    fn shared_root_observers_handle_replaced_children_once_and_ignore_outside_elements() {
+        let (mut app, window) = observer_app();
+        app.world_mut()
+            .entity_mut(window)
+            .insert(bevy::window::Window::default());
+        let root = app
+            .world_mut()
+            .spawn(crate::components::GraphRoot)
+            .observe(on_element_over)
+            .observe(on_element_out)
+            .observe(on_element_click)
+            .observe(on_element_drag_start)
+            .observe(on_element_drag_end)
+            .id();
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::ShiftLeft);
+        let pointer = Pointer::new(
+            PointerId::Mouse,
+            Location {
+                target: NormalizedRenderTarget::Window(
+                    WindowRef::Entity(window).normalize(Some(window)).unwrap(),
+                ),
+                position: Vec2::ZERO,
+            },
+        );
+        for _ in 0..2 {
+            let element = app
+                .world_mut()
+                .spawn((GraphElement::Block(IVec3::ZERO), ChildOf(root)))
+                .id();
+            let mesh = app.world_mut().spawn(ChildOf(element)).id();
+            app.update();
+            app.world_mut().trigger(PointerOver {
+                entity: mesh,
+                pointer: pointer.clone(),
+                hit: HitData::new(window, 0.0, None, None),
+            });
+            assert_eq!(
+                app.world().resource::<EditorState>().hovered_element,
+                Some(GraphElement::Block(IVec3::ZERO))
+            );
+            // Shift selection toggles, so duplicate delivery would leave it empty.
+            click(&mut app, mesh, window, PointerButton::Primary);
+            assert_eq!(app.world().resource::<EditorState>().selection_count(), 1);
+            click(&mut app, mesh, window, PointerButton::Primary);
+            assert_eq!(app.world().resource::<EditorState>().selection_count(), 0);
+            app.world_mut().trigger(PointerOut {
+                entity: mesh,
+                pointer: pointer.clone(),
+                hit: HitData::new(window, 0.0, None, None),
+            });
+            assert_eq!(app.world().resource::<EditorState>().hovered_element, None);
+            app.world_mut().trigger(PointerDragStart {
+                entity: mesh,
+                pointer: pointer.clone(),
+                button: PointerButton::Middle,
+                hit: HitData::new(window, 0.0, None, None),
+            });
+            assert!(app.world().resource::<MiddleButtonDrag>().0);
+            app.world_mut().trigger(PointerDragEnd {
+                entity: mesh,
+                pointer: pointer.clone(),
+                button: PointerButton::Middle,
+                distance: Vec2::X,
+            });
+            assert!(!app.world().resource::<MiddleButtonDrag>().0);
+            app.world_mut().despawn(element);
+        }
+        let outside = app.world_mut().spawn(GraphElement::Block(IVec3::ZERO)).id();
+        click(&mut app, outside, window, PointerButton::Primary);
+        assert_eq!(app.world().resource::<EditorState>().selection_count(), 0);
+    }
+
+    #[test]
+    fn pending_blog_text_blocks_pointer_selection_and_deletion() {
+        let (mut app, window) = observer_app();
+        app.add_observer(on_element_click);
+        let element = app.world_mut().spawn(GraphElement::Block(IVec3::ZERO)).id();
+        {
+            let mut text = app.world_mut().resource_mut::<ImportExportState>();
+            text.mark_synchronized(0);
+            text.set_bloq_buffer("BLOG 1.0\n0:".into());
+        }
+        for button in [PointerButton::Primary, PointerButton::Middle] {
+            click(&mut app, element, window, button);
+            assert_eq!(app.world().resource::<EditorState>().selection_count(), 0);
+            assert_eq!(
+                app.world().resource::<GraphState>().graph.blocks().count(),
+                1
+            );
+        }
+    }
+
+    #[test]
+    fn element_observer_ignores_selection_and_deletion_while_attributes_capture_input() {
+        for (open_window, capture_input) in [(true, false), (false, true)] {
+            let (mut app, window) = observer_app();
+            app.add_observer(on_element_click);
+            let element = app.world_mut().spawn(GraphElement::Block(IVec3::ZERO)).id();
+            {
+                let mut target = app.world_mut().resource_mut::<TargetState>();
+                target.open_window = open_window;
+                target.capture_input = capture_input;
+            }
+            let before = app.world().resource::<GraphState>().graph.to_blog_text();
+            for button in [PointerButton::Primary, PointerButton::Middle] {
+                click(&mut app, element, window, button);
+                assert_eq!(app.world().resource::<EditorState>().selection_count(), 0);
+                assert_eq!(app.world().resource::<GraphState>().revision, 0);
+                assert_eq!(
+                    app.world().resource::<GraphState>().graph.to_blog_text(),
+                    before
+                );
+            }
+            // Prove the observer is wired and resumes once the modal releases input.
+            *app.world_mut().resource_mut::<TargetState>() = TargetState::default();
+            click(&mut app, element, window, PointerButton::Primary);
+            assert_eq!(app.world().resource::<EditorState>().selection_count(), 1);
+        }
+    }
+
+    #[test]
+    fn shift_click_on_preview_does_not_place_a_pipe() {
+        for shift in [KeyCode::ShiftLeft, KeyCode::ShiftRight] {
+            let (mut app, window) = observer_app();
+            app.add_observer(on_preview_endpoint_click);
+            *app.world_mut().resource_mut::<EditorState>() = EditorState {
+                mode: EditorMode::Edit,
+                placement_tool: PlacementTool::Pipe,
+                pipe_start: Some(IVec3::ZERO),
+                ..Default::default()
+            };
+            let preview = app
+                .world_mut()
+                .spawn(PreviewEndpointMesh {
+                    endpoint: PreviewEndpoint::End,
+                    source_pos: Some(IVec3::ZERO),
+                    target_pos: Some(IVec3::Z),
+                })
+                .id();
+            app.world_mut()
+                .resource_mut::<ButtonInput<KeyCode>>()
+                .press(shift);
+            let before = app.world().resource::<GraphState>().graph.to_blog_text();
+            click(&mut app, preview, window, PointerButton::Primary);
+            assert_eq!(
+                app.world().resource::<GraphState>().graph.to_blog_text(),
+                before
+            );
+            assert_eq!(app.world().resource::<GraphState>().revision, 0);
+            assert_eq!(
+                app.world().resource::<EditorState>().pipe_start,
+                Some(IVec3::ZERO)
+            );
+            app.world_mut()
+                .resource_mut::<ButtonInput<KeyCode>>()
+                .release(shift);
+            click(&mut app, preview, window, PointerButton::Primary);
+            assert!(
+                app.world()
+                    .resource::<GraphState>()
+                    .graph
+                    .has_pipe_between(IVec3::ZERO, IVec3::Z)
+            );
+        }
+    }
+
+    #[test]
+    fn preview_observer_ignores_placement_while_attributes_capture_input() {
+        for (open_window, capture_input) in [(true, false), (false, true)] {
+            let (mut app, window) = observer_app();
+            app.add_observer(on_preview_endpoint_click);
+            *app.world_mut().resource_mut::<EditorState>() = EditorState {
+                mode: EditorMode::Edit,
+                placement_tool: PlacementTool::Pipe,
+                pipe_start: Some(IVec3::ZERO),
+                ..EditorState::default()
+            };
+            {
+                let mut target = app.world_mut().resource_mut::<TargetState>();
+                target.open_window = open_window;
+                target.capture_input = capture_input;
+            }
+            let preview = app
+                .world_mut()
+                .spawn(PreviewEndpointMesh {
+                    endpoint: PreviewEndpoint::End,
+                    source_pos: Some(IVec3::ZERO),
+                    target_pos: Some(IVec3::Z),
+                })
+                .id();
+            let before = app.world().resource::<GraphState>().graph.to_blog_text();
+            click(&mut app, preview, window, PointerButton::Primary);
+            assert_eq!(
+                app.world().resource::<EditorState>().pipe_start,
+                Some(IVec3::ZERO)
+            );
+            assert_eq!(
+                app.world().resource::<GraphState>().graph.to_blog_text(),
+                before
+            );
+            assert_eq!(app.world().resource::<GraphState>().revision, 0);
+            *app.world_mut().resource_mut::<TargetState>() = TargetState::default();
+            click(&mut app, preview, window, PointerButton::Primary);
+            assert!(
+                app.world()
+                    .resource::<GraphState>()
+                    .graph
+                    .has_pipe_between(IVec3::ZERO, IVec3::Z)
+            );
+            assert_eq!(app.world().resource::<GraphState>().revision, 1);
+        }
     }
 }

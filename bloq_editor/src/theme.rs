@@ -368,18 +368,6 @@ pub(crate) fn toggle_button(
     )
 }
 
-pub(crate) fn neon_button(
-    ui: &mut egui::Ui,
-    palette: &ThemePalette,
-    label: &str,
-    accent: Color32,
-) -> egui::Response {
-    let button = egui::Button::new(egui::RichText::new(label).color(accent))
-        .fill(palette.bg_surface)
-        .stroke(egui::Stroke::new(1.0, palette.border));
-    ui.add(button)
-}
-
 #[cfg(test)]
 mod tests {
     use super::module_color;

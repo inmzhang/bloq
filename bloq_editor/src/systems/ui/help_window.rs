@@ -9,7 +9,7 @@ use bevy_egui::egui;
 const HELP_BINDINGS: &[(&str, &str)] = &[
     ("Command Palette", "Ctrl + Shift + P / F1"),
     ("Rotate Camera", "Middle Mouse Drag / Alt + Left Drag"),
-    ("Pan Camera", "Right Mouse Drag"),
+    ("Pan Camera", "Right Drag / Shift + Alt + Left Drag"),
     ("Zoom Camera", "Mouse Wheel"),
     ("Undo", "Ctrl + Z"),
     ("Redo", "Ctrl + Shift + Z"),
@@ -18,7 +18,8 @@ const HELP_BINDINGS: &[(&str, &str)] = &[
     ("Duplicate Selection", "Ctrl + D (View)"),
     ("Plane Height Down", "J"),
     ("Plane Height Up", "K"),
-    ("View Mode", "Space / V"),
+    ("View Mode", "V"),
+    ("Toggle View / Edit", "Space"),
     ("Module workspace", "M"),
     ("BLOG Buffer", "B"),
     ("BLOG Completion", "Tab / Shift + Tab (BLOG)"),
@@ -29,15 +30,15 @@ const HELP_BINDINGS: &[(&str, &str)] = &[
         "Extend Pipe To Empty Endpoint",
         "P, click block, click empty adjacent cell",
     ),
-    ("Keyboard Pipe Placement", "W / A / S / D / Up / Down"),
+    ("Extend / Follow Existing Pipe", "W / A / S / D / Up / Down"),
     ("Repeat Last Pipe Placement", "R"),
-    ("Hadamard Pipe Placement", "Hold H while placing pipe"),
+    ("Hadamard Pipe Placement", "Toolbar checkbox or hold H"),
     ("Program Mode", "C"),
     ("ZX View", "X"),
     ("Prev/Next Node Moment", "Q / E (Program)"),
     ("Prev/Next Reset Moment", "Shift + Q / E (Program)"),
-    ("Select / Toggle Select", "Click / Ctrl+Click"),
-    ("Box Select", "Click+Drag empty space"),
+    ("Select / Toggle Select", "Click / Shift+Click / Ctrl+Click"),
+    ("Box Select", "Drag empty space; Shift+Drag adds"),
     (
         "Move Selection / Module",
         "Left-drag object or X/Y/Z handle",
@@ -45,17 +46,17 @@ const HELP_BINDINGS: &[(&str, &str)] = &[
     ("Cancel Move", "Esc while dragging"),
     ("Select All Elements", "Ctrl + A"),
     ("Clear Selection", "Esc"),
-    ("Delete Selected", "D / Backspace"),
+    ("Delete Selected", "Delete / Backspace (D in View)"),
     ("Delete Hovered", "Middle Mouse Click (Edit / View)"),
     (
         "Translate Graph / Selection",
-        "< / > / ^ / v / z< / z> (View)",
+        "< / > / ^ / Shift+V / z< / z> (View)",
     ),
     ("Rotate Graph / Selection CCW / CW", "r / R (View)"),
     ("Fill Ports / Cycle Filled Variants", "F"),
     (
         "Edit Target Attributes",
-        "Hold I + Click, or Double-Click (Edit mode)",
+        "Attributes button / Enter / Double-Click (View or Edit)",
     ),
     ("Actions Window (action DAG)", "A"),
     (
@@ -102,7 +103,13 @@ pub(crate) fn draw_help_window(
                         .hint_text("Find an action or shortcut...")
                         .desired_width(f32::INFINITY),
                 );
-                ui.small("Viewport shortcuts pause while typing in a text field.");
+                ui.small("Mac: use Command instead of Ctrl.");
+                ui.collapsing("Editing tips", |ui| {
+                    ui.label("Edit → place a block → P to connect. Space switches to selection.");
+                    ui.label(
+                        "Deleting a block also removes its connecting pipes. Undo restores them.",
+                    );
+                });
                 let query = query.trim().to_lowercase();
                 let mut count = 0;
                 egui::ScrollArea::vertical()
@@ -145,7 +152,7 @@ pub(crate) fn draw_help_window(
                                 }
                             });
                         if count == 0 {
-                            ui.label("No matching shortcuts. Try a shorter search.");
+                            ui.label("No matching shortcuts.");
                         }
                     });
             });

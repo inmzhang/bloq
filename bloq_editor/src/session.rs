@@ -1,4 +1,4 @@
-//! Durable editor data. Runtime assets, jobs, caches and undo stacks are rebuilt.
+//! Durable editor documents and undo history. Runtime assets, jobs and caches are rebuilt.
 //! The active tab is captured from live resources; its stashed snapshot is stale.
 
 use std::collections::HashSet;
@@ -19,23 +19,37 @@ use crate::theme::ThemePreset;
 
 #[cfg(target_arch = "wasm32")]
 pub(crate) mod browser;
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) mod native;
+
+#[cfg(any(target_arch = "wasm32", test))]
+mod retry;
+
+#[cfg(any(target_arch = "wasm32", test))]
+pub(crate) mod recovery;
 
 // Like Bloq IR, session layouts may change while the version stays at 1.
 const SESSION_VERSION: u32 = 1;
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct Session {
     version: u32,
     active: EditorTabId,
     tabs: Vec<SavedTab>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct SavedTab {
     id: EditorTabId,
     title: String,
     document: Arc<SavedDocument>,
+    #[serde(default)]
+    history: Option<Arc<SavedHistory>>,
     blog: Arc<str>,
+    #[serde(default)]
+    text_history: Arc<[String]>,
+    #[serde(default)]
+    text_conflict: bool,
     export_path: String,
     definition_edit: Option<DefinitionEdit>,
     view: SavedView,
@@ -46,9 +60,19 @@ struct SavedTab {
     graph_revision: u64,
     #[serde(skip)]
     blog_revision: u64,
+    #[serde(skip)]
+    text_history_revision: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+struct SavedHistory {
+    entries: Vec<Arc<SavedDocument>>,
+    current: usize,
+    #[serde(skip)]
+    cache_ids: Vec<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct SavedDocument {
     graph: String,
     inputs: Vec<String>,
@@ -59,7 +83,7 @@ struct SavedDocument {
     pending_arm: Option<SavedArm>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct SavedArm {
     name: String,
     captured_true: bool,
@@ -67,7 +91,7 @@ struct SavedArm {
     owned: HashSet<IVec3>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct SavedView {
     #[serde(with = "block_kind")]
     block_kind: BlockKind,
@@ -92,7 +116,7 @@ struct SavedView {
     gallery_category: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct SavedCompile {
     code_distance: String,
     format: CompileOutputFormat,
@@ -120,6 +144,85 @@ impl<'a> From<&'a EditorTabSnapshot> for TabSource<'a> {
     }
 }
 
+/// Protect work created while an asynchronous startup recovery is pending.
+struct RecoveryGuard {
+    tab: EditorTabId,
+    title: String,
+    view: SavedView,
+    camera: CameraSettings,
+}
+
+impl RecoveryGuard {
+    fn capture(world: &World) -> Self {
+        let tabs = world.resource::<EditorTabs>();
+        Self {
+            tab: tabs.active,
+            title: tabs.active_tab().title.clone(),
+            view: SavedView::capture(world.resource()),
+            camera: tabs.active_tab().snapshot.camera_settings,
+        }
+    }
+
+    fn pristine(&self, world: &mut World) -> bool {
+        let camera_unchanged = world
+            .query_filtered::<&CameraSettings, With<crate::components::EditorCamera>>()
+            .iter(world)
+            .all(|camera| *camera == self.camera);
+        let tabs = world.resource::<EditorTabs>();
+        let graph = world.resource::<GraphState>();
+        let text = world.resource::<ImportExportState>();
+        camera_unchanged
+            && tabs.tabs.len() == 1
+            && tabs.active == self.tab
+            && tabs.active_tab().title == self.title
+            && graph.graph.is_empty()
+            && graph.history.len() == 1
+            && graph.source_graph.is_none()
+            && graph.pending_branch_arm.is_none()
+            && text.text_history().is_empty()
+            && (text.bloq_buffer.is_empty() || text.bloq_buffer == graph.graph.to_blog_text())
+            && SavedView::capture(world.resource()) == self.view
+    }
+}
+
+fn install_recovered(
+    world: &mut World,
+    tabs: EditorTabs,
+    cache: Session,
+    guard: &RecoveryGuard,
+    label: &str,
+) -> Result<Option<Session>, String> {
+    if !guard.pristine(world) {
+        let count = world.resource_mut::<EditorTabs>().append_recovered(tabs)?;
+        world
+            .resource_mut::<crate::resources::Notifications>()
+            .push_info(format!(
+                "Recovered {count} saved tab(s) beside your new work"
+            ));
+        return Ok(None);
+    }
+    let snapshot = tabs.active_tab().snapshot.clone();
+    let camera = snapshot.camera_settings;
+    world.resource_mut::<ClearColor>().0 = snapshot.editor_state.bg_color;
+    let preset = snapshot.editor_state.theme_preset;
+    world.insert_resource(snapshot.graph_state);
+    world.insert_resource(snapshot.editor_state);
+    world.insert_resource(snapshot.import_export);
+    world.insert_resource(snapshot.compile_ui);
+    world.insert_resource(tabs);
+    for (mut transform, mut settings) in world.query_filtered::<(&mut Transform, &mut CameraSettings), With<crate::components::EditorCamera>>().iter_mut(world) {
+        *settings = camera;
+        crate::systems::camera::apply_camera_setting(&mut transform, &settings);
+    }
+    for mut context in world.query::<&mut bevy_egui::EguiContext>().iter_mut(world) {
+        crate::theme::setup_theme(context.get_mut(), preset);
+    }
+    world
+        .resource_mut::<crate::resources::Notifications>()
+        .push_info(format!("Restored {label} session"));
+    Ok(Some(cache))
+}
+
 impl Session {
     /// Check the envelope before decoding fields whose representation may have
     /// changed, so a future save reports its version instead of a parser error.
@@ -136,56 +239,81 @@ impl Session {
     fn check_version(version: u32) -> Result<()> {
         ensure!(
             version == SESSION_VERSION,
-            "Unsupported browser session version {version} (expected {SESSION_VERSION})"
+            "Unsupported editor session version {version} (expected {SESSION_VERSION})"
         );
         Ok(())
     }
 
     fn capture(tabs: &EditorTabs, live: TabSource<'_>, previous: Option<&Self>) -> Result<Self> {
-        let saved = tabs
-            .tabs
-            .iter()
-            .map(|tab| {
-                let stashed = TabSource::from(&tab.snapshot);
-                let source = if tab.id == tabs.active {
-                    &live
-                } else {
-                    &stashed
-                };
-                // ponytail: linear lookup; index by ID if sessions grow to hundreds of tabs.
-                let previous = previous
-                    .and_then(|session| session.tabs.iter().find(|saved| saved.id == tab.id));
-                let document = match previous {
-                    Some(saved) if saved.graph_revision == source.graph.revision => {
-                        Arc::clone(&saved.document)
-                    }
-                    _ => Arc::new(SavedDocument::capture(source.graph)?),
-                };
-                let blog = match previous {
-                    Some(saved) if saved.blog_revision == source.import.bloq_revision => {
-                        Arc::clone(&saved.blog)
-                    }
-                    _ => Arc::from(source.import.bloq_buffer.as_str()),
-                };
-                Ok(SavedTab {
-                    id: tab.id,
-                    title: tab.title.clone(),
-                    document,
-                    blog,
-                    export_path: source.import.export_path.clone(),
-                    definition_edit: source.import.definition_edit.clone(),
-                    view: SavedView::capture(source.editor),
-                    camera: *source.camera,
-                    compile: SavedCompile {
-                        code_distance: source.compile.code_distance_input.clone(),
-                        format: source.compile.format,
-                        prepare_t_with_mpps: source.compile.prepare_t_with_mpps,
-                    },
-                    graph_revision: source.graph.revision,
-                    blog_revision: source.import.bloq_revision,
+        let saved =
+            tabs.tabs
+                .iter()
+                .map(|tab| {
+                    let stashed = TabSource::from(&tab.snapshot);
+                    let source = if tab.id == tabs.active {
+                        &live
+                    } else {
+                        &stashed
+                    };
+                    // ponytail: linear lookup; index by ID if sessions grow to hundreds of tabs.
+                    let previous = previous
+                        .and_then(|session| session.tabs.iter().find(|saved| saved.id == tab.id));
+                    let document =
+                        match previous {
+                            Some(saved)
+                                if saved.graph_revision == source.graph.revision
+                                    && saved.history.as_ref().and_then(|history| {
+                                        history.cache_ids.get(history.current)
+                                    }) == source
+                                        .graph
+                                        .history
+                                        .get(source.graph.current_index)
+                                        .map(|entry| &entry.cache_id) =>
+                            {
+                                Arc::clone(&saved.document)
+                            }
+                            _ => Arc::new(SavedDocument::capture(source.graph)?),
+                        };
+                    let blog = match previous {
+                        Some(saved) if saved.blog_revision == source.import.bloq_revision => {
+                            Arc::clone(&saved.blog)
+                        }
+                        _ => Arc::from(source.import.bloq_buffer.as_str()),
+                    };
+                    Ok(SavedTab {
+                        id: tab.id,
+                        title: tab.title.clone(),
+                        document,
+                        history: Some(Arc::new(SavedHistory::capture(
+                            source.graph,
+                            previous.and_then(|saved| saved.history.as_deref()),
+                        )?)),
+                        blog,
+                        text_history: match previous {
+                            Some(saved)
+                                if saved.text_history_revision
+                                    == source.import.text_history_revision() =>
+                            {
+                                Arc::clone(&saved.text_history)
+                            }
+                            _ => Arc::from(source.import.text_history()),
+                        },
+                        text_conflict: source.import.sync_conflict,
+                        export_path: source.import.export_path.clone(),
+                        definition_edit: source.import.definition_edit.clone(),
+                        view: SavedView::capture(source.editor),
+                        camera: *source.camera,
+                        compile: SavedCompile {
+                            code_distance: source.compile.code_distance_input.clone(),
+                            format: source.compile.format,
+                            prepare_t_with_mpps: source.compile.prepare_t_with_mpps,
+                        },
+                        graph_revision: source.graph.revision,
+                        blog_revision: source.import.bloq_revision,
+                        text_history_revision: source.import.text_history_revision(),
+                    })
                 })
-            })
-            .collect::<Result<_>>()?;
+                .collect::<Result<_>>()?;
         Ok(Self {
             version: SESSION_VERSION,
             active: tabs.active,
@@ -194,10 +322,25 @@ impl Session {
     }
 
     /// Decode everything before installing anything. A broken save stays intact.
+    #[cfg(any(not(target_arch = "wasm32"), test))]
     fn restore(self) -> Result<EditorTabs> {
+        self.restore_with(SavedDocument::restore, None)
+    }
+
+    fn restore_with(
+        self,
+        mut document: impl FnMut(&SavedDocument) -> Result<GraphState>,
+        sync: Option<Vec<(Option<String>, bool)>>,
+    ) -> Result<EditorTabs> {
+        if let Some(sync) = &sync {
+            ensure!(
+                sync.len() == self.tabs.len(),
+                "Invalid recovery sync metadata"
+            );
+        }
         Self::check_version(self.version)?;
         let mut restored = Vec::with_capacity(self.tabs.len());
-        for tab in self.tabs {
+        for (tab_index, tab) in self.tabs.into_iter().enumerate() {
             ensure!(
                 tab.camera.focus.is_finite()
                     && tab.camera.radius > 0.0
@@ -207,15 +350,49 @@ impl Session {
                 "Invalid saved camera"
             );
             let mut snapshot = EditorTabSnapshot {
-                graph_state: tab.document.restore()?,
+                graph_state: document(&tab.document)?,
                 camera_settings: tab.camera,
                 ..default()
             };
+            if let Some(history) = tab.history {
+                ensure!(
+                    !history.entries.is_empty() && history.current < history.entries.len(),
+                    "Invalid saved undo history cursor"
+                );
+                snapshot.graph_state.history = history
+                    .entries
+                    .iter()
+                    .map(|saved| {
+                        let mut restored = document(saved)?;
+                        restored
+                            .history
+                            .pop_back()
+                            .wrap_err("Missing restored history entry")
+                    })
+                    .collect::<Result<_>>()?;
+                snapshot.graph_state.current_index = history.current;
+            }
             tab.view.restore(&mut snapshot.editor_state)?;
             snapshot
                 .editor_state
                 .sync_after_graph_edit(&mut snapshot.graph_state);
             snapshot.import_export.set_bloq_buffer(tab.blog.to_string());
+            if let Some(sync) = &sync {
+                let (text, conflict) = &sync[tab_index];
+                snapshot.import_export.restore_recovery_sync(
+                    snapshot.graph_state.revision,
+                    text.clone(),
+                    *conflict,
+                );
+            } else {
+                snapshot
+                    .import_export
+                    .restore_graph_sync(&snapshot.graph_state);
+            }
+            snapshot
+                .import_export
+                .restore_text_history(tab.text_history.to_vec());
+            snapshot.import_export.sync_conflict |= tab.text_conflict;
             snapshot.import_export.export_path = tab.export_path;
             snapshot.import_export.definition_edit = tab.definition_edit;
             snapshot.compile_ui.code_distance_input = tab.compile.code_distance;
@@ -233,27 +410,65 @@ impl Session {
     }
 }
 
+impl SavedHistory {
+    fn capture(state: &GraphState, previous: Option<&Self>) -> Result<Self> {
+        ensure!(
+            !state.history.is_empty() && state.current_index < state.history.len(),
+            "Cannot save invalid undo history cursor"
+        );
+        let mut entries = Vec::with_capacity(state.history.len());
+        let mut cache_ids = Vec::with_capacity(state.history.len());
+        for entry in &state.history {
+            let cached = previous.and_then(|saved| {
+                saved
+                    .cache_ids
+                    .iter()
+                    .position(|id| *id == entry.cache_id)
+                    .and_then(|index| saved.entries.get(index))
+            });
+            entries.push(match cached {
+                Some(document) => Arc::clone(document),
+                None => Arc::new(SavedDocument::capture_parts(
+                    &entry.graph,
+                    entry.source_graph.as_deref(),
+                    entry.pending_branch_arm.as_ref(),
+                )?),
+            });
+            cache_ids.push(entry.cache_id);
+        }
+        Ok(Self {
+            entries,
+            current: state.current_index,
+            cache_ids,
+        })
+    }
+}
+
 impl SavedDocument {
     fn capture(state: &GraphState) -> Result<Self> {
+        Self::capture_parts(
+            &state.graph,
+            state.source_graph.as_deref(),
+            state.pending_branch_arm.as_ref(),
+        )
+    }
+
+    fn capture_parts(
+        visible: &BlockGraph,
+        source: Option<&BlockGraph>,
+        pending: Option<&PendingBranchArm>,
+    ) -> Result<Self> {
         Ok(Self {
-            graph: state.graph.to_blog_body_text(),
-            inputs: state
-                .graph
-                .action_graph()
-                .inputs()
-                .map(str::to_owned)
-                .collect(),
-            false_arms: state
-                .graph
+            graph: visible.to_blog_body_text(),
+            inputs: visible.action_graph().inputs().map(str::to_owned).collect(),
+            false_arms: visible
                 .branch_definitions()
                 .iter()
                 .filter(|branch| !branch.shown_true())
                 .map(|branch| branch.name.clone())
                 .collect(),
-            source_graph: state.source_graph.as_ref().map(|p| p.to_blog_text()),
-            pending_arm: state
-                .pending_branch_arm
-                .as_ref()
+            source_graph: source.map(BlockGraph::to_blog_text),
+            pending_arm: pending
                 .map(|pending| -> Result<SavedArm> {
                     // An arm's cut pipes refer to prefix blocks. Include those in its
                     // BLOG container, then retain only the owned blocks on restore.
@@ -264,8 +479,7 @@ impl SavedDocument {
                     for pipe in pending.arm.pipes() {
                         for endpoint in [pipe.endpoints().0, pipe.endpoints().1] {
                             if graph.get_endpoint_block(endpoint).is_none() {
-                                let block = state
-                                    .graph
+                                let block = visible
                                     .get_endpoint_block(endpoint)
                                     .wrap_err("Captured arm is missing a cut endpoint")?;
                                 graph.try_add_block(block.clone())?;
@@ -305,22 +519,7 @@ impl SavedDocument {
             .as_ref()
             .map(|saved| {
                 let graph = BlockGraph::from_blog_text(&saved.graph)?;
-                ensure!(
-                    saved.owned.iter().all(|pos| graph.has_block_at(*pos)),
-                    "Invalid captured arm"
-                );
-                Ok(PendingBranchArm {
-                    name: saved.name.clone(),
-                    captured_true: saved.captured_true,
-                    arm: BranchArm::new(
-                        graph
-                            .blocks()
-                            .filter(|block| saved.owned.contains(&block.pos()))
-                            .cloned()
-                            .collect(),
-                        graph.pipes().cloned().collect(),
-                    ),
-                })
+                restore_pending_arm(saved.name.clone(), saved.captured_true, graph, &saved.owned)
             })
             .transpose()?;
         let mut state = GraphState {
@@ -334,6 +533,31 @@ impl SavedDocument {
         state.commit();
         Ok(state)
     }
+}
+
+/// Both native parsing and worker hydration validate captured-arm ownership.
+fn restore_pending_arm(
+    name: String,
+    captured_true: bool,
+    graph: BlockGraph,
+    owned: &HashSet<IVec3>,
+) -> Result<PendingBranchArm> {
+    ensure!(
+        owned.iter().all(|pos| graph.has_block_at(*pos)),
+        "Invalid captured arm"
+    );
+    Ok(PendingBranchArm {
+        name,
+        captured_true,
+        arm: BranchArm::new(
+            graph
+                .blocks()
+                .filter(|block| owned.contains(&block.pos()))
+                .cloned()
+                .collect(),
+            graph.pipes().cloned().collect(),
+        ),
+    })
 }
 
 impl SavedView {
@@ -449,6 +673,164 @@ mod tests {
     use super::*;
     use serde_json::{Value, json};
 
+    #[test]
+    fn recovery_does_not_replace_work_created_while_pending() {
+        for draft in ["new draft", " \n\t"] {
+            let mut world = World::new();
+            world.init_resource::<EditorTabs>();
+            world.init_resource::<GraphState>();
+            world.init_resource::<EditorState>();
+            world.init_resource::<ImportExportState>();
+            world.init_resource::<crate::resources::Notifications>();
+            let guard = RecoveryGuard::capture(&world);
+            let active = world.resource::<EditorTabs>().active;
+            world
+                .resource_mut::<ImportExportState>()
+                .set_bloq_buffer(draft.into());
+            let restored = EditorTabs::default();
+            let cache = Session::capture(&restored, (&restored.active_tab().snapshot).into(), None)
+                .unwrap();
+            assert!(
+                install_recovered(&mut world, restored, cache, &guard, "test")
+                    .unwrap()
+                    .is_none()
+            );
+            assert_eq!(world.resource::<EditorTabs>().active, active);
+            assert_eq!(world.resource::<EditorTabs>().tabs.len(), 2);
+            assert_eq!(world.resource::<ImportExportState>().bloq_buffer, draft);
+        }
+    }
+
+    #[test]
+    fn typing_reuses_recovery_history_but_history_replacement_invalidates_it() {
+        let tabs = EditorTabs::default();
+        let mut live = tabs.active_tab().snapshot.clone();
+        live.import_export
+            .replace_text_preserving_history("original".into());
+        live.import_export
+            .replace_text_preserving_history("draft".into());
+        let first = capture(&tabs, &live, None);
+        live.import_export.set_bloq_buffer("typing".into());
+        let typed = capture(&tabs, &live, Some(&first));
+        assert!(Arc::ptr_eq(
+            &first.tabs[0].text_history,
+            &typed.tabs[0].text_history
+        ));
+        live.import_export
+            .replace_text_preserving_history("recovered".into());
+        let recovered = capture(&tabs, &live, Some(&typed));
+        assert!(!Arc::ptr_eq(
+            &typed.tabs[0].text_history,
+            &recovered.tabs[0].text_history
+        ));
+        assert_eq!(
+            recovered.tabs[0].text_history.as_ref(),
+            ["original", "typing"]
+        );
+        live.import_export
+            .restore_text_history(vec!["restored separately".into()]);
+        let restored = capture(&tabs, &live, Some(&recovered));
+        assert_eq!(
+            restored.tabs[0].text_history.as_ref(),
+            ["restored separately"]
+        );
+    }
+
+    #[test]
+    fn legacy_session_defaults_to_empty_text_recovery_history() {
+        let saved = Session::from_json(SAVED_SESSION).unwrap();
+        assert!(
+            saved
+                .tabs
+                .iter()
+                .all(|tab| tab.text_history.is_empty() && !tab.text_conflict)
+        );
+        let tabs = saved.restore().unwrap();
+        assert!(
+            tabs.tabs
+                .iter()
+                .all(|tab| tab.snapshot.import_export.text_history().is_empty())
+        );
+    }
+
+    #[test]
+    fn recovery_history_is_per_tab_and_survives_repeated_restarts() {
+        let mut tabs = EditorTabs::default();
+        tabs.add_empty_tab(&EditorState::default());
+        tabs.tabs[1]
+            .snapshot
+            .import_export
+            .replace_text_preserving_history("other original".into());
+        tabs.tabs[1]
+            .snapshot
+            .import_export
+            .replace_text_preserving_history("other draft".into());
+        let mut live = tabs.active_tab().snapshot.clone();
+        live.import_export
+            .replace_text_preserving_history("original commented text".into());
+        live.import_export
+            .replace_text_preserving_history("incomplete input {".into());
+        live.import_export.sync_conflict = true;
+        let saved = capture(&tabs, &live, None);
+        tabs = reopen(&saved).unwrap();
+        let restored = &tabs.active_tab().snapshot;
+        assert_eq!(
+            restored.import_export.text_history(),
+            ["original commented text"]
+        );
+        assert_eq!(restored.import_export.bloq_buffer, "incomplete input {");
+        assert!(restored.import_export.sync_conflict);
+        let second = capture(&tabs, restored, None);
+        let reopened = reopen(&second).unwrap();
+        assert_eq!(
+            reopened.active_tab().snapshot.import_export.text_history(),
+            ["original commented text"]
+        );
+        assert_eq!(second.tabs[0].text_history, saved.tabs[0].text_history);
+        assert_eq!(
+            reopened.tabs[1].snapshot.import_export.text_history(),
+            ["other original"]
+        );
+        assert_eq!(
+            reopened.tabs[1].snapshot.import_export.bloq_buffer,
+            "other draft"
+        );
+    }
+
+    #[test]
+    fn recovered_invalid_text_and_later_graph_edits_refresh_cached_history() {
+        let tabs = EditorTabs::default();
+        let mut live = tabs.active_tab().snapshot.clone();
+        live.graph_state = graph("BLOG 1.0\n0: ZXZ [0,0,0]\n");
+        let original = live.graph_state.graph.to_blog_text();
+        live.import_export.set_bloq_buffer(original.clone());
+        live.import_export
+            .mark_synchronized(live.graph_state.revision);
+        let initial = capture(&tabs, &live, None);
+        live.import_export.set_bloq_buffer("invalid draft {".into());
+        live.import_export
+            .replace_text_preserving_history(original.clone());
+        live.import_export
+            .mark_synchronized(live.graph_state.revision);
+        live.graph_state.graph.add_block(Block::new(
+            IVec3::X,
+            BlockKind::Cube(bloq_graph::CubeKind::ZXZ),
+        ));
+        live.graph_state.commit();
+        live.import_export.refresh_from_graph(&live.graph_state);
+        let saved = capture(&tabs, &live, Some(&initial));
+        let reopened = reopen(&saved).unwrap();
+        assert_eq!(
+            reopened.active_tab().snapshot.import_export.text_history(),
+            ["invalid draft {", original.as_str()]
+        );
+        let unchanged = capture(&tabs, &live, Some(&saved));
+        assert!(Arc::ptr_eq(
+            &saved.tabs[0].text_history,
+            &unchanged.tabs[0].text_history
+        ));
+    }
+
     // Frozen wire format, independent of the current serializer.
     const SAVED_SESSION: &str = include_str!("../tests/fixtures/session_v1_current.json");
 
@@ -457,7 +839,18 @@ mod tests {
     }
 
     fn reopen(session: &Session) -> Result<EditorTabs> {
-        Session::from_json(&serde_json::to_string(session)?)?.restore()
+        let json = serde_json::to_string(session)?;
+        let native = Session::from_json(&json)?.restore()?;
+        let prepared = recovery::prepare(&json)?;
+        let browser =
+            recovery::restore_prepared_json(&prepared).map_err(color_eyre::eyre::Error::msg)?;
+        let capture_tabs =
+            |tabs: &EditorTabs| Session::capture(tabs, (&tabs.active_tab().snapshot).into(), None);
+        assert_eq!(
+            serde_json::to_value(capture_tabs(&native)?)?,
+            serde_json::to_value(capture_tabs(&browser)?)?
+        );
+        Ok(browser)
     }
 
     fn graph(source: &str) -> GraphState {
@@ -517,9 +910,19 @@ mod tests {
         let mut reopened = reopen(&saved).unwrap();
         let restored = &reopened.active_tab().snapshot;
         assert_eq!(reopened.active, child);
+        let mut expected = serde_json::to_value(saved).unwrap();
+        for (saved_tab, tab) in expected["tabs"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .zip(&reopened.tabs)
+        {
+            saved_tab["text_conflict"] = json!(tab.snapshot.import_export.sync_conflict);
+        }
+        assert!(restored.import_export.sync_conflict);
         assert_eq!(
             serde_json::to_value(capture(&reopened, restored, None)).unwrap(),
-            serde_json::to_value(saved).unwrap()
+            expected
         );
         assert_eq!(
             restored
@@ -529,7 +932,10 @@ mod tests {
                 .to_blog_text(),
             live.graph_state.resolved_graph().unwrap().to_blog_text()
         );
-        assert_eq!(restored.graph_state.history.len(), 1);
+        assert_eq!(
+            restored.graph_state.history.len(),
+            live.graph_state.history.len()
+        );
         assert_ne!(reopened.add_empty_tab(&EditorState::default()), child);
     }
 
@@ -568,10 +974,29 @@ mod tests {
     #[test]
     fn saved_session_restores_and_resaves_without_losing_drafts() {
         let saved = Session::from_json(SAVED_SESSION).unwrap();
-        let expected: Value = serde_json::from_str(SAVED_SESSION).unwrap();
+        let mut expected: Value = serde_json::from_str(SAVED_SESSION).unwrap();
         let tabs = saved.restore().unwrap();
+        // Version 1 gains optional recovery fields; old document/text values
+        // are unchanged, while mismatched drafts acquire an explicit conflict.
+        for (saved_tab, tab) in expected["tabs"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .zip(&tabs.tabs)
+        {
+            saved_tab["text_history"] = json!([]);
+            saved_tab["text_conflict"] = json!(tab.snapshot.import_export.sync_conflict);
+        }
         let snapshot = &tabs.active_tab().snapshot;
         let saved = Session::capture(&tabs, snapshot.into(), None).unwrap();
+        for (tab, saved_tab) in expected["tabs"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .zip(&saved.tabs)
+        {
+            tab["history"] = serde_json::to_value(&saved_tab.history).unwrap();
+        }
         assert_eq!(
             serde_json::from_str::<Value>(&serde_json::to_string(&saved).unwrap()).unwrap(),
             expected
@@ -629,8 +1054,146 @@ mod tests {
         assert!(
             error
                 .to_string()
-                .starts_with("Unsupported browser session version 999")
+                .starts_with("Unsupported editor session version 999")
         );
+    }
+
+    #[test]
+    fn history_capture_reuses_entries_and_invalidates_in_place_promotion() {
+        let tabs = EditorTabs::default();
+        let mut live = tabs.active_tab().snapshot.clone();
+        live.graph_state.graph.add_block(Block::new(
+            IVec3::ZERO,
+            BlockKind::Cube(bloq_graph::CubeKind::ZXZ),
+        ));
+        live.graph_state.commit();
+        let first = capture(&tabs, &live, None);
+        live.graph_state.graph.add_block(Block::new(
+            IVec3::X,
+            BlockKind::Cube(bloq_graph::CubeKind::ZXZ),
+        ));
+        live.graph_state.commit();
+        let second = capture(&tabs, &live, Some(&first));
+        assert!(Arc::ptr_eq(
+            &first.tabs[0].history.as_ref().unwrap().entries[1],
+            &second.tabs[0].history.as_ref().unwrap().entries[1]
+        ));
+        live.graph_state.undo();
+        let undone = capture(&tabs, &live, Some(&second));
+        for (a, b) in second.tabs[0]
+            .history
+            .as_ref()
+            .unwrap()
+            .entries
+            .iter()
+            .zip(&undone.tabs[0].history.as_ref().unwrap().entries)
+        {
+            assert!(Arc::ptr_eq(a, b));
+        }
+        let index = live.graph_state.current_index;
+        live.graph_state
+            .graph
+            .set_block_tag(IVec3::ZERO, "validated")
+            .unwrap();
+        let graph = live.graph_state.graph.clone();
+        let entry = &mut live.graph_state.history[index];
+        entry.graph = graph;
+        entry.invalidate_snapshot_cache();
+        let promoted = capture(&tabs, &live, Some(&undone));
+        assert!(!Arc::ptr_eq(
+            &undone.tabs[0].document,
+            &promoted.tabs[0].document
+        ));
+        assert!(!Arc::ptr_eq(
+            &undone.tabs[0].history.as_ref().unwrap().entries[index],
+            &promoted.tabs[0].history.as_ref().unwrap().entries[index]
+        ));
+        assert!(
+            promoted.tabs[0].history.as_ref().unwrap().entries[index]
+                .graph
+                .contains("validated")
+        );
+    }
+
+    #[test]
+    fn reopen_preserves_undo_redo_cursor_and_new_edits_replace_redo_branch() {
+        let tabs = EditorTabs::default();
+        let mut live = tabs.active_tab().snapshot.clone();
+        for pos in [IVec3::ZERO, IVec3::X] {
+            live.graph_state
+                .graph
+                .add_block(Block::new(pos, BlockKind::Cube(bloq_graph::CubeKind::ZXZ)));
+            live.graph_state.commit();
+        }
+        let end = capture(&tabs, &live, None);
+        live.graph_state.undo();
+        let mid = capture(&tabs, &live, Some(&end));
+        let mut reopened = reopen(&mid).unwrap();
+        let state = &mut reopened.active_tab_mut().snapshot.graph_state;
+        assert_eq!(state.graph.block_count(), 1);
+        assert_eq!(state.history.len(), 3);
+        state.redo();
+        assert_eq!(state.graph.block_count(), 2);
+        state.undo();
+        state.graph.add_block(Block::new(
+            IVec3::Y,
+            BlockKind::Cube(bloq_graph::CubeKind::ZXZ),
+        ));
+        state.commit();
+        let branch = capture(&reopened, &reopened.active_tab().snapshot, Some(&mid));
+        let mut reopened = reopen(&branch).unwrap();
+        let state = &mut reopened.active_tab_mut().snapshot.graph_state;
+        state.redo();
+        assert!(state.graph.has_block_at(IVec3::Y));
+        assert!(!state.graph.has_block_at(IVec3::X));
+        state.undo();
+        assert_eq!(state.graph.block_count(), 1);
+    }
+
+    #[test]
+    fn redo_after_restart_restores_authored_module_hierarchy() {
+        let tabs = EditorTabs::default();
+        let mut live = tabs.active_tab().snapshot.clone();
+        let program = crate::module_authoring::tests::composition();
+        live.graph_state.graph = program.flatten().unwrap();
+        live.graph_state.source_graph = Some(Arc::new(program));
+        live.graph_state.commit();
+        let transaction = SavedDocument::capture(&live.graph_state).unwrap();
+        live.graph_state.undo();
+        let saved = capture(&tabs, &live, None);
+        let mut reopened = reopen(&saved).unwrap();
+        let state = &mut reopened.active_tab_mut().snapshot.graph_state;
+        assert!(state.source_graph.is_none());
+        state.redo();
+        assert!(state.source_graph.as_ref().unwrap().has_module_structure());
+        assert_eq!(SavedDocument::capture(state).unwrap(), transaction);
+    }
+
+    #[test]
+    fn redo_after_restart_restores_hierarchy_and_captured_arm_transaction() {
+        let tabs = EditorTabs::default();
+        let mut live = tabs.active_tab().snapshot.clone();
+        live.graph_state = graph("BLOG 1.0\n0: ZXZ [0,0,0]\n");
+        live.graph_state.source_graph = Some(Arc::new(live.graph_state.graph.clone()));
+        let arm = graph("BLOG 1.0\n0: ZXZ [0,0,0]\n1: ZXZ [0,0,1]\n0 -> +Z\n");
+        live.graph_state.pending_branch_arm = Some(PendingBranchArm {
+            name: "b0".into(),
+            captured_true: false,
+            arm: BranchArm::new(
+                vec![arm.graph.get_block(IVec3::Z).unwrap().clone()],
+                arm.graph.pipes().cloned().collect(),
+            ),
+        });
+        live.graph_state.commit();
+        let transaction = SavedDocument::capture(&live.graph_state).unwrap();
+        live.graph_state.undo();
+        let saved = capture(&tabs, &live, None);
+        let mut reopened = reopen(&saved).unwrap();
+        let state = &mut reopened.active_tab_mut().snapshot.graph_state;
+        assert!(state.source_graph.is_none());
+        assert!(state.pending_branch_arm.is_none());
+        state.redo();
+        assert_eq!(SavedDocument::capture(state).unwrap(), transaction);
     }
 
     #[test]
@@ -662,6 +1225,9 @@ mod tests {
             serde_json::to_value(capture(&EditorTabs::default(), &default(), None)).unwrap();
         let mutations: &[fn(&mut Value)] = &[
             |s| s["version"] = json!(SESSION_VERSION + 1),
+            |s| s["tabs"][0]["history"]["current"] = json!(999),
+            |s| s["tabs"][0]["history"]["entries"] = json!([]),
+            |s| s["tabs"][0]["history"]["entries"][0]["graph"] = json!("broken BLOG"),
             |s| s["active"] = json!(999),
             |s| s["tabs"][0]["camera"]["radius"] = json!(-1),
             |s| s["tabs"][0]["document"]["graph"] = json!("broken BLOG"),

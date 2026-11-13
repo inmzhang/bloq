@@ -11,7 +11,7 @@ use super::intents::{UiIntent, UiIntentBuffer};
 use super::{activated, tiled_window_rect};
 use crate::components::GraphElement;
 use crate::resources::EditorState;
-use crate::theme::{self, ThemePalette};
+use crate::theme::ThemePalette;
 use bevy::prelude::Resource;
 use bevy_egui::egui;
 use bloq_graph::ast::{
@@ -22,7 +22,7 @@ use bloq_graph::ast::{
 use bloq_graph::{
     Block, BlockGraph, BlockKind, BranchArm, BranchRegion, Direction, Pipe, PortRole,
     WalkingBoundaryKind, checked_add_position, flatten_module_definition, lower_blog_ast_deferred,
-    lower_blog_graph_ast_deferred, parse_blog_program_to_ast, qualified_name,
+    lower_blog_graph_ast_deferred, parse_blog_program_to_ast, parse_blog_to_ast, qualified_name,
 };
 use egui_extras::syntax_highlighting::{CodeTheme, SyntectSettings, highlight_with};
 use glam::IVec3;
@@ -92,6 +92,16 @@ pub(crate) struct ImportExportState {
     pub(crate) module_ui: super::module_panel::ModuleUiState,
     pub(crate) definition_edit: Option<super::module_panel::DefinitionEdit>,
     language: BlogLanguageState,
+    synced_text: Option<String>,
+    text_history: Vec<String>,
+    text_history_revision: u64,
+    synced_graph_revision: Option<u64>,
+    attempted_text_revision: Option<u64>,
+    last_text_edit: web_time::Instant,
+    requested_apply_revision: Option<u64>,
+    pub(crate) sync_error: Option<String>,
+    pub(crate) sync_conflict: bool,
+    confirm_replace_text: bool,
 }
 
 impl Default for ImportExportState {
@@ -103,24 +113,189 @@ impl Default for ImportExportState {
             module_ui: super::module_panel::ModuleUiState::default(),
             definition_edit: None,
             language: BlogLanguageState::default(),
+            synced_text: None,
+            text_history: Vec::new(),
+            text_history_revision: next_blog_revision(),
+            synced_graph_revision: None,
+            attempted_text_revision: None,
+            last_text_edit: web_time::Instant::now(),
+            requested_apply_revision: None,
+            sync_error: None,
+            sync_conflict: false,
+            confirm_replace_text: false,
         }
     }
 }
 
 impl ImportExportState {
+    pub(crate) fn text_history_revision(&self) -> u64 {
+        self.text_history_revision
+    }
+
+    pub(crate) fn text_history(&self) -> &[String] {
+        &self.text_history
+    }
+
+    pub(crate) fn restore_text_history(&mut self, history: Vec<String>) {
+        self.text_history = history;
+        self.text_history_revision = next_blog_revision();
+    }
+
     pub(crate) fn set_bloq_buffer(&mut self, buffer: String) {
         self.bloq_buffer = buffer;
         self.touch_bloq_buffer();
     }
 
-    fn touch_bloq_buffer(&mut self) {
-        self.bloq_revision = next_blog_revision();
+    pub(crate) fn synced_text_is_uninitialized(&self) -> bool {
+        self.synced_text.is_none()
     }
 
-    /// Re-analyses the buffer if its revision moved. Returns whether the
-    /// cached analysis changed.
-    fn refresh_language(&mut self) -> bool {
-        self.language.refresh(&self.bloq_buffer, self.bloq_revision)
+    /// Only a baseline attached to this exact graph revision is safe for
+    /// background semantic no-op comparison. Conflicts intentionally opt out.
+    pub(crate) fn comparison_source(&self, revision: u64) -> Option<&str> {
+        (self.synced_graph_revision == Some(revision) && !self.sync_conflict)
+            .then_some(self.synced_text.as_deref())
+            .flatten()
+    }
+
+    pub(crate) fn blocks_graph_editing(&self) -> bool {
+        self.sync_conflict
+            || self
+                .synced_text
+                .as_ref()
+                .is_some_and(|text| text != &self.bloq_buffer)
+    }
+
+    /// Refresh clean text after graph edits; never overwrite a pending text edit.
+    pub(crate) fn refresh_from_graph(&mut self, graph: &crate::resources::GraphState) {
+        if self.synced_graph_revision == Some(graph.revision) {
+            return;
+        }
+        if self.blocks_graph_editing() {
+            self.sync_conflict = true;
+            return;
+        }
+        // Unassociated nonempty text may be a restored unresolved conflict.
+        if self.synced_text.is_none() && !self.bloq_buffer.is_empty() {
+            self.restore_graph_sync(graph);
+            return;
+        }
+        if let Ok(program) = graph.resolved_graph() {
+            self.replace_text_preserving_history(program.to_blog_text());
+            self.mark_synchronized(graph.revision);
+        }
+    }
+
+    /// Restored text and graph are independent saved values. Never decide which
+    /// one wins unless they represent the same graph; retain original comments.
+    pub(crate) fn restore_graph_sync(&mut self, graph: &crate::resources::GraphState) {
+        let graph_text = graph
+            .resolved_graph()
+            .ok()
+            .map(|program| program.to_blog_text());
+        let same_graph = BlockGraph::from_text(&self.bloq_buffer)
+            .ok()
+            .is_some_and(|program| Some(program.to_blog_text()) == graph_text);
+        if same_graph {
+            self.mark_synchronized(graph.revision);
+        } else {
+            self.synced_text = graph_text;
+            self.synced_graph_revision = Some(graph.revision);
+            self.sync_conflict = true;
+        }
+    }
+
+    /// Transfer the worker's recovery decision without reparsing the saved draft.
+    #[cfg(any(target_arch = "wasm32", test))]
+    pub(crate) fn recovery_sync(&self) -> (Option<String>, bool) {
+        (self.synced_text.clone(), self.sync_conflict)
+    }
+
+    pub(crate) fn restore_recovery_sync(
+        &mut self,
+        graph_revision: u64,
+        synced_text: Option<String>,
+        conflict: bool,
+    ) {
+        self.synced_text = synced_text;
+        self.synced_graph_revision = Some(graph_revision);
+        self.sync_conflict = conflict;
+    }
+
+    /// Graph refresh and history recovery both retain the text they replace.
+    pub(crate) fn replace_text_preserving_history(&mut self, next: String) {
+        if self.bloq_buffer == next {
+            return;
+        }
+        if !self.bloq_buffer.is_empty() && self.text_history.last() != Some(&self.bloq_buffer) {
+            self.text_history.push(self.bloq_buffer.clone());
+            self.text_history_revision = next_blog_revision();
+        }
+        self.set_bloq_buffer(next);
+    }
+
+    pub(crate) fn mark_synchronized(&mut self, revision: u64) {
+        self.synced_text = Some(self.bloq_buffer.clone());
+        self.synced_graph_revision = Some(revision);
+        self.sync_error = None;
+        self.sync_conflict = false;
+    }
+
+    pub(crate) fn request_text_apply(&mut self) {
+        self.requested_apply_revision = Some(self.bloq_revision);
+    }
+
+    /// Do not parse while typing. The graph stays unchanged until a current
+    /// background result arrives; language analysis follows the same debounce.
+    pub(crate) fn take_analysis_request(&mut self, revision: u64, force: bool) -> Option<bool> {
+        let force = force || self.requested_apply_revision == Some(self.bloq_revision);
+        if !force
+            && (self.last_text_edit.elapsed() < std::time::Duration::from_millis(250)
+                || self.attempted_text_revision == Some(self.bloq_revision))
+        {
+            return None;
+        }
+        if self.synced_graph_revision != Some(revision) && self.blocks_graph_editing() {
+            self.sync_conflict = true;
+        }
+        self.attempted_text_revision = Some(self.bloq_revision);
+        self.requested_apply_revision = None;
+        Some(self.blocks_graph_editing() && (force || !self.sync_conflict))
+    }
+
+    pub(crate) fn install_language(&mut self, language: BlogLanguageState) {
+        self.language = language;
+    }
+
+    fn touch_bloq_buffer(&mut self) {
+        self.confirm_replace_text = false;
+        self.sync_error = None;
+        self.last_text_edit = web_time::Instant::now();
+        self.requested_apply_revision = None;
+        self.language.index = BlogElementIndex::default();
+        self.language.diagnostic = None;
+        self.language.completion = None;
+        self.bloq_revision = next_blog_revision();
+    }
+}
+
+mod optional_span {
+    use super::Span;
+    use serde::{Deserialize, Serialize};
+    pub(super) fn serialize<S: serde::Serializer>(
+        span: &Option<Span>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        span.map(|span| (span.start, span.end))
+            .serialize(serializer)
+    }
+    pub(super) fn deserialize<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Option<Span>, D::Error> {
+        Ok(
+            Option::<(u32, u32)>::deserialize(deserializer)?
+                .map(|(start, end)| Span { start, end }),
+        )
     }
 }
 
@@ -135,7 +310,7 @@ fn next_blog_revision() -> u64 {
 /// Parsing is the expensive part, so callers build this once per buffer change
 /// and then resolve a hovered cursor with a cheap [`Self::elements_at_line`]
 /// lookup instead of reparsing every frame.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 struct BlogElementIndex {
     by_line_start: HashMap<usize, HashSet<GraphElement>>,
     line_starts: Vec<(usize, usize)>,
@@ -203,8 +378,8 @@ impl BlogElementIndex {
     }
 }
 
-#[derive(Clone, Default)]
-struct BlogLanguageState {
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
+pub(crate) struct BlogLanguageState {
     revision: Option<u64>,
     index: BlogElementIndex,
     diagnostic: Option<BlogDiagnostic>,
@@ -214,13 +389,23 @@ struct BlogLanguageState {
 }
 
 impl BlogLanguageState {
-    fn refresh(&mut self, buffer: &str, revision: u64) -> bool {
+    pub(crate) fn refresh(&mut self, buffer: &str, revision: u64) -> bool {
         if self.revision == Some(revision) {
             return false;
         }
         self.revision = Some(revision);
         self.completion = None;
         match parse_blog_program_to_ast(buffer) {
+            Ok(source) if source.modules.is_empty() && source.imports.is_empty() => {
+                self.refresh_body(
+                    buffer,
+                    SourceFile {
+                        version: source.version,
+                        data_stmts: Vec::new(),
+                        action_stmts: Vec::new(),
+                    },
+                );
+            }
             Ok(source) => {
                 self.words = completion_words(&source);
                 match lower_blog_graph_ast_deferred(&source) {
@@ -237,15 +422,54 @@ impl BlogLanguageState {
                     }
                 }
             }
-            Err(error) => {
-                self.index = BlogElementIndex::default();
-                self.diagnostic = Some(BlogDiagnostic {
-                    message: error.to_string(),
-                    span: error.span(),
-                });
-            }
+            Err(program_error) => match parse_blog_to_ast(buffer) {
+                Ok(body) => self.refresh_body(buffer, body),
+                Err(body_error) => {
+                    // Match the graph parser: report the grammar that got furthest.
+                    let error = if program_error.span().map(|span| span.start)
+                        >= body_error.span().map(|span| span.start)
+                    {
+                        program_error
+                    } else {
+                        body_error
+                    };
+                    self.index = BlogElementIndex::default();
+                    self.diagnostic = Some(BlogDiagnostic {
+                        message: error.to_string(),
+                        span: error.span(),
+                    });
+                }
+            },
         }
         true
+    }
+
+    fn refresh_body(&mut self, buffer: &str, body: SourceFile) {
+        let graph = lower_blog_ast_deferred(&body, std::iter::empty());
+        // A virtual main module reuses indexing/completion without inserting a
+        // textual wrapper, which would shift every diagnostic and hover span.
+        let span = Span::from_range(0..buffer.len());
+        let source = ModularSourceFile {
+            version: body.version,
+            imports: Vec::new(),
+            modules: vec![Spanned::new(
+                ModuleDef {
+                    name: Spanned::new("main".into(), span),
+                    interface_stmts: Vec::new(),
+                    instance_stmts: Vec::new(),
+                    data_stmts: body.data_stmts,
+                    action_stmts: body.action_stmts,
+                    connect_stmts: Vec::new(),
+                },
+                span,
+            )],
+        };
+        self.words = completion_words(&source);
+        self.index = BlogElementIndex::from_source(buffer, &source, graph.as_ref().ok());
+        self.diagnostic = graph.err().map(|error| BlogDiagnostic {
+            message: error.to_string(),
+            span: error.span(),
+        });
     }
 
     fn update_cursor(&mut self, cursor_char: Option<usize>) -> bool {
@@ -273,13 +497,14 @@ impl BlogLanguageState {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct BlogDiagnostic {
     message: String,
+    #[serde(with = "optional_span")]
     span: Option<Span>,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 struct CompletionWords {
     modules: Vec<String>,
     branches: Vec<String>,
@@ -360,7 +585,7 @@ fn interface_name(statement: &InterfaceStmt) -> &str {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct CompletionSession {
     replace: Range<usize>,
     items: Vec<String>,
@@ -562,16 +787,26 @@ fn collect_completions(
     for keyword in keywords {
         add_completion(items, prefix, current, *keyword);
     }
+    // Harvested lists are already unique. Only compare against fixed choices,
+    // not all earlier matches: opening completion must stay linear for large modules.
+    let fixed_choices = items.len();
     for word in harvested {
-        add_completion(items, prefix, current, word.as_str());
+        if starts_with_ascii_case(word.trim_end(), prefix)
+            && word != current
+            && !items[..fixed_choices].contains(word)
+        {
+            items.push(word.clone());
+        }
     }
 }
 
-fn add_completion(items: &mut Vec<String>, prefix: &str, current: &str, text: impl Into<String>) {
-    let text = text.into();
-    if starts_with_ascii_case(text.trim_end(), prefix) && text != current && !items.contains(&text)
+fn add_completion(items: &mut Vec<String>, prefix: &str, current: &str, text: impl AsRef<str>) {
+    let text = text.as_ref();
+    if starts_with_ascii_case(text.trim_end(), prefix)
+        && text != current
+        && !items.iter().any(|item| item == text)
     {
-        items.push(text);
+        items.push(text.to_owned());
     }
 }
 
@@ -678,7 +913,9 @@ fn scan_line(line: &str) -> LineScan {
 
 /// Reindents a parseable buffer; `None` when it does not parse.
 fn format_blog(source: &str) -> Option<String> {
-    parse_blog_program_to_ast(source).ok()?;
+    if parse_blog_program_to_ast(source).is_err() && parse_blog_to_ast(source).is_err() {
+        return None;
+    }
     let mut output = String::with_capacity(source.len() + 1);
     let mut depth = 0usize;
     for line in source.lines() {
@@ -1185,7 +1422,7 @@ pub(crate) fn draw_blog_buffer(
 
     let default_rect = tiled_window_rect(viewport, egui::Align2::LEFT_BOTTOM);
     let mut open = true;
-    egui::Window::new("BLOG Buffer")
+    egui::Window::new("BLOG")
         .open(&mut open)
         .default_rect(default_rect)
         .min_width(300.0_f32.min(default_rect.width()))
@@ -1208,7 +1445,29 @@ fn draw_contents(
     intents: &mut UiIntentBuffer,
     palette: &ThemePalette,
 ) {
-    let mut analysis_changed = state.refresh_language();
+    if state.sync_conflict {
+        ui.label("Text and graph differ. Keep graph or use text.");
+    } else if state.sync_error.is_some() {
+        ui.small("Fix text to resume graph editing.");
+    }
+    if state.language.diagnostic.is_none()
+        && let Some(error) = &state.sync_error
+    {
+        ui.small(error);
+    }
+    if state.confirm_replace_text {
+        ui.horizontal_wrapped(|ui| {
+            ui.label("Discard text changes?");
+            if ui.button("Replace text").clicked() {
+                intents.push(UiIntent::StoreGraphToBuffer);
+                state.confirm_replace_text = false;
+            }
+            if ui.button("Keep draft").clicked() {
+                state.confirm_replace_text = false;
+            }
+        });
+    }
+    let analysis_changed = state.language.cursor_char.is_none();
     let editor_id = ui.make_persistent_id(("blog_buffer_editor", tab_id));
     #[derive(Clone, Copy)]
     enum EditorKey {
@@ -1277,7 +1536,6 @@ fn draw_contents(
         }
         Some(EditorKey::Complete(_)) | None => {}
     }
-    analysis_changed |= state.refresh_language();
 
     let diagnostic_range = state
         .language
@@ -1287,14 +1545,25 @@ fn draw_contents(
         .and_then(|span| visible_span(&state.bloq_buffer, span));
     let theme = CodeTheme::from_style(ui.style());
     let mut layouter = |ui: &egui::Ui, buffer: &dyn egui::TextBuffer, _wrap_width: f32| {
-        let mut job = highlight_with(
-            ui.ctx(),
-            ui.style(),
-            &theme,
-            buffer.as_str(),
-            "blog",
-            blog_syntax_settings(),
-        );
+        // Syntect is synchronous. Keep large sources plain rather than doing
+        // a full syntax parse on every keypress; diagnostics remain available.
+        let mut job = if buffer.as_str().len() > 64 * 1024 {
+            egui::text::LayoutJob::simple(
+                buffer.as_str().to_owned(),
+                egui::TextStyle::Monospace.resolve(ui.style()),
+                palette.text_primary,
+                f32::INFINITY,
+            )
+        } else {
+            highlight_with(
+                ui.ctx(),
+                ui.style(),
+                &theme,
+                buffer.as_str(),
+                "blog",
+                blog_syntax_settings(),
+            )
+        };
         if let Some(range) = &diagnostic_range {
             underline_range(&mut job, range, palette.accent_error);
         }
@@ -1343,7 +1612,6 @@ fn draw_contents(
     }
     if output.response.changed() {
         state.touch_bloq_buffer();
-        analysis_changed |= state.refresh_language();
     }
 
     let cursor_char = (output.response.has_focus() || editor_key.is_some())
@@ -1365,20 +1633,11 @@ fn draw_contents(
     }
 
     ui.horizontal_wrapped(|ui| {
-        if activated(&theme::neon_button(
-            ui,
-            palette,
-            if state.definition_edit.is_some() {
-                "Load into definition"
-            } else {
-                "Load"
-            },
-            palette.accent_primary,
-        )) {
+        if state.sync_conflict && ui.button("Use text").clicked() {
             intents.push(UiIntent::LoadBlogFromBuffer);
         }
-        if activated(&ui.button("Store")) {
-            intents.push(UiIntent::StoreGraphToBuffer);
+        if state.blocks_graph_editing() && ui.button("Keep graph").clicked() {
+            state.confirm_replace_text = true;
         }
         if activated(&ui.button("Format"))
             && let Some(formatted) = format_blog(&state.bloq_buffer)
@@ -1386,6 +1645,16 @@ fn draw_contents(
         {
             state.set_bloq_buffer(formatted);
         }
+        if !state.text_history.is_empty() {
+            let mut restore = None;
+            ui.menu_button("Text history", |ui| {
+                restore = draw_text_history(ui, &state.text_history);
+            });
+            if let Some(index) = restore {
+                state.replace_text_preserving_history(state.text_history[index].clone());
+            }
+        }
+        draw_save_draft(ui, state, intents);
         if activated(&ui.button("Copy")) {
             intents.push(UiIntent::CopyToClipboard(state.bloq_buffer.clone()));
         }
@@ -1398,13 +1667,61 @@ fn draw_contents(
                 .color(palette.accent_error),
         )
         .on_hover_text(&diagnostic.message);
-    } else {
+    } else if state.sync_error.is_none()
+        && !state.sync_conflict
+        && state.language.revision == Some(state.bloq_revision)
+    {
         ui.label(
             egui::RichText::new("BLOG valid")
                 .small()
                 .color(palette.success),
         );
     }
+}
+
+fn draw_text_history(ui: &mut egui::Ui, history: &[String]) -> Option<usize> {
+    let mut selected = None;
+    let row_height = ui.spacing().interact_size.y;
+    egui::ScrollArea::vertical()
+        .id_salt("blog_text_history")
+        .max_height(240.0)
+        .show_rows(ui, row_height, history.len(), |ui, rows| {
+            for row in rows {
+                let index = history.len() - 1 - row;
+                let response = ui.add_sized(
+                    [ui.available_width(), row_height],
+                    egui::Button::new(format!("Revision {}", index + 1)),
+                );
+                if response
+                    .on_hover_text(history_preview(&history[index]))
+                    .clicked()
+                {
+                    selected = Some(index);
+                    ui.close();
+                }
+            }
+        });
+    selected
+}
+
+fn draw_save_draft(
+    ui: &mut egui::Ui,
+    state: &ImportExportState,
+    intents: &mut UiIntentBuffer,
+) -> egui::Response {
+    let response = ui.button(if cfg!(target_arch = "wasm32") { "Download draft" } else { "Save draft" })
+        .on_hover_text("Save the exact text, including comments and unfinished or invalid BLOG. Does not change the graph.");
+    if activated(&response) {
+        intents.push(UiIntent::SaveBlogDraft(state.bloq_buffer.clone()));
+    }
+    response
+}
+
+fn history_preview(source: &str) -> String {
+    // Bound the work before splitting lines: one line can be megabytes long.
+    let preview: String = source.chars().take(400).collect();
+    let preview = preview.lines().take(6).collect::<Vec<_>>().join("\n");
+    format!("{preview}\n({} bytes)", source.len())
 }
 
 fn visible_span(text: &str, span: Span) -> Option<Range<usize>> {
@@ -1421,6 +1738,15 @@ fn visible_span(text: &str, span: Span) -> Option<Range<usize>> {
 }
 
 fn underline_range(job: &mut egui::text::LayoutJob, range: &Range<usize>, color: egui::Color32) {
+    // TextEdit may relayout edited text before its changed response clears the
+    // old diagnostic. Never split a newly inserted Unicode character.
+    let range = job
+        .text
+        .floor_char_boundary(range.start.min(job.text.len()))
+        ..job.text.ceil_char_boundary(range.end.min(job.text.len()));
+    if range.is_empty() {
+        return;
+    }
     // `LayoutJob` sections are sorted, gap-free and non-overlapping, so the
     // ones the span touches form a single run. The layouter reruns every
     // frame, so only that run is rebuilt rather than the whole vector.
@@ -1533,8 +1859,301 @@ fn elements_at_blog_cursor(buffer: &str, cursor_char_index: usize) -> HashSet<Gr
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn live_blog_initializes_from_graph_and_preserves_incomplete_text() {
+        let graph = crate::resources::GraphState::default();
+        let mut state = super::ImportExportState::default();
+        state.refresh_from_graph(&graph);
+        assert_eq!(
+            state.bloq_buffer,
+            graph.resolved_graph().unwrap().to_blog_text()
+        );
+        state.set_bloq_buffer("# unfinished text".into());
+        state.refresh_from_graph(&graph);
+        assert_eq!(state.bloq_buffer, "# unfinished text");
+        state.set_bloq_buffer(String::new());
+        state.refresh_from_graph(&graph);
+        assert!(
+            state.bloq_buffer.is_empty(),
+            "an intentionally cleared draft stays empty"
+        );
+    }
+
+    #[test]
+    fn graph_refresh_preserves_previous_source_in_text_history() {
+        let mut graph = crate::resources::GraphState::default();
+        let mut text = ImportExportState::default();
+        text.refresh_from_graph(&graph);
+        text.set_bloq_buffer(format!("{}\n# important comment\n", text.bloq_buffer));
+        text.mark_synchronized(graph.revision);
+        let original = text.bloq_buffer.clone();
+        graph.graph.add_block(Block::new(
+            IVec3::ZERO,
+            BlockKind::Cube(bloq_graph::CubeKind::ZXZ),
+        ));
+        graph.commit();
+        text.refresh_from_graph(&graph);
+        assert_eq!(text.text_history.last(), Some(&original));
+        assert!(!text.blocks_graph_editing());
+        text.set_bloq_buffer(String::new());
+        assert!(
+            crate::systems::jobs::analyze_live_blog(&text.bloq_buffer, text.bloq_revision)
+                .result
+                .is_err()
+        );
+        assert!(text.blocks_graph_editing());
+    }
+
+    #[test]
+    fn restored_text_requires_a_choice_unless_graphs_match() {
+        let mut graph = crate::resources::GraphState::default();
+        graph.graph.add_block(Block::new(
+            IVec3::ZERO,
+            BlockKind::Cube(bloq_graph::CubeKind::ZXZ),
+        ));
+        graph.commit();
+        for source in ["BLOG 1.0", "BLOG 1.0\n0:", ""] {
+            let mut text = ImportExportState::default();
+            text.set_bloq_buffer(source.into());
+            text.restore_graph_sync(&graph);
+            text.refresh_from_graph(&graph);
+            assert_eq!(text.bloq_buffer, source);
+            assert!(text.sync_conflict);
+            text.last_text_edit -= std::time::Duration::from_secs(1);
+            assert_eq!(
+                text.take_analysis_request(graph.revision, false),
+                Some(false)
+            );
+        }
+        let source = format!(
+            "{}\n# preserve me\n",
+            graph.resolved_graph().unwrap().to_blog_text()
+        );
+        let mut text = ImportExportState::default();
+        text.set_bloq_buffer(source.clone());
+        text.restore_graph_sync(&graph);
+        assert!(!text.blocks_graph_editing());
+        assert_eq!(text.bloq_buffer, source);
+    }
+
+    #[test]
+    fn recovering_history_preserves_pending_text() {
+        let mut text = ImportExportState::default();
+        text.set_bloq_buffer("unfinished text".into());
+        text.replace_text_preserving_history("BLOG 1.0".into());
+        assert_eq!(text.text_history, vec!["unfinished text"]);
+        text.replace_text_preserving_history("BLOG 1.0".into());
+        assert_eq!(text.text_history.len(), 1);
+    }
+
+    #[test]
+    fn same_caret_edit_dismisses_completion_before_background_analysis() {
+        let mut text = ImportExportState::default();
+        text.set_bloq_buffer("mo".into());
+        text.language.update_cursor(Some(1));
+        text.language.trigger_completion(&text.bloq_buffer, 1);
+        assert_eq!(text.language.completion.as_ref().unwrap().replace, 0..2);
+
+        // Forward Delete leaves the caret unchanged, so cursor tracking alone
+        // would retain an out-of-bounds replacement until analysis completes.
+        text.bloq_buffer.remove(1);
+        text.touch_bloq_buffer();
+        assert!(!text.language.update_cursor(Some(1)));
+        assert!(text.language.completion.is_none());
+    }
+
+    #[test]
+    fn reverting_invalid_text_clears_stale_error() {
+        let graph = crate::resources::GraphState::default();
+        let mut text = ImportExportState::default();
+        text.refresh_from_graph(&graph);
+        let original = text.bloq_buffer.clone();
+        text.set_bloq_buffer("invalid".into());
+        text.sync_error =
+            crate::systems::jobs::analyze_live_blog(&text.bloq_buffer, text.bloq_revision)
+                .result
+                .err();
+        assert!(text.sync_error.is_some());
+        text.set_bloq_buffer(original);
+        assert!(!text.blocks_graph_editing());
+        assert!(text.sync_error.is_none());
+    }
+
+    #[test]
+    fn large_source_keystrokes_do_not_parse_before_debounce() {
+        let mut text = ImportExportState::default();
+        let graph = crate::resources::GraphState::default();
+        text.refresh_from_graph(&graph);
+        let large = "# comment\n".repeat(100_000);
+        let started = std::time::Instant::now();
+        for _ in 0..20 {
+            text.set_bloq_buffer(large.clone());
+            assert_eq!(text.take_analysis_request(graph.revision, false), None);
+            assert!(text.attempted_text_revision.is_none());
+        }
+        eprintln!(
+            "20 edits of {} bytes without parsing: {:?}",
+            large.len(),
+            started.elapsed()
+        );
+        text.last_text_edit -= std::time::Duration::from_secs(1);
+        assert_eq!(
+            text.take_analysis_request(graph.revision, false),
+            Some(true)
+        );
+        assert_eq!(text.take_analysis_request(graph.revision, false), None);
+        assert!(history_preview(&large).chars().count() < 450);
+        let single_line = "界".repeat(1_000_000);
+        assert_eq!(
+            history_preview(&single_line),
+            format!("{}\n({} bytes)", "界".repeat(400), single_line.len())
+        );
+    }
+
+    #[test]
+    fn changed_draft_cancels_pending_replacement_confirmation() {
+        let mut state = super::ImportExportState {
+            confirm_replace_text: true,
+            ..Default::default()
+        };
+        state.set_bloq_buffer("# newer draft".into());
+        assert!(!state.confirm_replace_text);
+    }
+
     use super::*;
     use glam::ivec3;
+
+    #[test]
+    fn text_history_virtualizes_rows_and_keeps_original_revision_indices() {
+        let ctx = egui::Context::default();
+        let history = (0..10_000)
+            .map(|i| format!("# draft {i}"))
+            .collect::<Vec<_>>();
+        let frame = |offset: Option<f32>, events| {
+            let mut selected = None;
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(300.0, 300.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ui| {
+                    if let Some(offset) = offset {
+                        let id = ui.make_persistent_id(egui::IdSalt::new("blog_text_history"));
+                        let mut state =
+                            egui::scroll_area::State::load(&ctx, id).unwrap_or_default();
+                        state.offset.y = offset;
+                        state.store(&ctx, id);
+                    }
+                    selected = draw_text_history(ui, &history);
+                },
+            );
+            let labels = output
+                .shapes
+                .iter()
+                .filter_map(|shape| match &shape.shape {
+                    egui::epaint::Shape::Text(text)
+                        if text.galley.text().starts_with("Revision ") =>
+                    {
+                        Some((
+                            text.galley.text().to_owned(),
+                            text.pos + egui::vec2(3.0, 3.0),
+                        ))
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            output.textures_delta.clear();
+            (selected, labels)
+        };
+        let click = |pos| {
+            vec![
+                egui::Event::PointerMoved(pos),
+                egui::Event::PointerButton {
+                    pos,
+                    button: egui::PointerButton::Primary,
+                    pressed: true,
+                    modifiers: egui::Modifiers::NONE,
+                },
+                egui::Event::PointerButton {
+                    pos,
+                    button: egui::PointerButton::Primary,
+                    pressed: false,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ]
+        };
+        let (_, labels) = frame(None, vec![]);
+        assert!(labels.len() < 20, "only viewport rows should be built");
+        let newest = labels
+            .iter()
+            .find(|(label, _)| label == "Revision 10000")
+            .unwrap()
+            .1;
+        assert_eq!(frame(None, click(newest)).0, Some(9999));
+        frame(Some(1_000_000.0), vec![]);
+        let (_, labels) = frame(None, vec![]);
+        assert!(labels.len() < 20);
+        let oldest = labels
+            .iter()
+            .find(|(label, _)| label == "Revision 1")
+            .unwrap()
+            .1;
+        assert_eq!(frame(None, click(oldest)).0, Some(0));
+        assert_eq!(history[0], "# draft 0");
+        assert_eq!(history.len(), 10_000);
+    }
+
+    #[test]
+    fn save_draft_exports_invalid_text_exactly_without_changing_state() {
+        let ctx = egui::Context::default();
+        let source = "# unfinished α draft\r\nBLOG 1.0\r\n0: ZXZ [";
+        let mut state = ImportExportState::default();
+        state.set_bloq_buffer(source.into());
+        state.sync_error = Some("unfinished".into());
+        let revision = state.bloq_revision;
+        let history = state.text_history.clone();
+        let mut intents = UiIntentBuffer::default();
+        let mut rect = egui::Rect::NOTHING;
+        let mut output = ctx.run_ui(Default::default(), |ui| {
+            rect = draw_save_draft(ui, &state, &mut intents).rect;
+        });
+        output.textures_delta.clear();
+        let pos = rect.center();
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                events: vec![
+                    egui::Event::PointerMoved(pos),
+                    egui::Event::PointerButton {
+                        pos,
+                        button: egui::PointerButton::Primary,
+                        pressed: true,
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                    egui::Event::PointerButton {
+                        pos,
+                        button: egui::PointerButton::Primary,
+                        pressed: false,
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ],
+                ..Default::default()
+            },
+            |ui| {
+                draw_save_draft(ui, &state, &mut intents);
+            },
+        );
+        output.textures_delta.clear();
+        let saved = intents.drain().collect::<Vec<_>>();
+        assert!(matches!(saved.as_slice(), [UiIntent::SaveBlogDraft(text)] if text == source));
+        assert_eq!(state.bloq_buffer, source);
+        assert_eq!(state.bloq_revision, revision);
+        assert_eq!(state.text_history, history);
+        assert_eq!(state.sync_error.as_deref(), Some("unfinished"));
+    }
 
     fn run_buffer_frame(
         context: &egui::Context,
@@ -1561,6 +2180,10 @@ mod tests {
         intents: &mut UiIntentBuffer,
         events: Vec<egui::Event>,
     ) -> egui::Id {
+        // UI-only fixture supplies the analysis normally delivered by jobs.
+        state
+            .language
+            .refresh(&state.bloq_buffer, state.bloq_revision);
         let mut editor_id = egui::Id::NULL;
         let mut output = context.run_ui(
             egui::RawInput {
@@ -1587,6 +2210,9 @@ mod tests {
             },
         );
         output.textures_delta.clear();
+        state
+            .language
+            .refresh(&state.bloq_buffer, state.bloq_revision);
         editor_id
     }
 
@@ -2069,6 +2695,43 @@ mod tests {
     }
 
     #[test]
+    fn graph_body_language_matches_application_and_preserves_source_lines() {
+        let source = "BLOG 1.0\n0: ZXZ [0,0,0]\n1: ZXZ [0,0,1]\n0 -> +Z\n2: XZX [3,0,0]\n3: XZX [3,0,1]\n2 -> +Z\n";
+        assert_eq!(BlockGraph::from_text(source).unwrap().block_count(), 4);
+        let mut language = BlogLanguageState::default();
+        language.refresh(source, 1);
+        assert!(language.diagnostic.is_none());
+        let line = source.find("2: XZX").unwrap();
+        assert!(
+            language
+                .index
+                .elements_at_line(line)
+                .unwrap()
+                .contains(&GraphElement::Block(IVec3::new(3, 0, 0)))
+        );
+        let pipe = source.find("2 ->").unwrap();
+        assert!(
+            language
+                .index
+                .elements_at_line(pipe)
+                .unwrap()
+                .contains(&GraphElement::Pipe(
+                    IVec3::new(3, 0, 0),
+                    IVec3::new(3, 0, 1)
+                ))
+        );
+        assert_eq!(format_blog(source).as_deref(), Some(source));
+        language.refresh("BLOG 1.0\n0: ZXZ [0,0,0]\n1: XZX [0,0,0]\n", 2);
+        assert!(language.diagnostic.is_some());
+        language.refresh("BLOG 1.0\n0: ZXZ [0,0,\n", 3);
+        assert!(language.diagnostic.as_ref().unwrap().span.unwrap().start > 9);
+        language.refresh(source, 4);
+        assert!(language.diagnostic.is_none());
+        language.refresh("BLOG 1.0\n", 5);
+        assert!(language.diagnostic.is_none());
+    }
+
+    #[test]
     fn language_analysis_is_cached_and_reports_parse_and_lower_errors() {
         let mut language = BlogLanguageState::default();
         let valid = "BLOG 1.0\n\nmodule main {\n}\n";
@@ -2094,6 +2757,24 @@ mod tests {
         let formatted = format_blog(source).unwrap();
         assert_eq!(formatted, expected);
         assert_eq!(format_blog(&formatted).unwrap(), formatted);
+    }
+
+    #[test]
+    fn stale_diagnostic_ranges_keep_unicode_layout_valid() {
+        let mut job = egui::text::LayoutJob::simple(
+            "é中".into(),
+            egui::FontId::monospace(12.0),
+            egui::Color32::WHITE,
+            f32::INFINITY,
+        );
+        underline_range(&mut job, &(1..3), egui::Color32::RED);
+        underline_range(&mut job, &(20..30), egui::Color32::RED);
+        assert!(job.sections.iter().all(|section| {
+            job.text.is_char_boundary(section.byte_range.start.0)
+                && job.text.is_char_boundary(section.byte_range.end.0)
+        }));
+        assert_eq!(job.sections.len(), 1);
+        assert_eq!(job.sections[0].format.underline.color, egui::Color32::RED);
     }
 
     #[test]

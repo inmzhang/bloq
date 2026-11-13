@@ -7,9 +7,9 @@ use crate::module_authoring::{
     ModuleEdit, edit_graph, module_elements, module_instance_at, translate_module,
 };
 use crate::resources::{
-    BloqViewerState, BoxSelectionState, CompileUiState, EditorMode, EditorState, EditorTabId,
-    EditorTabSnapshot, EditorTabs, GraphState, ImportExportState, LiveTabState, Notifications,
-    PendingBranchArm, TargetState, ZxViewerState,
+    ActionEditState, BloqViewerState, BoxSelectionState, CompileUiState, EditorMode, EditorState,
+    EditorTabId, EditorTabSnapshot, EditorTabs, GraphState, ImportExportState, LiveTabState,
+    Notifications, PendingBranchArm, TargetState, ZxViewerState,
 };
 use crate::systems::camera::reset_camera_to_graph;
 use crate::systems::input::{
@@ -56,7 +56,7 @@ pub(crate) fn apply_ui_intents_system(
     mut ui_intents: ResMut<UiIntentBuffer>,
     mut editor_state: ResMut<EditorState>,
     mut graph_state: ResMut<GraphState>,
-    mut target_state: ResMut<TargetState>,
+    drafts: (ResMut<TargetState>, ResMut<ActionEditState>),
     mut notifications: ResMut<Notifications>,
     mut import_export: ResMut<ImportExportState>,
     mut tabs: ResMut<EditorTabs>,
@@ -70,6 +70,7 @@ pub(crate) fn apply_ui_intents_system(
     tab_switch: TabSwitchResources,
     host: HostChannels,
 ) {
+    let (mut target_state, mut action_edit) = drafts;
     let (mut camera_transform, mut camera_settings) = camera_query.into_inner();
     let TabSwitchResources {
         mut box_selection,
@@ -80,6 +81,15 @@ pub(crate) fn apply_ui_intents_system(
         #[cfg(not(target_arch = "wasm32"))]
         mut app_exit,
     } = host;
+
+    import_export.refresh_from_graph(&graph_state);
+    crate::systems::jobs::schedule_live_blog(
+        &mut jobs,
+        tabs.active,
+        &graph_state,
+        &mut import_export,
+        false,
+    );
 
     let mut pending = ui_intents
         .drain()
@@ -303,6 +313,9 @@ pub(crate) fn apply_ui_intents_system(
                     &mut circuit_viewer,
                     program,
                 );
+                if result.is_ok() {
+                    import_export.mark_synchronized(graph_state.revision);
+                }
                 if !graph_state.is_composed() {
                     editor_state.set_mode(EditorMode::Edit, &mut graph_state);
                 }
@@ -363,6 +376,12 @@ pub(crate) fn apply_ui_intents_system(
                             Some(program),
                             None,
                         );
+                        // A module edit changes the graph, not the parent's draft.
+                        // Refresh clean text, or preserve pending text as a conflict.
+                        parent
+                            .snapshot
+                            .import_export
+                            .refresh_from_graph(&parent.snapshot.graph_state);
                         parent.snapshot.import_export.module_ui.error = None;
                         parent
                             .snapshot
@@ -950,6 +969,7 @@ pub(crate) fn apply_ui_intents_system(
                     &graph_state.graph,
                     editor_state.pipe_length,
                 );
+                import_export.mark_synchronized(graph_state.revision);
                 notifications.push_info(format!("Loaded {entry} example"));
             }
             UiIntent::FixShadowedFaces => {
@@ -1144,56 +1164,38 @@ pub(crate) fn apply_ui_intents_system(
                 import_export.set_bloq_buffer(buffer);
             }
             UiIntent::LoadBlogFromBuffer => {
-                if jobs.parse_blog_running() {
-                    notifications.push_warn("BLOG parse is already running");
-                    continue;
-                }
-                let buffer = import_export.bloq_buffer.clone();
-                let tab_id = if import_export.definition_edit.is_some() {
-                    tabs.active
-                } else {
-                    prepare_tab_for_import(
-                        &mut tabs,
-                        None,
-                        &mut LiveTabState {
-                            graph_state: &mut graph_state,
-                            editor_state: &mut editor_state,
-                            import_export: &mut import_export,
-                            compile_ui: &mut compile_ui,
-                            circuit_viewer: &mut circuit_viewer,
-                            zx_viewer: &mut zx_viewer,
-                            target_state: &mut target_state,
-                            box_selection: &mut box_selection,
-                            camera_settings: &mut camera_settings,
-                        },
-                    )
-                };
-                sync_camera_and_background(
-                    &mut clear_color,
-                    &mut camera_transform,
-                    &editor_state,
-                    &camera_settings,
-                );
-                schedule_parse_blog_job(
+                crate::systems::jobs::schedule_live_blog(
                     &mut jobs,
-                    tab_id,
-                    graph_state.revision,
-                    None,
-                    &buffer,
-                    &mut notifications,
+                    tabs.active,
+                    &graph_state,
+                    &mut import_export,
+                    true,
                 );
-                import_export.set_bloq_buffer(buffer);
             }
             UiIntent::StoreGraphToBuffer => match graph_state
                 .resolved_graph()
                 .map(|program| program.to_blog_text())
             {
                 Ok(blog) => {
-                    import_export.set_bloq_buffer(blog);
-                    notifications.push_info("Stored graph to buffer");
+                    import_export.replace_text_preserving_history(blog);
+                    import_export.mark_synchronized(graph_state.revision);
                 }
-                Err(error) => notifications.push_error(format!("Could not store BLOG: {error}")),
+                Err(error) => notifications.push_error(format!("Could not generate BLOG: {error}")),
             },
+            UiIntent::SaveBlogDraft(contents) => {
+                match crate::utils::save_download("bloq-draft.blog", contents.as_bytes()) {
+                    Ok(Some(location)) => {
+                        let action = if cfg!(target_arch = "wasm32") {
+                            "Download started for"
+                        } else {
+                            "Saved BLOG draft to"
+                        };
+                        notifications.push_info(format!("{action} {location}"))
+                    }
+                    Ok(None) => {}
+                    Err(err) => notifications.push_error_report("Failed to save BLOG draft", &err),
+                }
+            }
             UiIntent::SaveSvg {
                 file_name,
                 contents,
@@ -1205,13 +1207,27 @@ pub(crate) fn apply_ui_intents_system(
                 Ok(None) => {}
                 Err(err) => notifications.push_error_report("Failed to export SVG", &err),
             },
+            UiIntent::EditSelection => {
+                let selected = editor_state.selected_elements().collect::<Vec<_>>();
+                if let [element] = selected.as_slice() {
+                    editor_state.pipe_start = None;
+                    crate::systems::input::open_target_editor(
+                        *element,
+                        &graph_state,
+                        &mut target_state,
+                        &mut notifications,
+                    );
+                }
+            }
             UiIntent::ApplyElementEdit(edit) => {
-                apply_element_edit(
+                if apply_element_edit(
                     &mut editor_state,
                     &mut graph_state,
                     &mut notifications,
                     edit,
-                );
+                ) {
+                    close_element_editor(&mut editor_state, &mut target_state);
+                }
             }
             UiIntent::CloseElementEdit => {
                 close_element_editor(&mut editor_state, &mut target_state);
@@ -1220,13 +1236,15 @@ pub(crate) fn apply_ui_intents_system(
                 let summary = action.to_string();
                 let mut actions = graph_state.graph.actions();
                 actions.push(action);
-                apply_action_edit(
+                if apply_action_edit(
                     &mut graph_state,
                     &mut editor_state,
                     actions,
                     format!("Added `{summary}`"),
                     &mut notifications,
-                );
+                ) {
+                    action_edit.cancel();
+                }
             }
             UiIntent::ReplaceAction {
                 index,
@@ -1241,13 +1259,15 @@ pub(crate) fn apply_ui_intents_system(
                 }
                 let summary = action.to_string();
                 actions[index] = action;
-                apply_action_edit(
+                if apply_action_edit(
                     &mut graph_state,
                     &mut editor_state,
                     actions,
                     format!("Updated `{summary}`"),
                     &mut notifications,
-                );
+                ) {
+                    action_edit.cancel();
+                }
             }
             UiIntent::RemoveAction(index) => {
                 let mut actions = graph_state.graph.actions();
@@ -1631,17 +1651,17 @@ fn apply_action_edit(
     actions: Vec<Action>,
     success: String,
     notifications: &mut Notifications,
-) {
+) -> bool {
     let mut graph = graph_state.graph.clone();
     if let Err(err) = graph.set_actions_lenient(actions) {
         notifications.push_error(format!("Action rejected: {err}"));
-        return;
+        return false;
     }
     let warning = match graph.action_graph_error() {
         Some(err) if err.is_incomplete_action_program() => Some(err.to_string()),
         Some(err) => {
             notifications.push_error(format!("Action rejected: {err}"));
-            return;
+            return false;
         }
         None => None,
     };
@@ -1654,6 +1674,7 @@ fn apply_action_edit(
     } else {
         notifications.push_info(success);
     }
+    true
 }
 
 fn apply_element_edit(
@@ -1661,92 +1682,95 @@ fn apply_element_edit(
     graph_state: &mut GraphState,
     notifications: &mut Notifications,
     edit: ElementEditIntent,
-) {
+) -> bool {
     if !edit.tag.is_empty() && !bloq_graph::is_valid_tag(&edit.tag) {
         notifications.push_error(format!(
             "Failed to edit element: invalid tag `{}`",
             edit.tag
         ));
-        return;
+        return false;
     }
-    let mut changed = false;
-    let mut needs_rerender = false;
+    let mut candidate = graph_state.graph.clone();
+    let changed;
+    let needs_rerender;
     match edit.target {
         GraphElement::Block(pos) => {
-            if let Some(block) = graph_state.graph.get_block(pos) {
+            if let Some(block) = candidate.get_block(pos) {
                 let kind_changed = block.kind() != edit.block_kind;
                 let tag_changed = block.tag().unwrap_or("") != edit.tag;
                 let current_color = block.port_color().map(|color| [color.r, color.g, color.b]);
                 let current_role = block.port_role();
-                let desired_color = edit.block_kind.is_port().then(|| {
-                    edit.block_color
-                        .expect("Port edit intents carry a valid RGB color")
-                });
+                let desired_color = if edit.block_kind.is_port() {
+                    let Some(color) = edit.block_color else {
+                        notifications.push_error("A Port needs a valid RGB color");
+                        return false;
+                    };
+                    Some(color)
+                } else {
+                    None
+                };
                 let desired_role = edit.block_kind.is_port().then_some(edit.port_role);
                 let color_changed = current_color != desired_color;
                 let role_changed = current_role != desired_role;
-                if let Err(error) = graph_state.graph.set_block_kind(pos, edit.block_kind) {
+                if let Err(error) = candidate.set_block_kind(pos, edit.block_kind) {
                     notifications.push_error(format!("Failed to edit block kind: {error}"));
-                    return;
+                    return false;
                 }
-                if let Err(error) = graph_state.graph.set_block_tag(pos, edit.tag.clone()) {
+                if let Err(error) = candidate.set_block_tag(pos, edit.tag.clone()) {
                     notifications.push_error(format!("Failed to edit block tag: {error}"));
-                    return;
+                    return false;
                 }
                 if let Some(color) = desired_color
-                    && let Err(error) = graph_state.graph.set_port_color(pos, color)
+                    && let Err(error) = candidate.set_port_color(pos, color)
                 {
                     notifications.push_error(format!("Failed to edit Port color: {error}"));
-                    return;
+                    return false;
                 }
                 if let Some(role) = desired_role
-                    && let Err(error) = graph_state.graph.set_port_role(pos, role)
+                    && let Err(error) = candidate.set_port_role(pos, role)
                 {
                     notifications.push_error(format!("Failed to edit Port role: {error}"));
-                    return;
+                    return false;
                 }
-                notifications.push_info(format!(
-                    "Edited block at {} with kind {}, tag '{}'",
-                    pos, edit.block_kind, edit.tag
-                ));
                 changed = kind_changed || color_changed || role_changed || tag_changed;
                 needs_rerender = kind_changed
                     || color_changed
                     || (tag_changed && editor_state.show_port_tags && edit.block_kind.is_port());
             } else {
                 notifications.push_error(format!("Block not found at {}", pos));
+                return false;
             }
         }
         GraphElement::Pipe(u, v) => {
-            if let Some(pipe) = graph_state.graph.get_pipe(u, v) {
+            if let Some(pipe) = candidate.get_pipe(u, v) {
                 let hadamard_changed = pipe.is_hadamard() != edit.pipe_hadamard;
                 let tag_changed = pipe.tag().unwrap_or("") != edit.tag;
-                if let Err(error) = graph_state.graph.set_pipe_tag(u, v, edit.tag.clone()) {
+                if let Err(error) = candidate.set_pipe_tag(u, v, edit.tag.clone()) {
                     notifications.push_error(format!("Failed to edit pipe tag: {error}"));
-                    return;
+                    return false;
                 }
-                if let Err(error) = graph_state
-                    .graph
-                    .set_pipe_hadamard(u, v, edit.pipe_hadamard)
-                {
+                if let Err(error) = candidate.set_pipe_hadamard(u, v, edit.pipe_hadamard) {
                     notifications.push_error(format!("Failed to edit pipe Hadamard: {error}"));
-                    return;
+                    return false;
                 }
-                notifications.push_info(format!(
-                    "Edited pipe between {} and {} with tag '{}'",
-                    u, v, edit.tag
-                ));
                 changed = hadamard_changed || tag_changed;
                 needs_rerender = hadamard_changed;
             } else {
                 notifications.push_error(format!("Pipe not found between {} and {}", u, v));
+                return false;
             }
         }
     }
     if changed {
+        graph_state.graph = candidate;
         graph_state.commit_with_rerender(needs_rerender);
         editor_state.sync_after_graph_edit(graph_state);
+        notifications.push_info(match edit.target {
+            GraphElement::Block(_) => "Block updated",
+            GraphElement::Pipe(_, _) => "Pipe updated",
+        });
     }
+    true
 }
 
 fn close_element_editor(editor_state: &mut EditorState, target_state: &mut TargetState) {
@@ -1834,7 +1858,11 @@ fn tab_has_work(
     !graph_state.graph.is_empty()
         || graph_state.source_graph.is_some()
         || graph_state.history.len() > 1
-        || !import_export.bloq_buffer.is_empty()
+        || import_export.blocks_graph_editing()
+        || !import_export.text_history().is_empty()
+        || (!import_export.bloq_buffer.trim().is_empty()
+            && import_export.bloq_buffer.trim() != BlockGraph::new().to_blog_text().trim())
+        || (import_export.synced_text_is_uninitialized() && !import_export.bloq_buffer.is_empty())
 }
 
 #[cfg(test)]
@@ -1873,6 +1901,7 @@ mod tests {
             .init_resource::<BloqViewerState>()
             .init_resource::<ZxViewerState>()
             .init_resource::<BoxSelectionState>()
+            .init_resource::<super::ActionEditState>()
             .init_resource::<crate::systems::ui::PendingTabClose>()
             .init_resource::<bevy_egui::EguiUserTextures>()
             .add_message::<bevy::app::AppExit>()
@@ -2212,6 +2241,51 @@ mod tests {
     }
 
     #[test]
+    fn module_apply_preserves_pending_parent_text_as_conflict() {
+        use super::UiIntent;
+        let mut app = intent_app();
+        let stage = crate::module_authoring::tests::stage();
+        {
+            let mut state = app.world_mut().resource_mut::<GraphState>();
+            state.graph = stage.flatten().unwrap();
+            state.source_graph = Some(std::sync::Arc::new(stage));
+            state.commit();
+        }
+        apply_intent(&mut app, UiIntent::WrapAsModule("Memory".into()));
+        apply_intent(&mut app, UiIntent::StoreGraphToBuffer);
+        let parent = app.world().resource::<EditorTabs>().active;
+        apply_intent(&mut app, UiIntent::OpenModule("Memory".into()));
+        {
+            let mut state = app.world_mut().resource_mut::<GraphState>();
+            state.graph.set_block_tag(IVec3::Z, "updated").unwrap();
+            state.commit();
+        }
+        let pending = "unfinished parent draft // keep exactly\n";
+        {
+            let mut tabs = app.world_mut().resource_mut::<EditorTabs>();
+            let parent_tab = tabs.tabs.iter_mut().find(|tab| tab.id == parent).unwrap();
+            parent_tab
+                .snapshot
+                .import_export
+                .set_bloq_buffer(pending.into());
+        }
+        apply_intent(&mut app, UiIntent::ApplyModuleTab);
+        assert_eq!(app.world().resource::<EditorTabs>().active, parent);
+        let text = app.world().resource::<ImportExportState>();
+        assert_eq!(text.bloq_buffer, pending);
+        assert!(text.sync_conflict);
+        assert!(text.blocks_graph_editing());
+        assert!(
+            app.world()
+                .resource::<GraphState>()
+                .resolved_graph()
+                .unwrap()
+                .to_blog_text()
+                .contains("updated")
+        );
+    }
+
+    #[test]
     fn module_editing_tabs_update_all_instances_with_undo_and_stale_edit_protection() {
         use super::{ModuleEdit, UiIntent};
         let mut app = intent_app();
@@ -2241,6 +2315,7 @@ mod tests {
             .resolved_graph()
             .unwrap()
             .to_blog_text();
+        apply_intent(&mut app, UiIntent::StoreGraphToBuffer);
         apply_intent(&mut app, UiIntent::OpenModule("Memory".into()));
         let child = app.world().resource::<EditorTabs>().active;
         assert_ne!(child, parent);
@@ -2251,6 +2326,17 @@ mod tests {
         }
         apply_intent(&mut app, UiIntent::ApplyModuleTab);
         assert_eq!(app.world().resource::<EditorTabs>().active, parent);
+        let text = app.world().resource::<ImportExportState>();
+        assert_eq!(
+            text.bloq_buffer,
+            app.world()
+                .resource::<GraphState>()
+                .resolved_graph()
+                .unwrap()
+                .to_blog_text()
+        );
+        assert!(text.text_history().contains(&before));
+        assert!(!text.blocks_graph_editing());
         assert_eq!(
             app.world()
                 .resource::<GraphState>()
@@ -2560,6 +2646,75 @@ mod tests {
     }
 
     #[test]
+    fn rejected_action_keeps_populated_draft_and_success_closes_it() {
+        use bloq_graph::{Action, Expr};
+        for replace in [false, true] {
+            let mut app = intent_app();
+            let original = Action::Let {
+                name: "a".into(),
+                expr: Expr::Var("m0".into()),
+            };
+            let invalid = Action::Let {
+                name: "m0".into(),
+                expr: Expr::Var("m0".into()),
+            };
+            let mut graph = bloq_graph::BlockGraph::default();
+            graph
+                .set_actions_with_inputs(vec![original.clone()], ["m0".into()])
+                .unwrap();
+            app.world_mut().resource_mut::<GraphState>().graph = graph.clone();
+            app.world_mut()
+                .resource_mut::<super::ActionEditState>()
+                .edit(0, &invalid, &graph);
+            let before = app
+                .world()
+                .resource::<super::ActionEditState>()
+                .draft
+                .clone();
+            let revision = app.world().resource::<GraphState>().revision;
+            let history_len = app.world().resource::<GraphState>().history.len();
+            apply_intent(
+                &mut app,
+                if replace {
+                    super::UiIntent::ReplaceAction {
+                        index: 0,
+                        expected: vec![original.clone()],
+                        action: invalid,
+                    }
+                } else {
+                    super::UiIntent::AddAction(invalid)
+                },
+            );
+            assert_eq!(
+                app.world().resource::<super::ActionEditState>().draft,
+                before
+            );
+            let current = app.world().resource::<GraphState>();
+            assert_eq!(current.graph.actions(), std::slice::from_ref(&original));
+            assert_eq!(current.revision, revision);
+            assert_eq!(current.history.len(), history_len);
+            apply_intent(
+                &mut app,
+                super::UiIntent::ReplaceAction {
+                    index: 0,
+                    expected: vec![original],
+                    action: Action::Let {
+                        name: "fixed".into(),
+                        expr: Expr::Var("m0".into()),
+                    },
+                },
+            );
+            assert!(
+                app.world()
+                    .resource::<super::ActionEditState>()
+                    .draft
+                    .is_none()
+            );
+            assert_eq!(app.world().resource::<GraphState>().revision, revision + 1);
+        }
+    }
+
+    #[test]
     fn action_edit_commits_without_physical_analysis() {
         let mut graph_state = GraphState {
             graph: GalleryItem::T.build().flatten().unwrap(),
@@ -2577,6 +2732,40 @@ mod tests {
 
         assert_eq!(graph_state.revision, 1);
         assert!(!graph_state.graph.action_graph().is_analyzed());
+    }
+
+    #[test]
+    fn failed_attribute_edit_preserves_graph_history_and_dialog_draft() {
+        let mut app = intent_app();
+        app.world_mut()
+            .resource_mut::<GraphState>()
+            .graph
+            .add_block(Block::new(IVec3::ZERO, BlockKind::Cube(CubeKind::ZXZ)));
+        {
+            let mut dialog = app.world_mut().resource_mut::<TargetState>();
+            dialog.open_window = true;
+            dialog.target = Some(GraphElement::Block(IVec3::ZERO));
+            dialog.tag_buffer = "unfinished".into();
+        }
+        let before = app.world().resource::<GraphState>().graph.to_blog_text();
+        apply_intent(
+            &mut app,
+            super::UiIntent::ApplyElementEdit(ElementEditIntent {
+                target: GraphElement::Block(IVec3::ZERO),
+                block_kind: BlockKind::Port,
+                block_color: None,
+                port_role: bloq_graph::PortRole::Auto,
+                tag: "new_tag".into(),
+                pipe_hadamard: false,
+            }),
+        );
+        let graph = app.world().resource::<GraphState>();
+        assert_eq!(graph.graph.to_blog_text(), before);
+        assert_eq!(graph.revision, 0);
+        let dialog = app.world().resource::<TargetState>();
+        assert!(dialog.open_window);
+        assert_eq!(dialog.tag_buffer, "unfinished");
+        assert_eq!(dialog.target, Some(GraphElement::Block(IVec3::ZERO)));
     }
 
     #[test]
@@ -2907,6 +3096,23 @@ mod tests {
             "unsaved BLOG draft"
         );
         assert!(import_export.bloq_buffer.is_empty());
+    }
+
+    #[test]
+    fn close_confirmation_preserves_synced_comments_and_retained_text_history() {
+        let tabs = EditorTabs::default();
+        let graph = GraphState::default();
+        let mut text = ImportExportState::default();
+        text.set_bloq_buffer(bloq_graph::BlockGraph::new().to_blog_text());
+        text.mark_synchronized(graph.revision);
+        assert!(!tab_has_work(tabs.active, &tabs, &graph, &text));
+        text.set_bloq_buffer("BLOG 1.0\n# research notes".into());
+        text.mark_synchronized(graph.revision);
+        assert!(tab_has_work(tabs.active, &tabs, &graph, &text));
+        text.set_bloq_buffer(bloq_graph::BlockGraph::new().to_blog_text());
+        text.mark_synchronized(graph.revision);
+        text.restore_text_history(vec!["unfinished important draft".into()]);
+        assert!(tab_has_work(tabs.active, &tabs, &graph, &text));
     }
 
     #[test]

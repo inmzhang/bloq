@@ -169,7 +169,11 @@ fn draw_dock_item(
     };
 
     let (rect, response) = ui.allocate_exact_size(DOCK_ITEM_SIZE, egui::Sense::click());
-    let response = response.on_hover_text(dock_item_label(item));
+    let response = response.on_hover_text(format!(
+        "{}\n{}",
+        dock_item_label(item),
+        dock_item_hint(item)
+    ));
     response.widget_info(|| {
         egui::WidgetInfo::selected(
             egui::WidgetType::SelectableLabel,
@@ -273,5 +277,19 @@ fn dock_item_key(item: DockItem) -> PlacementPreviewKind {
     match item {
         DockItem::Block(kind) => PlacementPreviewKind::Block(kind),
         DockItem::Pipe => PlacementPreviewKind::Pipe,
+    }
+}
+
+fn dock_item_hint(item: DockItem) -> &'static str {
+    match item {
+        DockItem::Pipe => {
+            "Click a starting block, then an adjacent endpoint. WASD / Up / Down extend or follow existing pipes. Enable Hadamard in the toolbar instead of holding H."
+        }
+        DockItem::Block(kind) if kind.is_walking() || kind.is_patch_rotation() => {
+            "Place on an empty grid cell, then choose a highlighted endpoint. Double-click an existing block to edit its attributes."
+        }
+        DockItem::Block(_) => {
+            "Click an empty grid cell to place. Double-click an existing block to edit its attributes. J/K change the placement layer."
+        }
     }
 }

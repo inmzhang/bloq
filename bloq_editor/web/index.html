@@ -179,6 +179,36 @@
       }).catch(() => {});
 
       let startupComplete = false;
+      let renderFailed = false;
+
+      // egui listens for clipboard events on document even when its canvas is
+      // unfocused. Keep these out of the frozen editor, without preventing
+      // native defaults such as copying the error message.
+      for (const type of ["paste", "copy", "cut"]) {
+        window.addEventListener(type, (event) => {
+          if (renderFailed) event.stopImmediatePropagation();
+        }, { capture: true });
+      }
+
+      window.showBloqRenderFailure = (detail) => {
+        if (renderFailed) return;
+        renderFailed = true;
+        for (const canvas of document.querySelectorAll("canvas")) {
+          canvas.blur();
+          canvas.inert = true;
+        }
+        showLoadError("Editor rendering stopped.",
+          "The graphics device or renderer failed. Editing is paused. " +
+          "Background recovery saving may still finish, but your latest edits " +
+          "may not be persisted. Wait a moment before reloading. " + detail);
+        loadingScreen.style.cssText =
+          "display:flex;position:fixed;inset:0;z-index:1000;background:var(--web-bg-color)";
+        loadingScreen.setAttribute("role", "alertdialog");
+        loadingScreen.setAttribute("aria-label", "Editor rendering stopped");
+        const retry = loadingScreen.querySelector("button");
+        retry.textContent = "Reload editor";
+        retry.focus();
+      };
 
       function loadingScreenVisible() {
         return loadingScreen.style.display !== "none";
@@ -289,9 +319,23 @@
               }
 
               addedNode.setAttribute("aria-label", "Bloq graph editor");
+              addedNode.inert = renderFailed;
               suppressCanvasMouseDefaults(addedNode);
+              // The focused canvas owns editor shortcuts, not the surrounding
+              // page. Leave C/X/V alone so native clipboard events still fire.
+              addedNode.addEventListener("keydown", (event) => {
+                // Tab navigates egui fields (or completes BLOG), rather than
+                // moving browser focus out of the canvas mid-edit. Browser
+                // Ctrl/Alt/Meta shortcuts and native clipboard remain intact.
+                const editorTab = event.key === "Tab" &&
+                  !event.ctrlKey && !event.altKey && !event.metaKey;
+                if (editorTab || ((event.metaKey || event.ctrlKey) && !event.altKey &&
+                    ["a", "z", "y", "d"].includes(event.key.toLowerCase()))) {
+                  event.preventDefault();
+                }
+              });
               startupComplete = true;
-              loadingScreen.style.display = "none";
+              if (!renderFailed) loadingScreen.style.display = "none";
               observer.disconnect();
               return;
             }

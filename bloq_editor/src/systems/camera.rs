@@ -195,8 +195,10 @@ pub(crate) fn camera_control_system(
     // Trackpad users on the web demo have no middle button, so `Alt` + left-drag
     // is offered as an orbit alias (the Maya/industry convention). Right-drag pan
     // keeps priority so a held `Alt` never hijacks a pan gesture.
-    let pan = mouse_button_input.pressed(MouseButton::Right);
+    let shift_held = keyboard_input.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
     let alt_held = keyboard_input.any_pressed([KeyCode::AltLeft, KeyCode::AltRight]);
+    let pan = mouse_button_input.pressed(MouseButton::Right)
+        || (shift_held && alt_held && mouse_button_input.pressed(MouseButton::Left));
     let orbit = mouse_button_input.pressed(MouseButton::Middle)
         || (alt_held && mouse_button_input.pressed(MouseButton::Left));
 

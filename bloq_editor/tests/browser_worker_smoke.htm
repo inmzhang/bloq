@@ -12,9 +12,11 @@
     let ticks = 0;
     let started = false;
     let stages = [];
+    let timeout;
     const timer = setInterval(() => { if (started) ticks++; }, 10);
     try {
       return await new Promise((resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error(`Worker timed out: ${request.operation || "compile"}`)), 120000);
         worker.onerror = (event) => reject(new Error(event.message));
         worker.onmessageerror = () => reject(new Error("Unreadable worker message"));
         worker.onmessage = ({ data }) => {
@@ -40,6 +42,48 @@
       });
     } finally {
       clearInterval(timer);
+      clearTimeout(timeout);
+      worker.terminate();
+    }
+  }
+
+  // Sequential protocol check: one WASM initialization, then fresh revisions
+  // and baselines on the same worker, including recovery after invalid text.
+  async function warmBlogWorker(source) {
+    const worker = new Worker("./compile_worker.js", { type: "module" });
+    const requests = [
+      { source, revision: "1" },
+      { source: "invalid BLOG", revision: "2" },
+      { source: source + "\n# comment\n", baseline: source, revision: "3" },
+    ];
+    const durations = [];
+    let started = performance.now();
+    let timeout;
+    try {
+      return await new Promise((resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error("Warm BLOG worker timed out")), 120000);
+        worker.onerror = (event) => reject(new Error(event.message));
+        worker.onmessageerror = () => reject(new Error("Unreadable warm BLOG response"));
+        const send = () => worker.postMessage({ operation: "analyze-blog", ...requests[durations.length] });
+        worker.onmessage = ({ data }) => {
+          if (data.kind === "ready") send();
+          else if (data.kind === "complete") {
+            try {
+              const analysis = JSON.parse(data.analysisJson);
+              const index = durations.length;
+              if (String(analysis.language.revision) !== requests[index].revision) throw new Error("Warm worker returned stale revision");
+              if (index === 0 && !analysis.result.Ok?.Changed) throw new Error("Warm worker lacked initial graph");
+              if (index === 1 && !analysis.result.Err) throw new Error("Warm worker lost invalid-source diagnostic");
+              if (index === 2 && analysis.result.Ok !== "Unchanged") throw new Error("Warm worker lost new baseline");
+              durations.push(Math.round(performance.now() - started));
+              if (durations.length === requests.length) resolve(durations);
+              else { started = performance.now(); send(); }
+            } catch (error) { reject(error); }
+          } else if (data.kind === "error") reject(new Error(data.message));
+        };
+      });
+    } finally {
+      clearTimeout(timeout);
       worker.terminate();
     }
   }
@@ -102,9 +146,42 @@ module main {
     await runWorker(request, { cancelAtStage: true });
     const restarted = await runWorker(request);
     if (!restarted.graphJson) throw new Error("ZX worker did not restart after cancellation");
-    status.textContent = `PASS: graph ${graphResult.bytes.length} bytes; named graph ${small.bytes.length} bytes; hierarchy ${composed.bytes.length} bytes; ${small.stages.length} stages; larger compile ${large.ticks} UI timer ticks; external-input ZX/max-u64 seed, independent compile, cancellation and restart`;
+    const warmTimes = await warmBlogWorker(graph);
+    const blogRequest = (source) => ({ operation: "analyze-blog", source, revision: "18446744073709551615" });
+    const bigBlog = "BLOG 1.0\n" + Array.from({ length: 12000 }, (_, i) => `${i}: ZXZ [${i * 2},0,0]`).join("\n");
+    const [blog, imported, parallelCompile] = await Promise.all([
+      runWorker(blogRequest(bigBlog)),
+      runWorker({ operation: "analyze-blog", source: hierarchy, revision: "0" }),
+      compile(cnot, 3),
+    ]);
+    const importedAnalysis = JSON.parse(imported.analysisJson);
+    if (!importedAnalysis.result.Ok?.Changed) throw new Error("Independent file import did not return a replacement graph");
+    const analysis = JSON.parse(blog.analysisJson);
+    if (!analysis.result.Ok?.Changed || analysis.result.Ok.Changed[0].encoding !== "Geometry" || analysis.result.Ok.Changed[0].data.blocks.length !== 12000) {
+      throw new Error("BLOG worker failed to prepare flat geometry transport");
+    }
+    if (blog.ticks < 1) throw new Error("Main-thread timer did not tick during BLOG analysis");
+    if (!parallelCompile.bytes.length) throw new Error("BLOG analysis disrupted compilation");
+    const noop = JSON.parse((await runWorker({ ...blogRequest(graph + "\n# comment-only edit\n"), baseline: graph })).analysisJson);
+    if (noop.result.Ok !== "Unchanged") throw new Error("BLOG worker lost semantic no-op baseline");
+    const document = JSON.parse((await runWorker(blogRequest("BLOG 1.0\nmodule main {\n0: ZXZ [0,0,0]\nm = measure 0\n}\n"))).analysisJson);
+    if (!document.result.Ok?.Changed || document.result.Ok.Changed[1]?.encoding !== "Document") throw new Error("Single-module action source did not use typed transport");
+    const invalidBlog = JSON.parse((await runWorker(blogRequest("invalid BLOG"))).analysisJson);
+    if (!invalidBlog.result.Err || !invalidBlog.language.diagnostic) throw new Error("Invalid BLOG lacked an error and diagnostic");
+    const moduleBlog = JSON.parse((await runWorker(blogRequest(hierarchy))).analysisJson);
+    if (!moduleBlog.result.Ok?.Changed || moduleBlog.result.Ok.Changed[1].encoding !== "Snapshot") throw new Error("Hierarchical BLOG did not preserve source metadata");
+    const branchSource = "BLOG 1.0\n8: Port [3,0,-3] role=input\n9: Z [3,0,-2]\n8 -> +Z\n11: Port [0,0,-2] role=input\n10: ZXZ [0,0,-1]\n11 -> +Z\n[0,0,-1] -> +Z\nbranch b {\n false {\n 1: Z [0,0,0]\n }\n true {\n 2: Z [0,0,0]\n }\n}\nm = measure 9\nresolve b if m\n";
+    const branched = JSON.parse((await runWorker(blogRequest(branchSource))).analysisJson);
+    if (!branched.result.Ok?.Changed?.some((wire) => wire?.encoding === "Snapshot")) throw new Error(`Branch graph did not use checked snapshot transport: ${JSON.stringify(branched.result).slice(0,1000)}`);
+    const inputSource = "BLOG 1.0\nmodule main {\n in enabled\n in q: data = 0\n out r: data = 2\n 0: Port [0,0,0] role=input\n 1: ZXZ [0,0,1]\n 2: Port [0,0,2] role=output\n 0 -> +Z\n 1 -> +Z\n feedback X 1 if enabled\n}\n";
+    const withInput = JSON.parse((await runWorker(blogRequest(inputSource))).analysisJson);
+    if (withInput.result.Ok?.Changed?.[1]?.encoding !== "Snapshot") throw new Error("External-input source did not use checked snapshot transport");
+    await runWorker(blogRequest(bigBlog), { cancelAtStage: true });
+    const blogRestarted = JSON.parse((await runWorker(blogRequest(graph))).analysisJson);
+    if (!blogRestarted.result.Ok) throw new Error("BLOG worker did not restart after cancellation");
+    status.textContent = `PASS: graph ${graphResult.bytes.length} bytes; named graph ${small.bytes.length} bytes; hierarchy ${composed.bytes.length} bytes; ${small.stages.length} stages; larger compile ${large.ticks} UI timer ticks; external-input ZX/max-u64 seed, independent compile, cancellation and restart; BLOG worker cold/warm-invalid/warm-noop ${warmTimes.join("/")}ms; BLOG 12000 blocks / ${blog.ticks} UI ticks, parallel file import, diagnostics, hierarchy/branch/external-input snapshots, cancellation/restart`;
   } catch (error) {
-    status.textContent = `FAIL: ${error.stack || error}`;
+    status.textContent = `FAIL: ${error.message || error}\n${error.stack || ""}`;
     throw error;
   }
 </script>

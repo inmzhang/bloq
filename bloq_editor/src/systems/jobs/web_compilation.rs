@@ -28,6 +28,9 @@ thread_local! {
     // Browser UI work is single-threaded; Bevy's EditorJobs must remain Send + Sync.
     static CURRENT: RefCell<Option<WorkerTask>> = const { RefCell::new(None) };
     static CURRENT_ZX: RefCell<Option<WorkerTask>> = const { RefCell::new(None) };
+    static CURRENT_BLOG: RefCell<Option<WorkerTask>> = const { RefCell::new(None) };
+    static IDLE_BLOG: RefCell<Option<WorkerTask>> = const { RefCell::new(None) };
+    static CURRENT_BLOG_IMPORT: RefCell<Option<WorkerTask>> = const { RefCell::new(None) };
 }
 
 pub(super) fn start(source: &BlockGraph, request: &CompileRequest) -> Result<(), String> {
@@ -111,6 +114,111 @@ pub(super) fn cancel_zx_simplification() {
     });
 }
 
+/// Independent of compilation and ZX jobs. Replacing a stale request must
+/// cancel its worker first so old text never consumes the next result slot.
+pub(super) fn start_live_blog(
+    source: &str,
+    revision: u64,
+    baseline: Option<&str>,
+) -> Result<(), String> {
+    CURRENT_BLOG.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        if slot.is_some() {
+            return Err("BLOG analysis is already running".into());
+        }
+        let request = blog_request(source, revision, baseline);
+        let idle = IDLE_BLOG.with(|idle| idle.borrow_mut().take());
+        *slot = Some(match idle {
+            Some(worker) if worker.state.borrow().result.is_none() => {
+                worker.send(request)?;
+                worker
+            }
+            _ => WorkerTask::start(request)?,
+        });
+        Ok(())
+    })
+}
+
+fn start_blog(
+    slot: &mut Option<WorkerTask>,
+    source: &str,
+    revision: u64,
+    baseline: Option<&str>,
+) -> Result<(), String> {
+    if slot.is_some() {
+        return Err("BLOG analysis is already running".into());
+    }
+    *slot = Some(WorkerTask::start(blog_request(source, revision, baseline))?);
+    Ok(())
+}
+
+fn blog_request(source: &str, revision: u64, baseline: Option<&str>) -> js_sys::Object {
+    let message = js_sys::Object::new();
+    set(&message, "operation", &JsValue::from_str("analyze-blog"));
+    set(&message, "source", &JsValue::from_str(source));
+    set(
+        &message,
+        "revision",
+        &JsValue::from_str(&revision.to_string()),
+    );
+    if let Some(baseline) = baseline {
+        set(&message, "baseline", &JsValue::from_str(baseline));
+    }
+    message
+}
+
+pub(super) fn poll_live_blog() -> Option<Result<super::LiveBlogAnalysis, String>> {
+    CURRENT_BLOG.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        let result = slot.as_ref()?.state.borrow_mut().result.take()?;
+        let worker = slot.take();
+        let analysis = result.and_then(decode_blog);
+        // A parse diagnostic is a successful analysis. Transport/runtime errors
+        // discard the worker; only a fully consumed response can become idle.
+        if analysis.is_ok() {
+            IDLE_BLOG.with(|idle| *idle.borrow_mut() = worker);
+        }
+        Some(analysis)
+    })
+}
+
+fn poll_blog(slot: &mut Option<WorkerTask>) -> Option<Result<super::LiveBlogAnalysis, String>> {
+    WorkerTask::poll(slot).map(|result| result.and_then(decode_blog))
+}
+
+fn decode_blog(message: JsValue) -> Result<super::LiveBlogAnalysis, String> {
+    let json = field(&message, "analysisJson")
+        .as_string()
+        .ok_or("BLOG worker returned invalid analysis")?;
+    super::live_blog_transport::decode(&json)
+}
+
+/// Explicit imports must not contend with the live-draft worker slot.
+pub(super) fn start_blog_import(source: &str) -> Result<(), String> {
+    CURRENT_BLOG_IMPORT.with(|slot| start_blog(&mut slot.borrow_mut(), source, 0, None))
+}
+
+pub(super) fn poll_blog_import() -> Option<Result<super::ParsedBlog, String>> {
+    CURRENT_BLOG_IMPORT
+        .with(|slot| poll_blog(&mut slot.borrow_mut()))
+        .map(|result| {
+            result
+                .and_then(|analysis| analysis.result)
+                .and_then(|result| match result {
+                    super::LiveBlogResult::Changed(parsed) => Ok(*parsed),
+                    super::LiveBlogResult::Unchanged => {
+                        Err("Import worker unexpectedly returned no graph".into())
+                    }
+                })
+        })
+}
+
+pub(super) fn cancel_live_blog() {
+    CURRENT_BLOG.with(|slot| {
+        slot.borrow_mut().take();
+    });
+}
+
 fn decode_compilation(message: JsValue) -> Result<WorkerResult, String> {
     let bytes: Uint8Array = field(&message, "bytes")
         .dyn_into()
@@ -133,7 +241,7 @@ struct State {
     result: Option<Result<JsValue, String>>,
 }
 
-/// One browser job. Dropping it terminates the Worker.
+/// A browser worker with at most one request in flight. Drop terminates it.
 struct WorkerTask {
     worker: Worker,
     state: Rc<RefCell<State>>,
@@ -156,11 +264,14 @@ impl WorkerTask {
         let on_message = {
             let state = Rc::clone(&state);
             let worker = worker.clone();
+            let mut initial_request = Some(request);
             Closure::<dyn FnMut(MessageEvent)>::new(move |event: MessageEvent| {
                 let data = event.data();
                 match field(&data, "kind").as_string().as_deref() {
                     Some("ready") => {
-                        if let Err(error) = worker.post_message(&request) {
+                        if let Some(request) = initial_request.take()
+                            && let Err(error) = worker.post_message(&request)
+                        {
                             state.borrow_mut().result =
                                 Some(Err(format!("Cannot send worker request: {error:?}")));
                         }
@@ -204,6 +315,15 @@ impl WorkerTask {
             _on_error: on_error,
             _on_message_error: on_message_error,
         })
+    }
+
+    /// Only used after a completed response has been consumed. The initial
+    /// ready callback already ran, so there is no startup handshake to repeat.
+    fn send(&self, request: js_sys::Object) -> Result<(), String> {
+        self.state.borrow_mut().stage = None;
+        self.worker
+            .post_message(&request)
+            .map_err(|error| format!("Cannot send worker request: {error:?}"))
     }
 
     fn poll(slot: &mut Option<Self>) -> Option<Result<JsValue, String>> {
@@ -285,4 +405,22 @@ pub fn simplify_zx_in_worker(source: &str, seed: u64) -> Result<String, JsValue>
     post_stage("Preparing ZX layout");
     let view = SimplifiedZxView::new(graph);
     encode_zx_worker_view(&view).map_err(|error| JsValue::from_str(&format!("{error:#}")))
+}
+
+/// Performs language analysis, parsing, module materialization and face repair
+/// in a real browser Worker, not the browser's single-threaded async executor.
+#[wasm_bindgen]
+#[expect(
+    unreachable_pub,
+    reason = "wasm-bindgen exports require pub from a private module"
+)]
+pub fn analyze_blog_in_worker(
+    source: &str,
+    revision: u64,
+    baseline: Option<String>,
+) -> Result<String, JsValue> {
+    post_stage("Analyzing BLOG");
+    let analysis = super::analyze_live_blog_against(source, revision, baseline.as_deref());
+    post_stage("Preparing BLOG result");
+    super::live_blog_transport::encode(analysis).map_err(|error| JsValue::from_str(&error))
 }
