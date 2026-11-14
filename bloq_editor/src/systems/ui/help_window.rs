@@ -18,7 +18,6 @@ const HELP_BINDINGS: &[(&str, &str)] = &[
     ("Duplicate Selection", "Ctrl + D (View)"),
     ("Plane Height Down", "J"),
     ("Plane Height Up", "K"),
-    ("View Mode", "V"),
     ("Toggle View / Edit", "Space"),
     ("Module workspace", "M"),
     ("BLOG Buffer", "B"),
@@ -52,7 +51,7 @@ const HELP_BINDINGS: &[(&str, &str)] = &[
     ("Delete Selected", "Delete / Backspace"),
     (
         "Translate Graph / Selection",
-        "< / > / ^ / Shift+V / z< / z> (View)",
+        "< / > / ^ / v / z< / z> (View)",
     ),
     ("Rotate Graph / Selection CCW / CW", "r / R (View)"),
     ("Fill Ports / Cycle Filled Variants", "F"),

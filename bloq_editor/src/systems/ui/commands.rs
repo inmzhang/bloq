@@ -220,7 +220,6 @@ impl Command {
         match self {
             Self::CopyGraphAsBlog => Some("Ctrl + C (View)"),
             Self::DuplicateSelection => Some("Ctrl + D (View)"),
-            Self::SetMode(EditorMode::View) => Some("V"),
             Self::SetMode(EditorMode::Module) => Some("M"),
             Self::SetMode(EditorMode::Bloq) => Some("C"),
             Self::FillPorts => Some("F"),

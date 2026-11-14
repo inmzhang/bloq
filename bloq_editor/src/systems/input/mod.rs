@@ -291,8 +291,10 @@ pub(crate) fn duplicate_selection_intent(
 }
 
 fn view_translation_shortcut(keys: &ButtonInput<KeyCode>) -> Option<(UDirection, i32)> {
-    let shift = shortcut_shift(keys);
-    if !shift {
+    if keys.just_pressed(KeyCode::KeyV) {
+        return Some((UDirection::Y, -1));
+    }
+    if !shortcut_shift(keys) {
         return None;
     }
     let xz = if keys.pressed(KeyCode::KeyZ) {
@@ -304,7 +306,6 @@ fn view_translation_shortcut(keys: &ButtonInput<KeyCode>) -> Option<(UDirection,
         (KeyCode::Comma, (xz, -1)),
         (KeyCode::Period, (xz, 1)),
         (KeyCode::Digit6, (UDirection::Y, 1)),
-        (KeyCode::KeyV, (UDirection::Y, -1)),
     ]
     .into_iter()
     .find_map(|(key, transform)| keys.just_pressed(key).then_some(transform))
@@ -366,9 +367,6 @@ fn edit_system(
     }
     if plain_key && keys.just_pressed(KeyCode::KeyK) {
         change_plane_height(1, &mut editor_state, &mut graph_state);
-    }
-    if plain_key && !shortcut_shift(&keys) && keys.just_pressed(KeyCode::KeyV) {
-        editor_state.set_mode(EditorMode::View, &mut graph_state);
     }
     if plain_key && keys.just_pressed(KeyCode::Space) {
         let mode = if editor_state.mode == EditorMode::View {
@@ -2161,6 +2159,7 @@ mod tests {
         let cases: &[(&[KeyCode], (UDirection, i32))] = &[
             (&[KeyCode::ShiftLeft, KeyCode::Comma], (UDirection::X, -1)),
             (&[KeyCode::ShiftLeft, KeyCode::Digit6], (UDirection::Y, 1)),
+            (&[KeyCode::KeyV], (UDirection::Y, -1)),
             (&[KeyCode::ShiftLeft, KeyCode::KeyV], (UDirection::Y, -1)),
             (
                 &[KeyCode::KeyZ, KeyCode::ShiftLeft, KeyCode::Period],
@@ -2210,10 +2209,16 @@ mod tests {
     }
 
     #[test]
-    fn only_explicit_delete_keys_remove_the_selection() {
+    fn viewport_keys_preserve_selection_and_only_space_changes_mode() {
         use super::*;
         for mode in [EditorMode::View, EditorMode::Edit] {
-            for key in [KeyCode::KeyD, KeyCode::Delete, KeyCode::Backspace] {
+            for key in [
+                KeyCode::KeyD,
+                KeyCode::KeyV,
+                KeyCode::Space,
+                KeyCode::Delete,
+                KeyCode::Backspace,
+            ] {
                 let mut app = App::new();
                 app.init_resource::<EditorState>()
                     .init_resource::<GraphState>()
@@ -2255,7 +2260,11 @@ mod tests {
                         .resource::<GraphState>()
                         .graph
                         .has_block_at(IVec3::ZERO),
-                    key == KeyCode::KeyD
+                    !matches!(key, KeyCode::Delete | KeyCode::Backspace)
+                );
+                assert_eq!(
+                    app.world().resource::<EditorState>().mode == mode,
+                    key != KeyCode::Space
                 );
             }
         }

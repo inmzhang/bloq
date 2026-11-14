@@ -45,7 +45,7 @@ pub(super) const fn compact_mode_label(mode: EditorMode) -> &'static str {
 const fn mode_hover_text(mode: EditorMode) -> &'static str {
     match mode {
         EditorMode::View => {
-            "Select, move, inspect, and validate your graph (V). Space switches between View and Edit."
+            "Select, move, inspect, and validate your graph. Space switches between View and Edit."
         }
         EditorMode::Module => "Build reusable modules, place instances, and connect their ports",
         EditorMode::Edit => {

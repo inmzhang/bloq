@@ -15,11 +15,11 @@ for setup.
   and **Up/Down** extend pipes, or follow an existing connection without changing
   it. The **Hadamard** checkbox lets trackpad users place Hadamard pipes without
   holding a key; holding **H** is also supported.
-- **View** selects, inspects, and moves geometry. **V** enters View, and **Space**
+- **View** selects, inspects, and moves geometry. **Space**
   switches between View and Edit. Shift-click toggles selection; drag on empty
   space to box-select, or Shift-drag to add to the selection. Select one element
   and click **Attributes** (or press **Enter**), or double-click it, to edit its
-  attributes, including changing a port's block type. Shift+V translates the
+  attributes, including changing a port's block type. V translates the
   graph or selection down in View. Choosing a placement tool is different from
   editing attributes: it creates new geometry.
 - **Delete/Backspace** remove the selection in View or Edit. Deleting a block
