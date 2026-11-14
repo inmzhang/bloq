@@ -122,7 +122,10 @@ Root Cargo commands without `-p` or `--workspace`, such as `cargo build` and
 without a crate name already select the whole workspace.
 
 `ticit` is optimized in dev/test builds to keep physical execution checks fast.
-Debug assertions and integer overflow checks remain enabled.
+Debug assertions and integer overflow checks remain enabled. Dev/test builds
+keep only line-table debug information, as in CI; set
+`CARGO_PROFILE_DEV_DEBUG=full` for one command when a debugger needs variable
+values.
 
 PRs run quick checks automatically. Maintainers approve the full checks selected
 for the changed files; the required `CI` status passes when those checks succeed.

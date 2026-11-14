@@ -132,6 +132,11 @@ unnecessary_wraps = "warn"
 unwrap_used = "warn"
 upper_case_acronyms = "allow"
 
+# Match CI and keep local targets small; the test profile inherits this.
+# Set CARGO_PROFILE_DEV_DEBUG=full for a debugger session.
+[profile.dev]
+debug = "line-tables-only"
+
 [profile.dev.package]
 insta.opt-level = 3
 # Optimize the simulation engine while retaining the dev profile's checks.
