@@ -16,6 +16,9 @@
   graph whose scalar type is `quizx::scalar::Scalar4`; callers must use
   QuiZX 0.4 APIs with it.
 - Refresh compatible dependencies before v0.2.0 ([#57](https://github.com/inmzhang/bloq/pull/57)) ([dd11dd2](https://github.com/inmzhang/bloq/commit/dd11dd252b0033c837b1c55d1ef5336a0b978597))
+  Updates chumsky to 0.14.1, rfd to 0.18.0, bevy_rich_text3d to 0.8.1 and itoa
+  to 1.0.19, plus release/spelling tools. Keep egui_extras on the compatible
+  Bevy/egui family and Sphinx below 9 while theme search compatibility is unresolved.
 
 ### Documentation
 
@@ -35,6 +38,22 @@
 #### Added
 
 - Redesign interactions, live BLOG editing and recovery ([#54](https://github.com/inmzhang/bloq/pull/54)) ([393004d](https://github.com/inmzhang/bloq/commit/393004d219c5f59efd90a2d77d6a516f8b16ebad))
+  - Select a block or pipe and use **Attributes**, **Enter**, or double-click;
+    I-click is removed. **Space** toggles View/Edit; **V** keeps translation.
+  - **Delete/Backspace** deletes the selection and connected pipes rather than
+    converting cubes to ports. Bare-D and middle-click deletion are removed.
+  - Add pipe endpoint previews, keyboard path extension, a persistent Hadamard
+    toggle, box selection, trackpad-friendly pan, and clearer input ownership.
+  - BLOG is a live two-way graph view. Valid text applies after background
+    validation; invalid drafts and conflicts remain visible instead of being
+    overwritten. Exact draft export and bounded text history preserve work.
+  - Restore tabs, drafts, text history and bounded Undo/Redo history across
+    restarts. Move persistence/analysis off the UI thread and reduce large-scene
+    picking and repeated reconstruction work.
+  - Visual edits still regenerate BLOG formatting/comments; recovery is not a
+    substitute for exported backups. Pipe boundary-color swapping is not included.
+    Safari remains tracked in [#44](https://github.com/inmzhang/bloq/issues/44),
+    without a temporary Bevy shader workaround.
 
 #### Changed
 
@@ -44,6 +63,21 @@
 
 - Prevent middle-click paste ([#8](https://github.com/inmzhang/bloq/pull/8)) ([aefd730](https://github.com/inmzhang/bloq/commit/aefd73018d298906c1e4c2ec5b7887f91461e573))
 - Restore WebGPU and refresh dependencies ([#17](https://github.com/inmzhang/bloq/pull/17)) ([bdaea0d](https://github.com/inmzhang/bloq/commit/bdaea0d5514d7ca97dca80002812b9d0f46be072))
+
+### Python API
+
+#### Added
+
+- `run_noiseless` combines ideal logical inputs, reused-output capture, corrected
+  marginals and optional joint Pauli signatures ([#29](https://github.com/inmzhang/bloq/pull/29)).
+
+#### Changed
+
+- **BREAKING:** Use `BlockGraph.stabilizers` for planned surfaces, including module
+  hierarchies. `ZXGraph.stabilizers` and
+  `StabilizerGenerator.selective_fixing_targets` are removed; generator `kind`
+  is now only `measurement` or `logical`
+  ([#31](https://github.com/inmzhang/bloq/pull/31)).
 
 ### General
 
@@ -72,27 +106,38 @@
   and InvalidActionError::{BranchDependentMeasurementSurface,
   GuardedAnalysisRequired} are removed. Validation rejects named records
   whose only correlation surface reaches a live output.
+  `BlockGraph::stabilizers()` now returns `Vec<StabilizerGenerator>` and supports
+  module hierarchies. Use `compile_clifford_proxy` instead of the removed
+  `compile_clifford_distance`. The flat stabilizer engine and its symbolic basis,
+  readout-plan, selective-fixing, and `ZXGraph::stabilizers*` APIs are removed.
+  `RuntimeStabilizerBasis::for_source_readouts` now takes a `ZXGraph`.
+  `LogicalVerifier` and `fill_ports_auto` reject records that cannot be read before
+  live outputs. See the [PR migration list](https://github.com/inmzhang/bloq/pull/31)
+  for removed helper types and error variants; see also the Python API section.
 - **BREAKING:** Remove feedback inference and trim internals ([#26](https://github.com/inmzhang/bloq/pull/26)) ([aaec756](https://github.com/inmzhang/bloq/commit/aaec756636fadc6b732058f4d3c0a584698fe763))
   Remove infer_feedback, infer_feedback_with,
   FeedbackOptions, FeedbackInferenceError, bloq_utils::qasm, and the QASM
   parsing exports from bloq_graph::verify. Author Action::Feedback explicitly
   and pass expected QuiZX graphs to LogicalVerifier or verify_logical.
+  Developer-only `just bench-report`, `just bench-full`, and
+  `cargo run -p xtask -- bench-report` are also removed; other benchmark and
+  sampling-profiler commands remain available.
 - Link planned surfaces to the public branch projection ([#33](https://github.com/inmzhang/bloq/pull/33)) ([394900a](https://github.com/inmzhang/bloq/commit/394900a62b800b994f4ee62a646d70e626d12aea))
 
 #### Fixed
 
 - Merge adjacent walking stages ([#19](https://github.com/inmzhang/bloq/pull/19)) ([be30ed8](https://github.com/inmzhang/bloq/commit/be30ed8d2714bf3cdb45994df04f63a5a955abb5))
 - Reject X/Z basis flips of multiplex Ports ([#30](https://github.com/inmzhang/bloq/pull/30)) ([1502648](https://github.com/inmzhang/bloq/commit/150264850227d0c1395129cbcdef5f98ee1808cb))
-- **BREAKING:** Read named merges before later unnamed merges ([#32](https://github.com/inmzhang/bloq/pull/32)) ([bdbbd66](https://github.com/inmzhang/bloq/commit/bdbbd66b98577e7f5e098cf7461a41edb6fc4441))
-  BlockGraph::analyze_actions and analyze_actions_with_limits
-  return the analyzed graph instead of a (graph, StabilizerGenerators)
-  pair. BlockGraph::analyze_actions_with_projections, AnalyzedBranchProjections,
-  and InvalidActionError::{BranchDependentMeasurementSurface,
-  GuardedAnalysisRequired} are removed. Validation rejects named records
-  whose only correlation surface reaches a live output.
-- **BREAKING:** Certify causal readouts and protect live patch state ([#28](https://github.com/inmzhang/bloq/pull/28)) ([31ebfd4](https://github.com/inmzhang/bloq/commit/31ebfd460165d30d9675abdc2410aafc23a0d5b6))
-  InstanceProvenance includes IdealPortAdapter. Downstream
-  exhaustive matches must handle ideal temporal boundary instances.
+- Read named merges before later unnamed repeats, choosing earlier physical
+  witnesses so random readouts do not become constants or select incorrect T
+  corrections ([#32](https://github.com/inmzhang/bloq/pull/32)). This is a
+  correctness fix, not another API migration.
+- **BREAKING:** Certify causal readouts and protect live patch state
+  ([#28](https://github.com/inmzhang/bloq/pull/28)). Compilation rejects reuse that
+  would destroy pending patch state (`CompileError::LiveQubitReuse`) and
+  conditional region reuse whose liveness cannot be established
+  (`ConditionalRegionLivenessUnsupported`). Reorder or separate overlapping
+  uses instead of relying on the previously emitted unsafe schedule.
 - Preserve causal scheduling across guarded qubit lifetimes ([#37](https://github.com/inmzhang/bloq/pull/37)) ([4af85fc](https://github.com/inmzhang/bloq/commit/4af85fcdcfeaee931893b11d6dfa5fdffa198fdf))
 - **BREAKING:** Order T factories by qubit occupancy ([#43](https://github.com/inmzhang/bloq/pull/43)) ([770a536](https://github.com/inmzhang/bloq/commit/770a536975eff514e7e06c9363c8528428a9de94))
   Qubit layout validation rejects a top-level region that shares
