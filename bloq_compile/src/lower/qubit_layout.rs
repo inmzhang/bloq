@@ -51,8 +51,8 @@ pub(crate) fn validate_bloq_qubit_layout_with_limits(
         // concurrent — a T block's cultivation and escape stages sit at the same
         // layer and qubits, joined by a temporal seam edge. So bodies skip pairs
         // with a directed path between them and flag only genuinely concurrent
-        // (no path either way) same-layer overlaps. Top-level Region nodes use
-        // the same ordered sharing with adjacent lowering nodes.
+        // (no path either way) same-layer overlaps. Top-level nodes on different
+        // layers share qubits through the order edges of the occupancy pass.
         let skip_sequential = !path.segments().is_empty();
         validate_level_qubit_layout(
             bloq,
@@ -121,11 +121,8 @@ fn validate_level_qubit_layout(
                         for &(left_id, left_guard) in &interval.users {
                             let allowed =
                                 *allowed_pairs.entry((left_id, right_id)).or_insert_with(|| {
-                                    let left = &level[left_id];
-                                    let region_pair =
-                                        left.try_region().is_some() || right.try_region().is_some();
-                                    allows_same_layer_qubit_overlap(source, left, right)
-                                        || ((skip_sequential || region_pair)
+                                    allows_same_layer_qubit_overlap(source, &level[left_id], right)
+                                        || (skip_sequential
                                             && (level.has_path_with_scratch(
                                                 left_id,
                                                 right_id,

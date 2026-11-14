@@ -44,7 +44,7 @@ jobs:
           "$RUNNER_TEMP/actionlint" -color
       - name: Install pinned Rust toolchain
         run: rustup toolchain install
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           python-version: '3.12'
       - uses: taiki-e/install-action@v2
@@ -135,7 +135,7 @@ jobs:
             libxcb-shape0-dev libxcb-xfixes0-dev libwayland-dev \
             libxkbcommon-dev
 
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           python-version: '3.12'
 
@@ -181,7 +181,7 @@ jobs:
       CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           python-version: '3.12'
       - name: Install pinned Rust toolchain
@@ -220,7 +220,7 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: just
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           python-version: '3.12'
       - name: Check Python bindings

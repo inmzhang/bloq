@@ -1344,6 +1344,23 @@ mod tests {
     use glam::IVec3;
     use quizx::graph::{GraphLike, VType};
 
+    /// Contracts a Clifford+T graph with exact arithmetic. Floating-point
+    /// contraction depends on vertex order, which QuiZX's JSON decoder
+    /// randomizes per process. The decoder also flags exact scalars
+    /// approximate, so the flag is cleared before contracting.
+    fn exact_tensor(graph: &bloq_graph::verify::QuizxGraph) -> quizx::tensor::Tensor4 {
+        use quizx::tensor::ToTensor;
+
+        let mut graph = graph.clone();
+        graph.scalar_mut().set_approx(false);
+        let tensor = graph.to_tensor4();
+        assert!(
+            tensor.iter().all(|value| !value.approx()),
+            "tensor is not exact"
+        );
+        tensor
+    }
+
     fn dense_graph(count: usize) -> bloq_graph::verify::QuizxGraph {
         let mut graph = bloq_graph::verify::QuizxGraph::new();
         let vertices: Vec<_> = (0..count).map(|_| graph.add_vertex(VType::Z)).collect();
@@ -1376,8 +1393,6 @@ mod tests {
 
     #[test]
     fn simplified_layout_is_deterministic_and_preserves_the_signed_diagram() {
-        use quizx::tensor::ToTensor;
-
         let mut graph = bloq_graph::verify::QuizxGraph::new();
         let input = graph.add_vertex(VType::B);
         let first = graph.add_vertex_with_phase(VType::Z, (1, 4));
@@ -1408,7 +1423,7 @@ mod tests {
             ));
         }
         for (name, graph) in cases {
-            let tensor = graph.to_tensorf();
+            let tensor = exact_tensor(&graph);
             let encoded: serde_json::Value =
                 serde_json::from_str(&quizx::json::encode_graph(&graph).unwrap()).unwrap();
             let view = SimplifiedZxView::new(graph.clone());
@@ -1440,7 +1455,7 @@ mod tests {
             let actual: serde_json::Value =
                 serde_json::from_str(&quizx::json::encode_graph(&view.graph).unwrap()).unwrap();
             assert_eq!(actual, encoded, "{name}");
-            assert_eq!(view.graph.to_tensorf(), tensor, "{name}");
+            assert_eq!(exact_tensor(&view.graph), tensor, "{name}");
         }
     }
 
@@ -1574,8 +1589,6 @@ mod tests {
 
     #[test]
     fn worker_view_codec_preserves_prepared_geometry_and_rejects_incomplete_results() {
-        use quizx::tensor::ToTensor;
-
         let mut sparse = bloq_graph::verify::QuizxGraph::new();
         let removed = sparse.add_vertex(VType::Z);
         let input = sparse.add_vertex(VType::B);
@@ -1615,8 +1628,11 @@ mod tests {
                 "{name}: prepared routes changed"
             );
             assert_eq!(decoded.bounds, view.bounds);
-            assert_eq!(decoded.graph.scalar(), view.graph.scalar());
-            assert_eq!(decoded.graph.to_tensorf(), view.graph.to_tensorf());
+            // QuiZX JSON decoding flags scalars approximate; the coefficients stay exact.
+            let mut scalar = *decoded.graph.scalar();
+            scalar.set_approx(false);
+            assert_eq!(&scalar, view.graph.scalar());
+            assert_eq!(exact_tensor(&decoded.graph), exact_tensor(&view.graph));
             let boundary_positions = |view: &SimplifiedZxView| {
                 view.graph
                     .inputs()
@@ -1635,7 +1651,7 @@ mod tests {
                 "{name}: re-encoded routes changed"
             );
             assert_eq!(boundary_positions(&repeated), boundary_positions(&view));
-            assert_eq!(repeated.graph.to_tensorf(), view.graph.to_tensorf());
+            assert_eq!(exact_tensor(&repeated.graph), exact_tensor(&view.graph));
             let mut original_coords: Vec<_> = view
                 .graph
                 .vertices()
@@ -1934,8 +1950,6 @@ mod tests {
     fn worker_codec_preserves_external_feedback_resources_and_signed_diagrams() {
         use super::{decode_zx_worker_source, encode_zx_worker_source};
         use bloq_graph::{Action, Expr, FeedbackTarget, GalleryItem};
-        use quizx::tensor::ToTensor;
-
         let mut external = BlockGraph::from_blog_text(
             "BLOG 1.0\n0: Port [0,0,0]\n1: ZXZ [0,0,1]\n2: Port [0,0,2]\n0 -> +Z\n1 -> +Z\n",
         )
@@ -1964,7 +1978,7 @@ mod tests {
             for seed in [0, 1, u64::MAX] {
                 let expected = simplified_zx_graph(&source, seed).unwrap();
                 let actual = simplified_zx_graph(&restored, seed).unwrap();
-                assert_eq!(expected.to_tensorf(), actual.to_tensorf());
+                assert_eq!(exact_tensor(&expected), exact_tensor(&actual));
             }
         }
     }

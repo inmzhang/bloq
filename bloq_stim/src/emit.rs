@@ -39,7 +39,7 @@ pub enum StimEmissionError {
     /// conditional activation), rejected by name before any emission work.
     #[error("unsupported Stim backend node: {0}")]
     UnsupportedNode(&'static str),
-    /// Alignment is noiseless.
+    /// Legacy error retained for compatibility. Aligned emission supports noise.
     #[error("moment-aligned Stim emission does not support noise")]
     AlignMomentsWithNoise,
     /// Alignment cannot preserve per-node segments.
@@ -51,6 +51,9 @@ pub enum StimEmissionError {
     /// Moment-alignment planning failed.
     #[error("{0}")]
     MomentAlignment(#[from] bloq_ir::MomentAlignmentError),
+    /// Padding a temporal seam alongside a Hadamard failed.
+    #[error("failed to pad temporal seams for moment alignment: {0}")]
+    AlignMemoryPadding(#[from] bloq_ir::EditError),
     /// The graph violates an invariant the emit walk relies on (a template,
     /// instance, or producer a node names is missing, or a measurement is
     /// read before it is emitted). Well-formed programs from the compiler

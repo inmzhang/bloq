@@ -408,14 +408,7 @@ fn compile_random_clifford_proxy(
 ///     >>> segment.measurement_count > 0
 ///     True
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "StimSegment",
-    module = "bloq._core",
-    frozen,
-    eq,
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "StimSegment", module = "bloq._core", frozen, eq, get_all)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PyStimSegment {
     /// The id of the node this chunk was emitted from.
@@ -526,8 +519,7 @@ impl PyStimSegments {
     name = "IsolatedTAttemptManifest",
     module = "bloq._core",
     frozen,
-    get_all,
-    skip_from_py_object
+    get_all
 )]
 #[derive(Debug, Clone)]
 pub(crate) struct PyIsolatedTAttemptManifest {
@@ -619,8 +611,7 @@ impl PyIsolatedTAttemptManifest {
     name = "IsolatedTAttemptArtifacts",
     module = "bloq._core",
     frozen,
-    get_all,
-    skip_from_py_object
+    get_all
 )]
 #[derive(Debug, Clone)]
 pub(crate) struct PyIsolatedTAttemptArtifacts {
@@ -681,7 +672,8 @@ impl PyIsolatedTAttemptArtifacts {
 ///         produced elsewhere: the backend assumes a well-formed program and
 ///         may otherwise emit a silently wrong circuit.
 ///     align_moments: Flatten repeats and merge compatible Clifford moments by
-///         z layer. Requires noiseless emission; defaults to ``False``.
+///         z layer. Noise, if requested, is applied to the aligned schedule.
+///         Defaults to ``False``.
 ///
 /// Raises:
 ///     InvalidArgumentError: If `noise` is not finite or outside `[0, 1]`.

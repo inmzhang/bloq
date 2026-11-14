@@ -556,3 +556,41 @@ fn misplaced_padding_is_rejected_and_program_untouched() {
         baseline
     );
 }
+
+/// A wait must follow the patch that ends beneath it. Parallel walks land on
+/// each other's starting cells and a rotation ends away from its placement,
+/// while a spatial Hadamard pipe owns one of its cube's output stabilizers.
+#[test]
+fn waits_splice_on_moving_and_shared_patch_seams() {
+    for item in [
+        GalleryItem::GHZSlideThenGlide,
+        GalleryItem::GHZPatchRotations,
+        GalleryItem::CZSpatialH,
+    ] {
+        let original = bloq_compile::compile(&item.build(), DISTANCE).expect("gallery compiles");
+        let observables = parsed_emit(&original).num_observables();
+        let baseline = noisy_graphlike_distance(&original);
+        let seams: Vec<_> = original
+            .edges()
+            .filter(|edge| matches!(edge.edge, BloqEdge::Quantum(_)))
+            .map(|edge| (edge.source, edge.target))
+            .collect();
+        for (from, to) in seams {
+            let label = format!("{item:?} {from:?}->{to:?}");
+            let mut bloq = original.clone();
+            bloq.insert_memory_rounds(
+                MemoryRoundTarget::Edge {
+                    path: LevelPath::default(),
+                    from,
+                    to,
+                },
+                2,
+            )
+            .unwrap_or_else(|error| panic!("{label}: {error}"));
+            bloq.validate().expect("spliced program validates");
+            assert_eq!(parsed_emit(&bloq).num_observables(), observables, "{label}");
+            assert_detectors_deterministic(&bloq, &label);
+            assert_eq!(noisy_graphlike_distance(&bloq), baseline, "{label}");
+        }
+    }
+}

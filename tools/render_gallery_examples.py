@@ -2,7 +2,7 @@
 
 Run with: uv run --project bloq_py --no-sync python tools/render_gallery_examples.py
 Build the native editor first with cargo build -p bloq_editor --locked.
-Its off-screen gallery renderer supplies the PNGs (--editor overrides its path).
+Its off-screen gallery renderer supplies the PNG images (--editor overrides its path).
 BLOG and viewer geometry are read from the native gallery during the site build.
 """
 

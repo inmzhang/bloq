@@ -3,10 +3,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use glam::IVec3;
-use quizx::fscalar::{FScalar, Zero};
 use quizx::graph::{GraphLike, VType};
 use quizx::params::{Parity, Var};
 use quizx::phase::Phase;
+use quizx::scalar::{Scalar4, Zero};
 use rustc_hash::FxHashMap;
 
 use crate::zx::{CoeffFactorization, CoeffVec};
@@ -397,7 +397,7 @@ impl InternalCorrection {
         let Some(reference) =
             self.reference_outcomes(basis, measurement_vars, reference, actions, feedback_values)
         else {
-            *graph.scalar_mut() = FScalar::zero();
+            *graph.scalar_mut() = Scalar4::zero();
             return Ok(());
         };
         let keys = measured.keys().collect::<Vec<_>>();
@@ -416,7 +416,7 @@ impl InternalCorrection {
             .collect::<Vec<_>>();
         match correction.evaluate(&flips) {
             Ok(corrections) => insert_output_corrections(graph, outputs, &corrections),
-            Err(OutputCorrectionError::Inconsistent) => *graph.scalar_mut() = FScalar::zero(),
+            Err(OutputCorrectionError::Inconsistent) => *graph.scalar_mut() = Scalar4::zero(),
             Err(
                 error @ (OutputCorrectionError::RhsLengthMismatch { .. }
                 | OutputCorrectionError::UnknownOutput { .. }),

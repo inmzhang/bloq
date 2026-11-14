@@ -103,7 +103,7 @@ fn pauli_basis_name(basis: PyPauliBasis) -> String {
 ///     ...                     bloq.ir.CircuitOp.PauliError))
 ///     True
 #[gen_stub_pyclass_complex_enum]
-#[pyclass(name = "CircuitOp", module = "bloq._core", skip_from_py_object)]
+#[pyclass(name = "CircuitOp", module = "bloq._core")]
 #[derive(Debug, Clone)]
 pub(crate) enum PyCircuitOp {
     /// A gate applied to its target qubits (pairwise for two-qubit gates).
@@ -293,7 +293,7 @@ impl PyCircuitOp {
 ///     ...     for record_id, _qubit in circuit.measurement_records())
 ///     True
 #[gen_stub_pyclass]
-#[pyclass(name = "Circuit", module = "bloq._core", frozen, skip_from_py_object)]
+#[pyclass(name = "Circuit", module = "bloq._core", frozen)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyCircuit(pub(crate) CoordCircuit);
 
@@ -409,12 +409,7 @@ impl PyCircuit {
 /// the unrolled circuit produces, which is larger than `len()` whenever a
 /// measurement repeats.
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "ExpandedMeasurementColumns",
-    module = "bloq._core",
-    frozen,
-    skip_from_py_object
-)]
+#[pyclass(name = "ExpandedMeasurementColumns", module = "bloq._core", frozen)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyExpandedMeasurementColumns(ExpandedMeasurementColumns);
 
@@ -474,13 +469,7 @@ impl PyExpandedMeasurementColumns {
 /// the owning instance and an [`PyEmissionPlan`]'s `measurements` map before
 /// emitting records.
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "BoundaryFlow",
-    module = "bloq._core",
-    frozen,
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "BoundaryFlow", module = "bloq._core", frozen, get_all)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyBoundaryFlow {
     /// Pauli boundary entering the template.
@@ -539,13 +528,7 @@ impl PyBoundaryFlow {
 /// ids of the owning template's circuit; translate them to instance space
 /// through an `EmissionPlan`'s `measurements` map.
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "TemplateParity",
-    module = "bloq._core",
-    frozen,
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "TemplateParity", module = "bloq._core", frozen, get_all)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyTemplateParity {
     /// Whether this parity includes the constant XOR term.
@@ -590,13 +573,7 @@ impl PyTemplateParity {
 /// A detector closing entirely within one template, in template-local
 /// measurement space.
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "TemplateDetector",
-    module = "bloq._core",
-    frozen,
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "TemplateDetector", module = "bloq._core", frozen, get_all)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyTemplateDetector {
     /// The repeat body the detector fires in, or `None` at the template's
@@ -638,13 +615,7 @@ impl PyTemplateDetector {
 /// measurement space: `initial` seeds the state on the first iteration,
 /// `next` advances it on every later one.
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "TemplateRepeatState",
-    module = "bloq._core",
-    frozen,
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "TemplateRepeatState", module = "bloq._core", frozen, get_all)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyTemplateRepeatState {
     /// The repeat body id.
@@ -683,13 +654,7 @@ impl PyTemplateRepeatState {
 /// space: when the parity is odd (failure), the enclosing RUS attempt
 /// restarts.
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "TemplateRestart",
-    module = "bloq._core",
-    frozen,
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "TemplateRestart", module = "bloq._core", frozen, get_all)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyTemplateRestart {
     /// The restart syndrome parity.
@@ -729,13 +694,7 @@ impl PyTemplateRestart {
 ///     ...     for d in template.detectors for m in d.parity.measurements)
 ///     True
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "Template",
-    module = "bloq._core",
-    frozen,
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "Template", module = "bloq._core", frozen, get_all)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyTemplate {
     /// The template's circuit, in template-local qubit coordinates.
@@ -801,12 +760,7 @@ impl PyTemplate {
 // access, which costs the same as the eager conversion did — the circuit was
 // already cloned per read.
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "EmissionPlan",
-    module = "bloq._core",
-    frozen,
-    skip_from_py_object
-)]
+#[pyclass(name = "EmissionPlan", module = "bloq._core", frozen)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyEmissionPlan(NodeEmissionPlan);
 

@@ -8,12 +8,12 @@ use crate::measurement_frame::{MeasurementFrame, stim_record_lookback};
 use crate::text_utils::push_int;
 use bloq_circuit::{
     Basis, BodyId, CircuitError, CoordCircuit, FlowMarker, GateType, LoopStateId, NoiseModel, Op,
-    Pauli, PauliMap,
+    Pauli, PauliMap, checked_translate_coordinate,
 };
 use bloq_ir::{
-    Bloq, BloqNode, BloqNodeId, BloqNodeKind, BodySelector, ClassicalAssignment, ClassicalNode,
-    LevelPath, MomentLane, RegionNode, SubGraph, TemplateId, ValidatedPlans, align_moment_lanes,
-    aligned_moment_segments,
+    Bloq, BloqEdge, BloqNode, BloqNodeId, BloqNodeKind, BodySelector, ClassicalAssignment,
+    ClassicalNode, LevelPath, MemoryRoundTarget, MomentLane, NodeProvenance, RegionNode, SubGraph,
+    TemplateId, ValidatedPlans, align_moment_lanes, aligned_moment_segments,
     lowering::{
         InstanceMeasurement, InstantiationOptions, NodeEmissionPlan, TemplateDetectorScope,
         TemplateInstanceId,
@@ -114,9 +114,7 @@ pub enum InputTrust {
 
 /// Options for noise, input validation, and whole-program moment alignment.
 ///
-/// Alignment rejects noise and segmented output with
-/// [`StimEmissionError::AlignMomentsWithNoise`] and
-/// [`StimEmissionError::AlignMomentsWithSegments`].
+/// Alignment rejects segmented output with [`StimEmissionError::AlignMomentsWithSegments`].
 ///
 /// # Examples
 ///
@@ -147,7 +145,7 @@ impl<'a> BloqStimOptions<'a> {
         Self::default()
     }
 
-    /// Annotate every instantiated circuit with `noise` before emitting.
+    /// Annotate the instantiated circuits, after scheduling if alignment is enabled.
     #[must_use]
     pub fn with_noise(mut self, noise: &'a NoiseModel) -> Self {
         self.noise = Some(noise);
@@ -187,6 +185,8 @@ pub fn emit_bloq_stim(program: &Bloq) -> Result<String, StimEmissionError> {
 ///
 /// With moment alignment enabled, repeat bodies are flattened and compatible raw moments from
 /// quantum nodes occupying the same source layer share global `TICK` slots.
+/// Ordinary temporal seams alongside a temporal Hadamard receive one memory round
+/// using the compiled program's padding templates.
 ///
 /// # Errors
 ///
@@ -196,21 +196,64 @@ pub fn emit_bloq_stim_with(
     options: &BloqStimOptions<'_>,
 ) -> Result<String, StimEmissionError> {
     if options.align_moments {
-        if options.noise.is_some() {
-            return Err(StimEmissionError::AlignMomentsWithNoise);
-        }
         if options.trust == InputTrust::Checked {
             program.validate()?;
         }
         reject_unsupported(program)?;
         let mut flat = program.clone();
+        pad_temporal_hadamard_layers(&mut flat)?;
         flat.flatten()?;
         let plans = flat.emission_plans(&InstantiationOptions::default())?;
         let order = flat.deterministic_emit_order()?;
-        return BloqStimEmitter::new(&flat, None, &plans).emit_order_aligned(&order);
+        return BloqStimEmitter::new(&flat, options.noise, &plans).emit_order_aligned(&order);
     }
     let (plans, order) = prepare_untransformed(program, options)?;
     BloqStimEmitter::new(program, options.noise, &plans).emit_order_untransformed(&order)
+}
+
+fn pad_temporal_hadamard_layers(program: &mut Bloq) -> Result<(), StimEmissionError> {
+    let hadamard_layers: FxHashSet<_> = program
+        .nodes()
+        .filter_map(|(_, node)| match node.provenance {
+            NodeProvenance::TemporalPipe { pipe } if pipe.hadamard => {
+                Some(pipe.endpoints_by_z().0.z)
+            }
+            _ => None,
+        })
+        .collect();
+    if hadamard_layers.is_empty() {
+        return Ok(());
+    }
+
+    let is_padding = |id| {
+        program
+            .node(id)
+            .is_some_and(|node| node.memory_rounds().is_some())
+    };
+    let targets: Vec<_> = program
+        .edges()
+        .filter_map(|edge| {
+            let BloqEdge::Quantum(quantum) = edge.edge else {
+                return None;
+            };
+            let seam = quantum.pipes.first()?;
+            let (lower, upper) = seam.pipe.endpoints_by_z();
+            (!seam.pipe.hadamard
+                && lower.z != upper.z
+                && hadamard_layers.contains(&lower.z)
+                && !is_padding(edge.source)
+                && !is_padding(edge.target))
+            .then(|| MemoryRoundTarget::Edge {
+                path: LevelPath::default(),
+                from: edge.source,
+                to: edge.target,
+            })
+        })
+        .collect();
+    if !targets.is_empty() {
+        program.insert_memory_rounds_batch(&targets, 1)?;
+    }
+    Ok(())
 }
 
 /// Shared plans and order for whole-text and segmented emission.
@@ -1021,6 +1064,36 @@ struct AlignedNodeEmission {
     annotations: StimCircuitAnnotations,
     ends_with_tick: bool,
     boundary_faces: BTreeMap<u32, (PauliMap, PauliMap)>,
+    noisy_qubits: Vec<IVec2>,
+    ideal_qubits: FxHashSet<IVec2>,
+}
+
+/// Keep each physical coordinate live between its first and last noisy node
+/// placements, including the aligned slots between successive nodes.
+fn aligned_idle_events(
+    layers: &[bloq_ir::AlignedLayer],
+    nodes: &FxHashMap<BloqNodeId, AlignedNodeEmission>,
+) -> FxHashMap<usize, Vec<(IVec2, bool)>> {
+    let mut bounds = FxHashMap::<IVec2, (usize, usize)>::default();
+    for (slot_index, slot) in layers.iter().flat_map(|layer| &layer.slots).enumerate() {
+        for entry in &slot.entries {
+            let node = &nodes[&entry.node];
+            if entry.moment == 0 || entry.moment + 1 == node.moments.len() {
+                for &qubit in &node.noisy_qubits {
+                    bounds
+                        .entry(qubit)
+                        .and_modify(|(_, end)| *end = slot_index)
+                        .or_insert((slot_index, slot_index));
+                }
+            }
+        }
+    }
+    let mut events = FxHashMap::<_, Vec<_>>::default();
+    for (qubit, (first, last)) in bounds {
+        events.entry(first).or_default().push((qubit, true));
+        events.entry(last + 1).or_default().push((qubit, false));
+    }
+    events
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1150,38 +1223,76 @@ impl<'a> BloqStimEmitter<'a> {
     }
 
     fn emit_order_aligned(mut self, order: &[BloqNodeId]) -> Result<String, StimEmissionError> {
+        if let Some(noise) = self.noise
+            && [
+                noise.p1,
+                noise.p2,
+                noise.p_meas,
+                noise.p_reset,
+                noise.p_idle,
+            ]
+            .into_iter()
+            .any(|probability| !(0.0..=1.0).contains(&probability))
+        {
+            return Err(StimEmissionError::InvalidNoiseProbability);
+        }
         self.prepare()?;
         let (lanes, mut nodes) = self.prepare_aligned_nodes(order)?;
+        let layers = align_moment_lanes(self.level, lanes)?;
+        let mut idle_events = self
+            .noise
+            .filter(|noise| noise.p_idle != 0.0)
+            .map_or_else(FxHashMap::default, |_| aligned_idle_events(&layers, &nodes));
+        let mut live = FxHashSet::default();
+        let mut active = FxHashSet::default();
+        let mut idle_circuit = CoordCircuit::new();
 
-        for layer in align_moment_lanes(self.level, lanes)? {
-            for slot in layer.slots {
-                let mut completed = Vec::new();
-                for entry in slot.entries {
-                    let emission = nodes
-                        .get_mut(&entry.node)
-                        .expect("alignment returns a submitted node");
-                    if self.emit_aligned_moment(entry.node, entry.moment, emission)? {
-                        completed.push(entry.node);
+        for (slot_index, slot) in layers.into_iter().flat_map(|layer| layer.slots).enumerate() {
+            let mut completed = Vec::new();
+            for entry in slot.entries {
+                let emission = nodes
+                    .get_mut(&entry.node)
+                    .expect("alignment returns a submitted node");
+                if self.emit_aligned_moment(entry.node, entry.moment, emission, &mut active)? {
+                    completed.push(entry.node);
+                }
+            }
+            self.output.push_str("TICK\n");
+            if let Some(noise) = self.noise {
+                for (qubit, starts) in idle_events.remove(&slot_index).into_iter().flatten() {
+                    if starts {
+                        live.insert(qubit);
+                    } else {
+                        live.remove(&qubit);
                     }
                 }
+                if let Some(error) = noise.idle_error(live.difference(&active).copied()) {
+                    let ops = idle_circuit
+                        .body_mut(idle_circuit.entry_body())
+                        .expect("entry body is created with the circuit")
+                        .ops_mut();
+                    ops.clear();
+                    ops.push(error);
+                    self.emit_aligned_circuit(&idle_circuit, None)?;
+                }
+                active.clear();
+            }
+            let mut needs_boundary_tick = false;
+            for &node_id in &completed {
+                let emission = nodes.get_mut(&node_id).expect("completed node is prepared");
+                if !emission.ends_with_tick {
+                    continue;
+                }
+                needs_boundary_tick |=
+                    self.emit_aligned_circuit(&emission.circuit, Some(&emission.annotations))?;
+            }
+            if needs_boundary_tick {
                 self.output.push_str("TICK\n");
-                let mut needs_boundary_tick = false;
-                for &node_id in &completed {
-                    let emission = nodes.get_mut(&node_id).expect("completed node is prepared");
-                    if !emission.ends_with_tick {
-                        continue;
-                    }
-                    needs_boundary_tick |=
-                        self.emit_aligned_circuit(&emission.circuit, Some(&emission.annotations))?;
-                }
-                if needs_boundary_tick {
-                    self.output.push_str("TICK\n");
-                }
-                for node_id in completed {
-                    let emission = nodes.get(&node_id).expect("completed node is prepared");
-                    for (index, (_, operator_out)) in &emission.boundary_faces {
-                        self.emit_observable_pauli_line(*index, operator_out)?;
-                    }
+            }
+            for node_id in completed {
+                let emission = nodes.get(&node_id).expect("completed node is prepared");
+                for (index, (_, operator_out)) in &emission.boundary_faces {
+                    self.emit_observable_pauli_line(*index, operator_out)?;
                 }
             }
         }
@@ -1232,7 +1343,31 @@ impl<'a> BloqStimEmitter<'a> {
                 },
             )?;
 
-            let qubits = circuit.qubits().into_iter().collect();
+            let qubits = circuit.qubits();
+            let mut ideal_qubits = FxHashSet::default();
+            if self.noise.is_some()
+                && quantum
+                    .instances
+                    .iter()
+                    .any(|instance| instance.provenance.is_ideal_boundary())
+            {
+                ideal_qubits.clone_from(&qubits);
+                for instance in quantum
+                    .instances
+                    .iter()
+                    .filter(|instance| !instance.provenance.is_ideal_boundary())
+                {
+                    for &qubit in self.program.templates()[instance.template_id].qubits() {
+                        ideal_qubits.remove(&checked_translate_coordinate(qubit, instance.offset)?);
+                    }
+                }
+            }
+            let noisy_qubits = self
+                .noise
+                .filter(|noise| noise.p_idle != 0.0)
+                .map_or_else(Vec::new, |_| {
+                    qubits.difference(&ideal_qubits).copied().collect()
+                });
             let entry = circuit.entry_body();
             let body = circuit
                 .body_mut(entry)
@@ -1264,7 +1399,7 @@ impl<'a> BloqStimEmitter<'a> {
             lanes.push(MomentLane {
                 node: node_id,
                 moments: kinds,
-                qubits,
+                qubits: qubits.into_iter().collect(),
             });
             nodes.insert(
                 node_id,
@@ -1274,6 +1409,8 @@ impl<'a> BloqStimEmitter<'a> {
                     annotations,
                     ends_with_tick,
                     boundary_faces,
+                    noisy_qubits,
+                    ideal_qubits,
                 },
             );
         }
@@ -1285,12 +1422,15 @@ impl<'a> BloqStimEmitter<'a> {
         node_id: BloqNodeId,
         moment: usize,
         emission: &mut AlignedNodeEmission,
+        active: &mut FxHashSet<IVec2>,
     ) -> Result<bool, StimEmissionError> {
         let moment_count = emission.moments.len();
-        let ops = emission
-            .moments
-            .get_mut(moment)
-            .expect("alignment returns a submitted moment");
+        let mut ops = std::mem::take(
+            emission
+                .moments
+                .get_mut(moment)
+                .expect("alignment returns a submitted moment"),
+        );
         let last = moment + 1 == moment_count;
         let finalize_now = last && !emission.ends_with_tick;
 
@@ -1303,27 +1443,24 @@ impl<'a> BloqStimEmitter<'a> {
         }
 
         let entry = emission.circuit.entry_body();
-        std::mem::swap(
-            emission
-                .circuit
-                .body_mut(entry)
-                .expect("entry body is created with the circuit")
-                .ops_mut(),
-            ops,
-        );
-        let result = self.emit_aligned_circuit(
+        if let Some(noise) = self.noise {
+            ops = noise.noisy_moment(ops, active, &emission.ideal_qubits);
+        }
+        *emission
+            .circuit
+            .body_mut(entry)
+            .expect("entry body is created with the circuit")
+            .ops_mut() = ops;
+        self.emit_aligned_circuit(
             &emission.circuit,
             finalize_now.then_some(&emission.annotations),
-        );
-        std::mem::swap(
-            emission
-                .circuit
-                .body_mut(entry)
-                .expect("entry body is created with the circuit")
-                .ops_mut(),
-            ops,
-        );
-        result?;
+        )?;
+        emission
+            .circuit
+            .body_mut(entry)
+            .expect("entry body is created with the circuit")
+            .ops_mut()
+            .clear();
 
         Ok(last)
     }
@@ -2281,8 +2418,8 @@ mod tests {
     use super::*;
     use bloq_circuit::{CircuitBody, DetectorParity, DetectorTerm, PauliBasis};
     use bloq_ir::{
-        BloqEdge, BoundaryFace, ClassicalExpr, MemoryRoundTarget, NodeDetector, QuantumTimeline,
-        SourceBlockRef, TemplateDetector,
+        BoundaryFace, ClassicalExpr, NodeDetector, QuantumTimeline, SourceBlockRef,
+        TemplateDetector,
         lowering::{BloqTemplate, InstanceBoundaryOperator, TemplateInstance, TemplateRepeatState},
     };
     use glam::{ivec2, ivec3};
@@ -2757,15 +2894,10 @@ mod tests {
     }
 
     #[test]
-    fn aligned_emission_rejects_noise_and_segments() {
+    fn aligned_emission_rejects_segments() {
         let bloq = Bloq::new();
-        let noise = NoiseModel::uniform_depolarizing(1e-3);
         let options = BloqStimOptions::new().with_align_moments(true);
 
-        assert_eq!(
-            emit_bloq_stim_with(&bloq, &options.with_noise(&noise)),
-            Err(StimEmissionError::AlignMomentsWithNoise)
-        );
         assert!(matches!(
             emit_bloq_stim_segments_with(&bloq, &options),
             Err(StimEmissionError::AlignMomentsWithSegments)
@@ -3076,6 +3208,34 @@ mod tests {
         assert!(
             text.contains("OBSERVABLE_INCLUDE(7) rec[-6]"),
             "global frame must include every contributor: {text}"
+        );
+
+        let noise = NoiseModel {
+            p2: 0.02,
+            p_meas: 0.03,
+            p_reset: 0.04,
+            p_idle: 0.05,
+            ..NoiseModel::uniform_depolarizing(0.0)
+        };
+        let noisy = emit_bloq_stim_with(
+            &graph,
+            &BloqStimOptions::new()
+                .with_align_moments(true)
+                .with_noise(&noise),
+        )
+        .expect("annotate the aligned schedule");
+        assert_eq!(noisy.matches("TICK\n").count(), 8, "{noisy}");
+        assert!(noisy.contains("R 0 1\nX_ERROR(0.04) 0 1\n"), "{noisy}");
+        assert!(noisy.contains("CX 4 5\nDEPOLARIZE2(0.02) 4 5\n"), "{noisy}");
+        assert!(noisy.contains("M(0.03) 0 1\nDETECTOR rec[-2]"), "{noisy}");
+        assert!(noisy.contains("OBSERVABLE_INCLUDE(7) rec[-6]"), "{noisy}");
+        assert_eq!(
+            noisy
+                .lines()
+                .filter(|line| line.starts_with("DEPOLARIZE1(0.05) "))
+                .collect::<Vec<_>>(),
+            ["DEPOLARIZE1(0.05) 0 1 2 3", "DEPOLARIZE1(0.05) 0 1"],
+            "{noisy}"
         );
     }
 

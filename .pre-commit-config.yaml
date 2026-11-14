@@ -41,13 +41,13 @@ repos:
         pass_filenames: false
 
   - repo: https://github.com/crate-ci/typos
-    rev: v1.51.1
+    rev: v1.52.0
     hooks:
       - id: typos
         args: [--force-exclude]
 
   - repo: https://github.com/compilerla/conventional-pre-commit
-    rev: v4.4.0
+    rev: v4.5.0
     hooks:
       - id: conventional-pre-commit
         stages: [commit-msg]

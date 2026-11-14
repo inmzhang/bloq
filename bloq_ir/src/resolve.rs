@@ -847,7 +847,7 @@ graph {
     }
 
     #[test]
-    fn composition_preserves_prior_folds_without_the_childs_decoder_flip() {
+    fn composition_preserves_prior_folds_without_the_child_decoder_flip() {
         let mut program = Bloq::new();
         let earlier = program.add_node(crate::BloqNode::classical(ClassicalNode::Observable {
             index: Some(0),

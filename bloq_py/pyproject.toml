@@ -38,7 +38,8 @@ dev = [
     "pytest",
     "ruff>=0.16.10",
 ]
-# sphinx-immaterial 0.13.9 requires array stopwords; Sphinx 9 emits a Set.
+# sphinx-immaterial 0.13.10 requires array stopwords; Sphinx 9 emits a Set.
+# Upstream: https://github.com/jbms/sphinx-immaterial/issues/485
 docs = ["sphinx>=8.2,<9", "sphinx-immaterial", "myst-parser"]
 
 [tool.ruff]

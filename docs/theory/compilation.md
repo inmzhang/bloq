@@ -149,7 +149,10 @@ Placement decides how each patch is realized physically:
   share one quantum node. Their templates merge tick by tick, so slides and
   glides run together while preserving each patch's measurement records.
 - **Reservations.** T-resource spill cells are reserved against the union of
-  all alternatives that can occupy them.
+  all alternatives that can occupy them. Among the free sides, Bloq avoids
+  columns holding an earlier output, then prefers the side that lets the factory
+  start earliest, counting the T's own column. Equal releases go to the spill
+  column whose next use is latest.
 - **Ports.** A spatial Port expands into an inferred cube and a temporal
   boundary. Reversed temporal roles use ideal Bell adapters. Shared boundary
   planning reserves private input/output qubits against all reachable geometry;

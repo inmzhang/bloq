@@ -88,7 +88,7 @@ fn prepared_rotated_yoke_preserves_source_choi_correlations(
     let (_, diagram) = verifier.instantiate(&BTreeMap::new()).unwrap();
     let mut diagram = diagram.unwrap();
     quizx::simplify::full_simp(&mut diagram);
-    let tensor = diagram.to_tensor64().iter().copied().collect::<Vec<_>>();
+    let tensor = diagram.to_tensorf().iter().copied().collect::<Vec<_>>();
     let mask = boundaries
         .iter()
         .enumerate()
@@ -1139,7 +1139,7 @@ fn unconditioned_feedback_uses_its_wire_for_condition_reads(
     #[case] seed: u64,
 ) {
     use bloq_graph::{Action, verify::LogicalVerifier};
-    use quizx::{fscalar::Zero, tensor::ToTensor};
+    use quizx::{scalar::Zero, tensor::ToTensor};
     use std::collections::BTreeMap;
 
     let source = BlockGraph::from_blog_text(source)
@@ -1180,7 +1180,7 @@ fn unconditioned_feedback_uses_its_wire_for_condition_reads(
                 let mut diagram = diagram.unwrap();
                 quizx::simplify::full_simp(&mut diagram);
                 assert_eq!(
-                    diagram.to_tensorf().iter().any(|value| !value.is_zero()),
+                    diagram.to_tensor4().iter().any(|value| !value.is_zero()),
                     m1 ^ m2 == feedback,
                     "feedback={feedback}, m1={m1}, m2={m2}",
                 );

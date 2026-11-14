@@ -1,4 +1,4 @@
-use bloq_ir::{Bloq, BloqEdge, BloqNode};
+use bloq_ir::{Bloq, BloqEdge, BloqNode, BloqNodeId};
 use smallvec::SmallVec;
 use std::collections::{BTreeMap, hash_map::Entry};
 use std::rc::Rc;
@@ -753,6 +753,24 @@ fn cyclic_reversal_error(
     bloq_ir::BloqValidationError::CyclicGraph.into()
 }
 
+/// Drop each handoff that its source's previous handoff already implies.
+///
+/// Looking through conditional users pairs a qubit's users all-to-all, though
+/// an `Order` edge holds whether or not its endpoints activate. Removing an
+/// edge implied by two others keeps the order of an acyclic union, so a run of
+/// conditional users needs only its consecutive handoffs.
+fn drop_implied_handoffs(pairs: &mut Vec<(BloqNodeId, BloqNodeId)>, rank: &[usize]) {
+    let present = pairs.iter().copied().collect::<crate::FxSet<_>>();
+    pairs.sort_unstable_by_key(|&(from, to)| (from.0, rank[to.0 as usize]));
+    let mut previous = None;
+    pairs.retain(|&(from, to)| {
+        let implied =
+            previous.is_some_and(|(source, via)| source == from && present.contains(&(via, to)));
+        previous = Some((from, to));
+        !implied
+    });
+}
+
 /// Induce occupancy `Order` edges between physical-qubit eras: a terminating
 /// use must precede a later source on the same qubit — teardown then reinit.
 /// Other qubits may continue through the same nodes' quantum seams.
@@ -770,7 +788,7 @@ fn cyclic_reversal_error(
 /// on the same footprint, and a bare toposort emitted the later era's port
 /// MPP before the earlier era's readout of the same qubits.
 pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate::CompileError> {
-    use bloq_ir::{BloqEdgeRef, BloqNodeId};
+    use bloq_ir::BloqEdgeRef;
 
     struct Footprint {
         id: BloqNodeId,
@@ -1173,6 +1191,9 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
         .iter()
         .all(|(from, to)| rank[from.0 as usize] < rank[to.0 as usize])
         || bloq.is_acyclic_with_edges(&candidate_pairs);
+    if batch_acyclic {
+        drop_implied_handoffs(&mut candidate_pairs, &rank);
+    }
     // Reset-only overlaps are preferences; settle data-bearing boundaries first.
     let mut pairs = Vec::with_capacity(candidate_pairs.len());
     let mut scratch = bloq.path_scratch();
@@ -1255,8 +1276,7 @@ mod tests {
     use super::*;
     use bloq_circuit::{CoordCircuit, Flow, GateType, Pauli, PauliMap};
     use bloq_ir::{
-        BloqNodeId, ClassicalExpr, ClassicalNode, QuantumGuard, RegionNode, SourceBlockRef,
-        SubGraph,
+        ClassicalExpr, ClassicalNode, QuantumGuard, RegionNode, SourceBlockRef, SubGraph,
         lowering::{BloqTemplate, TemplateInstance, TemplateInstanceId},
     };
     use glam::{ivec2, ivec3};
@@ -2202,6 +2222,23 @@ mod tests {
         bloq.deterministic_emit_order().unwrap();
         assert!(bloq.has_path(c, d));
         assert!(!bloq.has_path(a, b));
+    }
+
+    #[test]
+    fn conditional_users_of_a_qubit_need_only_consecutive_handoffs() {
+        let mut bloq = Bloq::new();
+        let (selector, _) = opposite_selectors(&mut bloq);
+        let users = [0, 2, 4, 6].map(|z| {
+            let user = add_live_node(&mut bloq, z, false, false);
+            guard_member(&mut bloq, user, selector);
+            user
+        });
+        induce_occupancy_order_edges(&mut bloq).unwrap();
+        let [first, second, third, fourth] = users.map(|user| user.0);
+        assert_eq!(
+            order_edges(&bloq),
+            [(first, second), (second, third), (third, fourth)]
+        );
     }
 
     #[test]

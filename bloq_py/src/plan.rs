@@ -39,13 +39,7 @@ fn parse_dialect(name: &str) -> PyResult<StimDialect> {
 /// circuit. `measurement_count` is how many columns `text` produces in total,
 /// which is that same offset for the next plan.
 #[gen_stub_pyclass]
-#[pyclass(
-    name = "PlanStim",
-    module = "bloq._core",
-    frozen,
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "PlanStim", module = "bloq._core", frozen, get_all)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyPlanStim {
     /// The lowered Stim text.

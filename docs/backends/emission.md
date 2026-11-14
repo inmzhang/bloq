@@ -73,9 +73,11 @@ The emitter builds the circuit in five steps:
    their offsets, merge them into one node-local circuit, and attach the node's
    detectors and bundle uses.
 2. **Annotate noise.** When `noise=p` is requested, apply the noise model to
-   each merged node circuit. Add supported gate and reset errors, measurement
-   flips, and idle errors on the node's own qubits. This happens before
-   concatenation, so other nodes do not introduce extra idle noise.
+   each merged node circuit before concatenation. With moment alignment, apply
+   the model to the aligned schedule instead. Each aligned tick adds idle noise
+   to qubits that are inactive in that slot and within the span of their first
+   and last nonideal node placements. Both paths include supported gate and
+   reset errors and measurement flips.
 3. **Order the nodes.** Visit nodes in `deterministic_emit_order()`, a
    topological order of the dependency graph.
 4. **Concatenate.** Append each node's circuit in that order. Resolve every
@@ -96,8 +98,8 @@ hardware timings, and external idle-noise models may over-count errors.
 Segmented emission stores a shared header and node chunks with one global
 measurement record. Sample the assembled circuit.
 
-Aligned emission (`align_moments=True`) merges compatible moments in noiseless
-whole-program emission. It adds no memory rounds or hardware durations.
+Aligned emission (`align_moments=True`) merges compatible moments in whole-program
+emission.
 :::
 
 ## Bloq VM

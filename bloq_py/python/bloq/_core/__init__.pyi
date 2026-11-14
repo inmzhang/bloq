@@ -5704,7 +5704,8 @@ def emit_stim(program: Bloq, *, noise: typing.Optional[builtins.float] = None, v
             produced elsewhere: the backend assumes a well-formed program and
             may otherwise emit a silently wrong circuit.
         align_moments: Flatten repeats and merge compatible Clifford moments by
-            z layer. Requires noiseless emission; defaults to ``False``.
+            z layer. Noise, if requested, is applied to the aligned schedule.
+            Defaults to ``False``.
 
     Raises:
         InvalidArgumentError: If `noise` is not finite or outside `[0, 1]`.

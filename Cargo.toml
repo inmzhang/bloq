@@ -31,7 +31,7 @@ anstream = "1.0.0"
 anstyle = "1.0.13"
 ariadne = "0.6"
 base64 = "0.23.0"
-bevy = { version = "0.20.0", default-features = false }
+bevy = { version = "0.20.1", default-features = false }
 bevy_egui = { version = "0.43.1", default-features = false }
 bevy_rich_text3d = { version = "0.8.0", default-features = false }
 binar = "0.1.8"
@@ -72,11 +72,11 @@ objc2-foundation = { version = "0.3.2", default-features = false, features = ["s
 ticit = { version = "0.2.0", default-features = false }
 petgraph = "0.8.3"
 postcard = { version = "1.1.3", features = ["use-std"] }
-quizx = "0.3.0"
+quizx = "0.4.0"
 rand = "0.10.3"
 rfd = "0.17.2"
 rustc-hash = "2.1.2"
-rstest = "0.27"
+rstest = "0.28"
 same-file = "1.0.6"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0"
