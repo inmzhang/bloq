@@ -46,8 +46,6 @@ mod theme;
 mod utils;
 #[cfg(any(target_arch = "wasm32", test))]
 mod web_render_failure;
-#[cfg(any(target_arch = "wasm32", test))]
-mod web_shader_compat;
 
 use bevy_rich_text3d::{LoadFonts, Text3dPlugin};
 #[cfg(not(target_arch = "wasm32"))]

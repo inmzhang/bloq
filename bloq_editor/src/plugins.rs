@@ -65,8 +65,6 @@ pub(crate) struct BloqEditorPlugin;
 impl Plugin for BloqEditorPlugin {
     fn build(&self, app: &mut App) {
         #[cfg(target_arch = "wasm32")]
-        crate::web_shader_compat::install(app);
-        #[cfg(target_arch = "wasm32")]
         app.add_plugins(crate::session::browser::SessionPlugin);
         #[cfg(not(target_arch = "wasm32"))]
         app.add_plugins(crate::session::native::SessionPlugin);

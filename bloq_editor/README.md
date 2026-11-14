@@ -66,15 +66,8 @@ Live BLOG analysis reuses one idle worker to avoid repeated WebAssembly startup;
 canceling an in-flight analysis still terminates it. The idle worker retains its
 WebAssembly memory until the page closes.
 
-### Browser compatibility maintenance
-
-`web_shader_compat.rs` temporarily applies the upstream Safari texture/sampler
-alias fix to three exact Bevy 0.20.1 shaders. It never rewrites unknown sources.
-When upgrading Bevy, remove the workaround if the upstream fix is included;
-otherwise review the new shaders and run the ignored
-`installed_upstream_sources_match_all_guarded_rewrites` test with
-`BLOQ_BEVY_PBR_SOURCE` pointing to Bevy's `src/render` directory. Verify the full
-editor in Safari, not just background-worker tests.
+Safari compatibility remains tracked in [issue #44](https://github.com/inmzhang/bloq/issues/44);
+the editor does not patch upstream Bevy shaders.
 
 Use **Help** for the full shortcut reference. On Mac, use Command in place of
 Ctrl for application shortcuts. Camera orbit is available with **Alt + left
