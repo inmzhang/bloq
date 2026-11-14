@@ -16,11 +16,6 @@ strum.workspace = true
 thiserror.workspace = true
 binar.workspace = true
 rustc-hash.workspace = true
-layout-rs.workspace = true
-
-[package.metadata.cargo-machete]
-# The package exposes its Rust API as `layout` (used by graph_layout.rs).
-ignored = ["layout-rs"]
 
 [lints]
 workspace = true

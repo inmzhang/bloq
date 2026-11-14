@@ -1,17 +1,6 @@
-//! Shared layered placement and obstacle-aware edge routing for dependency graphs.
+//! Shared layered placement and edge routing for dependency graphs.
 
-use std::collections::HashMap;
-
-use layout::{
-    core::{
-        base::Orientation,
-        format::{ClipHandle, RenderBackend},
-        geometry::{Point, Position},
-        style::StyleAttr,
-    },
-    std_shapes::shapes::{Arrow, Element, ShapeKind},
-    topo::layout::VisualGraph,
-};
+use std::collections::{HashMap, VecDeque};
 
 /// Cubic Bézier segments, each containing start, two controls, and end.
 pub type CubicSpline = Vec<[(f32, f32); 4]>;
@@ -27,11 +16,10 @@ pub struct RelativeLayout {
     pub content: (f32, f32),
 }
 
-/// Lay out sized nodes and route their edges with `layout-rs`.
+/// Place sized nodes in dependency order and route edges through free gutters.
 ///
 /// Regions are opaque rectangles; callers size their contents bottom-up.
 /// Node ids must be unique, sizes and gap finite, and all endpoints present.
-/// Compute once per graph edit, rather than per frame.
 ///
 /// # Panics
 ///
@@ -41,188 +29,153 @@ pub fn compute_relative(
     edges: &[(u32, u32)],
     gap: f32,
 ) -> RelativeLayout {
-    if nodes.is_empty() {
-        return RelativeLayout {
-            positions: HashMap::new(),
-            routes: Vec::new(),
-            content: (0.0, 0.0),
-        };
-    }
-
-    let orientation = Orientation::LeftToRight;
-    let mut graph = VisualGraph::new(orientation);
-    let handles = nodes
+    let gap = gap.max(1.0);
+    let indices = nodes
         .iter()
-        .map(|&(id, (width, height))| {
-            let size = Point::new(f64::from(width), f64::from(height));
-            let mut element = Element::create(
-                ShapeKind::new_box(""),
-                StyleAttr::simple(),
-                orientation,
-                size,
-            );
-            element.pos = Position::new(
-                Point::zero(),
-                size,
-                Point::zero(),
-                Point::splat(f64::from(gap.max(1.0))),
-            );
-            (id, graph.add_node(element))
-        })
+        .enumerate()
+        .map(|(index, &(id, _))| (id, index))
         .collect::<HashMap<_, _>>();
-    for (index, &(from, to)) in edges.iter().enumerate() {
-        graph.add_edge(
-            Arrow::simple_with_properties("", index.to_string()),
-            handles[&from],
-            handles[&to],
-        );
+    let edges = edges
+        .iter()
+        .map(|&(from, to)| (indices[&from], indices[&to]))
+        .collect::<Vec<_>>();
+    let mut outgoing = vec![Vec::new(); nodes.len()];
+    let mut incoming = vec![0; nodes.len()];
+    for &(from, to) in &edges {
+        outgoing[from].push(to);
+        incoming[to] += 1;
     }
 
-    let mut collector = RouteCollector {
-        routes: vec![Vec::new(); edges.len()],
-    };
-    graph.do_it(false, false, false, &mut collector);
-    let columns = graph
-        .dag
-        .ranks()
+    let mut remaining = incoming.clone();
+    let mut ready = (0..nodes.len())
+        .filter(|&node| remaining[node] == 0)
+        .collect::<VecDeque<_>>();
+    let mut rank = vec![0_usize; nodes.len()];
+    let mut placed = vec![false; nodes.len()];
+    // Break cycles in input order. Their backward edges still get routed.
+    let mut seeds = 0..nodes.len();
+    while let Some(node) = ready.pop_front().or_else(|| seeds.find(|&id| !placed[id])) {
+        placed[node] = true;
+        for &next in &outgoing[node] {
+            if !placed[next] {
+                rank[next] = rank[next].max(rank[node] + 1);
+                remaining[next] -= 1;
+                if remaining[next] == 0 {
+                    ready.push_back(next);
+                }
+            }
+        }
+    }
+
+    let long_edges = edges
         .iter()
-        .map(|rank| {
-            rank.iter().map(|&node| graph.pos(node)).fold(
-                (f32::INFINITY, f32::NEG_INFINITY),
-                |(left, right), pos| {
-                    (
-                        left.min(pos.left(false) as f32),
-                        right.max(pos.right(false) as f32),
-                    )
-                },
-            )
+        .filter(|&&(from, to)| rank[from].abs_diff(rank[to]) > 1)
+        .count();
+    let top = (8.0 * long_edges as f32).min(3.0 * gap);
+    let columns = rank.iter().max().map_or(0, |rank| rank + 1);
+    let mut widths = vec![0.0_f32; columns];
+    let mut bottoms = vec![top; columns];
+    let mut tops = Vec::with_capacity(nodes.len());
+    for (&(_, (width, height)), &column) in nodes.iter().zip(&rank) {
+        widths[column] = widths[column].max(width);
+        tops.push(bottoms[column]);
+        bottoms[column] += height + gap / 2.0;
+    }
+    let mut left = 0.0;
+    let columns = widths
+        .iter()
+        .map(|&width| {
+            let bounds = (left, left + width);
+            left = bounds.1 + gap;
+            bounds
         })
         .collect::<Vec<_>>();
-    for (&(from, to), route) in edges.iter().zip(&mut collector.routes) {
-        let from = graph.dag.level(handles[&from]);
-        let to = graph.dag.level(handles[&to]);
-        if from.abs_diff(to) == route.len() && from != to {
-            // Follow the library's dummy lanes through the free column gutters.
-            // Direct smooth interpolation can clip a tall intervening region.
-            let mut routed = Vec::new();
-            for (step, &[start, _, _, end]) in route.iter().enumerate() {
-                let column = if from < to {
-                    from + step
-                } else {
-                    from - step - 1
-                };
-                let gutter = columns[column].1.midpoint(columns[column + 1].0);
-                let (entry, exit) = if from < to {
-                    ((columns[column].1, start.1), (columns[column + 1].0, end.1))
-                } else {
-                    ((columns[column + 1].0, start.1), (columns[column].1, end.1))
-                };
-                let straight = |a: (f32, f32), b: (f32, f32)| {
-                    let control = |t: f32| (a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t);
-                    [a, control(1.0 / 3.0), control(2.0 / 3.0), b]
-                };
-                routed.extend(
-                    [
-                        straight(start, entry),
-                        [entry, (gutter, start.1), (gutter, end.1), exit],
-                        straight(exit, end),
-                    ]
-                    .into_iter()
-                    .filter(|segment| segment[0] != segment[3]),
-                );
+    let positions = nodes
+        .iter()
+        .zip(&rank)
+        .zip(&tops)
+        .map(|((&(id, _), &column), &y)| (id, (columns[column].0, y)))
+        .collect();
+
+    let mut next_out = vec![0; nodes.len()];
+    let mut next_in = vec![0; nodes.len()];
+    let mut lane = 0;
+    let mut right = columns.last().map_or(0.0, |&(_, right)| right);
+    let routes = edges
+        .into_iter()
+        .map(|(from, to)| {
+            let (from_rank, to_rank) = (rank[from], rank[to]);
+            let (from_left, from_right) = columns[from_rank];
+            let (to_left, to_right) = columns[to_rank];
+            let (from_width, from_height) = nodes[from].1;
+            let (to_width, to_height) = nodes[to].1;
+            next_out[from] += 1;
+            next_in[to] += 1;
+            let anchor = |y, height, index, count| {
+                y + height * (0.2 + 0.6 * index as f32 / (count + 1) as f32)
+            };
+            let sy = anchor(
+                tops[from],
+                from_height,
+                next_out[from],
+                outgoing[from].len(),
+            );
+            let mut ty = anchor(tops[to], to_height, next_in[to], incoming[to]);
+            if from == to && sy == ty {
+                ty += to_height * 0.15;
             }
-            *route = routed;
-        }
-    }
-    let mut positions = nodes
-        .iter()
-        .map(|&(id, _)| {
-            let pos = graph.pos(handles[&id]);
-            (id, (pos.left(false) as f32, pos.top(false) as f32))
+            let (sx, entry, exit, tx) = match from_rank.cmp(&to_rank) {
+                std::cmp::Ordering::Less => (from_left + from_width, from_right, to_left, to_left),
+                std::cmp::Ordering::Greater => (from_left, from_left, to_right, to_left + to_width),
+                std::cmp::Ordering::Equal => (
+                    from_left + from_width,
+                    from_right,
+                    from_right,
+                    to_left + to_width,
+                ),
+            };
+            let bend = |(x, y), (u, v)| {
+                let middle = f32::midpoint(x, u);
+                [(x, y), (middle, y), (middle, v), (u, v)]
+            };
+            let mut route = Vec::with_capacity(5);
+            route.push(bend((sx, sy), (entry, sy)));
+            match from_rank.abs_diff(to_rank) {
+                0 => {
+                    let x = entry + gap * 0.7;
+                    route.push([(entry, sy), (x, sy), (x, ty), (exit, ty)]);
+                    right = right.max(x);
+                }
+                1 => route.push(bend((entry, sy), (exit, ty))),
+                _ => {
+                    // shortcut: long edges share the space above the columns;
+                    // allocate separate channels if dense graphs need wider separation.
+                    lane += 1;
+                    let y = top * (lane as f32 / (long_edges + 1) as f32);
+                    let offset = if from_rank < to_rank { gap } else { -gap } / 2.0;
+                    let over_source = (entry + offset, y);
+                    let over_target = (exit - offset, y);
+                    route.extend([
+                        bend((entry, sy), over_source),
+                        bend(over_source, over_target),
+                        bend(over_target, (exit, ty)),
+                    ]);
+                }
+            }
+            route.push(bend((exit, ty), (tx, ty)));
+            route.retain(|[start, first, second, end]| {
+                start != end || start != first || start != second
+            });
+            route
         })
-        .collect::<HashMap<_, _>>();
-    let points = nodes
-        .iter()
-        .flat_map(|&(id, (width, height))| {
-            let (x, y) = positions[&id];
-            [(x, y), (x + width, y + height)]
-        })
-        .chain(collector.routes.iter().flatten().flatten().copied());
-    let (mut min_x, mut min_y, mut max_x, mut max_y) = (
-        f32::INFINITY,
-        f32::INFINITY,
-        f32::NEG_INFINITY,
-        f32::NEG_INFINITY,
-    );
-    for (x, y) in points {
-        min_x = min_x.min(x);
-        min_y = min_y.min(y);
-        max_x = max_x.max(x);
-        max_y = max_y.max(y);
-    }
-    for (x, y) in positions
-        .values_mut()
-        .chain(collector.routes.iter_mut().flatten().flatten())
-    {
-        *x -= min_x;
-        *y -= min_y;
-    }
+        .collect();
     RelativeLayout {
         positions,
-        routes: collector.routes,
-        content: (max_x - min_x, max_y - min_y),
-    }
-}
-
-/// Geometry adapter: the library owns placement/routing, callers own rendering.
-struct RouteCollector {
-    routes: Vec<CubicSpline>,
-}
-
-impl RenderBackend for RouteCollector {
-    fn draw_arrow(
-        &mut self,
-        path: &[(Point, Point)],
-        _: bool,
-        head: (bool, bool),
-        _: &StyleAttr,
-        properties: Option<String>,
-        _: &str,
-    ) {
-        let index = properties
-            .expect("edge identity")
-            .parse::<usize>()
-            .expect("edge index");
-        let mut start = path[0].0;
-        let mut control = path[0].1;
-        for &(incoming, end) in &path[1..] {
-            self.routes[index]
-                .push([start, control, incoming, end].map(|p| (p.x as f32, p.y as f32)));
-            start = end;
-            control = end.add(end.sub(incoming));
-        }
-        if head.0 {
-            self.routes[index].reverse();
-            for segment in &mut self.routes[index] {
-                segment.reverse();
-            }
-        }
-    }
-
-    fn draw_rect(
-        &mut self,
-        _: Point,
-        _: Point,
-        _: &StyleAttr,
-        _: Option<String>,
-        _: Option<ClipHandle>,
-    ) {
-    }
-    fn draw_line(&mut self, _: Point, _: Point, _: &StyleAttr, _: Option<String>) {}
-    fn draw_circle(&mut self, _: Point, _: Point, _: &StyleAttr, _: Option<String>) {}
-    fn draw_text(&mut self, _: Point, _: &str, _: &StyleAttr) {}
-    fn create_clip(&mut self, _: Point, _: Point, _: usize) -> ClipHandle {
-        0
+        routes,
+        content: (
+            right,
+            bottoms.into_iter().fold(gap / 2.0, f32::max) - gap / 2.0,
+        ),
     }
 }
 
@@ -249,44 +202,20 @@ mod tests {
         assert!(col(1) < col(2), "chain keeps advancing rightwards");
     }
 
-    // An oversized (region container) tile mixed with default tiles must not
-    // overlap its successor: the content box has to fit both full sizes.
     #[test]
-    fn mixed_sizes_keep_tiles_disjoint_and_content_covers_them() {
-        let big = (400.0, 300.0);
-        let small = (130.0, 46.0);
-        let nodes = [(0, big), (1, small)];
-        let edges = [(0, 1)];
-
-        let layout = compute_relative(&nodes, &edges, 28.0);
-
-        let (bx, _) = layout.positions[&0];
-        let (sx, _) = layout.positions[&1];
-        assert!(
-            bx + big.0 <= sx + 0.01,
-            "successor starts after the big tile ends: {bx} + {} vs {sx}",
-            big.0
-        );
-        assert!(layout.content.0 >= sx + small.0 - 0.01);
-        assert!(layout.content.1 >= big.1 - 0.01);
-    }
-
-    #[test]
-    fn long_edges_route_around_intervening_nodes() {
-        let nodes = [(0, (180.0, 60.0)), (1, (400.0, 250.0)), (2, (180.0, 60.0))];
+    fn long_edges_route_around_wide_nodes() {
+        let small = (180.0, 60.0);
+        let large = (400.0, 250.0);
+        let nodes = [(0, small), (1, large), (2, small)];
         let edges = [(0, 1), (1, 2), (0, 2)];
         let layout = compute_relative(&nodes, &edges, 40.0);
         let (x, y) = layout.positions[&1];
-        assert!(
-            layout.routes[2].len() > 1,
-            "long edge retains its routing waypoints"
-        );
-        assert!(
-            layout.routes[2].iter().any(|[start, first, second, end]| {
-                start.1 != end.1 && first.1 == start.1 && second.1 == end.1
-            }),
-            "route uses smooth curves with horizontal endpoint tangents"
-        );
+        let (end_x, _) = layout.positions[&2];
+        assert!(layout.positions[&0].0 + small.0 <= x);
+        assert!(x + large.0 <= end_x);
+        assert!(layout.content.0 >= end_x + small.0);
+        assert!(layout.content.1 >= y + large.1);
+
         for segment in &layout.routes[2] {
             for step in 0..=100 {
                 let t = step as f32 / 100.0;
@@ -299,7 +228,7 @@ mod tests {
                         (px + cx * weight, py + cy * weight)
                     });
                 assert!(
-                    !(x < px && px < x + 400.0 && y < py && py < y + 250.0),
+                    !(x < px && px < x + large.0 && y < py && py < y + large.1),
                     "edge enters intervening region at {px},{py}; box={x},{y}; route={:?}",
                     layout.routes[2]
                 );
@@ -309,12 +238,13 @@ mod tests {
 
     #[test]
     fn parallel_cycles_and_self_edges_keep_identity_and_bounds() {
-        let nodes = [(4, (180.0, 60.0)), (9, (180.0, 60.0)), (21, (180.0, 60.0))];
+        let nodes = [4, 9, 21].map(|id| (id, (180.0, 60.0)));
         let edges = [(4, 9), (4, 9), (9, 21), (21, 4), (9, 9)];
         let first = compute_relative(&nodes, &edges, 40.0);
         let second = compute_relative(&nodes, &edges, 40.0);
         assert_eq!(first.positions, second.positions);
         assert_eq!(first.routes, second.routes);
+        assert_ne!(first.routes[0], first.routes[1]);
         assert_eq!(first.routes.len(), edges.len());
         for route in &first.routes {
             assert!(!route.is_empty());

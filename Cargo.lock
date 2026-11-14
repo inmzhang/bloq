@@ -2403,7 +2403,6 @@ version = "0.1.2-dev"
 dependencies = [
  "binar",
  "glam",
- "layout-rs",
  "rustc-hash 2.1.3",
  "serde",
  "strum 0.28.0",
@@ -4656,12 +4655,6 @@ checksum = "364b49d1c98c07972e16fe1346463becc08bcd663da04e6e37ab1bea068dce6a"
 dependencies = [
  "regex-automata",
 ]
-
-[[package]]
-name = "layout-rs"
-version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b8b38bc67665e362eb770c6b6ae88b48d040d94a0a10c4904c37bc79d263b95"
 
 [[package]]
 name = "lazy_static"
