@@ -22,6 +22,13 @@ area, including dependency-only fixes such as `fix(editor): ...`. Unscoped
 commits remain visible under General. See [changelog generation](docs/releasing.md#changelog).
 `just changelog` previews generated notes without writing the file.
 
+Before squash-merging, replace GitHub's generated commit list with one summary
+of this PR only. Consolidate all migration guidance into one `BREAKING CHANGE:`
+footer, retaining the `Assisted-by:` trailers. Do not copy an ancestor PR's
+commit stack. Review the final squash message, not just the PR title/body.
+Quick CI and release preparation reject new stacked commit summaries and multiple
+breaking footers; this cannot prove that a single footer accurately describes the diff.
+
 ## Issues and pull requests
 
 Use the [bug report](.github/ISSUE_TEMPLATE/bug_report.md),

@@ -35,6 +35,7 @@ trim = true
 # Only release-plz supplies `package`. The nested git-cliff renders the normal template.
 postprocessors = [
   { pattern = "^BLOQ_REPOSITORY_CHANGELOG", replace_command = '''
+python3 tools/changelog.py --check || exit 1
 read -r marker release_version release_date previous_version
 if [ -n "$previous_version" ]; then
   git merge-base --is-ancestor "refs/tags/v${previous_version#v}" HEAD || exit 1
@@ -49,6 +50,8 @@ conventional_commits = true
 filter_unconventional = false
 protect_breaking_commits = true
 commit_preprocessors = [
+  # Exact-SHA repairs run before Conventional Commit parsing; never strip arbitrary bodies.
+  { pattern = '(?s)\A.*\z', replace_command = 'python3 tools/changelog.py' },
   { pattern = '\(#([0-9]+)\)', replace = '([#${1}](https://github.com/inmzhang/bloq/pull/${1}))' },
 ]
 commit_parsers = [

@@ -28,6 +28,8 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Check release metadata
+        run: python3 tools/changelog.py --check
       - name: Check for a stable workspace version
         id: version
         run: |
@@ -80,6 +82,8 @@ jobs:
       - name: Install pinned Rust toolchain
         run: rustup toolchain install
       - uses: astral-sh/setup-uv@v10.3.3
+      - name: Check release metadata
+        run: python3 tools/changelog.py --check
       - name: Compare development changes against the last stable release
         run: |
           python3 tools/workspace_version.py release-baseline

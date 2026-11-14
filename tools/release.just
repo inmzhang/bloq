@@ -5,6 +5,7 @@ release: pre-release
 # Preview only; release-plz writes CHANGELOG.md in the release PR.
 [group('production')]
 changelog:
+    python3 tools/changelog.py --check
     uvx --from git-cliff==2.14.2 git-cliff --config cliff.toml --unreleased
 
 # Run on a reviewed chore/ branch after all uploads for the stable tag succeed.

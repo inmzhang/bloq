@@ -74,6 +74,16 @@ Performance subsections. Unscoped `docs` and `ci` commits use their correspondin
 areas; other unscoped changes remain under General. Use meaningful scopes in
 commit messages and squash-merge titles rather than inferring intent from files.
 
+Historical metadata corrections are keyed to exact commit IDs in
+`tools/changelog.py`; they do not rewrite Git history or retained release notes.
+Before generation, the same tool rejects ambiguous new squash messages after its
+reviewed-history boundary. Quick CI checks actual commits too, but cannot inspect
+a squash message edited later in GitHub's merge dialog. Review that message as
+[described in Contributing](../CONTRIBUTING.md).
+If the guard fails after a merge, review the diff and add an exact-ID correction;
+do not move the boundary forward or strip arbitrary commit bodies. Validate the
+correction with `python3 tools/test_changelog.py`, then regenerate the release PR.
+
 Record migration details in `BREAKING CHANGE:` footers and the relevant user
 documentation; breaking entries retain the footer. Review generated notes in the
 release PR. Release and development-version housekeeping is omitted. Package

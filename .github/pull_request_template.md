@@ -21,6 +21,7 @@ Check completed items; note `N/A` for items that do not apply.
 
 - [ ] I followed the [contributing guidelines](https://github.com/inmzhang/bloq/blob/main/CONTRIBUTING.md).
 - [ ] I reviewed the diff.
+- [ ] The squash message will summarize only this PR, with one consolidated breaking-change footer if needed.
 - [ ] I added or updated regression tests where behavior changed.
 - [ ] I updated the relevant documentation where needed.
 - [ ] Relevant checks pass without new errors or warnings.
