@@ -120,7 +120,7 @@ pub(crate) fn draw_help_window(
                         "Select, then Delete/Backspace to remove. Connected pipes are removed with a block; Undo restores them. Middle mouse only orbits the camera.",
                     );
                     ui.label("File Save/Download exports the graph. BLOG Save/Download draft preserves exact text, including comments and invalid or unfinished input.");
-                    ui.label("Graph and text conflicts require an explicit choice; text replaced from the graph remains in Text history.");
+                    ui.label("Graph and text conflicts require an explicit choice; Text history keeps up to 20 recent versions within 8 MiB per tab. Save draft for permanent recovery.");
                 });
                 let query = query.trim().to_lowercase();
                 let mut count = 0;

@@ -160,6 +160,9 @@ pub(super) fn restore_prepared_with_cache(json: &str) -> Result<(EditorTabs, Ses
             let state = &tab.snapshot;
             saved.graph_revision = state.graph_state.revision;
             saved.blog_revision = state.import_export.bloq_revision;
+            if saved.text_history.len() != state.import_export.text_history().len() {
+                saved.text_history = Arc::from(state.import_export.text_history());
+            }
             saved.text_history_revision = state.import_export.text_history_revision();
             saved.text_conflict = state.import_export.sync_conflict;
             if let Some(history) = &mut saved.history {

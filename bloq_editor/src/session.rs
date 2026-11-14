@@ -831,6 +831,28 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn restored_text_history_budget_also_updates_autosave_cache() {
+        let tabs = EditorTabs::default();
+        let mut saved = capture(&tabs, &tabs.active_tab().snapshot, None);
+        saved.tabs[0].text_history = (0..100).map(|i| i.to_string()).collect();
+        let restored = reopen(&saved).unwrap();
+        assert_eq!(
+            restored
+                .active_tab()
+                .snapshot
+                .import_export
+                .text_history()
+                .len(),
+            20
+        );
+        let prepared = recovery::prepare(&serde_json::to_string(&saved).unwrap()).unwrap();
+        let (restored, cache) = recovery::restore_prepared_with_cache(&prepared).unwrap();
+        let captured = capture(&restored, &restored.active_tab().snapshot, Some(&cache));
+        assert_eq!(captured.tabs[0].text_history.len(), 20);
+        assert_eq!(captured.tabs[0].text_history[0], "80");
+    }
+
     // Frozen wire format, independent of the current serializer.
     const SAVED_SESSION: &str = include_str!("../tests/fixtures/session_v1_current.json");
 

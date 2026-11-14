@@ -34,8 +34,9 @@ for setup.
   the text. Incomplete or invalid text stays intact and pauses viewport editing.
   **Keep graph** discards pending text after confirmation. If the graph changes meanwhile, **Use text** explicitly
   applies the text instead. Visual edits regenerate formatting and comments;
-  **Text history** retains previous source versions for recovery, including after
-  restarting. **Save draft** (desktop) or **Download draft** (browser) saves the
+  **Text history** keeps up to 20 recent source versions within 8 MiB per tab,
+  including after restarting. Older versions (or a version exceeding the budget)
+  are dropped; the current text is never truncated. **Save draft** (desktop) or **Download draft** (browser) saves the
   exact text, including comments and incomplete edits. Saving a BLOG file from
   the File menu instead exports the last valid graph, not recovery history.
   `BLOG …` means text is being checked; `BLOG !` needs attention.

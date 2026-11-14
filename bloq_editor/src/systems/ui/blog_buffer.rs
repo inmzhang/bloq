@@ -28,6 +28,10 @@ use egui_extras::syntax_highlighting::{CodeTheme, SyntectSettings, highlight_wit
 use glam::IVec3;
 use syntect::parsing::SyntaxDefinition;
 
+const TEXT_HISTORY_ENTRIES: usize = 20;
+const TEXT_HISTORY_BYTES: usize = 8 * 1024 * 1024;
+const TEXT_HISTORY_HELP: &str = "Keeps up to 20 recent versions within 8 MiB per tab. Save or download a draft to keep it permanently.";
+
 const BLOG_SYNTAX: &str = r#"%YAML 1.2
 ---
 name: BLOG
@@ -138,7 +142,23 @@ impl ImportExportState {
 
     pub(crate) fn restore_text_history(&mut self, history: Vec<String>) {
         self.text_history = history;
+        self.trim_text_history();
         self.text_history_revision = next_blog_revision();
+    }
+
+    fn trim_text_history(&mut self) {
+        let mut bytes = 0;
+        let keep = self
+            .text_history
+            .iter()
+            .rev()
+            .take(TEXT_HISTORY_ENTRIES)
+            .take_while(|text| {
+                bytes += text.len();
+                bytes <= TEXT_HISTORY_BYTES
+            })
+            .count();
+        self.text_history.drain(..self.text_history.len() - keep);
     }
 
     pub(crate) fn set_bloq_buffer(&mut self, buffer: String) {
@@ -229,6 +249,7 @@ impl ImportExportState {
         }
         if !self.bloq_buffer.is_empty() && self.text_history.last() != Some(&self.bloq_buffer) {
             self.text_history.push(self.bloq_buffer.clone());
+            self.trim_text_history();
             self.text_history_revision = next_blog_revision();
         }
         self.set_bloq_buffer(next);
@@ -1649,7 +1670,9 @@ fn draw_contents(
             let mut restore = None;
             ui.menu_button("Text history", |ui| {
                 restore = draw_text_history(ui, &state.text_history);
-            });
+            })
+            .response
+            .on_hover_text(TEXT_HISTORY_HELP);
             if let Some(index) = restore {
                 state.replace_text_preserving_history(state.text_history[index].clone());
             }
@@ -1902,6 +1925,28 @@ mod tests {
                 .is_err()
         );
         assert!(text.blocks_graph_editing());
+    }
+
+    #[test]
+    fn text_history_is_bounded_without_truncating_current_text() {
+        let mut text = ImportExportState::default();
+        for index in 0..=TEXT_HISTORY_ENTRIES + 2 {
+            text.replace_text_preserving_history(index.to_string());
+        }
+        assert_eq!(text.text_history.len(), TEXT_HISTORY_ENTRIES);
+        assert_eq!(text.text_history.first().unwrap(), "2");
+        text.restore_text_history(vec![
+            "old".into(),
+            "x".repeat(TEXT_HISTORY_BYTES),
+            "new".into(),
+        ]);
+        assert_eq!(text.text_history, ["new"]);
+        let oversized = "x".repeat(TEXT_HISTORY_BYTES + 1);
+        text.replace_text_preserving_history(oversized.clone());
+        assert_eq!(text.bloq_buffer, oversized);
+        text.replace_text_preserving_history("current".into());
+        assert!(text.text_history.is_empty());
+        assert_eq!(text.bloq_buffer, "current");
     }
 
     #[test]
