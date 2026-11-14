@@ -91,11 +91,16 @@ areas; other unscoped changes remain under General. Use meaningful scopes in
 commit messages and squash-merge titles rather than inferring intent from files.
 
 The **Release metadata** workflow validates proposed PR titles/bodies and actual
-new first-parent messages on each push to `main`. Publication checks the push
-range again before invoking release-plz; preparation checks the current main tip.
-Older history is not rejected or rewritten. There are no per-commit corrections.
-A later clean commit does not repair an earlier bad message: review any failed
-main metadata run and correct its generated notes in the held release PR.
+new first-parent messages on each push to `main`. Preparation and publication
+check the pending release's first-parent messages, starting at adoption of this
+checker or after the latest stable release, whichever is later. The adoption
+boundary is discovered from Git history, not a hardcoded commit ID.
+Pre-adoption history is not rejected or rewritten; there are no per-commit repairs.
+A later clean commit cannot mask a failed message in the same pending release.
+If this gate fails after a merge, stop automated release preparation/publication
+and review the offending metadata and migration notes with a maintainer. Curation
+alone does not bypass the gate; the manual release procedure requires separate
+maintainer review and approval.
 This is format validation, not a guarantee of semantic documentation accuracy.
 
 Configure GitHub's squash default to **PR title and description**, and require

@@ -29,7 +29,7 @@ footer, retaining the `Assisted-by:` trailers. Do not copy an ancestor PR's
 commit stack. Review the final squash message, not just the PR title/body.
 The required **Release metadata** check validates the PR title/body, including edits.
 The main-push check validates the actual new first-parent merge messages. Release
-publication checks that same push range; preparation checks the current main tip.
+preparation and publication check all prospective commits in the pending release.
 These checks reject copied commit stacks, duplicate breaking footers, and breaking
 titles without migration guidance. They do not re-lint historical commits or prove
 that the prose accurately describes the diff. Review the generated release notes too.

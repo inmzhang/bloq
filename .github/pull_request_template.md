@@ -1,7 +1,9 @@
 ## Description
 
-<!-- Summarize the change, motivation, and relevant context. List any new dependencies.
-Link related issues with `Fixes #123` or `Refs #123`, as appropriate. -->
+<!-- Summarize user-visible behavior, motivation, and new dependencies. State "No user-facing change" when appropriate.
+For breaking changes, include one BREAKING CHANGE: footer with migration guidance.
+Link updated documentation and related issues (Fixes #123 or Refs #123).
+The PR title and description become the default squash message; do not paste working commit lists. -->
 
 ## How has this been tested?
 
