@@ -37,10 +37,6 @@ jobs:
       heavy: ${{ steps.suites.outputs.heavy }}
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - name: Check release metadata
-        run: python3 tools/changelog.py --check
       - name: Check workflow syntax
         run: |
           curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash -o "$RUNNER_TEMP/download-actionlint.bash"

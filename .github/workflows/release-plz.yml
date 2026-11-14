@@ -29,7 +29,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Check release metadata
-        run: python3 tools/changelog.py --check
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: python3 tools/changelog.py --range "$BEFORE..$AFTER"
       - name: Check for a stable workspace version
         id: version
         run: |
@@ -62,10 +65,34 @@ jobs:
           # Supports first publication, unlike crates.io trusted publishing.
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-  release-pr:
-    name: Prepare release PR
+  release-hold:
+    name: Check release-note hold
     if: >-
       github.event_name != 'push' && github.ref == 'refs/heads/main' && github.repository == 'inmzhang/bloq'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      held: ${{ steps.hold.outputs.held }}
+    steps:
+      - name: Preserve curated release PRs
+        id: hold
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          held=$(gh pr list --base main --state open --label release-notes-reviewed \
+            --json headRefName --jq 'any(.[]; .headRefName | startswith("release-plz-"))')
+          echo "held=$held" >> "$GITHUB_OUTPUT"
+          if [ "$held" = true ]; then
+            echo 'Release-note review hold active; skipping regeneration.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  release-pr:
+    name: Prepare release PR
+    needs: release-hold
+    if: needs.release-hold.outputs.held == 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -83,7 +110,7 @@ jobs:
         run: rustup toolchain install
       - uses: astral-sh/setup-uv@v10.3.3
       - name: Check release metadata
-        run: python3 tools/changelog.py --check
+        run: python3 tools/changelog.py --range HEAD^..HEAD
       - name: Compare development changes against the last stable release
         run: |
           python3 tools/workspace_version.py release-baseline

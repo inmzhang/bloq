@@ -42,9 +42,10 @@ architecture cannot support it:
   or `fix/readout-order`.
 - Coordinate breaking API changes across callers, examples, documentation,
   and release notes. Preserve released documentation and API references.
-- Do not edit `CHANGELOG.md` manually. Release-plz generates it in release PRs.
-  Record release-note details in Conventional Commit messages and compatibility
-  changes in `BREAKING CHANGE:` footers.
+- Release-plz generates `CHANGELOG.md`; curate pending notes only in a held
+  release PR following [Releasing](docs/releasing.md#changelog). Preserve released
+  entries and generated version headings. Record release-note details in
+  Conventional Commit messages and compatibility changes in `BREAKING CHANGE:` footers.
 - Use Conventional Commit scopes in commit messages and squash-merge titles:
   `python` for Python API, `rust` for Rust API and compiler, `editor`, `cli`,
   `ci` for workflows and packaging, `docs` for documentation, and `deps` for

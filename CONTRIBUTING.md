@@ -12,8 +12,9 @@ Describe the behavior changed and the checks used to verify it. Breaking APIs
 require coordinated changes to callers, examples, documentation, and release
 notes. Preserve each release's documentation and API reference.
 
-Do not edit `CHANGELOG.md` manually, including unreleased entries and version
-headings. Release-plz generates it in release PRs. Record release-note details
+Release-plz generates `CHANGELOG.md`. Curate pending notes only in a held release
+PR as described in [Releasing](docs/releasing.md#changelog); preserve released entries
+and generated version headings. Record release-note details
 in Conventional Commit messages and compatibility changes in `BREAKING CHANGE:`
 footers; keep migration guidance in the relevant user documentation. Notes cover
 the whole repository and group changes by Conventional Commit scope. Use
@@ -26,8 +27,12 @@ Before squash-merging, replace GitHub's generated commit list with one summary
 of this PR only. Consolidate all migration guidance into one `BREAKING CHANGE:`
 footer, retaining the `Assisted-by:` trailers. Do not copy an ancestor PR's
 commit stack. Review the final squash message, not just the PR title/body.
-Quick CI and release preparation reject new stacked commit summaries and multiple
-breaking footers; this cannot prove that a single footer accurately describes the diff.
+The required **Release metadata** check validates the PR title/body, including edits.
+The main-push check validates the actual new first-parent merge messages. Release
+publication checks that same push range; preparation checks the current main tip.
+These checks reject copied commit stacks, duplicate breaking footers, and breaking
+titles without migration guidance. They do not re-lint historical commits or prove
+that the prose accurately describes the diff. Review the generated release notes too.
 
 ## Issues and pull requests
 

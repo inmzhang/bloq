@@ -56,14 +56,30 @@ inherited Cargo versions.
 
 ## Changelog
 
-Do not edit `CHANGELOG.md` manually, including unreleased entries and version
-headings. Release-plz owns versions, release PRs, and retained release notes.
-Its supported changelog postprocessor invokes git-cliff over repository-wide
-history since the previous stable tag. The same notes appear in the file and
-release PR. `just changelog` previews them without writing the file.
+Release-plz generates `CHANGELOG.md` and the release PR description from
+repository-wide history since the previous stable tag. `just changelog` previews
+that generated draft; it does not include later editorial corrections.
 Release PRs refresh daily at 02:17 UTC (10:17 Asia/Shanghai), or on demand with
 `gh workflow run release-plz.yml --repo inmzhang/bloq --ref main`.
-Publication still runs separately when the reviewed release PR is merged.
+Publication remains a separate action when the reviewed release PR is merged.
+
+Before curating a release:
+
+1. Refresh the release PR against current `main` and wait for generation to finish.
+2. Apply `release-notes-reviewed` to the open `release-plz-` PR. Confirm no generation
+   run is still active. The label gates the entire preparation job, including
+   manual dispatches, but does not disable CI or publication.
+3. Review the diff since the previous stable release. Correct pending entries in
+   `CHANGELOG.md` and the PR description together: include missing migrations,
+   remove inherited or duplicate notices, and cover Python and editor changes.
+   Preserve already released entries and generated version headings.
+4. Review checks and the final squash message before merging. The hold freezes
+   the candidate; it does not include later changes on `main`. To refresh, remove
+   the label, regenerate, then repeat the review and reapply the hold.
+
+The hold takes effect only once this workflow is on `main`; adding the label
+before then does not protect manual edits. It also does not stop a run already
+in progress or a local release-plz command. Do not curate until both are idle.
 
 The configuration follows [git-cliff's scoped template](https://github.com/orhun/git-cliff/blob/v2.14.2/examples/scoped.toml):
 Conventional Commit scopes group entries into Python API (`python` or `py`),
@@ -74,15 +90,18 @@ Performance subsections. Unscoped `docs` and `ci` commits use their correspondin
 areas; other unscoped changes remain under General. Use meaningful scopes in
 commit messages and squash-merge titles rather than inferring intent from files.
 
-Historical metadata corrections are keyed to exact commit IDs in
-`tools/changelog.py`; they do not rewrite Git history or retained release notes.
-Before generation, the same tool rejects ambiguous new squash messages after its
-reviewed-history boundary. Quick CI checks actual commits too, but cannot inspect
-a squash message edited later in GitHub's merge dialog. Review that message as
-[described in Contributing](../CONTRIBUTING.md).
-If the guard fails after a merge, review the diff and add an exact-ID correction;
-do not move the boundary forward or strip arbitrary commit bodies. Validate the
-correction with `python3 tools/test_changelog.py`, then regenerate the release PR.
+The **Release metadata** workflow validates proposed PR titles/bodies and actual
+new first-parent messages on each push to `main`. Publication checks the push
+range again before invoking release-plz; preparation checks the current main tip.
+Older history is not rejected or rewritten. There are no per-commit corrections.
+A later clean commit does not repair an earlier bad message: review any failed
+main metadata run and correct its generated notes in the held release PR.
+This is format validation, not a guarantee of semantic documentation accuracy.
+
+Configure GitHub's squash default to **PR title and description**, and require
+**Release metadata** alongside **CI** in the main ruleset. Keep the final merge
+message specific to the PR, with one consolidated migration footer when needed;
+GitHub allows that message to be edited after the checks pass.
 
 Record migration details in `BREAKING CHANGE:` footers and the relevant user
 documentation; breaking entries retain the footer. Review generated notes in the

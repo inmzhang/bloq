@@ -1,43 +1,24 @@
-"""Repair known squash metadata and reject ambiguous new release messages."""
+"""Validate proposed PR metadata or an explicit range of new merge messages."""
 
 import argparse
-import os
+import json
 import re
 import subprocess
-import sys
+from pathlib import Path
 
-# Last reviewed history before this guard; older valid squash lists remain intact.
-REVIEWED_HISTORY = "fe8fd09c5635e78a0102ae2da17811a7f8d47b03"
-CORRECTIONS = {
-    "31ebfd460165d30d9675abdc2410aafc23a0d5b6": "last",  # #28 inherited #27
-    "11aad7c5a852be6cbef7ad28eaa9664d8c0983e3": "all",   # #31 has two real migrations
-    "bdbbd66b98577e7f5e098cf7461a41edb6fc4441": "none",  # #32 inherited #31
-}
-BREAKING = re.compile(r"^BREAKING[ -]CHANGE: (.*(?:\n(?!\n|[\w-]+:).*)*)", re.MULTILINE)
-STACK = re.compile(
-    r"^\s*[*-] (?:feat|fix|perf|refactor|docs|test|chore|ci|build|style|revert)(?:\([^\n)]+\))?!?: ",
-    re.MULTILINE,
-)
-
-
-def corrected_message(sha: str, message: str) -> str:
-    mode = CORRECTIONS.get(sha)
-    if mode is None:
-        return message
-    footers = BREAKING.findall(message)
-    if mode == "last":
-        footers = footers[-1:]
-    elif mode == "none":
-        footers = []
-    subject = message.splitlines()[0]
-    migration = " ".join(" ".join(footer.splitlines()) for footer in footers)
-    return subject + (f"\n\nBREAKING CHANGE: {migration}" if migration else "") + "\n"
+TITLE = re.compile(r"(?:feat|fix|perf|refactor|docs|test|chore|ci|build|style|revert)(?:\([^\n)]+\))?!?: .+")
+STACK = re.compile(r"^\s*[*-] (?:feat|fix|perf|refactor|docs|test|chore|ci|build|style|revert)(?:\([^\n)]+\))?!?: ", re.MULTILINE)
+BREAKING = re.compile(r"^BREAKING[ -]CHANGE:", re.MULTILINE)
 
 
 def validate(message: str) -> None:
-    if STACK.search(message) or len(re.findall(r"^BREAKING[ -]CHANGE:", message, re.MULTILINE)) > 1:
-        raise ValueError("replace the stacked commit list with one squash summary and "
-                         "one consolidated BREAKING CHANGE footer (if needed)")
+    title = message.partition("\n")[0]
+    if not TITLE.fullmatch(title):
+        raise ValueError("use a Conventional Commit title, e.g. fix(editor): preserve selection")
+    if STACK.search(message) or len(BREAKING.findall(message)) > 1:
+        raise ValueError("write one PR summary, not a copied commit stack; consolidate breaking changes into one footer")
+    if re.search(r"!:", title) and not BREAKING.search(message):
+        raise ValueError("describe the migration in a BREAKING CHANGE: footer")
 
 
 def git(*args: str) -> str:
@@ -46,22 +27,19 @@ def git(*args: str) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true", help="check commits since reviewed history")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--event", type=Path, help="GitHub pull_request event JSON")
+    source.add_argument("--range", help="explicit new first-parent commit range")
     args = parser.parse_args()
-    if args.check:
-        # Fail if history is shallow or unrelated rather than silently skipping checks.
-        subprocess.run(["git", "merge-base", "--is-ancestor", REVIEWED_HISTORY, "HEAD"], check=True)
-        failures = []
-        for sha in git("rev-list", f"{REVIEWED_HISTORY}..HEAD").splitlines():
-            message = git("show", "-s", "--format=%B", sha)
-            try:
-                validate(corrected_message(sha, message))
-            except ValueError as error:
-                failures.append(f"{sha[:12]}: {error}")
-        if failures:
-            sys.exit("Ambiguous release metadata:\n" + "\n".join(failures))
+    if args.event:
+        pr = json.loads(args.event.read_text())["pull_request"]
+        validate(pr["title"] + "\n\n" + (pr["body"] or ""))
     else:
-        sys.stdout.write(corrected_message(os.environ["COMMIT_SHA"], sys.stdin.read()))
+        for sha in git("rev-list", "--first-parent", args.range).splitlines():
+            try:
+                validate(git("show", "-s", "--format=%B", sha))
+            except ValueError as error:
+                raise ValueError(f"{sha[:12]}: {error}") from error
 
 
 if __name__ == "__main__":
