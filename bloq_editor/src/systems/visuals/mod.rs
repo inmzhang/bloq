@@ -21,7 +21,6 @@ use crate::resources::{
 use crate::systems::input::{
     PIPE_HINT_OFFSETS, WALKING_MOVEMENTS, is_hadamard_pipe_modifier_pressed,
     moving_block_candidate_kind, moving_block_movements, moving_block_start_has_candidate,
-    on_element_click, on_element_drag_end, on_element_drag_start, on_element_out, on_element_over,
     patch_rotation_pipe_hint_target, pipe_candidate_at_with_snapshot,
     pipe_hint_target_with_snapshot, pipe_mode_selected_elements, tall_cube_pipe_hint_target,
     walking_pipe_hint_target, walking_port_promotion_candidate,
@@ -36,8 +35,6 @@ use bevy::camera::{primitives::Aabb, visibility::RenderLayers};
 use bevy::light::NotShadowCaster;
 use bevy::picking::{Pickable, mesh_picking::ray_cast::SimplifiedMesh};
 use bevy::prelude::*;
-#[cfg(target_arch = "wasm32")]
-use bevy::render::batching::NoAutomaticBatching;
 use bevy::render::render_resource::{Face, PrimitiveTopology};
 use bevy_rich_text3d::{Text3d, Text3dStyling, TextAtlas};
 use bloq_graph::{
@@ -70,7 +67,25 @@ pub(crate) use signature::{
 pub(crate) struct VisualsPlugin;
 
 #[derive(Component)]
+#[require(Transform)]
+#[component(on_add = queue_new_port_tag)]
 struct PortTagText;
+
+/// Billboard work is proportional to new labels while the camera is stationary.
+#[derive(Resource, Default)]
+struct PortTagFacingState {
+    rotation: Option<Quat>,
+    pending: Vec<Entity>,
+}
+
+fn queue_new_port_tag(
+    mut world: bevy::ecs::world::DeferredWorld,
+    context: bevy::ecs::lifecycle::HookContext,
+) {
+    if let Some(mut state) = world.get_resource_mut::<PortTagFacingState>() {
+        state.pending.push(context.entity);
+    }
+}
 
 const PORT_TAG_GAP: f32 = 0.18;
 const PORT_TAG_SCALE: f32 = 0.375;
@@ -79,7 +94,8 @@ const PORT_TAG_HALF_HEIGHT: f32 = 0.5 * PORT_TAG_SCALE;
 
 impl Plugin for VisualsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<GraphRenderState>()
+        app.init_resource::<PortTagFacingState>()
+            .init_resource::<GraphRenderState>()
             .init_resource::<RenderAssetCache>()
             .add_systems(
                 Update,
@@ -120,7 +136,6 @@ pub(crate) fn block_graph_visual_system(
 ) {
     let _span = info_span!("editor.block_graph_visual_system").entered();
     graph_state.needs_rerender = false;
-    render_state.revision = render_state.revision.saturating_add(1);
 
     let pipe_length = editor_state.pipe_length;
     evict_stale_render_caches(
@@ -130,7 +145,13 @@ pub(crate) fn block_graph_visual_system(
     );
     let view_current_layer_only =
         editor_state.view_current_layer_only && editor_state.mode == EditorMode::View;
-    let plane_height = editor_state.plane_height;
+    // The working plane changes placement, not scene geometry, unless the
+    // current-layer filter is active. Keep both mesh and overlay keys stable.
+    let plane_height = if view_current_layer_only {
+        editor_state.plane_height
+    } else {
+        0
+    };
     let show_stabilizers = editor_state.showing_stabilizers();
     let cleanup_state = RenderSignatureContextSyncState {
         tab_id: tabs.active,
@@ -180,6 +201,9 @@ pub(crate) fn block_graph_visual_system(
     if render_state.mesh_sync == Some(mesh_sync_state) {
         return;
     }
+    // Only mesh synchronization can introduce new pickable entities. Overlay
+    // changes and redundant redraw requests must not trigger a full picking sweep.
+    render_state.revision = render_state.revision.saturating_add(1);
 
     // Built only past the early return: on unchanged frames (the common case)
     // the mesh-sync key matches above and we skip this, avoiding the two
@@ -392,12 +416,9 @@ fn sync_blocks(
     signature_context: &RenderSignatureContext,
     cleanup_state: RenderSignatureContextSyncState,
 ) {
-    let occupied = editor_state.show_port_tags.then(|| {
-        graph_state
-            .graph
-            .occupied_positions()
-            .collect::<FxHashSet<_>>()
-    });
+    // Most scenes have no visible port labels. Build this only when a label
+    // needs a free direction, and reuse it for the remaining labels.
+    let mut occupied = None;
     for block in graph_state.graph.blocks() {
         let pos = block.pos();
         let element = GraphElement::Block(pos);
@@ -412,9 +433,15 @@ fn sync_blocks(
 
         let base_geometry_signature =
             signature_context.block_geometry_signature(block, pipe_length);
-        let port_tag = if block.kind().is_port() {
+        let port_tag = if editor_state.show_port_tags && block.kind().is_port() {
             block.tag().and_then(|tag| {
-                port_tag_direction(&graph_state.graph, pos, occupied.as_ref()?)
+                let occupied = occupied.get_or_insert_with(|| {
+                    graph_state
+                        .graph
+                        .occupied_positions()
+                        .collect::<FxHashSet<_>>()
+                });
+                port_tag_direction(&graph_state.graph, pos, occupied)
                     .map(|direction| (tag, direction, port_tag_position(direction, tag)))
             })
         } else {
@@ -719,10 +746,26 @@ fn port_tag_position(direction: IVec3, tag: &str) -> Vec3 {
 
 fn face_port_tags_to_camera(
     camera: Single<&Transform, With<EditorCamera>>,
+    mut state: ResMut<PortTagFacingState>,
     mut tags: Query<&mut Transform, (With<PortTagText>, Without<EditorCamera>)>,
 ) {
-    for mut tag in &mut tags {
-        tag.rotation = camera.rotation;
+    if state.rotation != Some(camera.rotation) {
+        for mut tag in &mut tags {
+            if tag.rotation != camera.rotation {
+                tag.rotation = camera.rotation;
+            }
+        }
+        state.rotation = Some(camera.rotation);
+        state.pending.clear();
+    } else {
+        // A queued entity may already have been removed by a later render sync.
+        for entity in state.pending.drain(..) {
+            if let Ok(mut tag) = tags.get_mut(entity)
+                && tag.rotation != camera.rotation
+            {
+                tag.rotation = camera.rotation;
+            }
+        }
     }
 }
 
@@ -749,33 +792,23 @@ fn upsert_rendered<K: Eq + Hash + Copy>(
     display_material_override: Option<Handle<StandardMaterial>>,
     port_tag: Option<(&str, Vec3)>,
 ) {
-    if let Some(existing) = map.get(&key) {
+    if let Some(existing) = map.get_mut(&key) {
         if existing.signature == signature {
             return;
         }
         if existing.geometry_signature == geometry_signature {
-            let entity = existing.entity;
-            let mesh_parts = existing.mesh_parts.clone();
             update_cached_mesh_part_materials(
                 commands,
                 materials,
                 render_cache,
                 data,
-                &mesh_parts,
+                &existing.mesh_parts,
                 alpha,
                 face_material_override,
                 display_material_override,
                 editor_triangle_material_style(),
             );
-            map.insert(
-                key,
-                RenderedElement {
-                    entity,
-                    signature,
-                    geometry_signature,
-                    mesh_parts,
-                },
-            );
+            existing.signature = signature;
             return;
         }
     }
@@ -798,11 +831,6 @@ fn upsert_rendered<K: Eq + Hash + Copy>(
             element,
             Pickable::default(),
         ))
-        .observe(on_element_over)
-        .observe(on_element_out)
-        .observe(on_element_drag_start)
-        .observe(on_element_drag_end)
-        .observe(on_element_click)
         .id();
     commands.entity(graph_root).add_child(entity);
 
@@ -973,6 +1001,125 @@ mod tests {
         sync_render_signature_context_cache(&mut cache, sync_state, graph, 2.0, None);
         cache.applied = Some(sync_state);
         cache
+    }
+
+    #[test]
+    #[ignore = "manual idle billboard benchmark"]
+    fn benchmark_idle_port_billboards() {
+        use bevy::prelude::*;
+        let mut app = App::new();
+        app.init_resource::<super::PortTagFacingState>()
+            .add_systems(Update, super::face_port_tags_to_camera);
+        app.world_mut()
+            .spawn((crate::components::EditorCamera, Transform::default()));
+        for _ in 0..12_000 {
+            app.world_mut()
+                .spawn((super::PortTagText, Transform::default()));
+        }
+        app.update();
+        let start = std::time::Instant::now();
+        for _ in 0..500 {
+            app.update();
+        }
+        eprintln!("12k port labels / 500 idle frames: {:?}", start.elapsed());
+    }
+
+    #[test]
+    fn removed_pending_port_label_is_safe_and_recreated_label_faces_camera() {
+        use bevy::prelude::*;
+        let mut app = App::new();
+        app.init_resource::<super::PortTagFacingState>()
+            .add_systems(Update, super::face_port_tags_to_camera);
+        let rotation = Quat::from_rotation_y(0.5);
+        app.world_mut().spawn((
+            crate::components::EditorCamera,
+            Transform::from_rotation(rotation),
+        ));
+        app.update();
+        let removed = app.world_mut().spawn(super::PortTagText).id();
+        app.world_mut().despawn(removed);
+        let kept = app.world_mut().spawn(super::PortTagText).id();
+        app.update();
+        assert_eq!(
+            app.world().get::<Transform>(kept).unwrap().rotation,
+            rotation
+        );
+        assert!(
+            app.world()
+                .resource::<super::PortTagFacingState>()
+                .pending
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn idle_port_labels_do_not_dirty_transforms() {
+        use bevy::prelude::*;
+        #[derive(Resource, Default)]
+        struct ChangedLabels(usize);
+        fn count_changes(
+            labels: Query<(), (With<super::PortTagText>, Changed<Transform>)>,
+            mut count: ResMut<ChangedLabels>,
+        ) {
+            count.0 = labels.iter().count();
+        }
+        let mut app = App::new();
+        app.init_resource::<super::PortTagFacingState>();
+        app.init_resource::<ChangedLabels>().add_systems(
+            Update,
+            (super::face_port_tags_to_camera, count_changes).chain(),
+        );
+        let camera = app
+            .world_mut()
+            .spawn((crate::components::EditorCamera, Transform::default()))
+            .id();
+        let label = app
+            .world_mut()
+            .spawn((super::PortTagText, Transform::default()))
+            .id();
+        app.update();
+        assert_eq!(app.world().resource::<ChangedLabels>().0, 1);
+        app.update();
+        assert_eq!(app.world().resource::<ChangedLabels>().0, 0);
+        app.world_mut()
+            .entity_mut(camera)
+            .get_mut::<Transform>()
+            .unwrap()
+            .rotation = Quat::from_rotation_y(0.4);
+        app.update();
+        assert_eq!(app.world().resource::<ChangedLabels>().0, 1);
+        assert_eq!(
+            app.world()
+                .entity(label)
+                .get::<Transform>()
+                .unwrap()
+                .rotation,
+            Quat::from_rotation_y(0.4)
+        );
+        // Newly spawned tags must orient even with a stationary camera.
+        let new_label = app
+            .world_mut()
+            .spawn((super::PortTagText, Transform::default()))
+            .id();
+        app.update();
+        assert_eq!(app.world().resource::<ChangedLabels>().0, 1);
+        assert_eq!(
+            app.world()
+                .entity(new_label)
+                .get::<Transform>()
+                .unwrap()
+                .rotation,
+            Quat::from_rotation_y(0.4)
+        );
+        // Replacing/resetting the camera without changing orientation should
+        // not dirty label transforms or require another scene-wide sweep.
+        app.world_mut().despawn(camera);
+        app.world_mut().spawn((
+            crate::components::EditorCamera,
+            Transform::from_rotation(Quat::from_rotation_y(0.4)),
+        ));
+        app.update();
+        assert_eq!(app.world().resource::<ChangedLabels>().0, 0);
     }
 
     fn assert_incremental_signatures_match_full_rebuild(
@@ -1777,6 +1924,152 @@ mod tests {
     }
 
     #[test]
+    fn working_plane_only_resyncs_scene_when_layer_filter_is_active() {
+        use super::*;
+        let mut app = App::new();
+        app.insert_resource(GraphState {
+            graph: GalleryItem::BellState.build().flatten().unwrap(),
+            needs_rerender: true,
+            ..default()
+        })
+        .init_resource::<EditorState>()
+        .init_resource::<EditorTabs>()
+        .init_resource::<BloqViewerState>()
+        .init_resource::<Notifications>()
+        .init_resource::<Assets<Mesh>>()
+        .init_resource::<Assets<StandardMaterial>>()
+        .init_resource::<GraphRenderState>()
+        .init_resource::<RenderAssetCache>()
+        .add_systems(Update, block_graph_visual_system);
+        app.world_mut().spawn((GraphRoot, Transform::default()));
+        app.update();
+        let revision = app.world().resource::<GraphRenderState>().revision;
+        app.world_mut().resource_mut::<EditorState>().plane_height = 10;
+        app.update();
+        assert_eq!(
+            app.world().resource::<GraphRenderState>().revision,
+            revision
+        );
+        {
+            let mut editor = app.world_mut().resource_mut::<EditorState>();
+            editor.mode = EditorMode::View;
+            editor.view_current_layer_only = true;
+        }
+        app.update();
+        let revision = app.world().resource::<GraphRenderState>().revision;
+        let before = app
+            .world()
+            .resource::<GraphRenderState>()
+            .blocks
+            .iter()
+            .map(|(&pos, rendered)| {
+                (
+                    pos,
+                    rendered.entity,
+                    rendered.geometry_signature,
+                    rendered.mesh_parts.triangles.clone(),
+                )
+            })
+            .collect::<Vec<_>>();
+        app.world_mut().resource_mut::<EditorState>().plane_height = 0;
+        app.update();
+        let state = app.world().resource::<GraphRenderState>();
+        assert!(state.revision > revision);
+        assert_eq!(state.mesh_sync.unwrap().plane_height, 0);
+        for (pos, entity, geometry, triangles) in before {
+            let current = &state.blocks[&pos];
+            assert_eq!(current.entity, entity);
+            assert_eq!(current.geometry_signature, geometry);
+            assert_eq!(current.mesh_parts.triangles, triangles);
+        }
+    }
+
+    #[test]
+    #[ignore = "manual large-scene CPU render synchronization benchmark"]
+    fn benchmark_large_scene_updates() {
+        use super::*;
+        use crate::systems::input::{on_element_click, on_element_out, on_element_over};
+        let mut graph = BlockGraph::new();
+        for x in 0..1000 {
+            for z in 0..4 {
+                graph.add_block(Block::new(
+                    IVec3::new(x * 2, 0, z),
+                    BlockKind::Cube(bloq_graph::CubeKind::ZXZ),
+                ));
+                if z > 0 {
+                    graph.add_pipe(Pipe::new(
+                        IVec3::new(x * 2, 0, z - 1),
+                        bloq_graph::Direction::ZPLUS,
+                    ));
+                }
+            }
+        }
+        let mut app = App::new();
+        app.insert_resource(GraphState {
+            graph,
+            needs_rerender: true,
+            ..default()
+        })
+        .insert_resource(EditorState {
+            mode: EditorMode::View,
+            view_current_layer_only: true,
+            ..default()
+        })
+        .init_resource::<EditorTabs>()
+        .init_resource::<BloqViewerState>()
+        .init_resource::<Notifications>()
+        .init_resource::<Assets<Mesh>>()
+        .init_resource::<Assets<StandardMaterial>>()
+        .init_resource::<GraphRenderState>()
+        .init_resource::<RenderAssetCache>()
+        .add_systems(
+            Update,
+            block_graph_visual_system.run_if(|graph: Res<GraphState>| graph.needs_rerender),
+        );
+        app.world_mut()
+            .spawn((GraphRoot, Transform::default()))
+            .observe(on_element_over)
+            .observe(on_element_out)
+            .observe(on_element_click);
+        let start = std::time::Instant::now();
+        app.update();
+        eprintln!(
+            "4000 blocks/3000 pipes initial CPU install {:?}",
+            start.elapsed()
+        );
+        let mut samples = Vec::new();
+        for i in 0..21 {
+            app.world_mut().resource_mut::<EditorState>().plane_height = i % 4;
+            app.world_mut().resource_mut::<GraphState>().needs_rerender = true;
+            let start = std::time::Instant::now();
+            app.update();
+            if i > 0 {
+                samples.push(start.elapsed());
+            }
+        }
+        samples.sort();
+        eprintln!("layer-step CPU median {:?}", samples[samples.len() / 2]);
+        app.world_mut()
+            .resource_mut::<EditorState>()
+            .view_current_layer_only = false;
+        samples.clear();
+        for i in 0..21 {
+            app.world_mut().resource_mut::<EditorState>().plane_height = i % 4;
+            app.world_mut().resource_mut::<GraphState>().needs_rerender = true;
+            let start = std::time::Instant::now();
+            app.update();
+            if i > 0 {
+                samples.push(start.elapsed());
+            }
+        }
+        samples.sort();
+        eprintln!(
+            "unfiltered plane-step CPU median {:?}",
+            samples[samples.len() / 2]
+        );
+    }
+
+    #[test]
     fn nonvisual_edit_removes_stabilizer_mesh_and_restores_graph_opacity() {
         use super::*;
         let graph_state = GraphState {
@@ -1830,6 +2123,14 @@ mod tests {
         };
         let ordinary_alphas = alphas(app.world());
         assert!(!ordinary_alphas.is_empty());
+        let revision = app.world().resource::<GraphRenderState>().revision;
+        app.world_mut().resource_mut::<GraphState>().needs_rerender = true;
+        app.update();
+        assert_eq!(
+            app.world().resource::<GraphRenderState>().revision,
+            revision
+        );
+
         app.world_mut()
             .resource_mut::<EditorState>()
             .show_stabilizers = true;

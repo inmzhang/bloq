@@ -36,6 +36,8 @@ use strum::Display;
 use web_time::Instant;
 
 mod compilation;
+#[cfg(any(target_arch = "wasm32", test))]
+pub(crate) mod live_blog_transport;
 #[cfg(target_arch = "wasm32")]
 mod web_compilation;
 
@@ -70,7 +72,14 @@ pub(crate) struct EditorJobs {
     validation: Option<Task<ValidationJobResult>>,
     stabilizers: Option<Task<StabilizersJobResult>>,
     import_blog_file: Option<Task<ImportBlogFileJobResult>>,
+    #[cfg(not(target_arch = "wasm32"))]
     parse_blog: Option<Task<ParseBlogJobResult>>,
+    #[cfg(target_arch = "wasm32")]
+    parse_blog: Option<ParseBlogRequest>,
+    #[cfg(not(target_arch = "wasm32"))]
+    live_blog: Option<Task<LiveBlogJobResult>>,
+    #[cfg(target_arch = "wasm32")]
+    live_blog: Option<LiveBlogRequest>,
     compile: Option<Task<CompileJobResult>>,
     viewer_compile: Option<Task<ViewerCompileJobResult>>,
     #[cfg(not(target_arch = "wasm32"))]
@@ -94,6 +103,7 @@ impl EditorJobs {
             || self.stabilizers.is_some()
             || self.import_blog_file.is_some()
             || self.parse_blog.is_some()
+            || self.live_blog.is_some()
             || self.compile.is_some()
             || self.viewer_compile.is_some()
             || self.web_compilation_running()
@@ -346,6 +356,14 @@ struct ImportedBlogFile {
 
 type ImportBlogFileJobResult = eyre::Result<Option<ImportedBlogFile>>;
 
+#[cfg(target_arch = "wasm32")]
+struct ParseBlogRequest {
+    tab_id: EditorTabId,
+    revision: u64,
+    source: String,
+    title: Option<String>,
+}
+
 struct ParseBlogJobResult {
     tab_id: EditorTabId,
     revision: u64,
@@ -354,9 +372,149 @@ struct ParseBlogJobResult {
     result: eyre::Result<ParsedBlog>,
 }
 
-struct ParsedBlog {
-    graph: BlockGraph,
-    source_graph: BlockGraph,
+pub(crate) struct ParsedBlog {
+    pub(crate) graph: BlockGraph,
+    pub(crate) source_graph: BlockGraph,
+}
+
+pub(crate) enum LiveBlogResult {
+    Changed(Box<ParsedBlog>),
+    Unchanged,
+}
+
+pub(crate) struct LiveBlogAnalysis {
+    pub(crate) language: crate::systems::ui::blog_buffer::BlogLanguageState,
+    pub(crate) result: Result<LiveBlogResult, String>,
+}
+
+struct LiveBlogRequest {
+    tab: EditorTabId,
+    graph_revision: u64,
+    text_revision: u64,
+    apply: bool,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+struct LiveBlogJobResult {
+    request: LiveBlogRequest,
+    analysis: LiveBlogAnalysis,
+}
+
+#[cfg(test)]
+pub(crate) fn analyze_live_blog(source: &str, revision: u64) -> LiveBlogAnalysis {
+    analyze_live_blog_against(source, revision, None)
+}
+
+pub(crate) fn analyze_live_blog_against(
+    source: &str,
+    revision: u64,
+    baseline: Option<&str>,
+) -> LiveBlogAnalysis {
+    let mut language = crate::systems::ui::blog_buffer::BlogLanguageState::default();
+    language.refresh(source, revision);
+    let result = parse_blog_for_editor(source).map_err(|error| format!("{error:#}"));
+    let unchanged = result.as_ref().ok().is_some_and(|parsed| {
+        if baseline == Some(source) {
+            return true;
+        }
+        baseline
+            .and_then(|source| BlockGraph::from_text(source).ok())
+            .is_some_and(|previous| previous.to_blog_text() == parsed.source_graph.to_blog_text())
+    });
+    LiveBlogAnalysis {
+        language,
+        result: result.map(|parsed| {
+            if unchanged {
+                LiveBlogResult::Unchanged
+            } else {
+                LiveBlogResult::Changed(Box::new(parsed))
+            }
+        }),
+    }
+}
+
+/// One debounced task at a time. New typing is retained and scheduled once the
+/// obsolete task finishes; its revision-checked result can never replace it.
+pub(crate) fn schedule_live_blog(
+    jobs: &mut EditorJobs,
+    tab: EditorTabId,
+    graph: &GraphState,
+    text: &mut ImportExportState,
+    force: bool,
+) {
+    if force {
+        text.request_text_apply();
+    }
+    #[cfg(target_arch = "wasm32")]
+    if jobs.live_blog.as_ref().is_some_and(|request| {
+        request.tab == tab
+            && (request.text_revision != text.bloq_revision
+                || request.graph_revision != graph.revision)
+    }) {
+        web_compilation::cancel_live_blog();
+        jobs.live_blog = None;
+    }
+    if jobs.live_blog.is_some() || jobs.parse_blog_running() || graph.pending_branch_arm.is_some() {
+        return;
+    }
+    let Some(apply) = text.take_analysis_request(graph.revision, force) else {
+        return;
+    };
+    let request = LiveBlogRequest {
+        tab,
+        graph_revision: graph.revision,
+        text_revision: text.bloq_revision,
+        apply,
+    };
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let source = text.bloq_buffer.clone();
+        let baseline = text.comparison_source(graph.revision).map(str::to_owned);
+        jobs.live_blog = Some(AsyncComputeTaskPool::get_or_init(Default::default).spawn(
+            async move {
+                let analysis =
+                    analyze_live_blog_against(&source, request.text_revision, baseline.as_deref());
+                LiveBlogJobResult { request, analysis }
+            },
+        ));
+    }
+    #[cfg(target_arch = "wasm32")]
+    match web_compilation::start_live_blog(
+        &text.bloq_buffer,
+        text.bloq_revision,
+        text.comparison_source(graph.revision),
+    ) {
+        Ok(()) => jobs.live_blog = Some(request),
+        Err(error) => text.sync_error = Some(error),
+    }
+}
+
+fn apply_live_blog_result(
+    request: LiveBlogRequest,
+    analysis: LiveBlogAnalysis,
+    graph: &mut GraphState,
+    text: &mut ImportExportState,
+    editor: &mut EditorState,
+    target: &mut TargetState,
+    compile: &mut CompileUiState,
+    viewer: &mut BloqViewerState,
+) {
+    if request.text_revision != text.bloq_revision || request.graph_revision != graph.revision {
+        return;
+    }
+    text.install_language(analysis.language);
+    if !request.apply {
+        return;
+    }
+    match analysis.result {
+        Ok(LiveBlogResult::Changed(parsed)) => {
+            graph.source_graph = Some(std::sync::Arc::new(parsed.source_graph));
+            replace_graph_with_cleanup(graph, editor, target, compile, viewer, parsed.graph);
+            text.mark_synchronized(graph.revision);
+        }
+        Ok(LiveBlogResult::Unchanged) => text.mark_synchronized(graph.revision),
+        Err(error) => text.sync_error = Some(error),
+    }
 }
 
 fn parse_blog_for_editor(source: &str) -> eyre::Result<ParsedBlog> {
@@ -708,19 +866,57 @@ pub(crate) fn schedule_parse_blog_job(
         notifications.push_warn("BLOG parse is already running");
         return;
     }
-    let buffer = blog_buffer.to_owned();
-    let pool = AsyncComputeTaskPool::get();
-    jobs.parse_blog = Some(pool.spawn(async move {
-        let result = parse_blog_for_editor(&buffer);
-        ParseBlogJobResult {
-            tab_id,
-            revision,
-            source: buffer,
-            title,
-            result,
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let buffer = blog_buffer.to_owned();
+        let pool = AsyncComputeTaskPool::get();
+        jobs.parse_blog = Some(pool.spawn(async move {
+            let result = parse_blog_for_editor(&buffer);
+            ParseBlogJobResult {
+                tab_id,
+                revision,
+                source: buffer,
+                title,
+                result,
+            }
+        }));
+    }
+    #[cfg(target_arch = "wasm32")]
+    match web_compilation::start_blog_import(blog_buffer) {
+        Ok(()) => {
+            jobs.parse_blog = Some(ParseBlogRequest {
+                tab_id,
+                revision,
+                source: blog_buffer.to_owned(),
+                title,
+            })
         }
-    }));
+        Err(error) => {
+            notifications.push_error_report("Cannot start BLOG import", &eyre::eyre!(error));
+            return;
+        }
+    }
     notifications.record_info("Started BLOG parse");
+}
+
+fn poll_parse_blog_job(jobs: &mut EditorJobs) -> Option<ParseBlogJobResult> {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        poll_task(&mut jobs.parse_blog)
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        jobs.parse_blog.as_ref()?;
+        let result = web_compilation::poll_blog_import()?;
+        let request = jobs.parse_blog.take().expect("import request was checked");
+        Some(ParseBlogJobResult {
+            tab_id: request.tab_id,
+            revision: request.revision,
+            source: request.source,
+            title: request.title,
+            result: result.map_err(|error| eyre::eyre!(error)),
+        })
+    }
 }
 
 /// Spawns a background job compiling the graph to the requested download
@@ -1461,6 +1657,7 @@ fn apply_validation_outcome(
             graph_state.graph = graph.clone();
             if let Some(snapshot) = graph_state.history.get_mut(graph_state.current_index) {
                 snapshot.graph = graph;
+                snapshot.invalidate_snapshot_cache();
             }
             compile_ui.validation_state = ValidationState::Passed;
             compile_ui.validation_message =
@@ -1591,6 +1788,10 @@ fn apply_parse_blog_result_to_tab(
     match done.result {
         Ok(parsed) => {
             install_graph_into_tab(tab, parsed.graph, Some(parsed.source_graph), done.title);
+            // This graph was parsed from the exact draft checked above.
+            tab.snapshot
+                .import_export
+                .mark_synchronized(tab.snapshot.graph_state.revision);
             notifications.push_info(format!("Loaded graph into {}", tab.title));
         }
         Err(err) => {
@@ -1668,7 +1869,7 @@ fn poll_editor_jobs_system(
     mut tabs: ResMut<EditorTabs>,
     mut editor_state: ResMut<EditorState>,
     mut graph_state: ResMut<GraphState>,
-    import_export: Res<ImportExportState>,
+    mut import_export: ResMut<ImportExportState>,
     mut notifications: ResMut<Notifications>,
     mut compile_ui: ResMut<CompileUiState>,
     mut circuit_viewer: ResMut<BloqViewerState>,
@@ -1757,7 +1958,47 @@ fn poll_editor_jobs_system(
         }
     }
 
-    if let Some(done) = poll_task(&mut jobs.parse_blog) {
+    #[cfg(not(target_arch = "wasm32"))]
+    let live_done = poll_task(&mut jobs.live_blog).map(|done| (done.request, done.analysis));
+    #[cfg(target_arch = "wasm32")]
+    let live_done = web_compilation::poll_live_blog().and_then(|result| {
+        let request = jobs.live_blog.take()?;
+        Some((
+            request,
+            result.unwrap_or_else(|error| LiveBlogAnalysis {
+                language: Default::default(),
+                result: Err(error),
+            }),
+        ))
+    });
+    if let Some((request, analysis)) = live_done {
+        if request.tab == tabs.active {
+            apply_live_blog_result(
+                request,
+                analysis,
+                &mut graph_state,
+                &mut import_export,
+                &mut editor_state,
+                &mut target_state,
+                &mut compile_ui,
+                &mut circuit_viewer,
+            );
+        } else if let Some(tab) = tabs.tabs.iter_mut().find(|tab| tab.id == request.tab) {
+            let state = &mut tab.snapshot;
+            apply_live_blog_result(
+                request,
+                analysis,
+                &mut state.graph_state,
+                &mut state.import_export,
+                &mut state.editor_state,
+                &mut state.target_state,
+                &mut state.compile_ui,
+                &mut state.circuit_viewer,
+            );
+        }
+    }
+
+    if let Some(done) = poll_parse_blog_job(&mut jobs) {
         if done.tab_id != tabs.active {
             apply_parse_blog_result_to_tab(&mut tabs, done, &mut notifications);
         } else if done.revision != graph_state.revision || done.source != import_export.bloq_buffer
@@ -1781,6 +2022,7 @@ fn poll_editor_jobs_system(
                         &graph_state.graph,
                         editor_state.pipe_length,
                     );
+                    import_export.mark_synchronized(graph_state.revision);
                     notifications.push_info("Loaded graph from buffer successfully");
                     if let Some(title) = done.title {
                         tabs.active_tab_mut().set_title(title);
@@ -2124,6 +2366,173 @@ impl Default for CompileUiState {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn background_comparison_preserves_comment_only_history_and_checks_real_changes() {
+        use super::*;
+        let source = "BLOG 1.0\n0: ZXZ [0,0,0]\n";
+        assert!(matches!(
+            analyze_live_blog_against(&format!("{source}# comment\n"), 1, Some(source)).result,
+            Ok(LiveBlogResult::Unchanged)
+        ));
+        for (edited, baseline) in [
+            ("BLOG 1.0\n0: XZZ [0,0,0]\n", Some(source)),
+            (source, None),
+            (source, Some("unfinished")),
+        ] {
+            assert!(matches!(
+                analyze_live_blog_against(edited, 1, baseline).result,
+                Ok(LiveBlogResult::Changed(_))
+            ));
+        }
+        let mut graph = GraphState::default();
+        let parsed = parse_blog_for_editor(source).unwrap();
+        graph.graph = parsed.graph;
+        graph.source_graph = Some(std::sync::Arc::new(parsed.source_graph));
+        let mut text = ImportExportState::default();
+        text.refresh_from_graph(&graph);
+        assert!(text.comparison_source(graph.revision).is_some());
+        assert!(text.comparison_source(graph.revision + 1).is_none());
+        let edited = format!("{source}# retained\n");
+        text.set_bloq_buffer(edited.clone());
+        let analysis = analyze_live_blog_against(
+            &edited,
+            text.bloq_revision,
+            text.comparison_source(graph.revision),
+        );
+        apply_live_blog_result(
+            LiveBlogRequest {
+                tab: EditorTabId::new(1),
+                graph_revision: graph.revision,
+                text_revision: text.bloq_revision,
+                apply: true,
+            },
+            analysis,
+            &mut graph,
+            &mut text,
+            &mut EditorState::default(),
+            &mut TargetState::default(),
+            &mut CompileUiState::default(),
+            &mut BloqViewerState::default(),
+        );
+        assert_eq!(graph.revision, 0);
+        assert_eq!(graph.history.len(), 1);
+        assert_eq!(text.bloq_buffer, edited);
+        text.sync_conflict = true;
+        assert!(text.comparison_source(graph.revision).is_none());
+    }
+
+    #[test]
+    fn unchanged_result_cannot_synchronize_a_newer_draft_or_graph() {
+        use super::*;
+        for newer_graph in [false, true] {
+            let mut graph = GraphState::default();
+            let mut text = ImportExportState::default();
+            text.refresh_from_graph(&graph);
+            text.set_bloq_buffer(format!("{}\n# comment", text.bloq_buffer));
+            let request = LiveBlogRequest {
+                tab: EditorTabId::new(1),
+                graph_revision: graph.revision,
+                text_revision: text.bloq_revision,
+                apply: true,
+            };
+            if newer_graph {
+                graph.commit();
+            } else {
+                text.set_bloq_buffer("incomplete newer draft".into());
+            }
+            apply_live_blog_result(
+                request,
+                LiveBlogAnalysis {
+                    language: Default::default(),
+                    result: Ok(LiveBlogResult::Unchanged),
+                },
+                &mut graph,
+                &mut text,
+                &mut EditorState::default(),
+                &mut TargetState::default(),
+                &mut CompileUiState::default(),
+                &mut BloqViewerState::default(),
+            );
+            assert!(text.blocks_graph_editing());
+        }
+    }
+
+    #[test]
+    fn live_blog_result_rejects_newer_text_or_graph_and_retains_comments() {
+        use super::*;
+        for stale in ["none", "text", "graph"] {
+            let mut graph = GraphState::default();
+            let mut text = ImportExportState::default();
+            text.refresh_from_graph(&graph);
+            let source = "BLOG 1.0\n0: ZXZ [0,0,0]\n# keep comment\n";
+            text.set_bloq_buffer(source.into());
+            let request = LiveBlogRequest {
+                tab: EditorTabId::new(1),
+                graph_revision: graph.revision,
+                text_revision: text.bloq_revision,
+                apply: true,
+            };
+            let analysis = analyze_live_blog(source, text.bloq_revision);
+            if stale == "text" {
+                text.set_bloq_buffer("unfinished".into());
+            }
+            if stale == "graph" {
+                graph.commit();
+            }
+            apply_live_blog_result(
+                request,
+                analysis,
+                &mut graph,
+                &mut text,
+                &mut EditorState::default(),
+                &mut TargetState::default(),
+                &mut CompileUiState::default(),
+                &mut BloqViewerState::default(),
+            );
+            assert_eq!(graph.graph.block_count(), usize::from(stale == "none"));
+            assert_eq!(
+                text.bloq_buffer,
+                if stale == "text" {
+                    "unfinished"
+                } else {
+                    source
+                }
+            );
+            assert_eq!(text.blocks_graph_editing(), stale != "none");
+        }
+    }
+
+    #[test]
+    fn live_blog_scheduler_debounces_and_queues_explicit_apply_while_busy() {
+        use super::*;
+        let graph = GraphState::default();
+        let mut text = ImportExportState::default();
+        text.refresh_from_graph(&graph);
+        text.set_bloq_buffer("BLOG 1.0\n0: ZXZ [0,0,0]\n".into());
+        let mut jobs = EditorJobs::default();
+        let tab = EditorTabId::new(7);
+        schedule_live_blog(&mut jobs, tab, &graph, &mut text, false);
+        assert!(jobs.live_blog.is_none());
+        schedule_live_blog(&mut jobs, tab, &graph, &mut text, true);
+        assert!(jobs.live_blog.is_some());
+        text.set_bloq_buffer("BLOG 1.0\n0: XZZ [0,0,0]\n".into());
+        text.sync_conflict = true;
+        schedule_live_blog(&mut jobs, tab, &graph, &mut text, true);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let done = loop {
+            if let Some(done) = poll_task(&mut jobs.live_blog) {
+                break done;
+            }
+            assert!(std::time::Instant::now() < deadline);
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        };
+        assert_eq!(done.request.tab, tab);
+        assert_ne!(done.request.text_revision, text.bloq_revision);
+        // The choice made during the first task survives until this revision schedules.
+        schedule_live_blog(&mut jobs, tab, &graph, &mut text, false);
+        assert!(jobs.live_blog.is_some());
+    }
+
     use super::{
         CompileJobResult, CompileProgress, CompiledDownload, DetsliceJobResult, EditorJobs,
         ParseBlogJobResult, ParsedBlog, ValidationJobResult, ValidationOutcome,

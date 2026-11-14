@@ -1,8 +1,8 @@
 //! The attribute-editor window for a selected block or pipe (kind, Port role
 //! and color, tag, Hadamard flag).
 
-use super::activated;
 use super::intents::{ElementEditIntent, UiIntent, UiIntentBuffer};
+use super::{activated, field_owns_shortcuts};
 use crate::components::GraphElement;
 use crate::theme::{self, ThemePreset};
 use bevy::prelude::Resource;
@@ -17,6 +17,9 @@ pub(crate) const DEFAULT_PORT_RGB: [u8; 3] =
 #[derive(Resource, Clone)]
 pub(crate) struct TargetState {
     pub(crate) open_window: bool,
+    pub(crate) focus_field: bool,
+    /// Retains input ownership through the frame that closes the dialog.
+    pub(crate) capture_input: bool,
     pub(crate) target: Option<GraphElement>,
     pub(crate) tag_buffer: String,
     pub(crate) block_kind_buffer: BlockKind,
@@ -32,6 +35,8 @@ impl Default for TargetState {
     fn default() -> Self {
         Self {
             open_window: false,
+            focus_field: false,
+            capture_input: false,
             target: None,
             tag_buffer: String::new(),
             block_kind_buffer: BlockKind::Cube(CubeKind::XZZ),
@@ -52,6 +57,7 @@ pub(crate) fn draw_edit_element_window(
     theme_preset: ThemePreset,
     intents: &mut UiIntentBuffer,
 ) {
+    target_state.capture_input = target_state.open_window;
     if target_state.open_window {
         let palette = theme::palette(theme_preset);
         egui::Window::new("Edit Element")
@@ -67,6 +73,7 @@ pub(crate) fn draw_edit_element_window(
             )
             .show(ctx, |ui| {
                 let mut block_color = None;
+                let mut owns_keyboard = false;
                 if let Some(GraphElement::Block(_)) = target_state.target {
                     theme::section_header(ui, palette, "Kind");
                     theme::section_frame(ui, palette, |ui| {
@@ -152,12 +159,19 @@ pub(crate) fn draw_edit_element_window(
                             });
                             ui.end_row();
                             ui.label("Color:");
-                            block_color =
-                                draw_port_color_editor(ui, &mut target_state.port_color_hex_buffer);
+                            block_color = draw_port_color_editor(
+                                ui,
+                                &mut target_state.port_color_hex_buffer,
+                                &mut owns_keyboard,
+                            );
                             ui.end_row();
                         }
                         ui.label("Tag:");
-                        ui.text_edit_singleline(&mut target_state.tag_buffer);
+                        let tag = ui.text_edit_singleline(&mut target_state.tag_buffer);
+                        if std::mem::take(&mut target_state.focus_field) {
+                            tag.request_focus();
+                        }
+                        owns_keyboard |= field_owns_shortcuts(ui, tag.id);
                         ui.end_row();
                     });
                 ui.add_space(12.0);
@@ -175,23 +189,23 @@ pub(crate) fn draw_edit_element_window(
                                     i.key_pressed(egui::Key::Enter),
                                 )
                             });
-                            if ok_clicked || (can_confirm && enter_confirmed) {
-                                if let Some(target) = target_state.target.take() {
-                                    intents.push(UiIntent::ApplyElementEdit(ElementEditIntent {
-                                        target,
-                                        block_kind: target_state.block_kind_buffer,
-                                        block_color,
-                                        port_role: target_state.port_role_buffer,
-                                        tag: target_state.tag_buffer.clone(),
-                                        pipe_hadamard: target_state.pipe_hadamard_buffer,
-                                    }));
-                                }
-                                intents.push(UiIntent::CloseElementEdit);
-                                target_state.open_window = false;
-                                target_state.tag_buffer.clear();
+                            if (ok_clicked || (can_confirm && owns_keyboard && enter_confirmed))
+                                && let Some(target) = target_state.target
+                            {
+                                intents.push(UiIntent::ApplyElementEdit(ElementEditIntent {
+                                    target,
+                                    block_kind: target_state.block_kind_buffer,
+                                    block_color,
+                                    port_role: target_state.port_role_buffer,
+                                    tag: target_state.tag_buffer.clone(),
+                                    pipe_hadamard: target_state.pipe_hadamard_buffer,
+                                }));
                             }
                             if activated(&ui.button("Cancel"))
-                                || ui.input(|i| i.key_pressed(egui::Key::Escape))
+                                || (owns_keyboard
+                                    && ui.input_mut(|i| {
+                                        i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)
+                                    }))
                             {
                                 intents.push(UiIntent::CloseElementEdit);
                                 target_state.open_window = false;
@@ -203,19 +217,25 @@ pub(crate) fn draw_edit_element_window(
     }
 }
 
-fn draw_port_color_editor(ui: &mut egui::Ui, hex: &mut String) -> Option<[u8; 3]> {
+fn draw_port_color_editor(
+    ui: &mut egui::Ui,
+    hex: &mut String,
+    owns_keyboard: &mut bool,
+) -> Option<[u8; 3]> {
     let mut rgb = parse_rgb_hex(hex).unwrap_or(DEFAULT_PORT_RGB);
     ui.horizontal(|ui| {
         if ui.color_edit_button_srgb(&mut rgb).changed() {
             *hex = format_rgb_hex(rgb);
         }
-        ui.add(
-            egui::TextEdit::singleline(hex)
-                .char_limit(6)
-                .desired_width(64.0)
-                .font(egui::TextStyle::Monospace),
-        )
-        .on_hover_text("Six hex digits; copy or paste this value after color=");
+        let field = ui
+            .add(
+                egui::TextEdit::singleline(hex)
+                    .char_limit(6)
+                    .desired_width(64.0)
+                    .font(egui::TextStyle::Monospace),
+            )
+            .on_hover_text("Six hex digits; copy or paste this value after color=");
+        *owns_keyboard |= field_owns_shortcuts(ui, field.id);
     });
     let color = parse_rgb_hex(hex);
     if color.is_none() {
@@ -253,6 +273,73 @@ fn enter_confirm_allowed(
 #[cfg(test)]
 mod tests {
     use super::{enter_confirm_allowed, format_rgb_hex, parse_rgb_hex};
+
+    #[test]
+    fn attribute_shortcuts_belong_to_its_fields_not_other_editors() {
+        use super::*;
+        for own_field in [false, true] {
+            for key in [egui::Key::Enter, egui::Key::Escape] {
+                let ctx = egui::Context::default();
+                theme::setup_theme(&ctx, ThemePreset::default());
+                let mut target = TargetState {
+                    open_window: true,
+                    focus_field: own_field,
+                    target: Some(GraphElement::Block(glam::IVec3::ZERO)),
+                    ..Default::default()
+                };
+                let mut intents = UiIntentBuffer::default();
+                let mut outside = String::from("unrelated draft");
+                for first in [true, false] {
+                    let events = if first {
+                        vec![]
+                    } else {
+                        vec![egui::Event::Key {
+                            key,
+                            physical_key: None,
+                            pressed: true,
+                            repeat: false,
+                            modifiers: egui::Modifiers::NONE,
+                        }]
+                    };
+                    let mut output = ctx.run_ui(
+                        egui::RawInput {
+                            events,
+                            ..Default::default()
+                        },
+                        |ui| {
+                            let field = ui.text_edit_singleline(&mut outside);
+                            if first && !own_field {
+                                field.request_focus();
+                            }
+                            draw_edit_element_window(
+                                &ctx,
+                                crate::resources::EditorTabId::new(1),
+                                &mut target,
+                                ThemePreset::default(),
+                                &mut intents,
+                            );
+                        },
+                    );
+                    output.textures_delta.clear();
+                }
+                let queued = intents.drain().collect::<Vec<_>>();
+                if own_field {
+                    assert_eq!(queued.len(), 1);
+                    assert!(match key {
+                        egui::Key::Enter => matches!(queued[0], UiIntent::ApplyElementEdit(_)),
+                        _ => matches!(queued[0], UiIntent::CloseElementEdit),
+                    });
+                } else {
+                    assert!(
+                        queued.is_empty(),
+                        "unrelated {key:?} must not affect attributes"
+                    );
+                }
+                assert_eq!(target.open_window, !own_field || key != egui::Key::Escape);
+                assert!(target.capture_input);
+            }
+        }
+    }
 
     #[test]
     fn opening_enter_is_ignored_until_enter_is_released() {

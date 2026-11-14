@@ -60,6 +60,7 @@ pub(crate) enum UiIntent {
     InspectModuleInstance(String),
     InspectModuleElement(GraphElement),
     ShowBlogBuffer,
+    EditSelection,
     Error(String),
     RerenderGraph,
     SetMode(EditorMode),
@@ -126,6 +127,8 @@ pub(crate) enum UiIntent {
     ExportBlog {
         path: String,
     },
+    /// Export exact editor text without requiring a valid graph.
+    SaveBlogDraft(String),
     ImportBlogFromFile,
     LoadBlogFile {
         title: Option<String>,

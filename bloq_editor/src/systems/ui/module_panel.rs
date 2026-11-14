@@ -155,10 +155,9 @@ pub(crate) fn draw_module_panel(
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
                     .small_button("BLOG")
-                    .on_hover_text("Write the complete module hierarchy to the BLOG buffer")
+                    .on_hover_text("Edit the complete hierarchy as BLOG text.")
                     .clicked()
                 {
-                    intents.push(UiIntent::StoreGraphToBuffer);
                     intents.push(UiIntent::ShowBlogBuffer);
                 }
             });
@@ -239,7 +238,6 @@ pub(crate) fn draw_module_panel(
                 draw_interface(ui, state, &program, revision, intents, palette);
                 draw_bits(ui, state, &program, revision, intents);
                 ui.add_space(12.0);
-                ui.small("Save keeps all definitions and connections. Undo restores the whole composition.");
                 if graph.is_composed()
                     && ui
                         .small_button("Open flat copy in new tab")

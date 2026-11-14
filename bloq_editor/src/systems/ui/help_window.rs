@@ -4,12 +4,12 @@ use crate::resources::EditorState;
 use crate::theme;
 use bevy_egui::egui;
 
-// Keep in sync with the key handlers in `systems/input.rs` (and the Bloq-mode
+// Keep in sync with the key handlers in `systems/input/mod.rs` and `systems/input/placement.rs` (and the Bloq-mode
 // shortcuts in `systems/ui/circuit_viewer.rs`); those are the source of truth.
 const HELP_BINDINGS: &[(&str, &str)] = &[
     ("Command Palette", "Ctrl + Shift + P / F1"),
     ("Rotate Camera", "Middle Mouse Drag / Alt + Left Drag"),
-    ("Pan Camera", "Right Mouse Drag"),
+    ("Pan Camera", "Right Drag / Shift + Alt + Left Drag"),
     ("Zoom Camera", "Mouse Wheel"),
     ("Undo", "Ctrl + Z"),
     ("Redo", "Ctrl + Shift + Z"),
@@ -18,7 +18,7 @@ const HELP_BINDINGS: &[(&str, &str)] = &[
     ("Duplicate Selection", "Ctrl + D (View)"),
     ("Plane Height Down", "J"),
     ("Plane Height Up", "K"),
-    ("View Mode", "Space / V"),
+    ("Toggle View / Edit", "Space"),
     ("Module workspace", "M"),
     ("BLOG Buffer", "B"),
     ("BLOG Completion", "Tab / Shift + Tab (BLOG)"),
@@ -29,24 +29,26 @@ const HELP_BINDINGS: &[(&str, &str)] = &[
         "Extend Pipe To Empty Endpoint",
         "P, click block, click empty adjacent cell",
     ),
-    ("Keyboard Pipe Placement", "W / A / S / D / Up / Down"),
+    (
+        "Extend / Follow Existing Pipe",
+        "W/S: +Y/-Y; A/D: -X/+X; Up/Down: +Z/-Z (Pipe tool)",
+    ),
     ("Repeat Last Pipe Placement", "R"),
-    ("Hadamard Pipe Placement", "Hold H while placing pipe"),
+    ("Hadamard Pipe Placement", "Toolbar checkbox or hold H"),
     ("Program Mode", "C"),
     ("ZX View", "X"),
     ("Prev/Next Node Moment", "Q / E (Program)"),
     ("Prev/Next Reset Moment", "Shift + Q / E (Program)"),
-    ("Select / Toggle Select", "Click / Ctrl+Click"),
-    ("Box Select", "Click+Drag empty space"),
+    ("Select / Toggle Select", "Click / Shift+Click / Ctrl+Click"),
+    ("Box Select", "Drag empty space; Shift+Drag adds"),
     (
         "Move Selection / Module",
         "Left-drag object or X/Y/Z handle",
     ),
     ("Cancel Move", "Esc while dragging"),
     ("Select All Elements", "Ctrl + A"),
-    ("Clear Selection", "Esc"),
-    ("Delete Selected", "D / Backspace"),
-    ("Delete Hovered", "Middle Mouse Click (Edit / View)"),
+    ("Clear Selection", "Esc (viewport)"),
+    ("Delete Selected", "Delete / Backspace"),
     (
         "Translate Graph / Selection",
         "< / > / ^ / v / z< / z> (View)",
@@ -55,7 +57,7 @@ const HELP_BINDINGS: &[(&str, &str)] = &[
     ("Fill Ports / Cycle Filled Variants", "F"),
     (
         "Edit Target Attributes",
-        "Hold I + Click, or Double-Click (Edit mode)",
+        "Attributes button / Enter / Double-Click (View or Edit)",
     ),
     ("Actions Window (action DAG)", "A"),
     (
@@ -66,7 +68,15 @@ const HELP_BINDINGS: &[(&str, &str)] = &[
         "Edit Or Remove An Action",
         "Actions window: click a node, then Edit / Remove",
     ),
-    ("Cancel A Draft Or Pick", "Esc"),
+    (
+        "Commit / Cancel Action Draft",
+        "Enter / Esc in a draft field; Add/Edit or Cancel buttons",
+    ),
+    ("Cancel Action Pick", "Esc (viewport)"),
+    (
+        "Apply / Cancel Attributes",
+        "Enter / Esc in Tag or Color; OK or Cancel buttons",
+    ),
     ("Toggle Stabilizers", "S (View)"),
     ("Prev/Next Stabilizer", "Q / E (Stabilizer View)"),
 ];
@@ -102,7 +112,16 @@ pub(crate) fn draw_help_window(
                         .hint_text("Find an action or shortcut...")
                         .desired_width(f32::INFINITY),
                 );
-                ui.small("Viewport shortcuts pause while typing in a text field.");
+                ui.small("Mac: use Command instead of Ctrl.");
+                ui.collapsing("Editing tips", |ui| {
+                    ui.label("Edit → click an empty cell to place → P to connect. Space switches to selection.");
+                    ui.label("With the block tool, click an existing block to select it; double-click opens attributes. Placement does not replace it.");
+                    ui.label(
+                        "Select, then Delete/Backspace to remove. Connected pipes are removed with a block; Undo restores them. Middle mouse only orbits the camera.",
+                    );
+                    ui.label("File Save/Download exports the graph. BLOG Save/Download draft preserves exact text, including comments and invalid or unfinished input.");
+                    ui.label("Graph and text conflicts require an explicit choice; Text history keeps up to 20 recent versions within 8 MiB per tab. Save draft for permanent recovery.");
+                });
                 let query = query.trim().to_lowercase();
                 let mut count = 0;
                 egui::ScrollArea::vertical()
@@ -145,7 +164,7 @@ pub(crate) fn draw_help_window(
                                 }
                             });
                         if count == 0 {
-                            ui.label("No matching shortcuts. Try a shorter search.");
+                            ui.label("No matching shortcuts.");
                         }
                     });
             });

@@ -1,0 +1,9 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Isolated recovery storage smoke test</title>
+<pre id="result">Running isolated IndexedDB tests…</pre>
+<script type="module">
+import { runRecoveryStorageTests } from "./recovery_storage_test.js";
+try { document.querySelector("#result").textContent = await runRecoveryStorageTests(); }
+catch (error) { document.querySelector("#result").textContent = `FAIL: ${error.message ?? error}\n${error.stack ?? ""}`; }
+</script>

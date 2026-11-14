@@ -51,13 +51,13 @@ pub(crate) fn draw_close_tab_confirm_system(
             ui.set_width(280.0);
             ui.heading("Quit Bloq Editor?");
             ui.label(
-                "Open tabs and undo history will be lost. Save or copy your work before quitting.",
+                "Autosave keeps tabs, text history and recent Undo/Redo unless an error was reported. Export important work before quitting.",
             );
             ui.horizontal(|ui| {
                 if ui.button("Keep editing").clicked() {
                     pending.quit_requested = false;
                 }
-                if ui.button("Quit without saving").clicked() {
+                if ui.button("Quit").clicked() {
                     intents.push(UiIntent::ConfirmQuit);
                     pending.quit_requested = false;
                 }
@@ -87,7 +87,7 @@ pub(crate) fn draw_close_tab_confirm_system(
         );
         ui.add_space(4.0);
         ui.label(
-            egui::RichText::new("Its graph and undo history will be lost.")
+            egui::RichText::new("Its graph, BLOG draft and editing history will be lost.")
                 .small()
                 .color(palette.text_primary),
         );

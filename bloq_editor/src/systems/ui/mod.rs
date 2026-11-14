@@ -28,6 +28,8 @@ mod status_bar;
 mod tab_bar;
 mod thumbnail;
 mod toolbar;
+#[cfg(any(target_arch = "wasm32", test))]
+mod web_keyboard;
 pub(crate) mod zx_viewer;
 
 use crate::components::AxisHelper;
@@ -59,7 +61,6 @@ pub(crate) use axis_indicator::draw_axis_indicator_system;
 
 pub(crate) use apply_intents::{apply_fill_ports, apply_ui_intents_system};
 pub(crate) use intents::{UiIntent, UiIntentBuffer};
-#[cfg(any(target_arch = "wasm32", test))]
 pub(crate) use module_panel::DefinitionEdit;
 pub(crate) use tab_bar::{PendingTabClose, draw_close_tab_confirm_system};
 
@@ -70,6 +71,18 @@ pub(crate) struct UiPlugin;
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
+        #[cfg(target_arch = "wasm32")]
+        {
+            app.world_mut()
+                .resource_mut::<bevy_egui::EguiGlobalSettings>()
+                .input_system_settings
+                .run_write_keyboard_input_messages_system = false;
+            app.add_systems(
+                PreUpdate,
+                web_keyboard::write_ordered_keyboard_messages
+                    .in_set(bevy_egui::EguiInputSet::ReadBevyMessages),
+            );
+        }
         #[cfg(not(target_arch = "wasm32"))]
         app.add_systems(Update, tab_bar::request_window_close);
         app.init_resource::<EditorTabs>()
@@ -234,6 +247,14 @@ pub(crate) fn fuzzy_score(haystack: &str, query: &str) -> Option<i32> {
     Some(-((last - first) as i32) - first as i32)
 }
 
+// Single-line Enter and Escape can surrender focus before the commit row is
+// drawn. Preserve ownership for that frame, but never steal another field's key.
+fn field_owns_shortcuts(ui: &egui::Ui, id: egui::Id) -> bool {
+    ui.memory(|memory| {
+        memory.has_focus(id) || (memory.focused().is_none() && memory.had_focus_last_frame(id))
+    })
+}
+
 pub(crate) fn activated(response: &egui::Response) -> bool {
     response.enabled()
         && (response.clicked()
@@ -335,6 +356,7 @@ fn sync_graph_ui_summary_system(
 
 /// Draws the top tab bar and toolbar.
 fn draw_top_bars_system(
+    mut action_viewer: ResMut<ActionViewerState>,
     mut contexts: EguiContexts,
     mut editor_state: ResMut<EditorState>,
     mut import_export: ResMut<ImportExportState>,
@@ -371,6 +393,7 @@ fn draw_top_bars_system(
                             toolbar::draw_toolbar_contents(
                                 ui,
                                 toolbar::ToolbarState {
+                                    action_viewer: &mut action_viewer,
                                     editor_state: &mut editor_state,
                                     import_export: &mut import_export,
                                     compile_ui: &mut compile_ui,
@@ -575,6 +598,7 @@ fn draw_zx_viewer_system(
 
 /// Draws the editable BLOG buffer window.
 fn draw_blog_buffer_system(
+    graph_state: Res<GraphState>,
     mut contexts: EguiContexts,
     mut editor_state: ResMut<EditorState>,
     mut import_export: ResMut<ImportExportState>,
@@ -584,6 +608,7 @@ fn draw_blog_buffer_system(
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
     let current_theme = palette(editor_state.theme_preset);
+    import_export.refresh_from_graph(&graph_state);
     draw_blog_buffer(
         ctx,
         central.0,
@@ -730,6 +755,9 @@ pub(crate) fn sync_ui_input_state_system(
     central: Res<CentralViewport>,
     notifications: Res<Notifications>,
     command_palette: Res<CommandPaletteState>,
+    target_state: Res<TargetState>,
+    import_export: Res<ImportExportState>,
+    windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
     // `is_pointer_over_egui` only recognises non-background layers (windows,
@@ -737,14 +765,39 @@ pub(crate) fn sync_ui_input_state_system(
     // its own root pass empty, so egui reports the whole screen as free. Treat
     // any pointer outside the panel-free central rect as "over UI" so viewport
     // gestures (e.g. scroll-to-zoom) don't fire while the cursor is on a panel.
-    let over_panel = ctx
-        .input(|input| input.pointer.latest_pos())
-        .is_some_and(|pos| !central.0.contains(pos));
-    ui_input.pointer_over_ui = ctx.is_pointer_over_egui() || over_panel;
-    ui_input.wants_pointer_input = ctx.egui_wants_pointer_input() || over_panel;
+    // egui's pass runs in PostUpdate: its pointer is one frame behind the
+    // Window cursor used by placement in Update. Hit-test the current cursor
+    // against the last rendered UI so a move+click cannot pass through a panel.
+    let pointer = windows.single().map_or_else(
+        |_| ctx.input(|input| input.pointer.latest_pos()),
+        |window| {
+            window
+                .physical_cursor_position()
+                .map(|pos| egui::pos2(pos.x, pos.y) / ctx.pixels_per_point())
+        },
+    );
+    let over_panel = pointer.is_some_and(|pos| pointer_over_editor_ui(ctx, central.0, pos));
+    let attribute_dialog = target_state.open_window
+        || target_state.capture_input
+        || import_export.blocks_graph_editing();
+    ui_input.pointer_over_ui = over_panel || attribute_dialog;
+    ui_input.wants_pointer_input = ctx.egui_wants_pointer_input() || over_panel || attribute_dialog;
     ui_input.wants_keyboard_input = ctx.egui_wants_keyboard_input()
         || notifications.capture_keyboard
-        || command_palette.capture_keyboard;
+        || command_palette.capture_keyboard
+        || attribute_dialog;
+}
+
+/// Explicit position avoids egui's previous-pass pointer when Bevy has newer input.
+pub(crate) fn pointer_over_editor_ui(
+    ctx: &egui::Context,
+    viewport: egui::Rect,
+    pos: egui::Pos2,
+) -> bool {
+    !viewport.contains(pos)
+        || ctx
+            .layer_id_at(pos)
+            .is_some_and(|layer| layer.order != egui::Order::Background)
 }
 
 // The active tab's live state is the editor Resources themselves; its snapshot
@@ -757,6 +810,84 @@ pub(crate) fn sync_ui_input_state_system(
 mod tests {
     use super::*;
     use bevy_egui::{EguiContext, EguiUserTextures, PrimaryEguiContext};
+
+    #[test]
+    fn attribute_dialog_owns_viewport_input_even_when_pointer_is_outside() {
+        let mut app = App::new();
+        app.init_resource::<UiInputState>()
+            .init_resource::<ImportExportState>()
+            .insert_resource(CentralViewport(egui::Rect::EVERYTHING))
+            .init_resource::<Notifications>()
+            .init_resource::<CommandPaletteState>()
+            .init_resource::<TargetState>()
+            .init_resource::<EguiUserTextures>()
+            .add_systems(Update, sync_ui_input_state_system);
+        app.world_mut()
+            .spawn((EguiContext::default(), PrimaryEguiContext));
+        for (open, captured) in [(true, false), (false, true)] {
+            let mut target = app.world_mut().resource_mut::<TargetState>();
+            target.open_window = open;
+            target.capture_input = captured;
+            app.update();
+            let input = app.world().resource::<UiInputState>();
+            assert!(input.blocks_viewport_keyboard_input());
+            assert!(input.blocks_viewport_pointer_input());
+        }
+    }
+
+    #[test]
+    fn current_window_cursor_blocks_panels_despite_stale_egui_pointer() {
+        let mut app = App::new();
+        app.init_resource::<UiInputState>()
+            .init_resource::<ImportExportState>()
+            .insert_resource(CentralViewport(egui::Rect::from_min_max(
+                egui::pos2(0.0, 0.0),
+                egui::pos2(800.0, 600.0),
+            )))
+            .init_resource::<Notifications>()
+            .init_resource::<CommandPaletteState>()
+            .init_resource::<TargetState>()
+            .init_resource::<EguiUserTextures>()
+            .add_systems(Update, sync_ui_input_state_system);
+        let mut context = EguiContext::default();
+        let ctx = context.get_mut().clone();
+        ctx.set_pixels_per_point(2.0);
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                events: vec![egui::Event::PointerMoved(egui::pos2(100.0, 100.0))],
+                ..Default::default()
+            },
+            |_| {},
+        );
+        output.textures_delta.clear();
+        app.world_mut().spawn((context, PrimaryEguiContext));
+        let mut window = Window {
+            resolution: bevy::window::WindowResolution::new(2000, 1200),
+            ..Default::default()
+        };
+        window.set_physical_cursor_position(Some(bevy::math::DVec2::new(1700.0, 200.0)));
+        let window = app
+            .world_mut()
+            .spawn((window, bevy::window::PrimaryWindow))
+            .id();
+        app.update();
+        assert!(
+            app.world()
+                .resource::<UiInputState>()
+                .blocks_viewport_pointer_input()
+        );
+        // Moving back to the canvas must not retain the panel's capture.
+        app.world_mut()
+            .get_mut::<Window>(window)
+            .unwrap()
+            .set_physical_cursor_position(Some(bevy::math::DVec2::new(400.0, 200.0)));
+        app.update();
+        assert!(
+            !app.world()
+                .resource::<UiInputState>()
+                .blocks_viewport_pointer_input()
+        );
+    }
 
     #[test]
     fn long_notifications_and_help_stay_inside_small_screens() {

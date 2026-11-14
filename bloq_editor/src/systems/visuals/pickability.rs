@@ -195,7 +195,7 @@ pub(super) fn add_block_preview_system(
     let preview_state = PlacementPreviewSyncState::from_inputs(
         &editor_state,
         &graph_state,
-        is_hadamard_pipe_modifier_pressed(&keys),
+        editor_state.pipe_hadamard || is_hadamard_pipe_modifier_pressed(&keys),
     );
     if preview_cache.applied == Some(preview_state) {
         return;
@@ -307,7 +307,7 @@ pub(super) fn add_block_preview_system(
     if editor_state.is_pipe_tool_active()
         && let Some(start) = editor_state.pipe_start
     {
-        let force_hadamard = is_hadamard_pipe_modifier_pressed(&keys);
+        let force_hadamard = editor_state.pipe_hadamard || is_hadamard_pipe_modifier_pressed(&keys);
         if pipe_hint_cache.snapshot_revision != Some(graph_state.revision) {
             pipe_hint_cache.snapshot = GraphAdjacencySnapshot::from_graph(&graph_state.graph);
             pipe_hint_cache.snapshot_revision = Some(graph_state.revision);

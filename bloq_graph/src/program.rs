@@ -982,6 +982,14 @@ impl BlockGraph {
         crate::summary::preflight_program_expansion(self, limits)
     }
 
+    /// Source transport checks. Geometry certification remains an explicit
+    /// validation/compile step, not repeated when receiving a worker result.
+    pub(crate) fn validate_snapshot_hierarchy(&self) -> Result<(), ModuleError> {
+        let definitions = self.validate_definition_structure()?;
+        crate::summary::preflight_program_expansion(self, ModuleCertificationLimits::DEFAULT)?;
+        validate_classical_cycles(&self.modules().collect::<Vec<_>>(), &definitions)
+    }
+
     fn validate_definition_structure(&self) -> Result<HashMap<&str, &Self>, ModuleError> {
         let mut definitions = HashMap::new();
         for module in self.modules() {

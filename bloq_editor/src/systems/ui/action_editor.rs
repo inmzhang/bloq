@@ -8,8 +8,8 @@
 
 use std::collections::HashSet;
 
-use super::activated;
 use super::intents::{UiIntent, UiIntentBuffer};
+use super::{activated, field_owns_shortcuts};
 use crate::components::GraphElement;
 use crate::theme::{self, ThemePalette, ThemePreset};
 use bevy::prelude::Resource;
@@ -335,7 +335,13 @@ impl ActionEditState {
             .draft
             .as_ref()
             .and_then(|draft| draft.editing.as_ref())
-            .is_some_and(|(_, expected)| graph.actions() != *expected)
+            .is_some_and(|(_, expected)| {
+                !graph
+                    .action_graph()
+                    .ordered_nodes()
+                    .map(|node| &node.action)
+                    .eq(expected.iter())
+            })
         {
             self.cancel();
         }
@@ -437,22 +443,51 @@ fn measure_target_for(element: GraphElement, graph: &BlockGraph) -> Result<Measu
 
 /// First unused `m0`, `m1`, … so a measure can be confirmed without typing.
 fn next_measure_name(graph: &BlockGraph) -> String {
-    let taken: HashSet<String> = defined_variables(&graph.actions()).into_iter().collect();
+    let taken: HashSet<&str> = graph
+        .action_graph()
+        .inputs()
+        .chain(
+            graph
+                .action_graph()
+                .ordered_nodes()
+                .filter_map(|node| action_binding(&node.action)),
+        )
+        .collect();
     (0..)
         .map(|i| format!("m{i}"))
-        .find(|name| !taken.contains(name))
+        .find(|name| !taken.contains(name.as_str()))
         .expect("an unbounded counter always yields a name outside a finite set")
 }
 
 /// Names bound by the graph's actions, offered as insertable chips under an
 /// expression field.
-fn defined_variables(actions: &[Action]) -> Vec<String> {
-    actions
-        .iter()
-        .filter_map(|action| match action {
-            Action::Measure { name, .. } | Action::Let { name, .. } => Some(name.clone()),
-            _ => None,
-        })
+fn action_binding(action: &Action) -> Option<&str> {
+    match action {
+        Action::Measure { name, .. } | Action::Let { name, .. } => Some(name),
+        _ => None,
+    }
+}
+
+/// Inputs are in scope throughout this definition; action bindings become
+/// available only after their statement, never from a sibling definition.
+fn draft_variables(graph: &BlockGraph, draft: &ActionDraft) -> Vec<String> {
+    let end = draft
+        .editing
+        .as_ref()
+        .map_or(usize::MAX, |(index, _)| *index);
+    let mut seen = HashSet::new();
+    graph
+        .action_graph()
+        .inputs()
+        .chain(
+            graph
+                .action_graph()
+                .ordered_nodes()
+                .take(end)
+                .filter_map(|node| action_binding(&node.action)),
+        )
+        .filter(|name| seen.insert(*name))
+        .map(str::to_owned)
         .collect()
 }
 
@@ -506,7 +541,7 @@ pub(crate) fn draw_action_editor_window(
     intents: &mut UiIntentBuffer,
 ) {
     state.cancel_stale_edit(graph);
-    let Some(draft) = state.draft.clone() else {
+    let Some(draft) = state.draft.as_ref() else {
         return;
     };
     let palette = theme::palette(theme_preset);
@@ -515,10 +550,10 @@ pub(crate) fn draw_action_editor_window(
     } else {
         "Add"
     };
-    let preview = draft_preview(&draft);
-    let actions = graph.actions();
+    let variables = draft_variables(graph, draft);
+    let kind = draft.kind;
 
-    egui::Window::new(format!("{verb} {} Action", draft.kind.title()))
+    egui::Window::new(format!("{verb} {} Action", kind.title()))
         .id(egui::Id::new((DRAFT_WINDOW_ID, tab_id)))
         .collapsible(false)
         .resizable(false)
@@ -534,11 +569,12 @@ pub(crate) fn draw_action_editor_window(
         .show(ctx, |ui| {
             let focus = std::mem::take(&mut state.focus_field);
             draw_targets(ui, state, graph, palette);
-            draw_fields(ui, state, &actions, focus, palette);
+            let owns_keyboard = draw_fields(ui, state, &variables, focus, palette);
+            let preview = draft_preview(state.draft.as_ref().expect("draft is open"));
             ui.add_space(8.0);
             draw_preview(ui, &preview, palette);
             ui.add_space(10.0);
-            draw_commit_row(ui, state, &preview, verb, draft.kind, intents);
+            draw_commit_row(ui, state, &preview, verb, kind, owns_keyboard, intents);
         });
 }
 
@@ -629,12 +665,13 @@ fn draw_targets(
 fn draw_fields(
     ui: &mut egui::Ui,
     state: &mut ActionEditState,
-    actions: &[Action],
+    variables: &[String],
     focus: bool,
     palette: &ThemePalette,
-) {
+) -> bool {
+    let mut owns_keyboard = false;
     let Some(draft) = state.draft.as_mut() else {
-        return;
+        return false;
     };
     let kind = draft.kind;
 
@@ -646,6 +683,7 @@ fn draw_fields(
                 .hint_text("outcome name")
                 .desired_width(f32::INFINITY),
         );
+        owns_keyboard |= field_owns_shortcuts(ui, field.id);
         if focus {
             field.request_focus();
         }
@@ -659,12 +697,14 @@ fn draw_fields(
                 .hint_text(hint)
                 .desired_width(f32::INFINITY),
         );
+        owns_keyboard |= field_owns_shortcuts(ui, field.id);
         // The name field, when there is one, owns the initial focus.
         if focus && !kind.binds_a_variable() {
             field.request_focus();
         }
-        draw_condition_pad(ui, actions, &mut draft.expr, palette);
+        draw_condition_pad(ui, variables, &mut draft.expr, palette);
     }
+    owns_keyboard
 }
 
 /// The commit and cancel controls.
@@ -674,6 +714,7 @@ fn draw_commit_row(
     preview: &Result<String, String>,
     verb: &str,
     kind: ActionKind,
+    owns_keyboard: bool,
     intents: &mut UiIntentBuffer,
 ) {
     ui.horizontal(|ui| {
@@ -681,11 +722,16 @@ fn draw_commit_row(
             preview.is_ok(),
             egui::Button::new(format!("\u{f067} {verb} {}", kind.title())),
         );
-        let confirmed = ui.input(|i| i.key_pressed(egui::Key::Enter)) && preview.is_ok();
+        let confirmed = owns_keyboard
+            && preview.is_ok()
+            && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
         if activated(&commit) || confirmed {
             commit_draft(state, intents);
         }
-        if activated(&ui.button("Cancel")) || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        if activated(&ui.button("Cancel"))
+            || (owns_keyboard
+                && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)))
+        {
             state.cancel();
         }
     });
@@ -698,12 +744,11 @@ fn draw_commit_row(
 /// enough that building it left-to-right is the natural order anyway.
 fn draw_condition_pad(
     ui: &mut egui::Ui,
-    actions: &[Action],
+    variables: &[String],
     condition: &mut String,
     palette: &ThemePalette,
 ) {
     ui.add_space(6.0);
-    let variables = defined_variables(actions);
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(4.0, 3.0);
         ui.label(
@@ -713,12 +758,12 @@ fn draw_condition_pad(
         );
         if variables.is_empty() {
             ui.label(
-                egui::RichText::new("none bound yet \u{2014} add a measure first")
+                egui::RichText::new("no inputs or earlier bindings")
                     .small()
                     .color(palette.text_dim),
             );
         }
-        for variable in &variables {
+        for variable in variables {
             let chip = egui::Button::new(
                 egui::RichText::new(variable)
                     .monospace()
@@ -836,13 +881,12 @@ fn commit_draft(state: &mut ActionEditState, intents: &mut UiIntentBuffer) {
         }),
         None => intents.push(UiIntent::AddAction(action)),
     }
-    state.cancel();
+    // The applying system closes this draft only after the graph accepts it.
 }
 
 fn parse_draft_action(draft: &ActionDraft) -> Result<Action, String> {
-    let mut parser_draft = draft.clone();
-    parser_draft.branch_target = None;
-    let source = draft_blog_source(&parser_draft).ok_or_else(|| missing_field_hint(draft))?;
+    let source =
+        draft_blog_source_with_branch(draft, None).ok_or_else(|| missing_field_hint(draft))?;
     let [mut action] = parse_actions(&source, |_, _| None)
         .map_err(|err| err.to_string())?
         .try_into()
@@ -864,6 +908,12 @@ fn parse_draft_action(draft: &ActionDraft) -> Result<Action, String> {
 /// This writer must agree with [`Action`]'s display output, which the BLOG
 /// buffer and DAG view show.
 fn draft_blog_source(draft: &ActionDraft) -> Option<String> {
+    draft_blog_source_with_branch(draft, draft.branch_target.as_deref())
+}
+
+// Parsing uses the numeric target, then restores the Branch variant; the preview
+// uses its authored name. Both paths borrow the draft, including its edit guard.
+fn draft_blog_source_with_branch(draft: &ActionDraft, branch: Option<&str>) -> Option<String> {
     let name = draft.name.trim();
     let expr = draft.expr.trim();
     let blocks = draft.block_positions();
@@ -880,7 +930,7 @@ fn draft_blog_source(draft: &ActionDraft) -> Option<String> {
             if expr.is_empty() {
                 return None;
             }
-            match &draft.branch_target {
+            match branch {
                 Some(name) => format!("resolve {name} if {expr}"),
                 None => format!("resolve {target} if {expr}"),
             }
@@ -944,6 +994,160 @@ mod tests {
     use super::*;
     use bloq_graph::{Block, BranchArm, CubeKind, Direction, Pipe, SelectiveKind};
     use glam::ivec3;
+
+    #[test]
+    fn text_and_enter_in_one_frame_commit_the_current_draft() {
+        let ctx = egui::Context::default();
+        theme::setup_theme(&ctx, ThemePreset::default());
+        let mut state = ActionEditState::default();
+        state.arm(ActionKind::Let);
+        state.draft.as_mut().unwrap().expr = "m0".into();
+        let mut intents = UiIntentBuffer::default();
+        for events in [
+            vec![],
+            vec![
+                egui::Event::Text("a".into()),
+                egui::Event::Key {
+                    key: egui::Key::Enter,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+        ] {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    events,
+                    ..Default::default()
+                },
+                |ui| {
+                    draw_action_editor_window(
+                        ui.ctx(),
+                        crate::resources::EditorTabId::new(1),
+                        &mut state,
+                        &two_block_graph(),
+                        ThemePreset::default(),
+                        &mut intents,
+                    );
+                },
+            );
+            output.textures_delta.clear();
+        }
+        assert!(
+            matches!(intents.drain().next(), Some(UiIntent::AddAction(Action::Let { name, .. })) if name == "a")
+        );
+    }
+
+    #[test]
+    fn draft_shortcuts_belong_to_its_fields_not_other_editors() {
+        for own_focus in [false, true] {
+            for key in [egui::Key::Enter, egui::Key::Escape] {
+                let ctx = egui::Context::default();
+                theme::setup_theme(&ctx, ThemePreset::default());
+                let mut state = ActionEditState::default();
+                state.arm(ActionKind::Let);
+                let draft = state.draft.as_mut().unwrap();
+                draft.name = "a".into();
+                draft.expr = "m0".into();
+                let mut intents = UiIntentBuffer::default();
+                let mut outside = String::new();
+                for first in [true, false] {
+                    let events = if first {
+                        vec![]
+                    } else {
+                        vec![egui::Event::Key {
+                            key,
+                            physical_key: None,
+                            pressed: true,
+                            repeat: false,
+                            modifiers: egui::Modifiers::NONE,
+                        }]
+                    };
+                    let mut output = ctx.run_ui(
+                        egui::RawInput {
+                            events,
+                            ..Default::default()
+                        },
+                        |ui| {
+                            let field = ui.text_edit_singleline(&mut outside);
+                            if first && !own_focus {
+                                field.request_focus();
+                            }
+                            let preview = draft_preview(state.draft.as_ref().unwrap());
+                            let owns_keyboard = draw_fields(
+                                ui,
+                                &mut state,
+                                &[],
+                                first && own_focus,
+                                theme::palette(ThemePreset::default()),
+                            );
+                            draw_commit_row(
+                                ui,
+                                &mut state,
+                                &preview,
+                                "Add",
+                                ActionKind::Let,
+                                owns_keyboard,
+                                &mut intents,
+                            );
+                        },
+                    );
+                    output.textures_delta.clear();
+                }
+                let queued = intents.drain().collect::<Vec<_>>();
+                assert_eq!(
+                    state.draft.is_none(),
+                    own_focus && key == egui::Key::Escape,
+                    "{key:?}, own_focus={own_focus}"
+                );
+                assert_eq!(
+                    queued.len(),
+                    usize::from(own_focus && key == egui::Key::Enter)
+                );
+                if !own_focus {
+                    assert!(ctx.input(|input| input.key_pressed(key)));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn draft_variables_include_inputs_but_not_current_or_later_bindings() {
+        let mut graph = two_block_graph();
+        let actions = vec![
+            Action::Let {
+                name: "earlier".into(),
+                expr: bloq_graph::Expr::Var("m0".into()),
+            },
+            Action::Let {
+                name: "current".into(),
+                expr: bloq_graph::Expr::Var("earlier".into()),
+            },
+            Action::Let {
+                name: "later".into(),
+                expr: bloq_graph::Expr::Var("current".into()),
+            },
+        ];
+        graph
+            .set_actions_with_inputs(actions.clone(), ["m0".to_string()])
+            .unwrap();
+        let editing = ActionDraft::from_action(1, &actions[1], &graph);
+        assert_eq!(draft_variables(&graph, &editing), ["m0", "earlier"]);
+        assert_eq!(
+            draft_variables(&graph, &ActionDraft::new(ActionKind::Let)),
+            ["m0", "earlier", "current", "later"]
+        );
+        assert_eq!(next_measure_name(&graph), "m1");
+        let mut input_only = BlockGraph::default();
+        input_only
+            .set_actions_with_inputs(vec![], ["enabled".to_string()])
+            .unwrap();
+        assert_eq!(
+            draft_variables(&input_only, &ActionDraft::new(ActionKind::Let)),
+            ["enabled"]
+        );
+    }
 
     fn two_block_graph() -> BlockGraph {
         let mut graph = BlockGraph::default();

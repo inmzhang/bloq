@@ -268,11 +268,14 @@ pub(super) fn handle_pipe_keyboard_placement(
         return false;
     }
     let (start, offset) = if repeat {
-        let Some((previous_start, start)) = editor_state.last_pipe_placement else {
+        let Some((previous_start, previous_end)) = editor_state.last_pipe_placement else {
             notifications.push_warn("Place a pipe before repeating placement");
             return true;
         };
-        (start, start - previous_start)
+        (
+            editor_state.pipe_start.unwrap_or(previous_end),
+            previous_end - previous_start,
+        )
     } else {
         let Some(start) = editor_state.pipe_start else {
             notifications.push_warn("Choose a pipe start before keyboard pipe placement");
@@ -284,10 +287,18 @@ pub(super) fn handle_pipe_keyboard_placement(
         notifications.push_error("Cannot place pipe: coordinate overflow");
         return true;
     };
+    // Existing edges are navigation, not failed insertion. This also avoids
+    // changing a Hadamard edge when retracing it with a different tool setting.
+    if graph_state.graph.has_pipe_between(start, end) {
+        editor_state.pipe_start = Some(end);
+        editor_state.last_pipe_placement = Some((start, end));
+        notifications.push_info(format!("Pipe cursor moved to {end}"));
+        return true;
+    }
     if place_pipe(
         start,
         end,
-        is_hadamard_pipe_modifier_pressed(keys),
+        editor_state.pipe_hadamard || is_hadamard_pipe_modifier_pressed(keys),
         graph_state,
         notifications,
     ) {
@@ -303,8 +314,8 @@ pub(super) fn delete_selected_elements(
     graph_state: &mut GraphState,
     notifications: &mut Notifications,
 ) {
-    if editor_state.mode != EditorMode::View {
-        notifications.push_warn("Switch to View mode before deleting selected elements");
+    if !matches!(editor_state.mode, EditorMode::View | EditorMode::Edit) {
+        notifications.push_warn("View or Edit mode is required to delete elements");
         return;
     }
 
@@ -332,16 +343,21 @@ pub(super) fn delete_elements(
         notifications.push_warn("Edit a definition in Modules, or open a flat copy");
         return 0;
     }
+    let selected = elements
+        .iter()
+        .copied()
+        .map(GraphElement::canonical)
+        .collect::<HashSet<_>>();
+    if graph_state.selection_touches_pending_branch_cut(&selected) {
+        notifications.push_warn("Finish or cancel the captured branch arm before deleting its input boundary. Nothing changed.");
+        return 0;
+    }
     let mut removed = 0usize;
     let mut removed_delta = None;
     // Endpoints that lost a pipe, so the sweep below can retire the ports that
     // pipe placement had auto-created for them.
     let mut orphan_candidates = Vec::new();
-    for element in elements
-        .iter()
-        .copied()
-        .filter(|element| matches!(element, GraphElement::Pipe(_, _)))
-    {
+    for element in elements.iter().copied() {
         if let GraphElement::Pipe(u, v) = element
             && let Some(pipe) = graph_state.graph.remove_pipe(u, v)
         {
@@ -359,15 +375,22 @@ pub(super) fn delete_elements(
             removed += 1;
         }
     }
-    for element in elements
-        .iter()
-        .copied()
-        .filter(|element| matches!(element, GraphElement::Block(_)))
-    {
+    for element in elements.iter().copied() {
         if let GraphElement::Block(pos) = element {
             // Removing the block drops its pipes too, so its neighbours join the
             // orphan sweep; collect them while the pipes still exist.
-            let neighbors = graph_state.graph.neighbor_positions(pos);
+            // Tall and moving blocks can own pipes away from their anchor.
+            let neighbors = graph_state
+                .graph
+                .get_block(pos)
+                .map(|block| {
+                    block
+                        .connectable_offsets()
+                        .into_iter()
+                        .flat_map(|offset| graph_state.graph.neighbor_positions(pos + offset))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
             if graph_state.graph.remove_block(pos).is_some() {
                 orphan_candidates.extend(neighbors);
                 removed_delta = None;
@@ -421,4 +444,239 @@ fn remove_isolated_ports(graph: &mut BlockGraph, candidates: &[IVec3]) -> bool {
         removed_any |= graph.remove_block(pos).is_some();
     }
     removed_any
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bloq_graph::{CubeKind, Direction, Pipe};
+
+    fn line() -> GraphState {
+        let mut state = GraphState::default();
+        for pos in [IVec3::ZERO, IVec3::X, 2 * IVec3::X] {
+            state
+                .graph
+                .add_block(Block::new(pos, BlockKind::Cube(CubeKind::ZXZ)));
+        }
+        state
+            .graph
+            .add_pipe(Pipe::new(IVec3::ZERO, Direction::XPLUS).with_hadamard());
+        state.graph.add_pipe(Pipe::new(IVec3::X, Direction::XPLUS));
+        state.commit();
+        state
+    }
+
+    #[test]
+    fn endpoint_deletion_cascades_to_pipes_and_undo_restores_metadata() {
+        let mut graph = line();
+        graph.graph.set_block_tag(IVec3::ZERO, "output").unwrap();
+        graph.commit();
+        let before = graph.graph.to_blog_text();
+        assert_eq!(
+            delete_elements(
+                &[GraphElement::Block(IVec3::ZERO)],
+                &mut EditorState::default(),
+                &mut graph,
+                &mut Notifications::default()
+            ),
+            1
+        );
+        assert!(!graph.graph.has_block_at(IVec3::ZERO));
+        assert!(!graph.graph.has_pipe_between(IVec3::ZERO, IVec3::X));
+        assert!(graph.graph.has_pipe_between(IVec3::X, 2 * IVec3::X));
+        graph.undo();
+        assert_eq!(graph.graph.to_blog_text(), before);
+    }
+
+    #[test]
+    fn junction_deletion_cascades_to_all_incident_pipes() {
+        let mut graph = line();
+        let before = graph.graph.to_blog_text();
+        assert_eq!(
+            delete_elements(
+                &[GraphElement::Block(IVec3::X)],
+                &mut EditorState::default(),
+                &mut graph,
+                &mut Notifications::default()
+            ),
+            1
+        );
+        assert!(!graph.graph.has_block_at(IVec3::X));
+        assert_eq!(graph.graph.pipe_count(), 0);
+        assert!(graph.graph.has_block_at(IVec3::ZERO));
+        assert!(graph.graph.has_block_at(2 * IVec3::X));
+        graph.undo();
+        assert_eq!(graph.graph.to_blog_text(), before);
+    }
+
+    #[test]
+    fn explicit_block_and_incident_pipe_selection_removes_only_selection() {
+        let mut graph = line();
+        assert_eq!(
+            delete_elements(
+                &[
+                    GraphElement::Block(IVec3::ZERO),
+                    GraphElement::Pipe(IVec3::ZERO, IVec3::X)
+                ],
+                &mut EditorState::default(),
+                &mut graph,
+                &mut Notifications::default()
+            ),
+            2
+        );
+        assert!(!graph.graph.has_block_at(IVec3::ZERO));
+        assert!(graph.graph.has_block_at(IVec3::X));
+        assert!(graph.graph.has_pipe_between(IVec3::X, 2 * IVec3::X));
+    }
+
+    #[test]
+    fn keyboard_retraces_existing_hadamard_edge_without_graph_edit() {
+        let mut graph = line();
+        let before = graph.graph.to_blog_text();
+        let revision = graph.revision;
+        let mut editor = EditorState {
+            mode: EditorMode::Edit,
+            placement_tool: PlacementTool::Pipe,
+            pipe_start: Some(IVec3::X),
+            ..EditorState::default()
+        };
+        let mut keys = ButtonInput::default();
+        keys.press(KeyCode::KeyA);
+        assert!(handle_pipe_keyboard_placement(
+            &keys,
+            &mut editor,
+            &mut graph,
+            &mut Notifications::default()
+        ));
+        assert_eq!(editor.pipe_start, Some(IVec3::ZERO));
+        assert_eq!(graph.graph.to_blog_text(), before);
+        assert_eq!(graph.revision, revision);
+    }
+
+    #[test]
+    fn repeat_follows_current_cursor_not_previous_placement_endpoint() {
+        let mut graph = line();
+        let mut editor = EditorState {
+            mode: EditorMode::Edit,
+            placement_tool: PlacementTool::Pipe,
+            pipe_start: Some(IVec3::ZERO),
+            last_pipe_placement: Some((IVec3::X, 2 * IVec3::X)),
+            ..EditorState::default()
+        };
+        let revision = graph.revision;
+        let mut keys = ButtonInput::default();
+        keys.press(KeyCode::KeyR);
+        handle_pipe_keyboard_placement(
+            &keys,
+            &mut editor,
+            &mut graph,
+            &mut Notifications::default(),
+        );
+        assert_eq!(editor.pipe_start, Some(IVec3::X));
+        assert_eq!(graph.revision, revision);
+    }
+
+    #[test]
+    fn tall_block_deletion_removes_top_pipe_and_retires_orphan_port() {
+        let mut graph = GraphState::default();
+        graph.graph.add_block(
+            Block::new(IVec3::ZERO, BlockKind::Cube(CubeKind::XZZ))
+                .with_height("2d".parse().unwrap())
+                .unwrap(),
+        );
+        graph
+            .graph
+            .add_block(Block::new(2 * IVec3::Z, BlockKind::Port));
+        graph.graph.add_pipe(Pipe::new(IVec3::Z, Direction::ZPLUS));
+        graph.commit();
+        let before = graph.graph.to_blog_text();
+        assert_eq!(
+            delete_elements(
+                &[GraphElement::Block(IVec3::ZERO)],
+                &mut EditorState::default(),
+                &mut graph,
+                &mut Notifications::default()
+            ),
+            1
+        );
+        assert!(graph.graph.is_empty());
+        graph.undo();
+        assert_eq!(graph.graph.to_blog_text(), before);
+    }
+
+    #[test]
+    fn selected_endpoint_can_be_removed_in_edit_mode() {
+        let mut graph = line();
+        let mut editor = EditorState {
+            mode: EditorMode::Edit,
+            ..EditorState::default()
+        };
+        editor.select_elements(vec![GraphElement::Block(IVec3::ZERO)], false);
+        delete_selected_elements(&mut editor, &mut graph, &mut Notifications::default());
+        assert!(!graph.graph.has_block_at(IVec3::ZERO));
+        assert!(!graph.graph.has_pipe_between(IVec3::ZERO, IVec3::X));
+        assert_eq!(editor.selection_count(), 0);
+    }
+
+    #[test]
+    fn keyboard_backtracking_can_branch_from_an_earlier_node() {
+        let mut graph = line();
+        let mut editor = EditorState {
+            mode: EditorMode::Edit,
+            placement_tool: PlacementTool::Pipe,
+            pipe_start: Some(IVec3::X),
+            ..EditorState::default()
+        };
+        let mut keys = ButtonInput::default();
+        keys.press(KeyCode::KeyA);
+        handle_pipe_keyboard_placement(
+            &keys,
+            &mut editor,
+            &mut graph,
+            &mut Notifications::default(),
+        );
+        keys.release_all();
+        keys.clear();
+        keys.press(KeyCode::ArrowUp);
+        handle_pipe_keyboard_placement(
+            &keys,
+            &mut editor,
+            &mut graph,
+            &mut Notifications::default(),
+        );
+        assert_eq!(editor.pipe_start, Some(IVec3::Z));
+        assert!(graph.graph.has_pipe_between(IVec3::ZERO, IVec3::Z));
+        assert!(graph.graph.has_pipe_between(IVec3::ZERO, IVec3::X));
+    }
+
+    #[test]
+    fn captured_branch_input_boundary_cannot_be_deleted() {
+        let mut graph = GraphState::default();
+        graph
+            .graph
+            .add_block(Block::new(IVec3::ZERO, BlockKind::Cube(CubeKind::ZXZ)));
+        graph.pending_branch_arm = Some(crate::resources::PendingBranchArm {
+            name: "b0".into(),
+            arm: bloq_graph::BranchArm::new(
+                vec![Block::new(IVec3::Z, BlockKind::Cube(CubeKind::ZXZ))],
+                vec![Pipe::new(IVec3::ZERO, Direction::ZPLUS)],
+            ),
+            captured_true: false,
+        });
+        graph.commit();
+        let before = graph.graph.to_blog_text();
+        let revision = graph.revision;
+        assert_eq!(
+            delete_elements(
+                &[GraphElement::Block(IVec3::ZERO)],
+                &mut EditorState::default(),
+                &mut graph,
+                &mut Notifications::default()
+            ),
+            0
+        );
+        assert_eq!(graph.graph.to_blog_text(), before);
+        assert_eq!(graph.revision, revision);
+        assert!(graph.pending_branch_arm.is_some());
+    }
 }

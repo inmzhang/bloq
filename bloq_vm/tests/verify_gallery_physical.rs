@@ -97,13 +97,19 @@ fn verify_fixture(fixture: TestFixture) -> Result<(), String> {
     let program = case.build();
     let graph = program.flatten().map_err(|error| error.to_string())?;
     let offset = glam::IVec3::new(0, 0, -graph.spans().map_or(0, |(_, _, z)| *z.start()));
-    let resources = program
+    let resource_ports = program
         .interface
         .quantum_ports
         .iter()
-        .filter(|port| {
-            port.resource_type == "ccz" && port.direction == bloq_graph::PortDirection::Input
-        })
+        .filter(|port| port.direction == bloq_graph::PortDirection::Input);
+    let resources = resource_ports
+        .clone()
+        .filter(|port| port.resource_type == "ccz")
+        .map(|port| port.position + offset)
+        .collect::<Vec<_>>();
+    let t_inputs = resource_ports
+        // The serial factory's first two injection ports are declared as data.
+        .filter(|port| port.resource_type == "t" || fixture == TestFixture::CCZ2x3_16)
         .map(|port| port.position + offset)
         .collect::<Vec<_>>();
     let (resources, remainder) = resources.as_chunks::<3>();
@@ -131,7 +137,7 @@ fn verify_fixture(fixture: TestFixture) -> Result<(), String> {
             .map_err(|error| format!("validate: {error}"))?;
     }
 
-    let report = if resources.is_empty() {
+    let report = if resources.is_empty() && t_inputs.is_empty() {
         run_bloq(&bloq, SHOTS, SEED)
     } else {
         run_bloq_with_io(
@@ -139,9 +145,15 @@ fn verify_fixture(fixture: TestFixture) -> Result<(), String> {
             SHOTS,
             SEED,
             |sim, ctx| {
+                for &port in &t_inputs {
+                    sim.t(input_seed(ctx, port))?;
+                }
                 // Joint resource semantics are checked by verify_choi's sweep.
-                let group = ctx.shot * (resources.len() - 1) / (SHOTS - 1);
-                prepare_ccz(sim, ctx, resources[group])
+                if !resources.is_empty() {
+                    let group = ctx.shot * (resources.len() - 1) / (SHOTS - 1);
+                    prepare_ccz(sim, ctx, resources[group])?;
+                }
+                Ok(())
             },
             |_, _| Ok(()),
         )

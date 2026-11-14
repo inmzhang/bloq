@@ -3630,19 +3630,21 @@ mod tests {
     }
 
     #[test]
-    fn and_classical_toggle_places_all_visible_nodes() {
-        for item in [GalleryItem::CCZInjectedAnd, GalleryItem::And4T] {
-            // Gallery loading retains the module's classical interface; compiling
-            // only its materialized graph misses the parallel dataflow edges.
-            let artifacts = bloq_compile::CompileContext::new(CompileConfig::default())
-                .compile(&item.build())
-                .expect("AND compiles for the viewer");
-            let view = crate::program_view::build_bloq_circuit_view(
-                &artifacts.bloq,
-                &item.build().flatten().unwrap(),
-                IVec3::ZERO,
+    fn adaptive_gallery_classical_toggle_places_all_visible_nodes() {
+        for item in [
+            GalleryItem::CCZInjectedAnd,
+            GalleryItem::And4T,
+            GalleryItem::CCZ2x3_16,
+        ] {
+            let view = compile_graph_for_viewer(
+                &item.build(),
+                &CompileRequest {
+                    code_distance: 3,
+                    format: CompileOutputFormat::Stim,
+                    prepare_t_with_mpps: false,
+                },
             )
-            .unwrap();
+            .unwrap_or_else(|error| panic!("{item} compiles for the viewer: {error:#}"));
             let mut viewer = BloqViewerState {
                 nodes: view.nodes,
                 edges: view.edges,
