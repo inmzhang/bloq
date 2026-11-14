@@ -95,6 +95,8 @@ fixtures! {
     Stability => ("stability", Some(GalleryItem::Stability)),
     /// T gate teleportation (non-Clifford).
     TGate => ("t_gate", Some(GalleryItem::T)),
+    /// T gate teleportation with a structural branch for the Clifford correction.
+    TGateStructuralBranch => ("t_gate_structural_branch", Some(GalleryItem::TGateStructuralBranch)),
     /// T gate teleportation with a prepared Y for Clifford fix (non-Clifford).
     TWithPreparedY => ("t_with_prepared_y", Some(GalleryItem::TWithPreparedY)),
     /// k=4 phase-gradient Rz synthesis (non-Clifford).
@@ -119,6 +121,14 @@ fixtures! {
     CCZ4x3_6 => ("ccz_4x3x6", Some(GalleryItem::CCZ4x3_6)),
     /// CCZ state factory with TELS check (non-Clifford).
     CCZFactoryWithTels => ("ccz_4x3x7_tels", Some(GalleryItem::CCZFactoryWithTels)),
+    /// Serial eight-T CCZ factory with explicit conditional surgery regions.
+    CCZ2x3_16 => ("ccz_2x3x16", Some(GalleryItem::CCZ2x3_16)),
+    /// Eight-T CCZ factory with a selective final parity check.
+    CCZ4x2_12 => ("ccz_4x2x12", Some(GalleryItem::CCZ4x2_12)),
+    /// Ten-to-two T-dagger state factory in a 3x3 layout.
+    Perfect3x3_13 => ("perfect_3x3x13", Some(GalleryItem::Perfect3x3_13)),
+    /// Ten-to-two T-dagger state factory in a 2x3 layout with 28 surgery layers.
+    Perfect2x3_28 => ("perfect_2x3x28", Some(GalleryItem::Perfect2x3_28)),
     /// Linear chain of cubes (test-only).
     CubeLine => ("cube_line", None),
     /// H-shaped junction (test-only).

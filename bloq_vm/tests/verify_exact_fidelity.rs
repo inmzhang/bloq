@@ -79,9 +79,16 @@ fn assert_gallery_choi(item: GalleryItem, byproduct_varies: bool, both_arms: boo
         inputs = vec![ivec3(4, 0, 0), ivec3(4, 2, 0), ivec3(4, 1, 2)];
         outputs = vec![ivec3(4, 0, 2), ivec3(4, 2, 2), ivec3(4, 1, 4)];
     }
+    let t_inputs = if matches!(item, GalleryItem::CCZ2x3_16 | GalleryItem::CCZ4x2_12) {
+        assert_eq!(inputs.len(), 8, "{item:?}: T-state inputs");
+        std::mem::take(&mut inputs)
+    } else {
+        Vec::new()
+    };
     let arity = match item {
         GalleryItem::CNOT | GalleryItem::CZTemporalH => (2, 2),
-        GalleryItem::BellState => (0, 2),
+        GalleryItem::CCZ2x3_16 | GalleryItem::CCZ4x2_12 => (0, 3),
+        GalleryItem::BellState | GalleryItem::Perfect3x3_13 | GalleryItem::Perfect2x3_28 => (0, 2),
         GalleryItem::GHZ | GalleryItem::GHZPatchRotations | GalleryItem::GHZSlideThenGlide => {
             (0, 4)
         }
@@ -117,6 +124,18 @@ fn assert_gallery_choi(item: GalleryItem, byproduct_varies: bool, both_arms: boo
                 sim.h(0);
                 sim.cx(0, 1)?;
             }
+            GalleryItem::CCZ2x3_16 | GalleryItem::CCZ4x2_12 => {
+                for qubit in 0..3 {
+                    sim.h(qubit);
+                }
+                sim.ccz(0, 1, 2)?;
+            }
+            GalleryItem::Perfect3x3_13 | GalleryItem::Perfect2x3_28 => {
+                for qubit in 0..2 {
+                    sim.h(qubit);
+                    sim.t_dag(qubit)?;
+                }
+            }
             GalleryItem::GHZ | GalleryItem::GHZPatchRotations | GalleryItem::GHZSlideThenGlide => {
                 sim.h(0);
                 for qubit in 1..4 {
@@ -144,20 +163,36 @@ fn assert_gallery_choi(item: GalleryItem, byproduct_varies: bool, both_arms: boo
     let mut frame_combos = BTreeSet::new();
     let mut arms = BTreeSet::new();
     for seed in SEEDS {
-        let report = oracle.run(&bloq, SHOTS, seed, |_, ctx| {
-            frame_combos.insert(
-                ctx.frames
+        let report = oracle.run_prepared(
+            &bloq,
+            SHOTS,
+            seed,
+            &t_inputs,
+            |sim, ctx| {
+                for input in ctx
+                    .inputs
                     .iter()
-                    .map(|frame| {
-                        (
-                            frame.x.expect("evaluable X frame"),
-                            frame.z.expect("evaluable Z frame"),
-                        )
-                    })
-                    .collect::<Vec<_>>(),
-            );
-            Ok(())
-        });
+                    .filter(|input| t_inputs.contains(&input.port))
+                {
+                    sim.t(input.qubit)?;
+                }
+                Ok(())
+            },
+            |_, ctx| {
+                frame_combos.insert(
+                    ctx.frames
+                        .iter()
+                        .map(|frame| {
+                            (
+                                frame.x.expect("evaluable X frame"),
+                                frame.z.expect("evaluable Z frame"),
+                            )
+                        })
+                        .collect::<Vec<_>>(),
+                );
+                Ok(())
+            },
+        );
         arms.extend(report.branch_selectors);
     }
     if byproduct_varies {
@@ -179,6 +214,18 @@ fn assert_gallery_choi(item: GalleryItem, byproduct_varies: bool, both_arms: boo
 #[test]
 fn cnot_preserves_choi_state() {
     assert_gallery_choi(GalleryItem::CNOT, true, false);
+}
+
+#[test]
+fn latte_factories_prepare_declared_states() {
+    for item in [
+        GalleryItem::CCZ2x3_16,
+        GalleryItem::CCZ4x2_12,
+        GalleryItem::Perfect3x3_13,
+        GalleryItem::Perfect2x3_28,
+    ] {
+        assert_gallery_choi(item, true, true);
+    }
 }
 
 #[test]

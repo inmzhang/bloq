@@ -104,6 +104,12 @@ gallery! {
     S => ("S gate teleportation.", CLIFFORD, "../assets/s.blog"),
     #[strum(to_string = "t_gate")]
     T => ("T gate teleportation.", NON_CLIFFORD, "../assets/t.blog"),
+    #[strum(to_string = "t_gate_structural_branch")]
+    TGateStructuralBranch => (
+        "T gate teleportation with a structural branch for the Clifford correction.",
+        &[GalleryCategory::NonClifford, GalleryCategory::Adaptive],
+        "../assets/t_gate_structural_branch.blog",
+    ),
     #[strum(to_string = "t_with_prepared_y")]
     TWithPreparedY => (
         "T gate teleportation with a prepared Y for Clifford fix.",
@@ -187,6 +193,30 @@ gallery! {
         FACTORY_NON_CLIFFORD,
         "../assets/ccz_4x3x6.blog",
     ),
+    #[strum(to_string = "ccz_2x3x16")]
+    CCZ2x3_16 => (
+        "Serial CCZ factory with a 2x3 core, 16 surgery layers, and eight spatial input ports.",
+        FACTORY_EXTERNAL_RESOURCE,
+        "../assets/ccz_2x3x16.blog",
+    ),
+    #[strum(to_string = "ccz_4x2x12")]
+    CCZ4x2_12 => (
+        "CCZ factory adapted from Latte's 1+4x2 construction, with eight spatial T-state inputs and a selective final parity check.",
+        FACTORY_EXTERNAL_RESOURCE,
+        "../assets/ccz_4x2x12.blog",
+    ),
+    #[strum(to_string = "perfect_3x3x13")]
+    Perfect3x3_13 => (
+        "Ten-to-two T-dagger state factory, 3x3 layout adapted from Latte.",
+        FACTORY_NON_CLIFFORD,
+        "../assets/perfect_3x3x13.blog",
+    ),
+    #[strum(to_string = "perfect_2x3x28")]
+    Perfect2x3_28 => (
+        "Ten-to-two T-dagger state factory, 2x3 layout with 28 surgery layers adapted from Latte.",
+        FACTORY_NON_CLIFFORD,
+        "../assets/perfect_2x3x28.blog",
+    ),
     #[strum(to_string = "bell_state")]
     BellState => ("Bell state preparation.", CLIFFORD, "../assets/bell_state.blog"),
     #[strum(to_string = "ghz")]
@@ -232,7 +262,7 @@ gallery! {
 impl GalleryItem {
     /// Loads the embedded BLOG graph, retaining its module hierarchy.
     ///
-    /// Every gallery entry is self-contained.
+    /// Entries can expose input Ports for data or caller-supplied resources.
     ///
     /// # Panics
     ///
@@ -292,6 +322,11 @@ const CLIFFORD: &[GalleryCategory] = &[GalleryCategory::Clifford];
 const NON_CLIFFORD: &[GalleryCategory] = &[GalleryCategory::NonClifford];
 const FACTORY_NON_CLIFFORD: &[GalleryCategory] =
     &[GalleryCategory::Factory, GalleryCategory::NonClifford];
+const FACTORY_EXTERNAL_RESOURCE: &[GalleryCategory] = &[
+    GalleryCategory::Factory,
+    GalleryCategory::NonClifford,
+    GalleryCategory::ExternalResource,
+];
 const EXTERNAL_RESOURCE_NON_CLIFFORD: &[GalleryCategory] = &[
     GalleryCategory::ExternalResource,
     GalleryCategory::NonClifford,

@@ -700,6 +700,7 @@ fn expected_map(gallery: GalleryItem) -> (QuizxGraph, usize) {
         }
         GalleryItem::S => (circuit_graph(1, &[("s", vec![0])]), 1),
         GalleryItem::T | GalleryItem::TWithPreparedY => (circuit_graph(1, &[("t", vec![0])]), 32),
+        GalleryItem::TGateStructuralBranch => (circuit_graph(1, &[("t", vec![0])]), 2),
         GalleryItem::TComparison => (QuizxGraph::new(), 64),
         GalleryItem::PhaseGradientK4 => (phase_gradient_map(), 32),
         GalleryItem::And4T => {
@@ -715,7 +716,18 @@ fn expected_map(gallery: GalleryItem) -> (QuizxGraph, usize) {
         GalleryItem::TenBitAdder => (controlled_adder_map(10), 4),
         GalleryItem::ToffoliFromAndDelayedCZ => (circuit_graph(3, &[("ccx", vec![0, 1, 2])]), 128),
         GalleryItem::CCZGateTeleport => (circuit_graph(3, &[("ccz", vec![0, 1, 2])]), 8),
-        GalleryItem::CCZFactoryWithTels | GalleryItem::CCZ4x3_6 => (ccz_state(), 128),
+        GalleryItem::CCZFactoryWithTels
+        | GalleryItem::CCZ4x3_6
+        | GalleryItem::CCZ2x3_16
+        | GalleryItem::CCZ4x2_12 => (ccz_state(), 128),
+        GalleryItem::Perfect3x3_13 | GalleryItem::Perfect2x3_28 => (
+            prepared_graph(
+                2,
+                &[("tdg", vec![0]), ("tdg", vec![1])],
+                &[BasisElem::X0; 2],
+            ),
+            128,
+        ),
         GalleryItem::BellState => (
             prepared_graph(
                 2,
@@ -766,6 +778,15 @@ fn every_gallery_map_verifies() {
             .build()
             .materialize_root_graph()
             .expect("gallery flat projection");
+        if matches!(gallery, GalleryItem::CCZ2x3_16 | GalleryItem::CCZ4x2_12) {
+            let inputs = prepared_graph(
+                8,
+                &(0..8).map(|q| ("t", vec![q])).collect::<Vec<_>>(),
+                &[BasisElem::X0; 8],
+            );
+            verify_gate_branches(gallery, &graph, &expected, Some(&inputs));
+            continue;
+        }
         // Exhaustive named assignments already include every sampled branch.
         if matches!(
             gallery,
@@ -775,11 +796,12 @@ fn every_gallery_map_verifies() {
                 | GalleryItem::S
                 | GalleryItem::T
                 | GalleryItem::TWithPreparedY
+                | GalleryItem::TGateStructuralBranch
                 | GalleryItem::THTH
                 | GalleryItem::And4T
                 | GalleryItem::ToffoliFromAndDelayedCZ
         ) {
-            verify_gate_branches(gallery, &graph, &expected);
+            verify_gate_branches(gallery, &graph, &expected, None);
             continue;
         }
         if gallery == GalleryItem::CCZInjectedAnd {
@@ -851,7 +873,12 @@ fn ten_bit_adder_map_verifies() {
     verify_controlled_adder(GalleryItem::TenBitAdder, &expected, samples);
 }
 
-fn verify_gate_branches(gallery: GalleryItem, graph: &BlockGraph, expected: &QuizxGraph) {
+fn verify_gate_branches(
+    gallery: GalleryItem,
+    graph: &BlockGraph,
+    expected: &QuizxGraph,
+    prepared: Option<&QuizxGraph>,
+) {
     let names = graph
         .actions()
         .into_iter()
@@ -861,6 +888,7 @@ fn verify_gate_branches(gallery: GalleryItem, graph: &BlockGraph, expected: &Qui
         })
         .collect::<Vec<_>>();
     let verifier = LogicalVerifier::new(graph).unwrap();
+    let ideal = prepared.map(|_| contract(expected));
     let mut verified = 0;
     for bits in 0..1usize << names.len() {
         let assignment = names
@@ -868,16 +896,37 @@ fn verify_gate_branches(gallery: GalleryItem, graph: &BlockGraph, expected: &Qui
             .enumerate()
             .map(|(bit, name)| (name.clone(), bits >> bit & 1 == 1))
             .collect();
-        if verifier
+        if let Some((inputs, ideal)) = prepared.zip(ideal.as_ref()) {
+            let Some(diagram) = verifier.instantiate(&assignment).unwrap().1 else {
+                continue;
+            };
+            let mut actual = inputs.clone();
+            actual.plug(&diagram);
+            let actual = contract(&actual);
+            if actual
+                .iter()
+                .all(|entry| entry.complex_value().norm_sqr() == 0.0)
+            {
+                continue;
+            }
+            assert!(
+                <Tensor4 as CompareTensors>::scalar_eq(&actual, ideal),
+                "{gallery}: accepted branch {bits:b} differs from its declared state"
+            );
+        } else if verifier
             .verify_branch(expected, &assignment)
             .unwrap()
             .status()
-            == BranchStatus::Verified
+            != BranchStatus::Verified
         {
-            verified += 1;
+            continue;
         }
+        verified += 1;
     }
     assert!(verified > 0, "{gallery:?}: every assignment was impossible");
+    if gallery == GalleryItem::TGateStructuralBranch {
+        assert_eq!(verified, 2, "both T correction arms must verify");
+    }
 }
 
 #[test]
