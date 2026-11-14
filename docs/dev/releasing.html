@@ -1453,6 +1453,30 @@
   
   
     <li class="md-nav__item">
+      <a href="gallery/t_gate_structural_branch.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T gate with a structural branch</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="gallery/t_with_prepared_y.html" class="md-nav__link">
         
   
@@ -1723,6 +1747,102 @@
   
   <span class="md-ellipsis">
     <span>CCZ factory without TELS</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="gallery/ccz_2x3x16.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Serial CCZ factory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="gallery/ccz_4x2x12.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ factory with a selective parity check</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="gallery/perfect_3x3x13.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Ten-<wbr>to-<wbr>two factory, 3×3</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="gallery/perfect_2x3x28.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Ten-<wbr>to-<wbr>two factory, 2×3</span>
     
   </span>
   
@@ -2728,7 +2848,7 @@ jobs require <code class="docutils literal notranslate"><span class="pre">RELEAS
 a release or publishing manually. This variable does not gate local CLI uploads.</p>
 </div>
 <p>CI checks platform wheels and source installations for relevant PRs. The
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/fe8fd09c5635e78a0102ae2da17811a7f8d47b03/.github/workflows/pypi.yml">PyPI workflow</a> uses the same checks for tag and
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/393004d219c5f59efd90a2d77d6a516f8b16ebad/.github/workflows/pypi.yml">PyPI workflow</a> uses the same checks for tag and
 manual builds. See <a class="reference internal" href="site-maintenance.html"><span class="std std-doc">website maintenance</span></a> for site previews
 and publication.
 Binary release builds use the checked-in Cargo lockfile. Security audits cover
@@ -2829,7 +2949,7 @@ binaries can use <code class="docutils literal notranslate"><span class="pre">/r
 <code class="docutils literal notranslate"><span class="pre">bloq.__version__</span></code> retain that spelling; Python package metadata normalizes it to
 <code class="docutils literal notranslate"><span class="pre">0.1.2.dev0</span></code>. The suffix stays unchanged throughout the development cycle.</p>
 <p>After Rust, Python, and binary publication succeeds, the
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/fe8fd09c5635e78a0102ae2da17811a7f8d47b03/.github/workflows/post-release.yml">post-release workflow</a> opens a PR for the
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/393004d219c5f59efd90a2d77d6a516f8b16ebad/.github/workflows/post-release.yml">post-release workflow</a> opens a PR for the
 next development version. Review its checks and merge it. The PR updates the
 shared version, exact internal requirements, and both Cargo lockfiles.
 Release-plz prepares the next stable version in a separate release PR.</p>

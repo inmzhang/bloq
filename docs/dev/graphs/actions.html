@@ -1617,6 +1617,30 @@
   
   
     <li class="md-nav__item">
+      <a href="../gallery/t_gate_structural_branch.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>T gate with a structural branch</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../gallery/t_with_prepared_y.html" class="md-nav__link">
         
   
@@ -1887,6 +1911,102 @@
   
   <span class="md-ellipsis">
     <span>CCZ factory without TELS</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_2x3x16.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Serial CCZ factory</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/ccz_4x2x12.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>CCZ factory with a selective parity check</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/perfect_3x3x13.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Ten-<wbr>to-<wbr>two factory, 3×3</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gallery/perfect_2x3x28.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Ten-<wbr>to-<wbr>two factory, 2×3</span>
     
   </span>
   
@@ -2767,10 +2887,10 @@ canonicalized when saved. The choice acts at the cap’s time boundary and must
 wait for its corrected selector before the measurement can execute.</p>
 <p>For a <strong>structural branch</strong>, the target is its name, such as <code class="docutils literal notranslate"><span class="pre">correction</span></code>.
 True selects the <code class="docutils literal notranslate"><span class="pre">true</span></code> geometry and false selects the <code class="docutils literal notranslate"><span class="pre">false</span></code> geometry.
-The arms occupy a bounded spacetime region with matching external connections.
-Only the selected arm executes. It reconnects to the shared continuation if
-the region has one. Both arms remain in the source. Supported arms cannot
-contain nested branches, Ports, T resources, or selective caps.</p>
+The arms share an external interface, and only the selected arm executes.
+Each arm component must connect to that interface. An arm may prepare an
+ancilla and add a spatial surgery pipe to a shared cube. Arms cannot contain
+nested branches, Ports, T resources, or selective caps.</p>
 <h3 id="pauli-feedback">Pauli feedback<a class="headerlink" href="#pauli-feedback" title="Link to this heading">¶</a></h3>
 <p><code class="docutils literal notranslate"><span class="pre">feedback</span> <span class="pre">Z</span> <span class="pre">target</span> <span class="pre">if</span> <span class="pre">odd</span></code> applies a logical Pauli correction when the
 condition is true. Its target locates where the logical operator acts in the
