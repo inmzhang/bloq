@@ -552,11 +552,11 @@ Declared license: MIT OR Apache-2.0
   [bb28c48e3e078166e91cfc2b6db7ffebb8a0973b9e23b3df060561292d8d69ec] bevy_render_macros@0.20.1/LICENSE-APACHE
   [508a77d2e7b51d98adeed32648ad124b7b30241a8e70b2e72c99f92d8e5874d1] bevy_render_macros@0.20.1/LICENSE-MIT
 
-bevy_rich_text3d@0.8.0
+bevy_rich_text3d@0.8.1
 Declared license: MIT OR Apache-2.0
 Declared authors: Mincong Lu <mintlux667@gmail.com>
-  [989c319038ac4f816fdf2275523dd3503cfda7f1e9e80ee78daa1e475ab132cb] bevy_rich_text3d@0.8.0/LICENSE-APACHE
-  [fa384690d308029906ba31bebf3b03807fd9b4b732dbfe9030e3d528689ae2d2] bevy_rich_text3d@0.8.0/LICENSE-MIT
+  [989c319038ac4f816fdf2275523dd3503cfda7f1e9e80ee78daa1e475ab132cb] bevy_rich_text3d@0.8.1/LICENSE-APACHE
+  [fa384690d308029906ba31bebf3b03807fd9b4b732dbfe9030e3d528689ae2d2] bevy_rich_text3d@0.8.1/LICENSE-MIT
 
 bevy_scene@0.20.1
 Declared license: MIT OR Apache-2.0
@@ -838,10 +838,10 @@ chrono@0.4.45
 Declared license: MIT OR Apache-2.0
   [2200505ceae34bd9ff69176a068316956062b8827fe6b5bdb2746362ef638122] chrono@0.4.45/LICENSE.txt
 
-chumsky@0.13.0
+chumsky@0.14.1
 Declared license: MIT
 Declared authors: Joshua Barretto <joshua.s.barretto@gmail.com>; Elijah Hartvigsen <elijah.reed@hartvigsen.xyz; Jakob Wiesmore <runetynan@gmail.com>
-  [88f7ddf73afcffee97e0a19211ddeecd7d178ecb5c09bbfe472ce4cfcceb6269] chumsky@0.13.0/LICENSE
+  [88f7ddf73afcffee97e0a19211ddeecd7d178ecb5c09bbfe472ce4cfcceb6269] chumsky@0.14.1/LICENSE
 
 ciborium@0.2.2
 Declared license: Apache-2.0
@@ -1869,11 +1869,11 @@ Declared authors: bluss
   [143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4] itertools@0.15.0/LICENSE-APACHE
   [7576269ea71f767b99297934c0b2367532690f8c4badc695edf8e04ab6a1e545] itertools@0.15.0/LICENSE-MIT
 
-itoa@1.0.18
+itoa@1.0.19
 Declared license: MIT OR Apache-2.0
 Declared authors: David Tolnay <dtolnay@gmail.com>
-  [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] itoa@1.0.18/LICENSE-APACHE
-  [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] itoa@1.0.18/LICENSE-MIT
+  [b30df9a48463d1c99c6a66cdee623b1b0832c3811d58a80b338268d71cea190e] itoa@1.0.19/LICENSE-APACHE
+  [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] itoa@1.0.19/LICENSE-MIT
 
 jiff@0.2.39
 Declared license: Unlicense OR MIT
@@ -2484,6 +2484,10 @@ Declared license: MIT
   [e353f37b12aefbb9f9b29490e837cfee05d9bda70804b3562839a3285c1df1e5] https://raw.githubusercontent.com/madsmtm/objc2/e282618be4c3a3b9542957e0c8540e9588472ce8/LICENSE.txt
   [b05785f9f18e6716bab63424b11454513b9943a222595b70411009202fc592b5] https://raw.githubusercontent.com/spdx/license-list-data/v3.27.0/text/MIT.txt
 
+objc2-uniform-type-identifiers@0.3.2
+Declared license: Zlib OR Apache-2.0 OR MIT
+  [7f976f7e9cb2d87df7230606feb932c3f21ac0e664045a775b600046ff850c54] https://raw.githubusercontent.com/madsmtm/objc2/7b1abfd750a2cacaea71d6a56ecfb83cb7de560b/LICENSE.md
+
 objc2-user-notifications@0.2.2
 Declared license: MIT
   [e353f37b12aefbb9f9b29490e837cfee05d9bda70804b3562839a3285c1df1e5] https://raw.githubusercontent.com/madsmtm/objc2/e282618be4c3a3b9542957e0c8540e9588472ce8/LICENSE.txt
@@ -2696,11 +2700,11 @@ Declared authors: Stjepan Glavina <stjepang@gmail.com>; John Nunley <dev@notgull
   [143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4] polling@3.11.0/LICENSE-APACHE
   [23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3] polling@3.11.0/LICENSE-MIT
 
-pollster@0.4.0
+pollster@1.0.1
 Declared license: Apache-2.0/MIT
-Declared authors: Joshua Barretto <joshua.s.barretto@gmail.com>
-  [143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4] pollster@0.4.0/LICENSE-APACHE
-  [cc02a53316678ca2575cc69d12daa7b1833935d4b7742c31fbab7bd74a481077] pollster@0.4.0/LICENSE-MIT
+Declared authors: Joshua Barretto <joshua@jsbarretto.com>
+  [143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4] pollster@1.0.1/LICENSE-APACHE
+  [cc02a53316678ca2575cc69d12daa7b1833935d4b7742c31fbab7bd74a481077] pollster@1.0.1/LICENSE-MIT
 
 polycool@0.4.0
 Declared license: MIT OR Apache-2.0
@@ -3059,11 +3063,11 @@ Declared authors: Eyal Kalderon <ebkalderon@gmail.com>
   [143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4] renderdoc-sys@1.1.0/LICENSE-APACHE
   [24b2f2eff5a7622e87162823e260f00c6dfbce0e26d585d3d28c785f1edc80ed] renderdoc-sys@1.1.0/LICENSE-MIT
 
-rfd@0.17.2
+rfd@0.18.0
 Declared license: MIT
 Declared authors: Poly <marynczak.bartlomiej@gmail.com>
-  [65fc947f4bac882a2cd104ef73c246b1b037059df9f2b3a58b7f77f0b9e56071] rfd@0.17.2/LICENSE
-  [ae26bc7b1bc91fb8648f6a298decbb1a77090a56c9d04e2c23b8365e5f54acb5] rfd@0.17.2/src/backend/xdg_desktop_portal/window_identifier/LICENSE
+  [65fc947f4bac882a2cd104ef73c246b1b037059df9f2b3a58b7f77f0b9e56071] rfd@0.18.0/LICENSE
+  [ae26bc7b1bc91fb8648f6a298decbb1a77090a56c9d04e2c23b8365e5f54acb5] rfd@0.18.0/src/backend/xdg_desktop_portal/window_identifier/LICENSE
 
 rodio@0.22.2
 Declared license: MIT OR Apache-2.0
