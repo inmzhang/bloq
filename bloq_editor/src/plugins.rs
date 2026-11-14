@@ -66,6 +66,8 @@ impl Plugin for BloqEditorPlugin {
     fn build(&self, app: &mut App) {
         #[cfg(target_arch = "wasm32")]
         app.add_plugins(crate::session::browser::SessionPlugin);
+        #[cfg(not(target_arch = "wasm32"))]
+        app.add_plugins(crate::session::native::SessionPlugin);
         // The two genuinely cross-feature resources: the working graph shared by
         // every system, and the god-resource interaction/view state.
         app.init_resource::<GraphState>()

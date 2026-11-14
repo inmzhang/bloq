@@ -39,12 +39,13 @@ mod pipe_planning;
 mod plugins;
 mod program_view;
 mod resources;
-#[cfg(any(target_arch = "wasm32", test))]
 mod session;
 mod svg_export;
 mod systems;
 mod theme;
 mod utils;
+#[cfg(any(target_arch = "wasm32", test))]
+mod web_render_failure;
 
 use bevy_rich_text3d::{LoadFonts, Text3dPlugin};
 #[cfg(not(target_arch = "wasm32"))]
@@ -84,8 +85,17 @@ fn main() {
         }
     };
     let mut app = App::new();
+    #[cfg(target_arch = "wasm32")]
+    web_render_failure::install(&mut app);
     app.add_plugins(
         DefaultPlugins
+            .set(bevy::pbr::PbrPlugin {
+                // WebGPU's preprocessing-only instance path can scatter shared
+                // mesh parts. Use Bevy's CPU instance builder on web so ordinary
+                // mesh batching remains available; keep native GPU building.
+                use_gpu_instance_buffer_builder: !cfg!(target_arch = "wasm32"),
+                ..default()
+            })
             .set(bevy::render::RenderPlugin {
                 // Automated capture must wait for shaders instead of racing compilation.
                 #[cfg(not(target_arch = "wasm32"))]
@@ -215,6 +225,27 @@ fn main() {
     // route to log + toast instead.
     if cfg!(target_arch = "wasm32") || !cfg!(debug_assertions) {
         app.set_error_handler(plugins::report_internal_error);
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        use bevy::render::batching::gpu_preprocessing::{
+            GpuPreprocessingMode, GpuPreprocessingSupport,
+        };
+        // Core3d phases consult this capability independently of the PBR flag.
+        // Cap it before plugin finish so all views use the same CPU-built data.
+        app.sub_app_mut(bevy::render::RenderApp)
+            .insert_resource(GpuPreprocessingSupport {
+                max_supported_mode: GpuPreprocessingMode::None,
+            })
+            // RenderStartup recomputes hardware capabilities, including after
+            // device recovery. Reapply the renderer policy after that probe.
+            .add_systems(
+                bevy::render::RenderStartup,
+                (|mut support: ResMut<GpuPreprocessingSupport>| {
+                    support.max_supported_mode = GpuPreprocessingMode::None;
+                })
+                .after(bevy::render::init_gpu_resource::<GpuPreprocessingSupport>),
+            );
     }
     app.run();
 }

@@ -1,0 +1,55 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Isolated recovery worker test</title>
+<pre id="result">Running isolated recovery worker test…</pre>
+<script type="module">
+// Copy to <bundle>/tests/ with recovery_fixture.json (a disposable session).
+// Worker/build files remain in the bundle root. Unique DB/key: no production saves.
+const name = `bloq-recovery-test-${crypto.randomUUID()}`;
+const workers = [];
+const request = (worker, data) => new Promise((resolve, reject) => {
+  const timeout = setTimeout(() => reject(new Error("Worker response timed out")), 30000);
+  worker.onmessage = ({data}) => { clearTimeout(timeout); resolve(data); };
+  worker.onerror = (event) => { clearTimeout(timeout); reject(new Error(event.message)); };
+  if (data) worker.postMessage(data);
+});
+const open = async () => {
+  const worker = new Worker(`../recovery_worker.js?testDatabase=${name}`, {type:"module"});
+  workers.push(worker);
+  const ready = await request(worker);
+  if (ready.kind !== "ready") throw new Error(JSON.stringify(ready));
+  return worker;
+};
+const check = (condition, message) => { if (!condition) throw new Error(message); };
+try {
+  const response = await fetch("./recovery_fixture.json");
+  check(response.ok, "Missing isolated recovery_fixture.json");
+  const legacy = await response.text();
+  localStorage.setItem(name, legacy);
+  const a = await open();
+  const loaded = await request(a, {operation:"load", legacy:localStorage.getItem(name)});
+  check(loaded.kind === "loaded" && loaded.prepared, "Legacy recovery/migration failed");
+  check(localStorage.getItem(name) === legacy, "Legacy source must remain untouched");
+  const b = await open();
+  const reopened = await request(b, {operation:"load"});
+  check(reopened.revision === loaded.revision, "Reopen must see same revision");
+  const snapshot = JSON.parse(legacy);
+  snapshot.tabs[0].blog += "\n# isolated worker test draft";
+  const saved = await request(a, {operation:"save", expectedRevision:loaded.revision, snapshot});
+  check(saved.kind === "saved", "Worker save failed");
+  const stale = await request(b, {operation:"save", expectedRevision:loaded.revision, snapshot});
+  check(stale.kind === "error" && stale.conflict, "Stale writer must fail CAS");
+  const c = await open();
+  const final = await request(c, {operation:"load"});
+  check(final.kind === "loaded", "Saved session recovery failed");
+  check(JSON.parse(final.prepared).session.tabs[0].blog === snapshot.tabs[0].blog, "Draft changed during recovery");
+  document.querySelector("#result").textContent = "PASS: worker initialization, legacy migration retained, prepare/reopen, save, stale-writer CAS, draft preserved";
+} catch (error) {
+  document.querySelector("#result").textContent = `FAIL: ${error.message ?? error}\n${error.stack ?? ""}`;
+} finally {
+  for (const worker of workers) worker.terminate();
+  localStorage.removeItem(name);
+  const request = indexedDB.deleteDatabase(name);
+  request.onblocked = () => { document.querySelector("#result").textContent += "\nCleanup waiting for terminated workers"; };
+}
+</script>

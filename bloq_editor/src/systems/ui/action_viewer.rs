@@ -37,6 +37,8 @@ pub(crate) struct ActionViewerState {
     zoom: f32,
     /// Ordinal of the action whose details the footer shows.
     selected: Option<usize>,
+    // An ordinal only identifies an action within this exact authored list.
+    selection_scope: Option<(EditorTabId, Vec<Action>)>,
     layout: LayoutCache,
 }
 
@@ -59,6 +61,24 @@ impl ActionViewerState {
         self.open = !self.open;
         if !self.open {
             self.layout = LayoutCache::default();
+        }
+    }
+
+    fn sync_selection_scope(&mut self, tab: EditorTabId, graph: &bloq_graph::BlockGraph) {
+        let unchanged = self
+            .selection_scope
+            .as_ref()
+            .is_some_and(|(previous_tab, actions)| {
+                *previous_tab == tab
+                    && graph
+                        .action_graph()
+                        .ordered_nodes()
+                        .map(|node| &node.action)
+                        .eq(actions.iter())
+            });
+        if !unchanged {
+            self.selected = None;
+            self.selection_scope = Some((tab, graph.actions()));
         }
     }
 
@@ -93,6 +113,9 @@ pub(crate) fn draw_action_viewer(
     if !viewer.open {
         return ActionViewerOutput::default();
     }
+    // Before the footer, canvas, or selected-surface lookup can use an ordinal,
+    // invalidate it when its document/actions changed, including while hidden.
+    viewer.sync_selection_scope(active_tab, &graph_state.graph);
     let default_rect = tiled_window_rect(viewport, egui::Align2::RIGHT_BOTTOM);
     let mut open = viewer.open;
     let mut hovered = HashSet::new();
@@ -679,6 +702,55 @@ impl ActionNodeKind {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn selection_is_scoped_to_tab_and_action_order_not_geometry() {
+        let a = Action::Let {
+            name: "a".into(),
+            expr: bloq_graph::Expr::Var("input".into()),
+        };
+        let b = Action::Let {
+            name: "b".into(),
+            expr: bloq_graph::Expr::Var("input".into()),
+        };
+        let mut graph = bloq_graph::BlockGraph::default();
+        graph
+            .set_actions_lenient(vec![a.clone(), b.clone()])
+            .unwrap();
+        let tab = EditorTabId::new(1);
+        let mut viewer = ActionViewerState::default();
+        viewer.sync_selection_scope(tab, &graph);
+        viewer.selected = Some(0);
+        graph.add_block(bloq_graph::Block::new(
+            glam::IVec3::ZERO,
+            bloq_graph::BlockKind::Cube(bloq_graph::CubeKind::ZXZ),
+        ));
+        viewer.sync_selection_scope(tab, &graph);
+        assert_eq!(viewer.selected, Some(0));
+        viewer.sync_selection_scope(EditorTabId::new(2), &graph);
+        assert_eq!(
+            viewer.selected, None,
+            "same ordinal in another tab is not the selection"
+        );
+        viewer.selected = Some(0);
+        graph.set_actions_lenient(vec![b, a.clone()]).unwrap();
+        viewer.sync_selection_scope(EditorTabId::new(2), &graph);
+        assert_eq!(
+            viewer.selected, None,
+            "reordering must not retarget a selection"
+        );
+        graph
+            .set_actions_lenient(vec![a.clone(), a.clone()])
+            .unwrap();
+        viewer.sync_selection_scope(tab, &graph);
+        viewer.selected = Some(0);
+        graph.set_actions_lenient(vec![a]).unwrap();
+        viewer.sync_selection_scope(tab, &graph);
+        assert_eq!(
+            viewer.selected, None,
+            "identical neighbours still have distinct ordinals"
+        );
+    }
+
     use super::*;
 
     #[test]

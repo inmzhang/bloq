@@ -11,15 +11,40 @@ pub(crate) fn undo_redo_system(
         return;
     }
 
-    if keyboard_input.any_pressed([KeyCode::ControlLeft, KeyCode::ControlRight])
-        && keyboard_input.just_pressed(KeyCode::KeyZ)
-    {
-        intents.push(
-            if keyboard_input.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]) {
-                UiIntent::Redo
-            } else {
-                UiIntent::Undo
-            },
-        );
+    if shortcut_command(&keyboard_input) && keyboard_input.just_pressed(KeyCode::KeyZ) {
+        intents.push(if shortcut_shift(&keyboard_input) {
+            UiIntent::Redo
+        } else {
+            UiIntent::Undo
+        });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn released_command_shift_chord_still_redoes() {
+        let mut app = App::new();
+        app.init_resource::<UiIntentBuffer>()
+            .init_resource::<UiInputState>()
+            .init_resource::<ButtonInput<KeyCode>>()
+            .add_systems(Update, undo_redo_system);
+        let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+        for key in [KeyCode::SuperLeft, KeyCode::ShiftLeft, KeyCode::KeyZ] {
+            keys.press(key);
+        }
+        for key in [KeyCode::KeyZ, KeyCode::ShiftLeft, KeyCode::SuperLeft] {
+            keys.release(key);
+        }
+        app.update();
+        assert!(matches!(
+            app.world_mut()
+                .resource_mut::<UiIntentBuffer>()
+                .drain()
+                .next(),
+            Some(UiIntent::Redo)
+        ));
     }
 }

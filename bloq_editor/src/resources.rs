@@ -47,9 +47,23 @@ pub(crate) struct GraphState {
 /// Visible geometry and any hidden arm are one undoable authoring transaction.
 #[derive(Clone)]
 pub(crate) struct GraphHistoryEntry {
+    /// Process-local identity for incremental session serialization. Change it
+    /// whenever an existing snapshot is mutated (normally snapshots are immutable).
+    pub(crate) cache_id: u64,
     pub(crate) graph: BlockGraph,
-    source_graph: Option<Arc<BlockGraph>>,
-    pending_branch_arm: Option<PendingBranchArm>,
+    pub(crate) source_graph: Option<Arc<BlockGraph>>,
+    pub(crate) pending_branch_arm: Option<PendingBranchArm>,
+}
+
+impl GraphHistoryEntry {
+    fn next_cache_id() -> u64 {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub(crate) fn invalidate_snapshot_cache(&mut self) {
+        self.cache_id = Self::next_cache_id();
+    }
 }
 
 /// Editor adapter for the shared definition-ownership view.
@@ -180,8 +194,7 @@ pub(crate) struct EditorTabs {
 }
 
 impl EditorTabs {
-    /// Install a browser session only after checking tab identities and counters.
-    #[cfg(any(target_arch = "wasm32", test))]
+    /// Install a saved session only after checking tab identities and counters.
     pub(crate) fn from_session(tabs: Vec<EditorTab>, active: EditorTabId) -> Option<Self> {
         let ids: HashSet<_> = tabs.iter().map(|tab| tab.id).collect();
         if ids.len() != tabs.len() || !ids.contains(&active) {
@@ -195,6 +208,44 @@ impl EditorTabs {
             active,
             show_welcome: false,
         })
+    }
+
+    /// Preserve work started during asynchronous recovery and append saved tabs
+    /// with fresh identities, including links from definition editors to parents.
+    pub(crate) fn append_recovered(&mut self, recovered: Self) -> Result<usize, String> {
+        let count = recovered.tabs.len();
+        let end = self
+            .next_id
+            .checked_add(u64::try_from(count).map_err(|_| "Too many recovered tabs")?)
+            .ok_or("Tab identities exhausted; saved session kept unchanged")?;
+        let ids = recovered
+            .tabs
+            .iter()
+            .enumerate()
+            .map(|(index, tab)| (tab.id, EditorTabId::new(self.next_id + index as u64)))
+            .collect::<std::collections::HashMap<_, _>>();
+        if recovered.tabs.iter().any(|tab| {
+            tab.snapshot
+                .import_export
+                .definition_edit
+                .as_ref()
+                .is_some_and(|edit| !ids.contains_key(&edit.parent))
+        }) {
+            return Err("Recovered definition editor has no saved parent tab".into());
+        }
+        // Validate everything before changing either the live tabs or ID counter.
+        self.next_id = end;
+        for mut tab in recovered.tabs {
+            tab.id = ids[&tab.id];
+            if let Some(edit) = &mut tab.snapshot.import_export.definition_edit {
+                edit.parent = ids[&edit.parent];
+            }
+            tab.title = format!("{} (recovered)", tab.title);
+            tab.rename_buffer = tab.title.clone();
+            self.tabs.push(tab);
+        }
+        self.show_welcome = false;
+        Ok(count)
     }
 
     /// Returns the active tab.
@@ -493,6 +544,7 @@ impl Default for GraphState {
         let graph = BlockGraph::default();
         let mut history = VecDeque::new();
         history.push_back(GraphHistoryEntry {
+            cache_id: GraphHistoryEntry::next_cache_id(),
             graph: graph.clone(),
             source_graph: None,
             pending_branch_arm: None,
@@ -572,6 +624,7 @@ impl GraphState {
             self.history.truncate(self.current_index + 1);
         }
         self.history.push_back(GraphHistoryEntry {
+            cache_id: GraphHistoryEntry::next_cache_id(),
             graph: self.graph.clone(),
             source_graph: self.source_graph.clone(),
             pending_branch_arm: self.pending_branch_arm.clone(),
@@ -727,6 +780,8 @@ pub(crate) struct EditorState {
     pub(crate) block_kind: BlockKind,
     pub(crate) placement_tool: PlacementTool,
     pub(crate) pipe_length: f32,
+    /// Sticky Hadamard pipe tool option, usable without a keyboard chord.
+    pub(crate) pipe_hadamard: bool,
     pub(crate) mode: EditorMode,
     pub(crate) transform_axis: UDirection,
 
@@ -1080,6 +1135,7 @@ impl Default for EditorState {
             block_kind: BlockKind::Cube(CubeKind::XZZ),
             placement_tool: PlacementTool::Block,
             pipe_length: 2.0,
+            pipe_hadamard: false,
             mode: EditorMode::View,
             transform_axis: UDirection::X,
             plane_height: 0,
@@ -1681,6 +1737,48 @@ mod tests {
         assert!(state.stabilizers.is_empty());
         assert_eq!(state.current_stabilizer_index, 0);
         assert!(!state.show_stabilizers);
+    }
+
+    #[test]
+    fn append_recovered_preserves_active_work_and_remaps_definition_parent() {
+        let mut live = EditorTabs::default();
+        let active = live.active;
+        live.active_tab_mut()
+            .snapshot
+            .import_export
+            .set_bloq_buffer("new work".into());
+        let mut recovered = EditorTabs::default();
+        let parent = recovered.active;
+        recovered.add_empty_tab(&EditorState::default());
+        recovered.tabs[1].snapshot.import_export.definition_edit =
+            Some(crate::systems::ui::DefinitionEdit {
+                parent,
+                name: "Memory".into(),
+                original: "original source".into(),
+            });
+        assert_eq!(live.append_recovered(recovered).unwrap(), 2);
+        assert_eq!(live.active, active);
+        assert_eq!(
+            live.active_tab().snapshot.import_export.bloq_buffer,
+            "new work"
+        );
+        assert_ne!(live.tabs[1].id, active);
+        assert_eq!(
+            live.tabs[2]
+                .snapshot
+                .import_export
+                .definition_edit
+                .as_ref()
+                .unwrap()
+                .parent,
+            live.tabs[1].id
+        );
+        let count = live.tabs.len();
+        live.next_id = u64::MAX;
+        live.append_recovered(EditorTabs::default())
+            .expect_err("exhausted IDs must reject recovery");
+        assert_eq!(live.tabs.len(), count);
+        assert_eq!(live.next_id, u64::MAX);
     }
 
     #[test]

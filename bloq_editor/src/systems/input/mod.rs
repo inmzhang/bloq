@@ -18,9 +18,7 @@ use crate::utils::{
     GraphAdjacencySnapshot, change_plane_height, cube_pipe_face_is_degenerate, intersect_plane,
     is_pipe_visible, pipe_placement_hadamard,
 };
-use bevy::picking::events::{
-    PointerClick, PointerDragEnd, PointerDragStart, PointerOut, PointerOver,
-};
+use bevy::picking::events::{PointerClick, PointerOut, PointerOver};
 use bevy::picking::pointer::PointerButton;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
@@ -81,6 +79,14 @@ impl BoxSelectionState {
     pub(crate) fn clear(&mut self) {
         *self = Self::default();
     }
+
+    /// Cancel rather than apply selection when a drag loses its viewport or
+    /// button state. A normal release remains available to the selection code.
+    fn cancel_if_interrupted(&mut self, pointer_available: bool, held: bool, released: bool) {
+        if !pointer_available || (!held && !released) {
+            self.clear();
+        }
+    }
 }
 
 mod actions;
@@ -100,8 +106,8 @@ use probing::*;
 pub(crate) use actions::{action_pick_system, pulse_action_candidate_material_system};
 pub(crate) use highlight::{pipe_mode_selected_elements, sync_interaction_highlight_system};
 pub(crate) use picking::{
-    on_element_click, on_element_drag_end, on_element_drag_start, on_element_out, on_element_over,
-    on_preview_endpoint_click, on_preview_endpoint_out, on_preview_endpoint_over,
+    on_element_click, on_element_out, on_element_over, on_preview_endpoint_click,
+    on_preview_endpoint_out, on_preview_endpoint_over,
 };
 pub(crate) use probing::{
     PIPE_HINT_OFFSETS, WALKING_MOVEMENTS, moving_block_candidate_kind, moving_block_movements,
@@ -128,7 +134,6 @@ impl Plugin for InputPlugin {
         app.init_resource::<UiInputState>()
             .init_resource::<BoxSelectionState>()
             .init_resource::<TranslationDrag>()
-            .init_resource::<picking::MiddleButtonDrag>()
             .add_systems(
                 Update,
                 translation::restore_translation_preview_system
@@ -174,11 +179,14 @@ fn view_shortcut_system(
     #[cfg(not(target_arch = "wasm32"))] mut clipboard: ResMut<EguiClipboard>,
     mut intents: ResMut<UiIntentBuffer>,
 ) {
-    if ui_input.blocks_viewport_keyboard_input() || editor_state.mode != EditorMode::View {
+    if ui_input.blocks_viewport_keyboard_input()
+        || editor_state.mode != EditorMode::View
+        || shortcut_alt(&keys)
+    {
         return;
     }
 
-    if is_ctrl_pressed(&keys) {
+    if shortcut_command(&keys) {
         if keys.just_pressed(KeyCode::KeyC) && !graph_state.graph.is_empty() {
             intents.push(UiIntent::CopyGraphAsBlog);
         } else if keys.just_pressed(KeyCode::KeyD) {
@@ -223,7 +231,7 @@ fn view_shortcut_system(
         };
         intents.push(UiIntent::RotateGraph {
             axis: editor_state.transform_axis,
-            quarter_turns: if is_shift_pressed(&keys) { step } else { -step },
+            quarter_turns: if shortcut_shift(&keys) { step } else { -step },
         });
     }
 }
@@ -283,11 +291,11 @@ pub(crate) fn duplicate_selection_intent(
 }
 
 fn view_translation_shortcut(keys: &ButtonInput<KeyCode>) -> Option<(UDirection, i32)> {
-    let shift = is_shift_pressed(keys);
-    if !shift {
-        return keys
-            .just_pressed(KeyCode::KeyV)
-            .then_some((UDirection::Y, -1));
+    if keys.just_pressed(KeyCode::KeyV) {
+        return Some((UDirection::Y, -1));
+    }
+    if !shortcut_shift(keys) {
+        return None;
     }
     let xz = if keys.pressed(KeyCode::KeyZ) {
         UDirection::Z
@@ -326,16 +334,20 @@ fn edit_system(
 ) {
     let (mut box_selection, translation_drag) = gestures;
     if translation_drag.is_tracking() {
+        box_selection.clear();
         return;
     }
-    let ctrl_pressed = is_ctrl_pressed(&keys);
+    let ctrl_pressed = shortcut_command(&keys);
     let keyboard_available = !ui_input.blocks_viewport_keyboard_input();
     let plain_key = plain_key_shortcuts_available(*ui_input, &keys);
     let pointer_available = !ui_input.blocks_viewport_pointer_input();
 
     if keyboard_available && keys.just_pressed(KeyCode::Escape) {
+        let placing = editor_state.pipe_start.is_some() || editor_state.walking_start.is_some();
         editor_state.clear_hover();
-        editor_state.clear_selection();
+        if !placing {
+            editor_state.clear_selection();
+        }
         box_selection.clear();
     }
     if keyboard_available
@@ -356,8 +368,29 @@ fn edit_system(
     if plain_key && keys.just_pressed(KeyCode::KeyK) {
         change_plane_height(1, &mut editor_state, &mut graph_state);
     }
-    if plain_key && (keys.just_pressed(KeyCode::Space) || keys.just_pressed(KeyCode::KeyV)) {
-        editor_state.set_mode(EditorMode::View, &mut graph_state);
+    if plain_key && keys.just_pressed(KeyCode::Space) {
+        let mode = if editor_state.mode == EditorMode::View {
+            EditorMode::Edit
+        } else {
+            EditorMode::View
+        };
+        editor_state.set_mode(mode, &mut graph_state);
+    }
+    if plain_key
+        && keys.just_pressed(KeyCode::Enter)
+        && matches!(editor_state.mode, EditorMode::View | EditorMode::Edit)
+    {
+        let single = if editor_state.selection_count() == 1 {
+            editor_state.selected_elements().next()
+        } else {
+            None
+        };
+        if let Some(element) = single {
+            editor_state.pipe_start = None;
+            open_target_editor(element, &graph_state, &mut target_state, &mut notifications);
+        } else {
+            notifications.push_info("Select one element to inspect its attributes");
+        }
     }
     if plain_key && keys.just_pressed(KeyCode::KeyB) {
         editor_state.show_blog_buffer = !editor_state.show_blog_buffer;
@@ -396,8 +429,8 @@ fn edit_system(
     }
 
     if plain_key
-        && editor_state.mode == EditorMode::View
-        && (keys.just_pressed(KeyCode::KeyD) || keys.just_pressed(KeyCode::Backspace))
+        && matches!(editor_state.mode, EditorMode::View | EditorMode::Edit)
+        && (keys.just_pressed(KeyCode::Delete) || keys.just_pressed(KeyCode::Backspace))
     {
         delete_selected_elements(&mut editor_state, &mut graph_state, &mut notifications);
     }
@@ -461,6 +494,16 @@ fn edit_system(
         action_viewer.toggle();
     }
 
+    let window = window_query.into_inner();
+    let cursor = window.cursor_position();
+    let pointer_available = pointer_available && window.focused && cursor.is_some();
+    // This must run before the UI/cursor early returns: a release over BLOG or
+    // outside the canvas must not leave a stale rectangle waiting for re-entry.
+    box_selection.cancel_if_interrupted(
+        pointer_available && editor_state.mode == EditorMode::View,
+        buttons.pressed(MouseButton::Left),
+        buttons.just_released(MouseButton::Left),
+    );
     if !pointer_available {
         return;
     }
@@ -469,11 +512,9 @@ fn edit_system(
     let grid_height = editor_state.plane_height as f32 * stride;
 
     let (camera, camera_transform) = camera_query.into_inner();
-    let window = window_query.into_inner();
-    let Some(cursor_pos) = window.cursor_position() else {
-        return;
-    };
+    let Some(cursor_pos) = cursor else { return };
     let Ok(ray) = camera.viewport_to_world(camera_transform, cursor_pos) else {
+        box_selection.clear();
         return;
     };
 
@@ -495,9 +536,9 @@ fn edit_system(
                 let count = elements.len();
                 editor_state.select_elements(elements, box_selection.additive);
                 notifications.push_info(format!("Box-selected {count} element(s)"));
+            } else if !box_selection.additive {
+                editor_state.clear_selection();
             }
-            box_selection.clear();
-        } else if !buttons.pressed(MouseButton::Left) {
             box_selection.clear();
         }
         return;
@@ -508,13 +549,12 @@ fn edit_system(
         && buttons.just_pressed(MouseButton::Left)
         && editor_state.hovered_element.is_none()
     {
-        box_selection.begin_pending(cursor_pos, false);
+        box_selection.begin_pending(cursor_pos, is_shift_pressed(&keys));
         return;
     }
 
     if buttons.just_pressed(MouseButton::Left)
-        && !ctrl_pressed
-        && !is_alt_pressed(&keys)
+        && block_placement_modifiers_available(&keys)
         && editor_state.is_block_tool_active()
         && editor_state.hovered_element.is_none()
         && let Some(pos) = pick_grid_pos
@@ -527,7 +567,7 @@ fn edit_system(
     }
 }
 
-fn open_target_editor(
+pub(crate) fn open_target_editor(
     element: GraphElement,
     graph_state: &GraphState,
     target_state: &mut TargetState,
@@ -576,6 +616,7 @@ fn open_target_editor(
         target_state.block_kind_buffer = kind;
     }
     target_state.suppress_enter_confirm_until_release = true;
+    target_state.focus_field = true;
     target_state.open_window = true;
 }
 
@@ -657,51 +698,76 @@ fn box_selection_drag_exceeds_threshold(start: Vec2, current: Vec2) -> bool {
 /// belong to the application (`Ctrl+Shift+P` opens the command palette), so a
 /// bare-letter shortcut must not also answer them.
 fn plain_key_shortcuts_available(ui_input: UiInputState, keys: &ButtonInput<KeyCode>) -> bool {
-    !ui_input.blocks_viewport_keyboard_input() && !is_ctrl_pressed(keys)
+    !ui_input.blocks_viewport_keyboard_input() && !shortcut_command(keys) && !shortcut_alt(keys)
+}
+
+const COMMAND_KEYS: [KeyCode; 4] = [
+    KeyCode::ControlLeft,
+    KeyCode::ControlRight,
+    KeyCode::SuperLeft,
+    KeyCode::SuperRight,
+];
+const SHIFT_KEYS: [KeyCode; 2] = [KeyCode::ShiftLeft, KeyCode::ShiftRight];
+const ALT_KEYS: [KeyCode; 2] = [KeyCode::AltLeft, KeyCode::AltRight];
+
+// A whole chord can land in one frame. Retain released modifiers for keyboard
+// classification so Cmd+R never becomes plain R just before browser reload.
+// Pointer gestures deliberately use only the currently pressed state below.
+fn shortcut_modifier(keys: &ButtonInput<KeyCode>, modifiers: &[KeyCode]) -> bool {
+    modifiers
+        .iter()
+        .any(|&key| keys.pressed(key) || keys.just_released(key))
+}
+
+fn shortcut_command(keys: &ButtonInput<KeyCode>) -> bool {
+    shortcut_modifier(keys, &COMMAND_KEYS)
+}
+
+fn shortcut_shift(keys: &ButtonInput<KeyCode>) -> bool {
+    shortcut_modifier(keys, &SHIFT_KEYS)
+}
+
+fn shortcut_alt(keys: &ButtonInput<KeyCode>) -> bool {
+    shortcut_modifier(keys, &ALT_KEYS)
 }
 
 fn is_ctrl_pressed(keys: &ButtonInput<KeyCode>) -> bool {
-    keys.any_pressed([KeyCode::ControlLeft, KeyCode::ControlRight])
+    keys.any_pressed(COMMAND_KEYS)
 }
 
 fn is_shift_pressed(keys: &ButtonInput<KeyCode>) -> bool {
-    keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight])
+    keys.any_pressed(SHIFT_KEYS)
 }
 
-// Alt+Left-drag is reserved for camera orbit (see camera_control_system), so
-// Alt must not also trigger box-select or block placement.
+// Alt+Left-drag belongs to camera orbit, not selection or placement.
 fn is_alt_pressed(keys: &ButtonInput<KeyCode>) -> bool {
-    keys.any_pressed([KeyCode::AltLeft, KeyCode::AltRight])
+    keys.any_pressed(ALT_KEYS)
+}
+
+fn block_placement_modifiers_available(keys: &ButtonInput<KeyCode>) -> bool {
+    !is_ctrl_pressed(keys) && !is_shift_pressed(keys) && !is_alt_pressed(keys)
 }
 
 fn is_unmodified_box_select_input(keys: &ButtonInput<KeyCode>) -> bool {
-    !is_ctrl_pressed(keys) && !is_shift_pressed(keys) && !is_alt_pressed(keys)
+    !is_ctrl_pressed(keys) && !is_alt_pressed(keys)
 }
 
 pub(crate) fn is_hadamard_pipe_modifier_pressed(keys: &ButtonInput<KeyCode>) -> bool {
     keys.any_pressed([KeyCode::KeyH])
 }
 
-/// Hold-to-edit modifier: a single click opens the element's attribute editor
-/// instead of selecting it or continuing a pipe. Double-click alone cannot,
-/// since the Pipe tool spends the first click on an endpoint. `I` rather than
-/// the mnemonic `E` because `E` is next-stabilizer.
-pub(crate) fn is_attribute_edit_modifier_pressed(keys: &ButtonInput<KeyCode>) -> bool {
-    keys.any_pressed([KeyCode::KeyI])
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
         GraphRotationAvailability, advance_box_selection_drag,
-        collect_changed_interaction_elements, copy_selected_subgraph,
-        delete_middle_clicked_element, handle_element_click, handle_pipe_keyboard_placement,
-        insert_graph_without_overlap, is_hadamard_pipe_modifier_pressed,
-        is_unmodified_box_select_input, moving_block_candidate_kind,
-        moving_block_start_has_candidate, open_pipe_start_editor_if_double_clicked,
-        open_target_editor, patch_rotation_endpoint_for_pipe_click,
-        patch_rotation_pipe_hint_target, picked_graph_element, pipe_endpoint_for_block_click,
-        pipe_hint_target, pipe_mode_selected_elements, place_moving_block_click, place_pipe,
+        collect_changed_interaction_elements, copy_selected_subgraph, handle_element_click,
+        handle_pipe_keyboard_placement, insert_graph_without_overlap,
+        is_hadamard_pipe_modifier_pressed, is_unmodified_box_select_input,
+        moving_block_candidate_kind, moving_block_start_has_candidate,
+        open_pipe_start_editor_if_double_clicked, open_target_editor,
+        patch_rotation_endpoint_for_pipe_click, patch_rotation_pipe_hint_target,
+        picked_graph_element, pipe_endpoint_for_block_click, pipe_hint_target,
+        pipe_mode_selected_elements, place_moving_block_click, place_pipe,
         place_pipe_or_walking_target, plain_key_shortcuts_available, rotate_selected_elements,
         screen_rect_contains_point, tall_cube_pipe_hint_target, translate_graph,
         translate_selected_elements, view_translation_shortcut, walking_pipe_hint_target,
@@ -1424,6 +1490,237 @@ mod tests {
     }
 
     #[test]
+    fn selection_modifiers_never_place_blocks() {
+        for modifier in [
+            KeyCode::ShiftLeft,
+            KeyCode::ShiftRight,
+            KeyCode::ControlLeft,
+            KeyCode::SuperLeft,
+            KeyCode::AltLeft,
+        ] {
+            let mut keys = ButtonInput::default();
+            keys.press(modifier);
+            assert!(!super::block_placement_modifiers_available(&keys));
+        }
+        assert!(super::block_placement_modifiers_available(
+            &ButtonInput::default()
+        ));
+    }
+
+    #[test]
+    fn modifier_selection_breaks_double_click_sequence() {
+        for modifier in [KeyCode::ShiftLeft, KeyCode::ControlLeft, KeyCode::SuperLeft] {
+            let mut graph = GraphState::default();
+            for pos in [IVec3::ZERO, IVec3::X] {
+                graph
+                    .graph
+                    .add_block(Block::new(pos, BlockKind::Cube(CubeKind::ZXZ)));
+            }
+            let mut editor = EditorState::default();
+            let mut target = TargetState::default();
+            let mut action = ActionEditState::default();
+            let mut notifications = Notifications::default();
+            let mut modified_keys = ButtonInput::default();
+            modified_keys.press(modifier);
+            for (time, pos, keys) in [
+                (1.0, IVec3::ZERO, ButtonInput::default()),
+                (1.1, IVec3::X, modified_keys),
+                (1.2, IVec3::ZERO, ButtonInput::default()),
+            ] {
+                handle_element_click(
+                    GraphElement::Block(pos),
+                    time,
+                    &mut editor,
+                    &graph,
+                    &mut target,
+                    &mut action,
+                    &mut notifications,
+                    &keys,
+                );
+            }
+            assert!(!target.open_window);
+            assert_eq!(editor.selection_count(), 1);
+            assert!(
+                editor
+                    .selected_element_set()
+                    .contains(&GraphElement::Block(IVec3::X))
+            );
+        }
+    }
+
+    #[test]
+    fn block_tool_double_click_edits_current_kind_not_palette_kind() {
+        let current = BlockKind::Cube(CubeKind::ZXZ);
+        let palette = BlockKind::Cube(CubeKind::XZZ);
+        let mut graph_state = GraphState::default();
+        graph_state
+            .graph
+            .add_block(Block::new(IVec3::ZERO, current));
+        let before = graph_state.graph.to_blog_text();
+        let revision = graph_state.revision;
+        let element = GraphElement::Block(IVec3::ZERO);
+        let mut editor_state = EditorState {
+            mode: EditorMode::Edit,
+            placement_tool: PlacementTool::Block,
+            block_kind: palette,
+            ..Default::default()
+        };
+        let mut target = TargetState::default();
+        let mut action_edit = ActionEditState::default();
+        let mut notifications = Notifications::default();
+        for time in [1.0, 1.2] {
+            handle_element_click(
+                element,
+                time,
+                &mut editor_state,
+                &graph_state,
+                &mut target,
+                &mut action_edit,
+                &mut notifications,
+                &ButtonInput::default(),
+            );
+            if time == 1.0 {
+                assert!(!target.open_window);
+                assert!(editor_state.selected_element_set().contains(&element));
+            }
+        }
+        assert!(target.open_window);
+        assert_eq!(target.target, Some(element));
+        assert_eq!(target.block_kind_buffer, current);
+        assert_eq!(editor_state.block_kind, palette);
+        assert_eq!(graph_state.graph.to_blog_text(), before);
+        assert_eq!(graph_state.revision, revision);
+    }
+
+    #[test]
+    fn attributes_intent_requires_single_selection_and_preserves_graph() {
+        use crate::components::{CameraSettings, EditorCamera};
+        use crate::resources::{
+            BloqViewerState, CompileUiState, EditorTabs, ImportExportState, ZxViewerState,
+        };
+        use crate::systems::ui::{PendingTabClose, apply_ui_intents_system};
+        use bevy::prelude::{ClearColor, Transform};
+
+        let mut app = App::new();
+        app.init_resource::<UiIntentBuffer>()
+            .init_resource::<EditorState>()
+            .init_resource::<GraphState>()
+            .init_resource::<TargetState>()
+            .init_resource::<Notifications>()
+            .init_resource::<ImportExportState>()
+            .init_resource::<EditorTabs>()
+            .init_resource::<ClearColor>()
+            .init_resource::<EditorJobs>()
+            .init_resource::<CompileUiState>()
+            .init_resource::<BloqViewerState>()
+            .init_resource::<ZxViewerState>()
+            .init_resource::<BoxSelectionState>()
+            .init_resource::<PendingTabClose>()
+            .init_resource::<ActionEditState>()
+            .init_resource::<bevy_egui::EguiUserTextures>()
+            .add_message::<bevy::app::AppExit>()
+            .add_systems(Update, apply_ui_intents_system);
+        app.world_mut().spawn((
+            EditorCamera,
+            Transform::default(),
+            CameraSettings::default(),
+        ));
+        {
+            let mut state = app.world_mut().resource_mut::<GraphState>();
+            state
+                .graph
+                .add_block(Block::new(IVec3::ZERO, BlockKind::Cube(CubeKind::ZXZ)));
+            state
+                .graph
+                .add_block(Block::new(IVec3::X, BlockKind::Cube(CubeKind::ZXZ)));
+            state
+                .graph
+                .add_pipe(Pipe::new(IVec3::ZERO, Direction::XPLUS));
+        }
+        let before = app.world().resource::<GraphState>().graph.to_blog_text();
+        let revision = app.world().resource::<GraphState>().revision;
+        for count in [0, 2, 1] {
+            {
+                let mut editor = app.world_mut().resource_mut::<EditorState>();
+                editor.clear_selection();
+                editor.mode = EditorMode::Edit;
+                editor.block_kind = BlockKind::Cube(CubeKind::XZZ);
+                if count > 0 {
+                    editor.click_select_element(GraphElement::Block(IVec3::ZERO), false);
+                }
+                if count > 1 {
+                    editor.click_select_element(GraphElement::Block(IVec3::X), true);
+                }
+                editor.pipe_start = Some(IVec3::X);
+            }
+            app.world_mut()
+                .resource_mut::<UiIntentBuffer>()
+                .push(UiIntent::EditSelection);
+            app.update();
+            let target = app.world().resource::<TargetState>();
+            assert_eq!(target.open_window, count == 1);
+            if count == 1 {
+                assert_eq!(target.target, Some(GraphElement::Block(IVec3::ZERO)));
+                assert_eq!(target.block_kind_buffer, BlockKind::Cube(CubeKind::ZXZ));
+                assert!(target.suppress_enter_confirm_until_release);
+                assert_eq!(app.world().resource::<EditorState>().pipe_start, None);
+            }
+            assert_eq!(
+                app.world().resource::<GraphState>().graph.to_blog_text(),
+                before
+            );
+            assert_eq!(app.world().resource::<GraphState>().revision, revision);
+        }
+    }
+
+    #[test]
+    fn pipe_tool_click_selects_start_block_and_pipe_without_moving_armed_cursor() {
+        let start = IVec3::ZERO;
+        let end = IVec3::X;
+        let block = GraphElement::Block(start);
+        let pipe = GraphElement::Pipe(start, end);
+        let mut graph_state = GraphState::default();
+        graph_state
+            .graph
+            .add_block(Block::new(start, BlockKind::Cube(CubeKind::ZXZ)));
+        graph_state
+            .graph
+            .add_block(Block::new(end, BlockKind::Cube(CubeKind::ZXZ)));
+        graph_state
+            .graph
+            .add_pipe(Pipe::new(start, Direction::XPLUS));
+        let before = graph_state.graph.to_blog_text();
+        let revision = graph_state.revision;
+        let mut editor = EditorState {
+            mode: EditorMode::Edit,
+            placement_tool: PlacementTool::Pipe,
+            ..Default::default()
+        };
+        editor.click_select_element(GraphElement::Block(end), false);
+        let mut target = TargetState::default();
+        let mut action = ActionEditState::default();
+        let mut notifications = Notifications::default();
+        for (time, element) in [(1.0, block), (2.0, pipe)] {
+            handle_element_click(
+                element,
+                time,
+                &mut editor,
+                &graph_state,
+                &mut target,
+                &mut action,
+                &mut notifications,
+                &ButtonInput::default(),
+            );
+            assert_eq!(editor.pipe_start, Some(start));
+            assert_eq!(editor.selection_count(), 1);
+            assert!(editor.selected_element_set().contains(&element));
+            assert!(!target.open_window);
+        }
+        assert_eq!(graph_state.graph.to_blog_text(), before);
+        assert_eq!(graph_state.revision, revision);
+    }
+
+    #[test]
     fn pipe_tool_double_click_opens_block_and_pipe_editors() {
         let start = IVec3::ZERO;
         let end = IVec3::X;
@@ -1495,41 +1792,6 @@ mod tests {
 
         assert_eq!(target_state.target, Some(GraphElement::Pipe(start, end)));
         assert!(target_state.open_window);
-    }
-
-    /// The Pipe tool consumes the first click as a pipe endpoint, so double-click
-    /// could not reach the attribute editor; the hold-to-edit modifier must.
-    #[test]
-    fn hold_to_edit_modifier_opens_the_editor_on_a_single_pipe_tool_click() {
-        let mut graph_state = GraphState::default();
-        graph_state
-            .graph
-            .add_block(Block::new(IVec3::ZERO, BlockKind::Cube(CubeKind::ZXZ)));
-        let mut editor_state = EditorState {
-            mode: EditorMode::Edit,
-            placement_tool: PlacementTool::Pipe,
-            ..Default::default()
-        };
-        let mut target_state = TargetState::default();
-        let mut action_edit = ActionEditState::default();
-        let mut notifications = Notifications::default();
-        let mut keys = ButtonInput::default();
-        keys.press(KeyCode::KeyI);
-
-        handle_element_click(
-            GraphElement::Block(IVec3::ZERO),
-            1.0,
-            &mut editor_state,
-            &graph_state,
-            &mut target_state,
-            &mut action_edit,
-            &mut notifications,
-            &keys,
-        );
-
-        assert!(target_state.open_window);
-        assert_eq!(target_state.target, Some(GraphElement::Block(IVec3::ZERO)));
-        assert_eq!(editor_state.pipe_start, None);
     }
 
     /// Selection must not steal a click an armed action pick is waiting for.
@@ -1725,7 +1987,7 @@ mod tests {
     }
 
     #[test]
-    fn keyboard_pipe_placement_advances_on_success_and_stays_on_failure() {
+    fn keyboard_pipe_placement_advances_on_new_and_existing_edges() {
         let mut graph_state = GraphState::default();
         graph_state
             .graph
@@ -1762,7 +2024,7 @@ mod tests {
             &mut notifications,
         ));
 
-        assert_eq!(editor_state.pipe_start, Some(IVec3::ZERO));
+        assert_eq!(editor_state.pipe_start, Some(IVec3::Z));
     }
 
     #[test]
@@ -1898,6 +2160,7 @@ mod tests {
             (&[KeyCode::ShiftLeft, KeyCode::Comma], (UDirection::X, -1)),
             (&[KeyCode::ShiftLeft, KeyCode::Digit6], (UDirection::Y, 1)),
             (&[KeyCode::KeyV], (UDirection::Y, -1)),
+            (&[KeyCode::ShiftLeft, KeyCode::KeyV], (UDirection::Y, -1)),
             (
                 &[KeyCode::KeyZ, KeyCode::ShiftLeft, KeyCode::Period],
                 (UDirection::Z, 1),
@@ -1946,46 +2209,65 @@ mod tests {
     }
 
     #[test]
-    fn middle_click_deletes_in_edit_and_view_but_middle_drag_does_not() {
-        let mut graph_state = GraphState::default();
-        graph_state
-            .graph
-            .add_block(Block::new(IVec3::ZERO, BlockKind::Cube(CubeKind::ZXZ)));
-        graph_state
-            .graph
-            .add_block(Block::new(IVec3::X, BlockKind::Cube(CubeKind::ZXZ)));
-        graph_state
-            .graph
-            .add_block(Block::new(IVec3::Y, BlockKind::Cube(CubeKind::ZXZ)));
-        let mut editor_state = EditorState::default();
-        let mut notifications = Notifications::default();
-
-        delete_middle_clicked_element(
-            GraphElement::Block(IVec3::ZERO),
-            false,
-            &mut editor_state,
-            &mut graph_state,
-            &mut notifications,
-        );
-        editor_state.set_mode(EditorMode::Edit, &mut graph_state);
-        delete_middle_clicked_element(
-            GraphElement::Block(IVec3::X),
-            false,
-            &mut editor_state,
-            &mut graph_state,
-            &mut notifications,
-        );
-        delete_middle_clicked_element(
-            GraphElement::Block(IVec3::Y),
-            true,
-            &mut editor_state,
-            &mut graph_state,
-            &mut notifications,
-        );
-
-        assert!(!graph_state.graph.has_block_at(IVec3::ZERO));
-        assert!(!graph_state.graph.has_block_at(IVec3::X));
-        assert!(graph_state.graph.has_block_at(IVec3::Y));
+    fn viewport_keys_preserve_selection_and_only_space_changes_mode() {
+        use super::*;
+        for mode in [EditorMode::View, EditorMode::Edit] {
+            for key in [
+                KeyCode::KeyD,
+                KeyCode::KeyV,
+                KeyCode::Space,
+                KeyCode::Delete,
+                KeyCode::Backspace,
+            ] {
+                let mut app = App::new();
+                app.init_resource::<EditorState>()
+                    .init_resource::<GraphState>()
+                    .init_resource::<EditorJobs>()
+                    .init_resource::<CompileUiState>()
+                    .init_resource::<BloqViewerState>()
+                    .init_resource::<ZxViewerState>()
+                    .init_resource::<ActionViewerState>()
+                    .init_resource::<EditorTabs>()
+                    .init_resource::<Notifications>()
+                    .init_resource::<TargetState>()
+                    .init_resource::<BoxSelectionState>()
+                    .init_resource::<TranslationDrag>()
+                    .init_resource::<UiInputState>()
+                    .init_resource::<ButtonInput<KeyCode>>()
+                    .init_resource::<ButtonInput<MouseButton>>()
+                    .add_systems(Update, edit_system);
+                app.world_mut().spawn((
+                    EditorCamera,
+                    Camera::default(),
+                    GlobalTransform::default(),
+                ));
+                app.world_mut().spawn((Window::default(), PrimaryWindow));
+                app.world_mut()
+                    .resource_mut::<GraphState>()
+                    .graph
+                    .add_block(Block::new(IVec3::ZERO, BlockKind::Cube(CubeKind::ZXZ)));
+                {
+                    let mut editor = app.world_mut().resource_mut::<EditorState>();
+                    editor.mode = mode;
+                    editor.replace_selection([GraphElement::Block(IVec3::ZERO)]);
+                }
+                app.world_mut()
+                    .resource_mut::<ButtonInput<KeyCode>>()
+                    .press(key);
+                app.update();
+                assert_eq!(
+                    app.world()
+                        .resource::<GraphState>()
+                        .graph
+                        .has_block_at(IVec3::ZERO),
+                    !matches!(key, KeyCode::Delete | KeyCode::Backspace)
+                );
+                assert_eq!(
+                    app.world().resource::<EditorState>().mode == mode,
+                    key != KeyCode::Space
+                );
+            }
+        }
     }
 
     #[test]
@@ -2096,5 +2378,182 @@ mod tests {
         assert_eq!(target_state.target, Some(GraphElement::Block(pipe_start)));
         assert!(!target_state.pipe_hadamard_buffer);
         assert!(notifications.toasts.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod ergonomics_tests {
+    use super::*;
+    use bloq_graph::CubeKind;
+
+    #[test]
+    fn command_and_camera_modifiers_never_trigger_plain_shortcuts() {
+        for key in [
+            KeyCode::ControlLeft,
+            KeyCode::ControlRight,
+            KeyCode::SuperLeft,
+            KeyCode::SuperRight,
+            KeyCode::AltLeft,
+            KeyCode::AltRight,
+        ] {
+            let mut keys = ButtonInput::default();
+            keys.press(key);
+            keys.press(KeyCode::KeyR);
+            keys.release(KeyCode::KeyR);
+            keys.release(key);
+            assert!(keys.just_pressed(KeyCode::KeyR));
+            assert!(!plain_key_shortcuts_available(
+                UiInputState::default(),
+                &keys
+            ));
+            assert!(!is_ctrl_pressed(&keys));
+            assert!(!is_alt_pressed(&keys));
+            keys.clear();
+            assert!(plain_key_shortcuts_available(
+                UiInputState::default(),
+                &keys
+            ));
+        }
+    }
+
+    #[test]
+    fn batched_reload_chord_never_emits_graph_rotation() {
+        let mut app = App::new();
+        app.init_resource::<EditorState>()
+            .init_resource::<GraphState>()
+            .init_resource::<GraphUiSummary>()
+            .init_resource::<UiInputState>()
+            .init_resource::<ButtonInput<KeyCode>>()
+            .init_resource::<UiIntentBuffer>()
+            .add_systems(Update, view_shortcut_system);
+        #[cfg(not(target_arch = "wasm32"))]
+        app.init_resource::<EditorJobs>()
+            .init_resource::<EguiClipboard>();
+        app.world_mut().resource_mut::<EditorState>().mode = EditorMode::View;
+        app.world_mut()
+            .resource_mut::<GraphState>()
+            .graph
+            .add_block(Block::new(IVec3::ZERO, BlockKind::Cube(CubeKind::ZXZ)));
+        app.world_mut()
+            .resource_mut::<GraphUiSummary>()
+            .rotation_availability = GraphRotationAvailability::QuarterTurns;
+        for modifier in COMMAND_KEYS {
+            let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+            keys.clear();
+            keys.press(modifier);
+            keys.press(KeyCode::KeyR);
+            keys.release(KeyCode::KeyR);
+            keys.release(modifier);
+            app.update();
+            assert!(
+                app.world_mut()
+                    .resource_mut::<UiIntentBuffer>()
+                    .drain()
+                    .next()
+                    .is_none()
+            );
+        }
+        let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+        keys.clear();
+        keys.press(KeyCode::KeyR);
+        app.update();
+        assert!(matches!(
+            app.world_mut()
+                .resource_mut::<UiIntentBuffer>()
+                .drain()
+                .next(),
+            Some(UiIntent::RotateGraph { .. })
+        ));
+    }
+
+    #[test]
+    fn box_selection_cancels_interrupted_drag_without_waiting_for_pointer_reentry() {
+        for active in [false, true] {
+            for (available, held, released, keep) in [
+                (false, true, false, false), // UI capture, missing cursor or focus loss
+                (false, false, true, false), // release outside the viewport
+                (true, false, false, false), // release event missed while inactive
+                (true, true, false, true),   // ordinary ongoing drag
+                (true, false, true, true),   // valid release still commits selection
+            ] {
+                let mut selection = BoxSelectionState::default();
+                selection.begin_pending(Vec2::new(10.0, 20.0), true);
+                if active {
+                    selection.activate();
+                }
+                selection.cancel_if_interrupted(available, held, released);
+                assert_eq!(selection.is_tracking(), keep);
+                if keep {
+                    assert_eq!(selection.active, active);
+                    assert!(selection.additive);
+                } else {
+                    assert!(!selection.active);
+                    assert!(!selection.pending);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn shift_box_selection_is_available_but_camera_orbit_is_not() {
+        let mut keys = ButtonInput::default();
+        keys.press(KeyCode::ShiftLeft);
+        assert!(is_unmodified_box_select_input(&keys));
+        keys.press(KeyCode::AltLeft);
+        assert!(!is_unmodified_box_select_input(&keys));
+    }
+
+    #[test]
+    fn block_tool_click_selects_existing_port_without_changing_its_kind() {
+        let mut graph = GraphState::default();
+        graph
+            .graph
+            .add_block(Block::new(IVec3::ZERO, BlockKind::Port));
+        let mut editor = EditorState {
+            mode: EditorMode::Edit,
+            ..Default::default()
+        };
+        editor.set_placement_tool(PlacementTool::Block);
+        editor.block_kind = BlockKind::Cube(CubeKind::XZZ);
+        let mut target = TargetState::default();
+        let mut action = ActionEditState::default();
+        let mut notices = Notifications::default();
+        handle_element_click(
+            GraphElement::Block(IVec3::ZERO),
+            0.0,
+            &mut editor,
+            &graph,
+            &mut target,
+            &mut action,
+            &mut notices,
+            &ButtonInput::default(),
+        );
+        assert!(!target.open_window);
+        assert_eq!(editor.selection_count(), 1);
+        assert!(graph.graph.get_block(IVec3::ZERO).unwrap().kind().is_port());
+    }
+
+    #[test]
+    fn camera_gesture_does_not_select_or_open_replacement() {
+        let graph = GraphState::default();
+        let mut editor = EditorState {
+            mode: EditorMode::Edit,
+            ..Default::default()
+        };
+        let mut keys = ButtonInput::default();
+        keys.press(KeyCode::AltLeft);
+        let mut target = TargetState::default();
+        handle_element_click(
+            GraphElement::Block(IVec3::ZERO),
+            0.0,
+            &mut editor,
+            &graph,
+            &mut target,
+            &mut ActionEditState::default(),
+            &mut Notifications::default(),
+            &keys,
+        );
+        assert_eq!(editor.selection_count(), 0);
+        assert!(!target.open_window);
     }
 }

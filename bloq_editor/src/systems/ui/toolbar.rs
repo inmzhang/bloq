@@ -3,7 +3,9 @@
 use super::activated;
 use super::command_palette::CommandPaletteState;
 use super::intents::{UiIntent, UiIntentBuffer};
-use crate::resources::{CompileUiState, EditorMode, EditorState, GraphState, ImportExportState};
+use crate::resources::{
+    ActionViewerState, CompileUiState, EditorMode, EditorState, GraphState, ImportExportState,
+};
 use crate::systems::jobs::EditorJobs;
 use crate::theme::{self, ThemePalette};
 use bevy_egui::egui;
@@ -20,6 +22,7 @@ const MODES: [EditorMode; 4] = [
 /// draw function's signature manageable.
 pub(crate) struct ToolbarState<'a> {
     pub(crate) editor_state: &'a mut EditorState,
+    pub(crate) action_viewer: &'a mut ActionViewerState,
     pub(crate) import_export: &'a mut ImportExportState,
     pub(crate) compile_ui: &'a mut CompileUiState,
     pub(crate) graph_state: &'a GraphState,
@@ -41,9 +44,13 @@ pub(super) const fn compact_mode_label(mode: EditorMode) -> &'static str {
 
 const fn mode_hover_text(mode: EditorMode) -> &'static str {
     match mode {
-        EditorMode::View => "Select, inspect, and validate your graph",
+        EditorMode::View => {
+            "Select, move, inspect, and validate your graph. Space switches between View and Edit."
+        }
         EditorMode::Module => "Build reusable modules, place instances, and connect their ports",
-        EditorMode::Edit => "Place blocks and connect them with pipes",
+        EditorMode::Edit => {
+            "Place blocks and connect them with pipes. Space switches between Edit and View; P selects the Pipe tool."
+        }
         EditorMode::Bloq => "Compile and inspect the program and physical circuits",
     }
 }
@@ -101,6 +108,16 @@ pub(crate) fn draw_toolbar_contents(
                 state.intents.push(intent);
             }
         }
+        if activated(
+            &ui.add_enabled(
+                state.editor_state.selection_count() == 1
+                    && matches!(state.editor_state.mode, EditorMode::View | EditorMode::Edit),
+                toolbar_button("Attributes"),
+            )
+            .on_hover_text("Edit the selected block or pipe (Enter). Double-click also works."),
+        ) {
+            state.intents.push(UiIntent::EditSelection);
+        }
         toolbar_divider(ui, palette);
         // Reserve the complete segment before layout so wrapping moves the group as one item.
         let modes_width = MODES
@@ -141,6 +158,40 @@ pub(crate) fn draw_toolbar_contents(
                 });
         });
         toolbar_divider(ui, palette);
+        if activated(
+            &ui.add(toolbar_button("Actions").selected(state.action_viewer.open))
+                .on_hover_text("Measurements and feedback (A)"),
+        ) {
+            state.action_viewer.toggle();
+        }
+        let pending_text = state.import_export.blocks_graph_editing();
+        let text_error =
+            state.import_export.sync_conflict || state.import_export.sync_error.is_some();
+        if activated(
+            &ui.add(
+                toolbar_button(if text_error {
+                    "BLOG !"
+                } else if pending_text {
+                    "BLOG …"
+                } else {
+                    "BLOG"
+                })
+                .selected(state.editor_state.show_blog_buffer),
+            )
+            .on_hover_text(if text_error {
+                "Graph editing paused: open BLOG to fix or resolve the pending text."
+            } else if pending_text {
+                "Checking text; graph editing resumes when valid."
+            } else {
+                "Live BLOG view (B)"
+            }),
+        ) {
+            state.editor_state.show_blog_buffer = !state.editor_state.show_blog_buffer;
+        }
+        if state.editor_state.is_pipe_tool_active() {
+            ui.checkbox(&mut state.editor_state.pipe_hadamard, "Hadamard")
+                .on_hover_text("Place Hadamard pipes. Alternatively, hold H.");
+        }
         toolbar_menu("Compile settings").ui(ui, |ui| {
             draw_compile_controls(ui, state.compile_ui, palette)
         });
@@ -206,6 +257,7 @@ fn draw_file_actions(
             } else {
                 "Save"
             })
+            .on_hover_text("Export the graph as BLOG. To preserve comments or unfinished text exactly, use Save/Download draft in the BLOG panel.")
             .clicked()
         {
             intents.push(UiIntent::ExportBlog {
@@ -578,6 +630,7 @@ mod tests {
                             ui,
                             ToolbarState {
                                 editor_state: &mut editor,
+                                action_viewer: &mut ActionViewerState::default(),
                                 import_export: &mut files,
                                 compile_ui: &mut compile,
                                 graph_state: &graph,
@@ -602,6 +655,9 @@ mod tests {
                     "Undo",
                     "Redo",
                     "Fit",
+                    "Attributes",
+                    "Actions",
+                    "BLOG",
                     "Compile settings",
                     "Commands",
                     "\u{f059}",
