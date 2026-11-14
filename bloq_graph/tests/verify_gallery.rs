@@ -910,7 +910,7 @@ fn verify_gate_branches(
                 continue;
             }
             assert!(
-                <TensorF as CompareTensors>::scalar_eq(&actual, ideal),
+                <Tensor4 as CompareTensors>::scalar_eq(&actual, ideal),
                 "{gallery}: accepted branch {bits:b} differs from its declared state"
             );
         } else if verifier
