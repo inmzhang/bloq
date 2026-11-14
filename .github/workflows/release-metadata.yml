@@ -1,0 +1,35 @@
+name: Release metadata
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+  push:
+    branches: [main]
+
+concurrency:
+  group: release-metadata-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  metadata:
+    name: Release metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check proposed squash metadata
+        if: github.event_name == 'pull_request'
+        run: python3 tools/changelog.py --event "$GITHUB_EVENT_PATH"
+      - name: Check actual merged messages
+        if: github.event_name == 'push'
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: python3 tools/changelog.py --range "$BEFORE..$AFTER"

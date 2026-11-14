@@ -1,7 +1,9 @@
 ## Description
 
-<!-- Summarize the change, motivation, and relevant context. List any new dependencies.
-Link related issues with `Fixes #123` or `Refs #123`, as appropriate. -->
+<!-- Summarize user-visible behavior, motivation, and new dependencies. State "No user-facing change" when appropriate.
+For breaking changes, include one BREAKING CHANGE: footer with migration guidance.
+Link updated documentation and related issues (Fixes #123 or Refs #123).
+The PR title and description become the default squash message; do not paste working commit lists. -->
 
 ## How has this been tested?
 
@@ -21,6 +23,7 @@ Check completed items; note `N/A` for items that do not apply.
 
 - [ ] I followed the [contributing guidelines](https://github.com/inmzhang/bloq/blob/main/CONTRIBUTING.md).
 - [ ] I reviewed the diff.
+- [ ] The squash message will summarize only this PR, with one consolidated breaking-change footer if needed.
 - [ ] I added or updated regression tests where behavior changed.
 - [ ] I updated the relevant documentation where needed.
 - [ ] Relevant checks pass without new errors or warnings.

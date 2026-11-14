@@ -12,8 +12,9 @@ Describe the behavior changed and the checks used to verify it. Breaking APIs
 require coordinated changes to callers, examples, documentation, and release
 notes. Preserve each release's documentation and API reference.
 
-Do not edit `CHANGELOG.md` manually, including unreleased entries and version
-headings. Release-plz generates it in release PRs. Record release-note details
+Release-plz generates `CHANGELOG.md`. Curate pending notes only in a held release
+PR as described in [Releasing](docs/releasing.md#changelog); preserve released entries
+and generated version headings. Record release-note details
 in Conventional Commit messages and compatibility changes in `BREAKING CHANGE:`
 footers; keep migration guidance in the relevant user documentation. Notes cover
 the whole repository and group changes by Conventional Commit scope. Use
@@ -21,6 +22,13 @@ the whole repository and group changes by Conventional Commit scope. Use
 area, including dependency-only fixes such as `fix(editor): ...`. Unscoped
 commits remain visible under General. See [changelog generation](docs/releasing.md#changelog).
 `just changelog` previews generated notes without writing the file.
+
+Before squash-merging, review the final message, which defaults to the PR title
+and description. Summarize this PR only, without copied commit stacks; consolidate
+migration guidance into one `BREAKING CHANGE:` footer and retain `Assisted-by:`
+trailers. The required **Release metadata** check validates structure, not factual
+accuracy. Review the diff and generated notes too; see
+[release safeguards](docs/releasing.md#changelog) for enforcement and curation.
 
 ## Issues and pull requests
 
