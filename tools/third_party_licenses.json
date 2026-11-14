@@ -348,13 +348,6 @@
   },
   {
     "packages": [
-      "layout-rs@0.1.3"
-    ],
-    "source": "https://raw.githubusercontent.com/nadavrot/layout/70183cc6890be839cdbf45d36ff23d2f12b7d571/LICENSE",
-    "text": "MIT License\n\nCopyright (c) Nadav Rotem\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n"
-  },
-  {
-    "packages": [
       "svg_fmt@0.4.5"
     ],
     "source": "https://raw.githubusercontent.com/nical/rust_debug/93f414cd572b5c2781df93dbdc068ed13443d05a/LICENSE",
@@ -519,7 +512,6 @@
       "block2@0.6.2",
       "dispatch@0.2.0",
       "harfrust@0.5.2",
-      "layout-rs@0.1.3",
       "objc-sys@0.3.5",
       "objc2-app-kit@0.2.2",
       "objc2-cloud-kit@0.2.2",

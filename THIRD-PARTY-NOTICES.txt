@@ -1968,12 +1968,6 @@ Declared authors: Niko Matsakis <niko@alum.mit.edu>
   [143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4] lalrpop-util@0.23.1/LICENSE-APACHE
   [73cb5f952615bc21d11487cd7e0cf091967cc71d2e7d6cb93f96b36d47b250ed] lalrpop-util@0.23.1/LICENSE-MIT
 
-layout-rs@0.1.3
-Declared license: MIT
-Declared authors: Nadav Rotem <nadav256@gmail.com>
-  [815620aba0b18b636930e928fb2a888db948441e42f3be0c56ec2cb133141a70] https://raw.githubusercontent.com/nadavrot/layout/70183cc6890be839cdbf45d36ff23d2f12b7d571/LICENSE
-  [b05785f9f18e6716bab63424b11454513b9943a222595b70411009202fc592b5] https://raw.githubusercontent.com/spdx/license-list-data/v3.27.0/text/MIT.txt
-
 lazy_static@1.5.1
 Declared license: MIT OR Apache-2.0
 Declared authors: Marvin Löbel <loebel.marvin@gmail.com>
@@ -15950,31 +15944,6 @@ FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
 COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-
---- 815620aba0b18b636930e928fb2a888db948441e42f3be0c56ec2cb133141a70 ---
-
-MIT License
-
-Copyright (c) Nadav Rotem
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
 
 
 --- 8337133fbd3cd6b5de6ca9fd048a242a01045f3257add148a03c29f91e51e2b2 ---

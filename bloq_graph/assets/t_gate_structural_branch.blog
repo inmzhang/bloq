@@ -31,5 +31,4 @@ module main {
   mzz = measure 1 -> +X
   resolve b0 if mzz
   feedback Z 4 if mzz
-
 }

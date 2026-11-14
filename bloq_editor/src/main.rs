@@ -120,7 +120,7 @@ fn main() {
             })
             .set(LogPlugin {
                 level: bevy::log::Level::INFO,
-                filter: "wgpu=error,naga=warn,bevy_picking=warn,bevy_app=info,bevy_ecs::system::system=error,calloop=error,rust_sugiyama=warn"
+                filter: "wgpu=error,naga=warn,bevy_picking=warn,bevy_app=info,bevy_ecs::system::system=error,calloop=error"
                     .to_string(),
                 ..default()
             }),

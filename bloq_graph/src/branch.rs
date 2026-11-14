@@ -231,10 +231,10 @@ fn pipe_sort_key(pipe: &Pipe) -> ([i32; 3], [i32; 3], bool) {
     (low.to_array(), high.to_array(), pipe.is_hadamard())
 }
 
-/// One temporal pipe crossing from the unconditional prefix into an arm.
+/// One pipe crossing between an arm and its surroundings.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BranchCut {
-    /// Endpoint owned by the unconditional prefix.
+    /// Endpoint outside the arm.
     pub past: IVec3,
     /// Endpoint owned by the conditional arm.
     pub inside: IVec3,
@@ -596,7 +596,7 @@ fn validate_arm(
     materialize_arm(candidate, arm)?;
 
     let mut incoming = Vec::new();
-    let mut forward = HashMap::<IVec3, Vec<IVec3>>::new();
+    let mut neighbors = HashMap::<IVec3, Vec<IVec3>>::new();
     for pipe in arm.pipes() {
         let (src, dst) = pipe.try_endpoints()?;
         let src_owner = candidate
@@ -617,17 +617,10 @@ fn validate_arm(
                 ));
             }
             (true, true) => {
-                if pipe.dir().is_spatial() || src.z == dst.z {
-                    forward.entry(src_owner).or_default().push(dst_owner);
-                    forward.entry(dst_owner).or_default().push(src_owner);
-                } else {
-                    let (past, future) = if src.z < dst.z {
-                        (src_owner, dst_owner)
-                    } else {
-                        (dst_owner, src_owner)
-                    };
-                    forward.entry(past).or_default().push(future);
-                }
+                // An arm-local preparation can feed a surgery on a shared
+                // wire. Connectivity here is independent of execution order.
+                neighbors.entry(src_owner).or_default().push(dst_owner);
+                neighbors.entry(dst_owner).or_default().push(src_owner);
             }
             _ => {
                 let (past, inside) = if src_inside { (dst, src) } else { (src, dst) };
@@ -662,7 +655,7 @@ fn validate_arm(
         }
     }
     while let Some(block) = queue.pop_front() {
-        for &next in forward.get(&block).into_iter().flatten() {
+        for &next in neighbors.get(&block).into_iter().flatten() {
             if reached.insert(next) {
                 queue.push_back(next);
             }
@@ -671,7 +664,7 @@ fn validate_arm(
     if let Some(unreachable) = members.iter().find(|position| !reached.contains(position)) {
         return Err(invalid_interface(
             name,
-            format!("block {unreachable} is not reachable from an incoming cut"),
+            format!("block {unreachable} is disconnected from the arm's external interface"),
         ));
     }
 
@@ -689,6 +682,7 @@ struct BranchArmValidation {
     candidate: BlockGraph,
     shared: Vec<Pipe>,
     shared_at: HashMap<IVec3, Vec<usize>>,
+    arm_blocks: HashSet<IVec3>,
 }
 
 impl BranchArmValidation {
@@ -703,10 +697,17 @@ impl BranchArmValidation {
         let mut candidate = source.clone();
         candidate.branches.clear();
         candidate.clear_actions();
+        let arm_blocks = source
+            .branches
+            .iter()
+            .flat_map(|region| region.on_false().blocks().chain(region.on_true().blocks()))
+            .map(Block::pos)
+            .collect();
         Self {
             candidate,
             shared,
             shared_at,
+            arm_blocks,
         }
     }
 
@@ -749,20 +750,60 @@ impl BranchArmValidation {
         let on_false = self.with_seams(region.on_false())?;
         let on_false = validate_arm(&mut self.candidate, &region.name, &on_false)?;
         let on_true = self.with_seams(region.on_true())?;
-        let on_true = validate_arm(&mut self.candidate, &region.name, &on_true)?;
-        if !on_false
+        let mut on_true = validate_arm(&mut self.candidate, &region.name, &on_true)?;
+        let required_false = on_false
             .incoming
             .iter()
+            .filter(|cut| !self.optional_surgery_cut(cut, region.on_false(), region.on_true()));
+        let mut required_true = on_true
+            .incoming
+            .iter()
+            .filter(|cut| !self.optional_surgery_cut(cut, region.on_true(), region.on_false()))
+            .peekable();
+        let Some(&anchor) = required_true.peek() else {
+            return Err(invalid_interface(
+                &region.name,
+                "an arm has no common external interface",
+            ));
+        };
+        if !required_false
             .map(cut_interface)
-            .eq(on_true.incoming.iter().map(cut_interface))
+            .eq(required_true.map(cut_interface))
         {
             return Err(invalid_interface(
                 &region.name,
                 "false and true arms have different external interfaces",
             ));
         }
+        if on_true.incoming.first() != Some(anchor) {
+            // Optional couplings must not set the branch's anchor.
+            on_true.target = region
+                .on_true()
+                .blocks()
+                .find(|block| {
+                    block
+                        .connectable_offsets()
+                        .iter()
+                        .any(|offset| block.pos() + *offset == anchor.inside)
+                })
+                .expect("validated cut has an arm endpoint")
+                .pos();
+        }
         materialize_arm(&mut self.candidate, &restore)?;
         Ok((on_false, on_true))
+    }
+
+    fn optional_surgery_cut(&self, cut: &BranchCut, arm: &BranchArm, other: &BranchArm) -> bool {
+        let key = pipe_key(&cut.pipe);
+        cut.pipe.dir().is_spatial()
+            && self
+                .candidate
+                .get_endpoint_block(cut.past)
+                .is_some_and(|block| {
+                    block.kind().is_cube() && !self.arm_blocks.contains(&block.pos())
+                })
+            && arm.pipes().any(|pipe| pipe_key(pipe) == key)
+            && !other.pipes().any(|pipe| pipe_key(pipe) == key)
     }
 }
 

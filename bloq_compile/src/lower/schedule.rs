@@ -1042,6 +1042,15 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
         .iter()
         .map(|footprint| conditional_footprint(&bloq[footprint.id]))
         .collect::<Vec<_>>();
+    let spatial_ports = footprints
+        .iter()
+        .map(|footprint| {
+            matches!(
+                bloq[footprint.id].provenance,
+                bloq_ir::NodeProvenance::SpatialPortSubstitution { .. }
+            )
+        })
+        .collect::<Vec<_>>();
     let geometric_pair = |lower_slot: u32, upper_slot: u32| {
         let (lower_slot, upper_slot) = (lower_slot as usize, upper_slot as usize);
         let (lower, upper) = (&footprints[lower_slot], &footprints[upper_slot]);
@@ -1086,9 +1095,17 @@ pub(super) fn induce_occupancy_order_edges(bloq: &mut Bloq) -> Result<(), crate:
                 }
             }
         }
-        !needs_boundary_check
-            && geometric_pair(lower, upper)
-            && !worldline_continues(lower as usize, users, user_slots, Dir::Outgoing)
+        if needs_boundary_check || !geometric_pair(lower, upper) {
+            return false;
+        }
+        // Consecutive surgeries can reuse a feed patch while a neighboring
+        // patch continues through both. Shared node occupancy alone cannot
+        // tell which patch has a live connection across that boundary.
+        if spatial_ports[lower as usize] || spatial_ports[upper as usize] {
+            boundary_checks.push((lower, upper, span));
+            return false;
+        }
+        !worldline_continues(lower as usize, users, user_slots, Dir::Outgoing)
             && !worldline_continues(upper as usize, users, user_slots, Dir::Incoming)
     });
     let mut live_supports = LiveSupportCache::default();

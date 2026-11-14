@@ -37,6 +37,10 @@ Here we show the construction of some compilable surface code computations.
 <a class="bloq-gallery-card" href="toffoli_from_and_delayed_cz.html" aria-label="Toffoli from AND" data-categories="non_clifford"><img src="../_static/gallery/toffoli_from_and_delayed_cz.png" alt="Toffoli from AND block graph" width="128" height="104" loading="lazy"><span>Toffoli from AND</span></a>
 <a class="bloq-gallery-card" href="ccz_4x3x7_tels.html" aria-label="CCZ factory with TELS" data-categories="factory non_clifford"><img src="../_static/gallery/ccz_4x3x7_tels.png" alt="CCZ factory with TELS block graph" width="128" height="104" loading="lazy"><span>CCZ factory with TELS</span></a>
 <a class="bloq-gallery-card" href="ccz_4x3x6.html" aria-label="CCZ factory without TELS" data-categories="factory non_clifford"><img src="../_static/gallery/ccz_4x3x6.png" alt="CCZ factory without TELS block graph" width="128" height="104" loading="lazy"><span>CCZ factory without TELS</span></a>
+<a class="bloq-gallery-card" href="ccz_2x3x16.html" aria-label="Serial CCZ factory" data-categories="factory non_clifford external_resource"><img src="../_static/gallery/ccz_2x3x16.png" alt="Serial CCZ factory block graph" width="128" height="104" loading="lazy"><span>Serial CCZ factory</span></a>
+<a class="bloq-gallery-card" href="ccz_4x2x12.html" aria-label="CCZ factory with a selective parity check" data-categories="factory non_clifford external_resource"><img src="../_static/gallery/ccz_4x2x12.png" alt="CCZ factory with a selective parity check block graph" width="128" height="104" loading="lazy"><span>CCZ factory with a selective parity check</span></a>
+<a class="bloq-gallery-card" href="perfect_3x3x13.html" aria-label="Ten-to-two factory, 3×3" data-categories="factory non_clifford"><img src="../_static/gallery/perfect_3x3x13.png" alt="Ten-to-two factory, 3×3 block graph" width="128" height="104" loading="lazy"><span>Ten-to-two factory, 3×3</span></a>
+<a class="bloq-gallery-card" href="perfect_2x3x28.html" aria-label="Ten-to-two factory, 2×3" data-categories="factory non_clifford"><img src="../_static/gallery/perfect_2x3x28.png" alt="Ten-to-two factory, 2×3 block graph" width="128" height="104" loading="lazy"><span>Ten-to-two factory, 2×3</span></a>
 <a class="bloq-gallery-card" href="ccz_gate_teleport.html" aria-label="CCZ gate teleportation" data-categories="external_resource non_clifford"><img src="../_static/gallery/ccz_gate_teleport.png" alt="CCZ gate teleportation block graph" width="128" height="104" loading="lazy"><span>CCZ gate teleportation</span></a>
 <a class="bloq-gallery-card" href="bell_state.html" aria-label="Bell state" data-categories="clifford"><img src="../_static/gallery/bell_state.png" alt="Bell state block graph" width="128" height="104" loading="lazy"><span>Bell state</span></a>
 <a class="bloq-gallery-card" href="ghz.html" aria-label="GHZ state" data-categories="clifford"><img src="../_static/gallery/ghz.png" alt="GHZ state block graph" width="128" height="104" loading="lazy"><span>GHZ state</span></a>
@@ -75,6 +79,10 @@ ten_bit_adder
 toffoli_from_and_delayed_cz
 ccz_4x3x7_tels
 ccz_4x3x6
+ccz_2x3x16
+ccz_4x2x12
+perfect_3x3x13
+perfect_2x3x28
 ccz_gate_teleport
 bell_state
 ghz

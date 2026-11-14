@@ -82,10 +82,10 @@ wait for its corrected selector before the measurement can execute.
 
 For a **structural branch**, the target is its name, such as `correction`.
 True selects the `true` geometry and false selects the `false` geometry.
-The arms occupy a bounded spacetime region with matching external connections.
-Only the selected arm executes. It reconnects to the shared continuation if
-the region has one. Both arms remain in the source. Supported arms cannot
-contain nested branches, Ports, T resources, or selective caps.
+The arms share an external interface, and only the selected arm executes.
+Each arm component must connect to that interface. An arm may prepare an
+ancilla and add a spatial surgery pipe to a shared cube. Arms cannot contain
+nested branches, Ports, T resources, or selective caps.
 
 ### Pauli feedback
 
