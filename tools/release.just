@@ -1,6 +1,6 @@
 [group('production')]
 release: pre-release
-    cargo build --release
+    cargo build --release --workspace
 
 # Preview only; release-plz writes CHANGELOG.md in the release PR.
 [group('production')]

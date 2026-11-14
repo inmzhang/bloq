@@ -15,6 +15,21 @@ members = [
   "bloq_py",
   "xtask",
 ]
+# Root commands without `-p` or `--workspace` skip the editor and Bevy.
+default-members = [
+  "bloq",
+  "bloq_cli",
+  "bloq_graph",
+  "bloq_utils",
+  "bloq_circuit",
+  "bloq_ir",
+  "bloq_compile",
+  "bloq_vm",
+  "bloq_stim",
+  "bloq_test",
+  "bloq_py",
+  "xtask",
+]
 
 [workspace.package]
 version = "0.2.1-dev"

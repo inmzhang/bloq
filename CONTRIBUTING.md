@@ -116,6 +116,11 @@ just doc-test     # Rust examples embedded from the README and guides
 just ci           # all native CI suites, including MSRV and Python docs
 ```
 
+Root Cargo commands without `-p` or `--workspace`, such as `cargo build` and
+`cargo test`, skip `bloq_editor` and Bevy. Pass `-p bloq_editor` or
+`--workspace` to include the editor. `just check`, `just lint`, and `just test`
+without a crate name already select the whole workspace.
+
 `ticit` is optimized in dev/test builds to keep physical execution checks fast.
 Debug assertions and integer overflow checks remain enabled.
 
