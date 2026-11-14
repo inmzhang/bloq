@@ -1,5 +1,133 @@
 # Changelog
 
+## [0.2.0] - 2026-11-14
+
+### Dependencies
+
+#### Changed
+
+- **BREAKING:** Migrate editor to Bevy 0.20 ([#11](https://github.com/inmzhang/bloq/pull/11)) ([a42f838](https://github.com/inmzhang/bloq/commit/a42f8387d4eff11491e38fc3cecaab617bb802cc))
+  Source builds require Rust 1.98.0, and public Rust
+  geometry types use glam 0.33. Documentation builds require Python
+  3.11 or newer; the Python package still supports Python 3.10.
+- Add update workflow and refresh dependencies ([#22](https://github.com/inmzhang/bloq/pull/22)) ([ab714a2](https://github.com/inmzhang/bloq/commit/ab714a21710efd9072c5d28c80d5b4191a823b99))
+- **BREAKING:** Update QuiZX, PyO3, Bevy, and routine dependencies ([#46](https://github.com/inmzhang/bloq/pull/46)) ([9034947](https://github.com/inmzhang/bloq/commit/9034947cf03436a9d3cd469e795fc28208c106e6))
+  `bloq_graph::verify::QuizxGraph` is now a QuiZX 0.4
+  graph whose scalar type is `quizx::scalar::Scalar4`; callers must use
+  QuiZX 0.4 APIs with it.
+- Refresh compatible dependencies before v0.2.0 ([#57](https://github.com/inmzhang/bloq/pull/57)) ([dd11dd2](https://github.com/inmzhang/bloq/commit/dd11dd252b0033c837b1c55d1ef5336a0b978597))
+
+### Documentation
+
+#### Changed
+
+- Require concrete AI model attribution ([#10](https://github.com/inmzhang/bloq/pull/10)) ([c612adb](https://github.com/inmzhang/bloq/commit/c612adb1fc9166ca3419190a0af08138f35bdb53))
+- Reserve changelog updates for release-plz ([#14](https://github.com/inmzhang/bloq/pull/14)) ([092615d](https://github.com/inmzhang/bloq/commit/092615d50bf1147451b1b4d64b198fa93ad426a5))
+- Require runtime model attribution before publishing ([#21](https://github.com/inmzhang/bloq/pull/21)) ([20cee05](https://github.com/inmzhang/bloq/commit/20cee0546e0d855313da632dec29b496e88d8017))
+
+#### Fixed
+
+- Restore search with compatible Sphinx ([#35](https://github.com/inmzhang/bloq/pull/35)) ([423f45b](https://github.com/inmzhang/bloq/commit/423f45b69d176717355d4f2b86860887bccfd4e9))
+- Discover Rustdoc link targets from generated pages ([#36](https://github.com/inmzhang/bloq/pull/36)) ([733f1a8](https://github.com/inmzhang/bloq/commit/733f1a88aedcd2b3eea68fc0053c7981d7d60718))
+
+### Editor
+
+#### Added
+
+- Redesign interactions, live BLOG editing and recovery ([#54](https://github.com/inmzhang/bloq/pull/54)) ([393004d](https://github.com/inmzhang/bloq/commit/393004d219c5f59efd90a2d77d6a516f8b16ebad))
+
+#### Changed
+
+- Compare exact ZX tensors across the worker codec ([#47](https://github.com/inmzhang/bloq/pull/47)) ([8edf76d](https://github.com/inmzhang/bloq/commit/8edf76d7edbf3e683a46049a24a5d9bec248033e))
+
+#### Fixed
+
+- Prevent middle-click paste ([#8](https://github.com/inmzhang/bloq/pull/8)) ([aefd730](https://github.com/inmzhang/bloq/commit/aefd73018d298906c1e4c2ec5b7887f91461e573))
+- Restore WebGPU and refresh dependencies ([#17](https://github.com/inmzhang/bloq/pull/17)) ([bdaea0d](https://github.com/inmzhang/bloq/commit/bdaea0d5514d7ca97dca80002812b9d0f46be072))
+
+### General
+
+#### Changed
+
+- **BREAKING:** Remove Hotpath profiling ([#12](https://github.com/inmzhang/bloq/pull/12)) ([919b15b](https://github.com/inmzhang/bloq/commit/919b15b014209232ff55605117ad978c5131b204))
+  Remove the hotpath and hotpath-alloc Cargo features.
+  Use the existing perf or samply workflows for sampling profiles.
+
+### Rust API and compiler
+
+#### Added
+
+- **BREAKING:** Support reversed temporal ports and signed Bell outcomes ([#27](https://github.com/inmzhang/bloq/pull/27)) ([3593899](https://github.com/inmzhang/bloq/commit/3593899fae6574352d03ee306a6bcbc57e89486b))
+  InstanceProvenance includes IdealPortAdapter. Downstream
+  exhaustive matches must handle ideal temporal boundary instances.
+- Compose noiseless VM execution and output capture ([#29](https://github.com/inmzhang/bloq/pull/29)) ([8ad7f8b](https://github.com/inmzhang/bloq/commit/8ad7f8bf5701218c2768b10ab82afe96ab256e36))
+- Add compact Latte factories to the gallery ([#56](https://github.com/inmzhang/bloq/pull/56)) ([21886a0](https://github.com/inmzhang/bloq/commit/21886a0da680f7fef96e1dd3b887a11d0dd73a8f))
+
+#### Changed
+
+- **BREAKING:** Plan every correlation query and retire the flat stabilizer engine ([#31](https://github.com/inmzhang/bloq/pull/31)) ([11aad7c](https://github.com/inmzhang/bloq/commit/11aad7c5a852be6cbef7ad28eaa9664d8c0983e3))
+  BlockGraph::analyze_actions and analyze_actions_with_limits
+  return the analyzed graph instead of a (graph, StabilizerGenerators)
+  pair. BlockGraph::analyze_actions_with_projections, AnalyzedBranchProjections,
+  and InvalidActionError::{BranchDependentMeasurementSurface,
+  GuardedAnalysisRequired} are removed. Validation rejects named records
+  whose only correlation surface reaches a live output.
+- **BREAKING:** Remove feedback inference and trim internals ([#26](https://github.com/inmzhang/bloq/pull/26)) ([aaec756](https://github.com/inmzhang/bloq/commit/aaec756636fadc6b732058f4d3c0a584698fe763))
+  Remove infer_feedback, infer_feedback_with,
+  FeedbackOptions, FeedbackInferenceError, bloq_utils::qasm, and the QASM
+  parsing exports from bloq_graph::verify. Author Action::Feedback explicitly
+  and pass expected QuiZX graphs to LogicalVerifier or verify_logical.
+- Link planned surfaces to the public branch projection ([#33](https://github.com/inmzhang/bloq/pull/33)) ([394900a](https://github.com/inmzhang/bloq/commit/394900a62b800b994f4ee62a646d70e626d12aea))
+
+#### Fixed
+
+- Merge adjacent walking stages ([#19](https://github.com/inmzhang/bloq/pull/19)) ([be30ed8](https://github.com/inmzhang/bloq/commit/be30ed8d2714bf3cdb45994df04f63a5a955abb5))
+- Reject X/Z basis flips of multiplex Ports ([#30](https://github.com/inmzhang/bloq/pull/30)) ([1502648](https://github.com/inmzhang/bloq/commit/150264850227d0c1395129cbcdef5f98ee1808cb))
+- **BREAKING:** Read named merges before later unnamed merges ([#32](https://github.com/inmzhang/bloq/pull/32)) ([bdbbd66](https://github.com/inmzhang/bloq/commit/bdbbd66b98577e7f5e098cf7461a41edb6fc4441))
+  BlockGraph::analyze_actions and analyze_actions_with_limits
+  return the analyzed graph instead of a (graph, StabilizerGenerators)
+  pair. BlockGraph::analyze_actions_with_projections, AnalyzedBranchProjections,
+  and InvalidActionError::{BranchDependentMeasurementSurface,
+  GuardedAnalysisRequired} are removed. Validation rejects named records
+  whose only correlation surface reaches a live output.
+- **BREAKING:** Certify causal readouts and protect live patch state ([#28](https://github.com/inmzhang/bloq/pull/28)) ([31ebfd4](https://github.com/inmzhang/bloq/commit/31ebfd460165d30d9675abdc2410aafc23a0d5b6))
+  InstanceProvenance includes IdealPortAdapter. Downstream
+  exhaustive matches must handle ideal temporal boundary instances.
+- Preserve causal scheduling across guarded qubit lifetimes ([#37](https://github.com/inmzhang/bloq/pull/37)) ([4af85fc](https://github.com/inmzhang/bloq/commit/4af85fcdcfeaee931893b11d6dfa5fdffa198fdf))
+- **BREAKING:** Order T factories by qubit occupancy ([#43](https://github.com/inmzhang/bloq/pull/43)) ([770a536](https://github.com/inmzhang/bloq/commit/770a536975eff514e7e06c9363c8528428a9de94))
+  Qubit layout validation rejects a top-level region that shares
+  qubits with a node on its layer even when the two are ordered, and no longer
+  compares regions on different layers. `BloqNode::layer` reports a region's
+  earliest source layer instead of 0.
+- Compose memory-round seams as parallel layers ([#49](https://github.com/inmzhang/bloq/pull/49)) ([154c9fb](https://github.com/inmzhang/bloq/commit/154c9fb902fef1800304697d9545cd1f5e541f81))
+- Pad live seams during temporal Hadamard alignment ([#51](https://github.com/inmzhang/bloq/pull/51)) ([b9890a3](https://github.com/inmzhang/bloq/commit/b9890a36a6d1616b92bc5d7abc4b850ffdedf1de))
+- Annotate noise on aligned Stim moments ([#52](https://github.com/inmzhang/bloq/pull/52)) ([fe8fd09](https://github.com/inmzhang/bloq/commit/fe8fd09c5635e78a0102ae2da17811a7f8d47b03))
+
+#### Performance
+
+- Compact flow and detector buffers ([#23](https://github.com/inmzhang/bloq/pull/23)) ([efe9d71](https://github.com/inmzhang/bloq/commit/efe9d719cc45cde75da3817ce584e8e17d20b13e))
+- Scale module relations and readout compilation ([#25](https://github.com/inmzhang/bloq/pull/25)) ([90e40bb](https://github.com/inmzhang/bloq/commit/90e40bb7ecb4d88c6c2fde4979e660f71fff6cbc))
+- Reduce repeated correlation-surface planning ([#38](https://github.com/inmzhang/bloq/pull/38)) ([2e29921](https://github.com/inmzhang/bloq/commit/2e299218fb56ce48a9199e2e588eb2f6e1cb3632))
+- Use the native gauge basis for module programs ([#41](https://github.com/inmzhang/bloq/pull/41)) ([65acd5a](https://github.com/inmzhang/bloq/commit/65acd5a09c5854732ad05051bd7cc2741d3003d8))
+
+### Workflows and packaging
+
+#### Changed
+
+- Streamline checks and automate development bumps ([#5](https://github.com/inmzhang/bloq/pull/5)) ([80cdaa9](https://github.com/inmzhang/bloq/commit/80cdaa91edbd673a3a0c599e52c159718720df3e))
+
+#### Fixed
+
+- Publish development docs on main ([#7](https://github.com/inmzhang/bloq/pull/7)) ([e80f8e3](https://github.com/inmzhang/bloq/commit/e80f8e30086d3494d202c09cd15c094062f04dbb))
+- Include all commits in release notes ([#18](https://github.com/inmzhang/bloq/pull/18)) ([f7d3395](https://github.com/inmzhang/bloq/commit/f7d3395fe3e0255304ed8c611decff8e7ffce1c0))
+- Suppress approval deployment noise ([#39](https://github.com/inmzhang/bloq/pull/39)) ([35ae52e](https://github.com/inmzhang/bloq/commit/35ae52e14061fd33f74f09bf21e2bff019f305eb))
+- Validate release metadata and preserve curated notes ([#55](https://github.com/inmzhang/bloq/pull/55)) ([61e1689](https://github.com/inmzhang/bloq/commit/61e16897fb2fd08a8858014fca58d6e8f14fc725))
+
+#### Performance
+
+- Reduce repeated builds and batch website publication ([#20](https://github.com/inmzhang/bloq/pull/20)) ([7e776ad](https://github.com/inmzhang/bloq/commit/7e776ad006302eeb1e9cddf9ded83186515691b0))
+
+
 ## [0.1.1]
 
 - Remove the `bloq_lassynth` crate, the optional `bloq::synth` API, and the

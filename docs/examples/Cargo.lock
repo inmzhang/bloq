@@ -56,7 +56,7 @@ dependencies = [
 
 [[package]]
 name = "bloq"
-version = "0.1.2-dev"
+version = "0.1.1"
 dependencies = [
  "bloq_circuit",
  "bloq_compile",
@@ -80,7 +80,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_circuit"
-version = "0.1.2-dev"
+version = "0.1.1"
 dependencies = [
  "bloq_utils",
  "glam",
@@ -93,7 +93,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_compile"
-version = "0.1.2-dev"
+version = "0.1.1"
 dependencies = [
  "bloq_circuit",
  "bloq_graph",
@@ -110,7 +110,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_graph"
-version = "0.1.2-dev"
+version = "0.1.1"
 dependencies = [
  "ariadne",
  "bloq_utils",
@@ -126,7 +126,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_ir"
-version = "0.1.2-dev"
+version = "0.1.1"
 dependencies = [
  "bloq_circuit",
  "bloq_utils",
@@ -140,7 +140,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_stim"
-version = "0.1.2-dev"
+version = "0.1.1"
 dependencies = [
  "bloq_circuit",
  "bloq_ir",
@@ -154,7 +154,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_utils"
-version = "0.1.2-dev"
+version = "0.1.1"
 dependencies = [
  "binar",
  "glam",
@@ -166,7 +166,7 @@ dependencies = [
 
 [[package]]
 name = "bloq_vm"
-version = "0.1.2-dev"
+version = "0.1.1"
 dependencies = [
  "bloq_ir",
  "glam",
@@ -209,11 +209,11 @@ dependencies = [
 
 [[package]]
 name = "chumsky"
-version = "0.13.0"
+version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0d2bfadce76f963d776feff99db6dc33783829539258314776383b33e2a00f8"
+checksum = "ed246b3ad9e6e691121c0b2f802fce56917f509a513b50522b11f9c243f1d9c1"
 dependencies = [
- "hashbrown 0.15.5",
+ "hashbrown 0.16.1",
  "regex-automata",
  "serde",
  "unicode-ident",
@@ -319,6 +319,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
+name = "foldhash"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
+
+[[package]]
 name = "futures-core"
 version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -378,9 +384,18 @@ version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
 dependencies = [
+ "foldhash 0.1.5",
+]
+
+[[package]]
+name = "hashbrown"
+version = "0.16.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
+dependencies = [
  "allocator-api2",
  "equivalent",
- "foldhash",
+ "foldhash 0.2.0",
 ]
 
 [[package]]
