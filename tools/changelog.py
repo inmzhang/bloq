@@ -6,8 +6,9 @@ import re
 import subprocess
 from pathlib import Path
 
-TITLE = re.compile(r"(?:feat|fix|perf|refactor|docs|test|chore|ci|build|style|revert)(?:\([^\n)]+\))?!?: .+")
-STACK = re.compile(r"^\s*[*-] (?:feat|fix|perf|refactor|docs|test|chore|ci|build|style|revert)(?:\([^\n)]+\))?!?: ", re.MULTILINE)
+PREFIX = r"(?:feat|fix|perf|refactor|docs|test|chore|ci|build|style|revert)(?:\([^\n)]+\))?!?: "
+TITLE = re.compile(PREFIX + r".+")
+STACK = re.compile(r"^\s*[*-] " + PREFIX, re.MULTILINE)
 BREAKING = re.compile(r"^BREAKING[ -]CHANGE:([^\n]*)", re.MULTILINE)
 
 
@@ -15,11 +16,12 @@ def validate(message: str) -> None:
     title = message.partition("\n")[0]
     if not TITLE.fullmatch(title):
         raise ValueError("use a Conventional Commit title, e.g. fix(editor): preserve selection")
-    if STACK.search(message) or len(BREAKING.findall(message)) > 1:
+    breaking = BREAKING.findall(message)
+    if STACK.search(message) or len(breaking) > 1:
         raise ValueError("write one PR summary, not a copied commit stack; consolidate breaking changes into one footer")
-    if any(not detail.strip() for detail in BREAKING.findall(message)):
+    if any(not detail.strip() for detail in breaking):
         raise ValueError("provide migration guidance after BREAKING CHANGE:")
-    if re.search(r"!:", title) and not BREAKING.search(message):
+    if re.search(r"!:", title) and not breaking:
         raise ValueError("describe the migration in a BREAKING CHANGE: footer")
 
 

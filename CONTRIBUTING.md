@@ -23,16 +23,12 @@ area, including dependency-only fixes such as `fix(editor): ...`. Unscoped
 commits remain visible under General. See [changelog generation](docs/releasing.md#changelog).
 `just changelog` previews generated notes without writing the file.
 
-Before squash-merging, replace GitHub's generated commit list with one summary
-of this PR only. Consolidate all migration guidance into one `BREAKING CHANGE:`
-footer, retaining the `Assisted-by:` trailers. Do not copy an ancestor PR's
-commit stack. Review the final squash message, not just the PR title/body.
-The required **Release metadata** check validates the PR title/body, including edits.
-The main-push check validates the actual new first-parent merge messages. Release
-preparation and publication check all prospective commits in the pending release.
-These checks reject copied commit stacks, duplicate breaking footers, and breaking
-titles without migration guidance. They do not re-lint historical commits or prove
-that the prose accurately describes the diff. Review the generated release notes too.
+Before squash-merging, review the final message, which defaults to the PR title
+and description. Summarize this PR only, without copied commit stacks; consolidate
+migration guidance into one `BREAKING CHANGE:` footer and retain `Assisted-by:`
+trailers. The required **Release metadata** check validates structure, not factual
+accuracy. Review the diff and generated notes too; see
+[release safeguards](docs/releasing.md#changelog) for enforcement and curation.
 
 ## Issues and pull requests
 
