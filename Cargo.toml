@@ -15,7 +15,8 @@ members = [
   "bloq_py",
   "xtask",
 ]
-# Root commands without `-p` or `--workspace` skip the editor and Bevy.
+# Root commands without `-p` or `--workspace` skip the editor (Bevy), the
+# Python bindings (libpython) and xtask. Recipes select those with `-p`.
 default-members = [
   "bloq",
   "bloq_cli",
@@ -27,8 +28,6 @@ default-members = [
   "bloq_vm",
   "bloq_stim",
   "bloq_test",
-  "bloq_py",
-  "xtask",
 ]
 
 [workspace.package]
