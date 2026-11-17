@@ -2731,17 +2731,17 @@ trailers. The required <strong>Release metadata</strong> check validates structu
 accuracy. Review the diff and generated notes too; see
 <a class="reference internal" href="../releasing.html#changelog"><span class="std std-ref">release safeguards</span></a> for enforcement and curation.</p>
 <h2 id="issues-and-pull-requests">Issues and pull requests<a class="headerlink" href="#issues-and-pull-requests" title="Link to this heading">¶</a></h2>
-<p>Use the <a class="reference external" href="https://github.com/inmzhang/bloq/blob/80e31da7ec15d64c0ccc3fea645798fc84f025d2/.github/ISSUE_TEMPLATE/bug_report.md">bug report</a>,
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/80e31da7ec15d64c0ccc3fea645798fc84f025d2/.github/ISSUE_TEMPLATE/feature_request.md">feature request</a>, or
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/80e31da7ec15d64c0ccc3fea645798fc84f025d2/.github/ISSUE_TEMPLATE/question.md">question</a> template when opening an issue.
-Pull requests use the <a class="reference external" href="https://github.com/inmzhang/bloq/blob/80e31da7ec15d64c0ccc3fea645798fc84f025d2/.github/pull_request_template.md">PR template</a>; describe
+<p>Use the <a class="reference external" href="https://github.com/inmzhang/bloq/blob/22b689cdc1786c5d6e3df88c50ee144557a8e5db/.github/ISSUE_TEMPLATE/bug_report.md">bug report</a>,
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/22b689cdc1786c5d6e3df88c50ee144557a8e5db/.github/ISSUE_TEMPLATE/feature_request.md">feature request</a>, or
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/22b689cdc1786c5d6e3df88c50ee144557a8e5db/.github/ISSUE_TEMPLATE/question.md">question</a> template when opening an issue.
+Pull requests use the <a class="reference external" href="https://github.com/inmzhang/bloq/blob/22b689cdc1786c5d6e3df88c50ee144557a8e5db/.github/pull_request_template.md">PR template</a>; describe
 the change and record the checks you ran. These templates are adapted from
 <a class="reference external" href="https://github.com/tqec/tqec/tree/main/.github/ISSUE_TEMPLATE">TQEC’s issue templates</a>
 and <a class="reference external" href="https://github.com/tqec/tqec/blob/main/.github/pull_request_template.md">PR template</a>.</p>
 <h2 id="contributor-agreement">Contributor agreement<a class="headerlink" href="#contributor-agreement" title="Link to this heading">¶</a></h2>
 <p>By submitting an issue or pull request, you confirm that you created the
 contribution or have the right to submit it, and license it under this project’s
-<a class="reference external" href="https://github.com/inmzhang/bloq/blob/80e31da7ec15d64c0ccc3fea645798fc84f025d2/LICENSE">Apache-2.0 license</a>. Check the contributor agreement in the template.</p>
+<a class="reference external" href="https://github.com/inmzhang/bloq/blob/22b689cdc1786c5d6e3df88c50ee144557a8e5db/LICENSE">Apache-2.0 license</a>. Check the contributor agreement in the template.</p>
 <h2 id="ai-assisted-contributions">AI-assisted contributions<a class="headerlink" href="#ai-assisted-contributions" title="Link to this heading">¶</a></h2>
 <p>AI-assisted contributions are welcome. Review all generated code, documentation,
 issue text, and pull request text before submitting. You remain responsible for
@@ -2796,8 +2796,15 @@ just<span class="w"> </span>doc-test<span class="w">     </span><span class="c1"
 just<span class="w"> </span>ci<span class="w">           </span><span class="c1"># all native CI suites, including MSRV and Python docs</span>
 </code></pre></div>
 </div>
+<p>Root Cargo commands without <code class="docutils literal notranslate"><span class="pre">-p</span></code> or <code class="docutils literal notranslate"><span class="pre">--workspace</span></code>, such as <code class="docutils literal notranslate"><span class="pre">cargo</span> <span class="pre">build</span></code> and
+<code class="docutils literal notranslate"><span class="pre">cargo</span> <span class="pre">test</span></code>, skip <code class="docutils literal notranslate"><span class="pre">bloq_editor</span></code> (Bevy), <code class="docutils literal notranslate"><span class="pre">bloq_py</span></code> (libpython), and <code class="docutils literal notranslate"><span class="pre">xtask</span></code>.
+Pass <code class="docutils literal notranslate"><span class="pre">-p</span> <span class="pre">&lt;crate&gt;</span></code> or <code class="docutils literal notranslate"><span class="pre">--workspace</span></code> to include them. <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">check</span></code>, <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">lint</span></code>,
+and <code class="docutils literal notranslate"><span class="pre">just</span> <span class="pre">test</span></code> without a crate name already select the whole workspace.</p>
 <p><code class="docutils literal notranslate"><span class="pre">ticit</span></code> is optimized in dev/test builds to keep physical execution checks fast.
-Debug assertions and integer overflow checks remain enabled.</p>
+Debug assertions and integer overflow checks remain enabled. Dev/test builds
+keep only line-table debug information, as in CI; set
+<code class="docutils literal notranslate"><span class="pre">CARGO_PROFILE_DEV_DEBUG=full</span></code> for one command when a debugger needs variable
+values.</p>
 <p>PRs run quick checks automatically. Maintainers approve the full checks selected
 for the changed files; the required <code class="docutils literal notranslate"><span class="pre">CI</span></code> status passes when those checks succeed.
 Manual CI runs check every suite. For website publication, see
