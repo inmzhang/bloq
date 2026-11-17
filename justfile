@@ -46,7 +46,7 @@ clean:
 # show test coverage (requires https://lib.rs/crates/cargo-llvm-cov)
 [group('development')]
 coverage:
-    PYTHONHOME="$(python3 -c 'import sys; print(sys.base_prefix)')" cargo llvm-cov nextest --open
+    PYTHONHOME="$(python3 -c 'import sys; print(sys.base_prefix)')" cargo llvm-cov nextest --workspace --open
 
 # show dependencies of this project
 [group('development')]
@@ -134,12 +134,12 @@ lint crate="":
 
 [group('development')]
 lint-autocorrect crate="":
-    cargo clippy --fix {{ if crate != "" { "-p " + crate } else { "" } }} --all-targets --all-features --tests --allow-dirty "$@"
+    cargo clippy --fix {{ if crate != "" { "-p " + crate } else { "--workspace" } }} --all-targets --all-features --tests --allow-dirty "$@"
 
 # detect undefined behavior with miri (requires https://github.com/rust-lang/miri)
 [group('security')]
 miri:
-    cargo +nightly miri test
+    cargo +nightly miri test --workspace
 
 # check, full test matrix, lint, miri
 [group('development')]

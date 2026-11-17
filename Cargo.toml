@@ -15,6 +15,20 @@ members = [
   "bloq_py",
   "xtask",
 ]
+# Root commands without `-p` or `--workspace` skip the editor (Bevy), the
+# Python bindings (libpython) and xtask. Recipes select those with `-p`.
+default-members = [
+  "bloq",
+  "bloq_cli",
+  "bloq_graph",
+  "bloq_utils",
+  "bloq_circuit",
+  "bloq_ir",
+  "bloq_compile",
+  "bloq_vm",
+  "bloq_stim",
+  "bloq_test",
+]
 
 [workspace.package]
 version = "0.2.1-dev"
@@ -116,6 +130,11 @@ too_long_first_doc_paragraph = "warn"
 unnecessary_wraps = "warn"
 unwrap_used = "warn"
 upper_case_acronyms = "allow"
+
+# Match CI and keep local targets small; the test profile inherits this.
+# Set CARGO_PROFILE_DEV_DEBUG=full for a debugger session.
+[profile.dev]
+debug = "line-tables-only"
 
 [profile.dev.package]
 insta.opt-level = 3
