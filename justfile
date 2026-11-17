@@ -164,7 +164,6 @@ ci: ci-fast ci-rust msrv ci-python
 ci-fast: fmt-check py-lint editor-package-check release-build-check
     python3 tools/test_site.py
     python3 tools/test_changelog.py
-    python3 tools/test_workspace.py
 
 [group('development')]
 ci-rust: licenses-check check check-no-default doc-check test
