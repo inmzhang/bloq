@@ -167,15 +167,15 @@ def compiled_stages(case: Example, distance: int):
                  for n in body.deterministic_emit_order() if body.node(n).quantum is not None]
         assert len(plans) == 2
         cultivation, escape = plans
-        # Compiled boundaries: injection13, syndrome10, certification14.
-        assert tick_count(cultivation.circuit) + 1 == 37
+        # Compiled boundaries: injection 11, syndrome 10, certification 14.
+        assert tick_count(cultivation.circuit) + 1 == 35
         assert repeat_depth(escape.circuit) == 6
         assert tick_count(escape.circuit) == 45
         offset = tick_count(cultivation.circuit) + 1
         assert circuit.num_ticks == offset + tick_count(escape.circuit) + 1
-        stages = [stage("Injection (Clifford proxy)", 0, 13),
-                  stage("Steane syndrome extraction", 13, 23),
-                  stage("Certification (Clifford proxy)", 23, offset)]
+        stages = [stage("Injection (Clifford proxy)", 0, 11),
+                  stage("Steane syndrome extraction", 11, 21),
+                  stage("Certification (Clifford proxy)", 21, offset)]
         stages += [stage(f"Escape merge round {i+1} (d = 5)", offset + 7*i, offset + 7*(i+1)) for i in range(3)]
         stages += [stage(f"Growth (d = 5 → {distance})" if distance > 5 else "Patch recovery (d = 5)", offset + 21, offset + 27),
                    stage(f"Stabilization (d = {distance})", offset + 27, offset + 33, 3, "Three unchanged surface code rounds")]
