@@ -49,23 +49,10 @@ pub(crate) type MscQubit = (i32, i32);
 // ==========================================================================
 
 /// Steane data qubits in msc-ls coordinates, indexed 0..=6 (STE:12) — the
-/// final positions after the cultivation syndrome round, and the positions
-/// the escape merge consumes.
+/// positions produced by injection and consumed by the escape merge.
 pub(crate) const STEANE_FINAL: [MscQubit; 7] = [
     (3, 13),
     (1, 15),
-    (6, 12),
-    (5, 15),
-    (2, 12),
-    (3, 15),
-    (2, 10),
-];
-
-/// Positions right after injection: qubit 1 sits at (0, 14) until the
-/// syndrome round moves it to its final home (STE:20).
-pub(crate) const STEANE_INJECTED: [MscQubit; 7] = [
-    (3, 13),
-    (0, 14),
     (6, 12),
     (5, 15),
     (2, 12),

@@ -1,19 +1,12 @@
 //! Steane-code stage library: the cultivation half of a T block.
 //!
-//! Ports the three msc-ls cultivation stages as data-driven chunks (Port-block
-//! precedent — hand-written circuit + flows, no round machinery):
+//! The three cultivation stages are data-driven chunks:
 //!
-//! 1. [`injection_chunk`] — 13-tick unitary (non-FT) encoding of the magic
-//!    state into the d=3 Steane code (`injection_generator`, STE:495). The
-//!    tick-8 seed is the **true non-Clifford `T`**, reversing msc-ls's
-//!    `S_DAG` stand-in orientation to match bloq's positive logical-Z
-//!    convention. Clifford-only consumers substitute it via
-//!    [`GateType::clifford_proxy`] (`T -> S`); the editor program view and
-//!    simulator see the real gate.
-//! 2. [`syndrome_round_chunk`] — one superdense ZX syndrome round
-//!    (`zx_syndrome_extraction_after_injection_generator`, STE:708; the
-//!    variant the msc-ls surgery pipeline composes, LSCG:373). All 8
-//!    measurements are post-selected → restart parities.
+//! 1. [`injection_chunk`] encodes a physical `T` state into the distance-three
+//!    Steane code with the nine-layer CX encoder from Liao et al. Clifford
+//!    consumers use [`GateType::clifford_proxy`] (`T -> S`).
+//! 2. [`syndrome_round_chunk`] performs the msc-ls superdense ZX syndrome
+//!    round (`zx_syndrome_extraction_after_injection_generator`, STE:708).
 //! 3. [`check_chunk`] — the transversal Hadamard-test check certifying the T
 //!    state (`check_generator`, STE:828): the true non-Clifford `T … T_DAG`
 //!    conjugation sandwich, whose `S … S_DAG` proxy is the complex conjugate
@@ -64,84 +57,63 @@ use bloq_circuit::{
 use bloq_graph::Pauli;
 use glam::IVec2;
 
-use super::{FACES, MscQubit, STEANE_FINAL, STEANE_INJECTED, SurgeryLayout};
+use super::{FACES, MscQubit, STEANE_FINAL, SurgeryLayout};
 use crate::CompileError;
 use crate::block::LoweringTemplate;
 use crate::block::gateway::ObservableGateway;
 
-/// The magic-state injection stage (STE:495): 13 ticks, no measurements.
-/// Flows: one restart-flagged creator per Steane stabilizer at the
-/// post-injection positions.
+/// Prepare the positive-frame magic state, then encode it in the Steane patch.
 pub(crate) fn injection_chunk(layout: &SurgeryLayout) -> Result<Chunk, CompileError> {
-    let mut b = StageBuilder::new(layout);
-    // msc-ls resets each qubit mid-sweep, right before its first CX — mixing
-    // reset and two-qubit ticks. Every such qubit idles from circuit start to
-    // its reset, so hoisting all resets into the opening tick is
-    // circuit-equivalent and keeps each tick to a single op kind.
-    b.gate(
-        GateType::RX,
+    // Adapted from Liao et al., arXiv:2611.22035 Fig. S2(c) and
+    // https://doi.org/10.5281/zenodo.24098457 (encoder_layers, CC BY 4.0).
+    // The encoder returns its routing ancillas to |0⟩ and lands every data
+    // qubit at its final site, including qubit 1 on the escape boundary.
+    const ENCODER_TICKS: [&[(MscQubit, MscQubit)]; 9] = [
+        &[((4, 14), (3, 13))],
+        &[((3, 13), (2, 12)), ((4, 14), (5, 15))],
+        &[((3, 13), (4, 12)), ((5, 15), (4, 14))],
+        &[((3, 15), (4, 14)), ((3, 13), (2, 14)), ((5, 13), (4, 12))],
+        &[((2, 14), (3, 13)), ((4, 12), (3, 11)), ((5, 13), (4, 14))],
         &[
-            (5, 13),
+            ((3, 11), (4, 12)),
+            ((3, 15), (2, 14)),
+            ((4, 14), (3, 13)),
+            ((5, 13), (6, 12)),
+        ],
+        &[
+            ((3, 11), (2, 10)),
+            ((2, 14), (1, 15)),
+            ((3, 13), (4, 14)),
+            ((6, 12), (5, 13)),
+        ],
+        &[((2, 10), (3, 11)), ((1, 15), (2, 14)), ((2, 12), (3, 13))],
+        &[((3, 13), (2, 12))],
+    ];
+
+    let mut b = StageBuilder::new(layout);
+    let seed = STEANE_FINAL[3];
+    b.gate(GateType::RX, &[seed, (5, 13), (3, 15), (4, 14)])?;
+    b.gate(
+        GateType::RZ,
+        &[
             (3, 13),
-            (3, 15),
-            (1, 13),
+            (1, 15),
             (6, 12),
-            (3, 11),
-            (5, 15),
             (2, 12),
             (2, 10),
-            (0, 14),
+            (2, 14),
+            (3, 11),
+            (4, 12),
         ],
     )?;
-    b.gate(GateType::RZ, &[(4, 12), (4, 14), (2, 14)])?;
     b.tick();
-    b.cx(&[((5, 13), (4, 12)), ((3, 13), (4, 14)), ((3, 15), (2, 14))])?;
-    b.tick();
-    b.cx(&[((5, 13), (4, 14)), ((3, 13), (2, 14))])?;
-    b.tick();
-    b.cx(&[
-        ((3, 13), (4, 12)),
-        ((3, 15), (4, 14)),
-        ((1, 13), (2, 14)),
-        ((6, 12), (5, 13)),
-    ])?;
-    b.tick();
-    b.cx(&[
-        ((3, 11), (4, 12)),
-        ((5, 15), (4, 14)),
-        ((2, 12), (1, 13)),
-        ((5, 13), (6, 12)),
-    ])?;
-    b.tick();
-    b.cx(&[((2, 12), (3, 11)), ((4, 14), (5, 15)), ((2, 14), (1, 13))])?;
-    b.tick();
-    b.cx(&[((4, 12), (3, 11)), ((1, 13), (2, 12))])?;
-    b.tick();
-    b.cx(&[((3, 11), (2, 12))])?;
-    b.tick();
-    // The seed of the magic state: the true non-Clifford `T` (bloq keeps the
-    // real gate and lets the Clifford proxy substitute it for Clifford-only
-    // consumers — see module docs). DELIBERATE DEVIATION from msc-ls (whose
-    // stand-in is `S_DAG`, i.e. a `T_DAG` seed): msc-ls's implicit logical
-    // frame is `Z_L = −Z₁Z₃Z₅` / `Y_L = Y₁Y₄Y₆`, in which its `T_DAG` seed IS
-    // logical T; bloq's frame is the all-positive `Z̄ = +Z₁Z₃Z₅` /
-    // `Ȳ = iX̄Z̄ = −Y₁Y₄Y₆` (the escape gateway's strings), where the seed
-    // transports as `C₂ Z_v C₂† = +Z₁Z₄Z₆ ≡ +Z̄` (CX-only, sign-free), so a
-    // `T` seed is the positive-frame logical T̄ and the delivered state is
-    // exactly `|T̄⟩ = T̄|+̄⟩` — eliminating the output-frame conversion
-    // constant. The check sandwich below flips with it, keeping seed and
-    // certification consistent.
-    b.gate(GateType::T, &[(2, 12)])?;
-    b.tick();
-    b.cx(&[((3, 11), (2, 12))])?;
-    b.tick();
-    b.cx(&[((1, 13), (2, 12))])?;
-    b.tick();
-    b.cx(&[((2, 10), (3, 11)), ((0, 14), (1, 13))])?;
-    b.tick();
-    b.cx(&[((3, 11), (2, 10)), ((1, 13), (0, 14))])?;
+    b.gate(GateType::T, &[seed])?;
+    for tick in ENCODER_TICKS {
+        b.tick();
+        b.cx(tick)?;
+    }
 
-    let mut flows: Vec<Flow> = stabilizer_supports(layout, &STEANE_INJECTED)
+    let mut flows: Vec<Flow> = stabilizer_supports(layout, &STEANE_FINAL)
         .map(|support| restart_flow(PauliMap::empty(), support, &[], &[]))
         .collect();
     // The logical anchor (see [`transversal_y`]): injection seeds the magic
@@ -149,7 +121,7 @@ pub(crate) fn injection_chunk(layout: &SurgeryLayout) -> Result<Chunk, CompileEr
     flows.push(
         restart_flow(
             PauliMap::empty(),
-            transversal_y(layout, &STEANE_INJECTED),
+            transversal_y(layout, &STEANE_FINAL),
             &[],
             &[],
         )
@@ -161,8 +133,8 @@ pub(crate) fn injection_chunk(layout: &SurgeryLayout) -> Result<Chunk, CompileEr
     })
 }
 
-/// One superdense ZX syndrome round after injection (STE:708). Moves qubit 1
-/// to its final home and qubit 2 out and back.
+/// One superdense ZX syndrome round after injection (STE:708). Uses a
+/// temporary copy of qubit 1 and moves qubit 2 out and back.
 ///
 /// Deviates from msc-ls: qubit 2's vacated home is *not* re-initialized
 /// mid-round. The move-back `CX((6,12),(5,11)); CX((5,11),(6,12))` is then not
@@ -175,9 +147,8 @@ pub(crate) fn syndrome_round_chunk(layout: &SurgeryLayout) -> Result<Chunk, Comp
     // Measurements, in emission order:
     // `[MX(1,13), MZ(2,14), MZ(0,14), MX(4,14), MZ(5,13), MX(3,11), MZ(4,12), MX(5,11)]`.
     // Consumers close the injection creators into restart parities. Measurement
-    // 2 is the qubit-1 move byproduct, deterministic on its own; measurement 7
-    // is the qubit-2 one and is not (module docs above), so it folds into the
-    // 0235 X face it shuttled through.
+    // 2 checks that qubit 1's copy uncomputes. The qubit-2 readout (7) is random
+    // on its own, so it folds into the 0235 X face it shuttled through.
     const CONSUMER_RECS: [&[u32]; 6] = [&[0], &[1], &[3, 7], &[4], &[5], &[6]];
     // Correlation of each re-created stabilizer with the round's outcomes (the
     // mid-round qubit moves entangle faces, hence the cross-face Z sets). The
@@ -187,14 +158,16 @@ pub(crate) fn syndrome_round_chunk(layout: &SurgeryLayout) -> Result<Chunk, Comp
 
     let mut b = StageBuilder::new(layout);
     b.gate(GateType::RX, &[(1, 13)])?;
-    b.gate(GateType::RZ, &[(2, 14), (1, 15)])?;
+    b.gate(GateType::RZ, &[(2, 14), (0, 14)])?;
     b.gate(GateType::RX, &[(4, 14)])?;
     b.gate(GateType::RZ, &[(5, 13)])?;
     b.gate(GateType::RX, &[(3, 11)])?;
     b.gate(GateType::RZ, &[(4, 12), (5, 11)])?;
     b.tick();
     b.cx(&[
-        ((0, 14), (1, 15)),
+        // Copy from qubit 1's final site so the rest of the round can
+        // use the original couplings and readout.
+        ((1, 15), (0, 14)),
         ((1, 13), (2, 14)),
         ((4, 14), (5, 13)),
         ((3, 11), (4, 12)),
@@ -265,18 +238,16 @@ pub(crate) fn syndrome_round_chunk(layout: &SurgeryLayout) -> Result<Chunk, Comp
     ];
 
     let mut flows = Vec::with_capacity(14);
-    let supports_in = stabilizer_supports(layout, &STEANE_INJECTED);
-    let supports_out = stabilizer_supports(layout, &STEANE_FINAL);
-    for (index, (support_in, support_out)) in supports_in.zip(supports_out).enumerate() {
+    for (index, support) in stabilizer_supports(layout, &STEANE_FINAL).enumerate() {
         flows.push(restart_flow(
-            support_in,
+            support.clone(),
             PauliMap::empty(),
             CONSUMER_RECS[index],
             &measurements,
         ));
         flows.push(restart_flow(
             PauliMap::empty(),
-            support_out,
+            support,
             CREATOR_RECS[index],
             &measurements,
         ));
@@ -294,7 +265,7 @@ pub(crate) fn syndrome_round_chunk(layout: &SurgeryLayout) -> Result<Chunk, Comp
     // the re-init: the shuttle readout is individually random, but its
     // randomness *is* the anchor's byproduct.
     flows.push(restart_flow(
-        transversal_y(layout, &STEANE_INJECTED),
+        transversal_y(layout, &STEANE_FINAL),
         transversal_y(layout, &STEANE_FINAL),
         &[1, 4, 7],
         &measurements,
@@ -483,8 +454,7 @@ pub(crate) fn cultivation_template(
     LoweringTemplate::from_chunks(chunks, ObservableGateway::new())
 }
 
-/// Transliterates one msc-ls tick sequence, mapping every msc-ls coordinate
-/// through the variant layout.
+/// Emits authored moments with coordinates mapped through the variant layout.
 struct StageBuilder<'a> {
     layout: &'a SurgeryLayout,
     circuit: CoordCircuit,
