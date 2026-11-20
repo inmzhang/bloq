@@ -145,79 +145,68 @@
 <a href=#145 id=145 data-nosnippet>145</a>
 <a href=#146 id=146 data-nosnippet>146</a>    <span class="doccomment">/// Returns `true` for the non-Clifford [`T`](GateType::T)-family gates.
 <a href=#147 id=147 data-nosnippet>147</a>    </span><span class="kw">pub const fn </span>is_non_clifford(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-<a href=#148 id=148 data-nosnippet>148</a>        <span class="macro">matches!</span>(
-<a href=#149 id=149 data-nosnippet>149</a>            <span class="self">self</span>,
-<a href=#150 id=150 data-nosnippet>150</a>            GateType::T_YZ
-<a href=#151 id=151 data-nosnippet>151</a>                | GateType::T_YZ_DAG
-<a href=#152 id=152 data-nosnippet>152</a>                | GateType::T_XZ
-<a href=#153 id=153 data-nosnippet>153</a>                | GateType::T_XZ_DAG
-<a href=#154 id=154 data-nosnippet>154</a>                | GateType::T
-<a href=#155 id=155 data-nosnippet>155</a>                | GateType::T_DAG
-<a href=#156 id=156 data-nosnippet>156</a>        )
-<a href=#157 id=157 data-nosnippet>157</a>    }
-<a href=#158 id=158 data-nosnippet>158</a>
-<a href=#159 id=159 data-nosnippet>159</a>    <span class="doccomment">/// Returns `true` for the two-qubit unitary (controlled) gates.
-<a href=#160 id=160 data-nosnippet>160</a>    </span><span class="kw">pub const fn </span>is_two_qubit_gate(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-<a href=#161 id=161 data-nosnippet>161</a>        <span class="macro">matches!</span>(
-<a href=#162 id=162 data-nosnippet>162</a>            <span class="self">self</span>,
-<a href=#163 id=163 data-nosnippet>163</a>            GateType::XCX
-<a href=#164 id=164 data-nosnippet>164</a>                | GateType::XCY
-<a href=#165 id=165 data-nosnippet>165</a>                | GateType::XCZ
-<a href=#166 id=166 data-nosnippet>166</a>                | GateType::YCX
-<a href=#167 id=167 data-nosnippet>167</a>                | GateType::YCY
-<a href=#168 id=168 data-nosnippet>168</a>                | GateType::YCZ
-<a href=#169 id=169 data-nosnippet>169</a>                | GateType::CX
-<a href=#170 id=170 data-nosnippet>170</a>                | GateType::CY
-<a href=#171 id=171 data-nosnippet>171</a>                | GateType::CZ
-<a href=#172 id=172 data-nosnippet>172</a>        )
-<a href=#173 id=173 data-nosnippet>173</a>    }
-<a href=#174 id=174 data-nosnippet>174</a>
-<a href=#175 id=175 data-nosnippet>175</a>    <span class="doccomment">/// Maps a non-Clifford gate to the Clifford that shares its axis and sign,
-<a href=#176 id=176 data-nosnippet>176</a>    /// so stabilizer-flow analysis can treat a [`T`](GateType::T) gate as its
-<a href=#177 id=177 data-nosnippet>177</a>    /// [`S`](GateType::S) proxy.
-<a href=#178 id=178 data-nosnippet>178</a>    /// Clifford gates map to themselves.
-<a href=#179 id=179 data-nosnippet>179</a>    </span><span class="kw">pub const fn </span>clifford_proxy(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; GateType {
-<a href=#180 id=180 data-nosnippet>180</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#181 id=181 data-nosnippet>181</a>            GateType::T =&gt; GateType::S,
-<a href=#182 id=182 data-nosnippet>182</a>            GateType::T_DAG =&gt; GateType::S_DAG,
-<a href=#183 id=183 data-nosnippet>183</a>            GateType::T_YZ =&gt; GateType::SQRT_X,
-<a href=#184 id=184 data-nosnippet>184</a>            GateType::T_YZ_DAG =&gt; GateType::SQRT_X_DAG,
-<a href=#185 id=185 data-nosnippet>185</a>            GateType::T_XZ =&gt; GateType::SQRT_Y,
-<a href=#186 id=186 data-nosnippet>186</a>            GateType::T_XZ_DAG =&gt; GateType::SQRT_Y_DAG,
-<a href=#187 id=187 data-nosnippet>187</a>            <span class="kw">_ </span>=&gt; <span class="kw-2">*</span><span class="self">self</span>,
-<a href=#188 id=188 data-nosnippet>188</a>        }
-<a href=#189 id=189 data-nosnippet>189</a>    }
-<a href=#190 id=190 data-nosnippet>190</a>
-<a href=#191 id=191 data-nosnippet>191</a>    <span class="doccomment">/// For two-qubit gates in the `ACB` naming convention, returns the (control,
-<a href=#192 id=192 data-nosnippet>192</a>    /// target) Pauli bases — `CX` (= `ZCX`) is Z-control, X-target. `None` for
-<a href=#193 id=193 data-nosnippet>193</a>    /// non-two-qubit gates.
-<a href=#194 id=194 data-nosnippet>194</a>    </span><span class="kw">pub const fn </span>two_qubit_bases(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;(PauliBasis, PauliBasis)&gt; {
-<a href=#195 id=195 data-nosnippet>195</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#196 id=196 data-nosnippet>196</a>            GateType::CX =&gt; <span class="prelude-val">Some</span>((PauliBasis::Z, PauliBasis::X)),
-<a href=#197 id=197 data-nosnippet>197</a>            GateType::CY =&gt; <span class="prelude-val">Some</span>((PauliBasis::Z, PauliBasis::Y)),
-<a href=#198 id=198 data-nosnippet>198</a>            GateType::CZ =&gt; <span class="prelude-val">Some</span>((PauliBasis::Z, PauliBasis::Z)),
-<a href=#199 id=199 data-nosnippet>199</a>            GateType::XCX =&gt; <span class="prelude-val">Some</span>((PauliBasis::X, PauliBasis::X)),
-<a href=#200 id=200 data-nosnippet>200</a>            GateType::XCY =&gt; <span class="prelude-val">Some</span>((PauliBasis::X, PauliBasis::Y)),
-<a href=#201 id=201 data-nosnippet>201</a>            GateType::XCZ =&gt; <span class="prelude-val">Some</span>((PauliBasis::X, PauliBasis::Z)),
-<a href=#202 id=202 data-nosnippet>202</a>            GateType::YCX =&gt; <span class="prelude-val">Some</span>((PauliBasis::Y, PauliBasis::X)),
-<a href=#203 id=203 data-nosnippet>203</a>            GateType::YCY =&gt; <span class="prelude-val">Some</span>((PauliBasis::Y, PauliBasis::Y)),
-<a href=#204 id=204 data-nosnippet>204</a>            GateType::YCZ =&gt; <span class="prelude-val">Some</span>((PauliBasis::Y, PauliBasis::Z)),
-<a href=#205 id=205 data-nosnippet>205</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-<a href=#206 id=206 data-nosnippet>206</a>        }
-<a href=#207 id=207 data-nosnippet>207</a>    }
-<a href=#208 id=208 data-nosnippet>208</a>}
-<a href=#209 id=209 data-nosnippet>209</a>
-<a href=#210 id=210 data-nosnippet>210</a><span class="attr">#[cfg(test)]
-<a href=#211 id=211 data-nosnippet>211</a></span><span class="kw">mod </span>tests {
-<a href=#212 id=212 data-nosnippet>212</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#213 id=213 data-nosnippet>213</a>
-<a href=#214 id=214 data-nosnippet>214</a>    <span class="attr">#[test]
-<a href=#215 id=215 data-nosnippet>215</a>    </span><span class="kw">fn </span>canonical_mnemonics_match_display_and_parse() {
-<a href=#216 id=216 data-nosnippet>216</a>        <span class="kw">for </span>gate <span class="kw">in </span>GateType::iter() {
-<a href=#217 id=217 data-nosnippet>217</a>            <span class="kw">let </span>mnemonic: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str = gate.into();
-<a href=#218 id=218 data-nosnippet>218</a>            <span class="macro">assert_eq!</span>(mnemonic, gate.to_string());
-<a href=#219 id=219 data-nosnippet>219</a>            <span class="macro">assert_eq!</span>(mnemonic.parse::&lt;GateType&gt;().unwrap(), gate);
-<a href=#220 id=220 data-nosnippet>220</a>        }
-<a href=#221 id=221 data-nosnippet>221</a>    }
-<a href=#222 id=222 data-nosnippet>222</a>}
+<a href=#148 id=148 data-nosnippet>148</a>        <span class="self">self</span>.non_clifford_proxy().is_some()
+<a href=#149 id=149 data-nosnippet>149</a>    }
+<a href=#150 id=150 data-nosnippet>150</a>
+<a href=#151 id=151 data-nosnippet>151</a>    <span class="doccomment">/// Returns `true` for the two-qubit unitary (controlled) gates.
+<a href=#152 id=152 data-nosnippet>152</a>    </span><span class="kw">pub const fn </span>is_two_qubit_gate(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+<a href=#153 id=153 data-nosnippet>153</a>        <span class="self">self</span>.two_qubit_bases().is_some()
+<a href=#154 id=154 data-nosnippet>154</a>    }
+<a href=#155 id=155 data-nosnippet>155</a>
+<a href=#156 id=156 data-nosnippet>156</a>    <span class="doccomment">/// Maps a non-Clifford gate to the Clifford that shares its axis and sign,
+<a href=#157 id=157 data-nosnippet>157</a>    /// so stabilizer-flow analysis can treat a [`T`](GateType::T) gate as its
+<a href=#158 id=158 data-nosnippet>158</a>    /// [`S`](GateType::S) proxy.
+<a href=#159 id=159 data-nosnippet>159</a>    /// Clifford gates map to themselves.
+<a href=#160 id=160 data-nosnippet>160</a>    </span><span class="kw">pub const fn </span>clifford_proxy(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; GateType {
+<a href=#161 id=161 data-nosnippet>161</a>        <span class="kw">match </span><span class="self">self</span>.non_clifford_proxy() {
+<a href=#162 id=162 data-nosnippet>162</a>            <span class="prelude-val">Some</span>(proxy) =&gt; proxy,
+<a href=#163 id=163 data-nosnippet>163</a>            <span class="prelude-val">None </span>=&gt; <span class="kw-2">*</span><span class="self">self</span>,
+<a href=#164 id=164 data-nosnippet>164</a>        }
+<a href=#165 id=165 data-nosnippet>165</a>    }
+<a href=#166 id=166 data-nosnippet>166</a>
+<a href=#167 id=167 data-nosnippet>167</a>    <span class="kw">const fn </span>non_clifford_proxy(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;GateType&gt; {
+<a href=#168 id=168 data-nosnippet>168</a>        <span class="kw">let </span>proxy = <span class="kw">match </span><span class="self">self </span>{
+<a href=#169 id=169 data-nosnippet>169</a>            GateType::T =&gt; GateType::S,
+<a href=#170 id=170 data-nosnippet>170</a>            GateType::T_DAG =&gt; GateType::S_DAG,
+<a href=#171 id=171 data-nosnippet>171</a>            GateType::T_YZ =&gt; GateType::SQRT_X,
+<a href=#172 id=172 data-nosnippet>172</a>            GateType::T_YZ_DAG =&gt; GateType::SQRT_X_DAG,
+<a href=#173 id=173 data-nosnippet>173</a>            GateType::T_XZ =&gt; GateType::SQRT_Y,
+<a href=#174 id=174 data-nosnippet>174</a>            GateType::T_XZ_DAG =&gt; GateType::SQRT_Y_DAG,
+<a href=#175 id=175 data-nosnippet>175</a>            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
+<a href=#176 id=176 data-nosnippet>176</a>        };
+<a href=#177 id=177 data-nosnippet>177</a>        <span class="prelude-val">Some</span>(proxy)
+<a href=#178 id=178 data-nosnippet>178</a>    }
+<a href=#179 id=179 data-nosnippet>179</a>
+<a href=#180 id=180 data-nosnippet>180</a>    <span class="doccomment">/// For two-qubit gates in the `ACB` naming convention, returns the (control,
+<a href=#181 id=181 data-nosnippet>181</a>    /// target) Pauli bases — `CX` (= `ZCX`) is Z-control, X-target. `None` for
+<a href=#182 id=182 data-nosnippet>182</a>    /// non-two-qubit gates.
+<a href=#183 id=183 data-nosnippet>183</a>    </span><span class="kw">pub const fn </span>two_qubit_bases(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;(PauliBasis, PauliBasis)&gt; {
+<a href=#184 id=184 data-nosnippet>184</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#185 id=185 data-nosnippet>185</a>            GateType::CX =&gt; <span class="prelude-val">Some</span>((PauliBasis::Z, PauliBasis::X)),
+<a href=#186 id=186 data-nosnippet>186</a>            GateType::CY =&gt; <span class="prelude-val">Some</span>((PauliBasis::Z, PauliBasis::Y)),
+<a href=#187 id=187 data-nosnippet>187</a>            GateType::CZ =&gt; <span class="prelude-val">Some</span>((PauliBasis::Z, PauliBasis::Z)),
+<a href=#188 id=188 data-nosnippet>188</a>            GateType::XCX =&gt; <span class="prelude-val">Some</span>((PauliBasis::X, PauliBasis::X)),
+<a href=#189 id=189 data-nosnippet>189</a>            GateType::XCY =&gt; <span class="prelude-val">Some</span>((PauliBasis::X, PauliBasis::Y)),
+<a href=#190 id=190 data-nosnippet>190</a>            GateType::XCZ =&gt; <span class="prelude-val">Some</span>((PauliBasis::X, PauliBasis::Z)),
+<a href=#191 id=191 data-nosnippet>191</a>            GateType::YCX =&gt; <span class="prelude-val">Some</span>((PauliBasis::Y, PauliBasis::X)),
+<a href=#192 id=192 data-nosnippet>192</a>            GateType::YCY =&gt; <span class="prelude-val">Some</span>((PauliBasis::Y, PauliBasis::Y)),
+<a href=#193 id=193 data-nosnippet>193</a>            GateType::YCZ =&gt; <span class="prelude-val">Some</span>((PauliBasis::Y, PauliBasis::Z)),
+<a href=#194 id=194 data-nosnippet>194</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+<a href=#195 id=195 data-nosnippet>195</a>        }
+<a href=#196 id=196 data-nosnippet>196</a>    }
+<a href=#197 id=197 data-nosnippet>197</a>}
+<a href=#198 id=198 data-nosnippet>198</a>
+<a href=#199 id=199 data-nosnippet>199</a><span class="attr">#[cfg(test)]
+<a href=#200 id=200 data-nosnippet>200</a></span><span class="kw">mod </span>tests {
+<a href=#201 id=201 data-nosnippet>201</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#202 id=202 data-nosnippet>202</a>
+<a href=#203 id=203 data-nosnippet>203</a>    <span class="attr">#[test]
+<a href=#204 id=204 data-nosnippet>204</a>    </span><span class="kw">fn </span>canonical_mnemonics_match_display_and_parse() {
+<a href=#205 id=205 data-nosnippet>205</a>        <span class="kw">for </span>gate <span class="kw">in </span>GateType::iter() {
+<a href=#206 id=206 data-nosnippet>206</a>            <span class="kw">let </span>mnemonic: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str = gate.into();
+<a href=#207 id=207 data-nosnippet>207</a>            <span class="macro">assert_eq!</span>(mnemonic, gate.to_string());
+<a href=#208 id=208 data-nosnippet>208</a>            <span class="macro">assert_eq!</span>(mnemonic.parse::&lt;GateType&gt;().unwrap(), gate);
+<a href=#209 id=209 data-nosnippet>209</a>        }
+<a href=#210 id=210 data-nosnippet>210</a>    }
+<a href=#211 id=211 data-nosnippet>211</a>}
 </code></pre></div></section></main></body></html>
