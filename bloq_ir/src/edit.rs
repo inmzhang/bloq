@@ -288,46 +288,10 @@ struct QuantumBoundaryRewrite {
     quantum: crate::QuantumNode,
 }
 
-/// Completed seam entries keyed by node position.
-#[derive(Debug, Default)]
-struct SeamComposition {
-    detectors: Vec<(usize, NodeDetector)>,
-    restarts: Vec<(usize, NodeRestart)>,
-}
-
-impl SeamComposition {
-    /// Separate the first node's entries from later nodes, retaining their order.
-    fn split_first(self) -> [(Vec<NodeDetector>, Vec<NodeRestart>); 2] {
-        let mut entries = [(Vec::new(), Vec::new()), (Vec::new(), Vec::new())];
-        for (position, detector) in self.detectors {
-            entries[usize::from(position != 0)].0.push(detector);
-        }
-        for (position, restart) in self.restarts {
-            entries[usize::from(position != 0)].1.push(restart);
-        }
-        entries
-    }
-
-    /// The entries owned by nodes strictly after `position`, dropping the
-    /// position key. A composed seam's upper node owns everything past the
-    /// lower node it was composed against, and no consumer needs the key for
-    /// anything but this bucketing.
-    fn after(self, position: usize) -> (Vec<NodeDetector>, Vec<NodeRestart>) {
-        let keep = |candidate: usize| candidate > position;
-        (
-            self.detectors
-                .into_iter()
-                .filter_map(|(at, detector)| keep(at).then_some(detector))
-                .collect(),
-            self.restarts
-                .into_iter()
-                .filter_map(|(at, restart)| keep(at).then_some(restart))
-                .collect(),
-        )
-    }
-}
+type SeamChecks = (Vec<NodeDetector>, Vec<NodeRestart>);
 
 /// Recompose a seam from persisted [`crate::BloqTemplate::boundary_flows`].
+/// Return the checks closed by the lower and upper nodes, respectively.
 ///
 /// Each node is one parallel layer, as in compile-time lowering: its instances
 /// consume the previous layer before any of them publishes an output, so
@@ -338,14 +302,14 @@ impl SeamComposition {
 /// resulting composition.
 fn compose_seam_detectors(
     templates: &BloqTemplatePool,
-    nodes: &[&[TemplateInstance]],
-) -> Result<SeamComposition, EditError> {
+    lower: &[TemplateInstance],
+    upper: &[TemplateInstance],
+) -> Result<[SeamChecks; 2], EditError> {
     let mut engine: FlowEngine<'_, DetectorTerm<InstanceMeasurement>> = FlowEngine::new();
-    let mut composition = SeamComposition::default();
-    for (position, instances) in nodes.iter().enumerate() {
+    let mut append_layer = |instances: &[TemplateInstance]| -> Result<SeamChecks, EditError> {
         let mut owners = Vec::with_capacity(instances.len());
         let mut parts = Vec::with_capacity(instances.len());
-        for instance in *instances {
+        for instance in instances {
             let template =
                 templates
                     .get(instance.template_id)
@@ -365,16 +329,10 @@ fn compose_seam_detectors(
                 })
             })
             .map_err(|source| EditError::SeamCompositionFailed { source })?;
-        let (detectors, restarts) = drain_composed_chains(&mut engine);
-        composition
-            .detectors
-            .extend(detectors.into_iter().map(|detector| (position, detector)));
-        composition
-            .restarts
-            .extend(restarts.into_iter().map(|restart| (position, restart)));
-    }
+        Ok(drain_composed_chains(&mut engine))
+    };
     // Open creators may close against nodes outside this partial seam.
-    Ok(composition)
+    Ok([append_layer(lower)?, append_layer(upper)?])
 }
 
 /// Find the stored multiset entries replaced by a recomposed seam.
@@ -968,12 +926,10 @@ impl Bloq {
         let lower_before: Vec<_> = sources.iter().flatten().copied().collect();
 
         // Recomposition catches Hadamard-aligned chains that parity alone cannot.
-        let original =
-            compose_seam_detectors(self.templates(), &[&lower_before, &upper_quantum.instances])?;
         let [
             (lower_detectors, lower_restarts),
             (original_detectors, original_restarts),
-        ] = original.split_first();
+        ] = compose_seam_detectors(self.templates(), &lower_before, &upper_quantum.instances)?;
         let touched = lower_before
             .iter()
             .map(|instance| instance.id)
@@ -1003,23 +959,21 @@ impl Bloq {
         let replacements = padding_replacements(&sources, &padding_instances)
             .ok_or(EditError::InvalidQuantumEdge { from, to })?;
 
-        let internal =
-            compose_seam_detectors(self.templates(), &[&lower_before, &padding_instances])?;
         let [
             (composed_lower_detectors, composed_lower_restarts),
             (mid_detectors, mid_restarts),
-        ] = internal.split_first();
+        ] = compose_seam_detectors(self.templates(), &lower_before, &padding_instances)?;
         if removal_mask(&lower_quantum.detectors, &composed_lower_detectors).is_none()
             || removal_mask(&lower_quantum.restarts, &composed_lower_restarts).is_none()
         {
             return Err(EditError::InvalidStoredSeam);
         }
 
-        let replacement = compose_seam_detectors(
+        let [_, (upper_detectors, upper_restarts)] = compose_seam_detectors(
             self.templates(),
-            &[&padding_instances, &upper_quantum.instances],
+            &padding_instances,
+            &upper_quantum.instances,
         )?;
-        let (upper_detectors, upper_restarts) = replacement.after(0);
 
         // Only the seam against `upper` has a counterpart to reproduce. The
         // `lower -> padding` seam is new, and its size is set by the padding's
@@ -1090,12 +1044,10 @@ impl Bloq {
         padding_replacements(&sources, &padding_instances)
             .ok_or(EditError::InvalidQuantumEdge { from, to })?;
 
-        let internal =
-            compose_seam_detectors(self.templates(), &[&source_before, &padding_instances])?;
         let [
             (source_detectors, source_restarts),
             (padding_detectors, padding_restarts),
-        ] = internal.split_first();
+        ] = compose_seam_detectors(self.templates(), &source_before, &padding_instances)?;
         let touched = source_before.iter().map(|instance| instance.id).collect();
         demote_touched_bundles(self, &mut source, &touched)?;
         if removal_mask(&source.detectors, &source_detectors).is_none()
@@ -1198,16 +1150,14 @@ impl Bloq {
         for choice in choices {
             let selected = node.select_quantum_members(|slot| choice.values.get(&slot).copied())?;
             let selected = selected.expect_quantum();
-            let original =
-                compose_seam_detectors(self.templates(), &[before, &selected.instances])?;
-            let (original_detectors, original_restarts) = original.after(0);
+            let [_, (original_detectors, original_restarts)] =
+                compose_seam_detectors(self.templates(), before, &selected.instances)?;
             let detector_remove = removal_mask(&selected.detectors, &original_detectors)
                 .ok_or(EditError::InvalidStoredSeam)?;
             let restart_remove = removal_mask(&selected.restarts, &original_restarts)
                 .ok_or(EditError::InvalidStoredSeam)?;
-            let replacement =
-                compose_seam_detectors(self.templates(), &[after, &selected.instances])?;
-            let (mut detectors, restarts) = replacement.after(0);
+            let [_, (mut detectors, restarts)] =
+                compose_seam_detectors(self.templates(), after, &selected.instances)?;
             if !seam_reproduced(&original_detectors, &detectors)
                 || restarts.len() != original_restarts.len()
             {
@@ -1404,12 +1354,10 @@ impl Bloq {
             .copied()
             .collect();
 
-        let internal =
-            compose_seam_detectors(self.templates(), &[&source_instances, &padding_instances])?;
         let [
             (source_composed_detectors, source_composed_restarts),
             (padding_detectors, padding_restarts),
-        ] = internal.split_first();
+        ] = compose_seam_detectors(self.templates(), &source_instances, &padding_instances)?;
         if removal_mask(&source_detectors, &source_composed_detectors).is_none()
             || removal_mask(&source_restarts, &source_composed_restarts).is_none()
         {
@@ -1813,9 +1761,10 @@ mod tests {
             TemplateInstance::new(TemplateInstanceId(1), consumer, IVec2::ZERO),
         ];
 
-        let composition = compose_seam_detectors(bloq.templates(), &[&node]).unwrap();
-        assert!(composition.detectors.is_empty());
-        assert!(composition.restarts.is_empty());
+        let [(detectors, restarts), _] =
+            compose_seam_detectors(bloq.templates(), &node, &[]).unwrap();
+        assert!(detectors.is_empty());
+        assert!(restarts.is_empty());
     }
 
     /// A flowless padding template with one top-level repeat.
@@ -1921,15 +1870,12 @@ graph {
                 .select_quantum_members(|slot| Some(if slot == 0 { value } else { !value }))
                 .unwrap();
             let selected = selected.expect_quantum();
-            let (expected, _) = compose_seam_detectors(
+            let [_, (expected, _)] = compose_seam_detectors(
                 bloq.templates(),
-                &[
-                    &bloq[padding].expect_quantum().instances,
-                    &selected.instances,
-                ],
+                &bloq[padding].expect_quantum().instances,
+                &selected.instances,
             )
-            .unwrap()
-            .after(0);
+            .unwrap();
             assert_eq!(selected.detectors, expected);
             assert!(
                 !selected.detectors[0]

@@ -8,7 +8,7 @@ use std::str::FromStr;
 use bloq_circuit::NoiseModel;
 use bloq_compile::{
     CLIFFORD_PROXY_SEED_METADATA_KEY, CODE_DISTANCE_METADATA_KEY, CONVENTION_METADATA_KEY,
-    CompileConfig, CompileContext, SharedCompileCache,
+    CompileArtifacts, CompileConfig, CompileContext, SharedCompileCache,
 };
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyfunction, gen_stub_pymethods};
@@ -18,10 +18,6 @@ use crate::errors;
 use crate::graph::PyBlockGraph;
 use crate::ir::PyBloq;
 use crate::primitives::PyBasis;
-
-fn compile_error(e: bloq_compile::CompileError) -> PyErr {
-    errors::CompileError::new_err(compile_error_message(&e))
-}
 
 pub(crate) const LIMIT_OVERRIDE_HELP: &str = "Retry with a larger count or None in the matching limits entry \
      (limits={\"FIELD\": count_or_None}); see https://bloqec.com/docs/dev/api/rust/bloq_graph/struct.ModuleCertificationLimits.html for fields.";
@@ -43,16 +39,20 @@ pub(crate) fn compile_error_message(error: &bloq_compile::CompileError) -> Strin
 /// `stacklevel` 1 attributes the warning to the caller's frame: an extension
 /// function pushes no Python frame of its own, so the innermost Python frame at
 /// this point is already the `bloq.compile(...)` call site.
-fn warn_compile(py: Python<'_>, warnings: &[&'static str]) -> PyResult<()> {
-    if warnings.is_empty() {
-        return Ok(());
+fn finish_compile(
+    py: Python<'_>,
+    result: Result<CompileArtifacts, bloq_compile::CompileError>,
+) -> PyResult<PyBloq> {
+    let artifacts =
+        result.map_err(|error| errors::CompileError::new_err(compile_error_message(&error)))?;
+    if !artifacts.warnings.is_empty() {
+        let category = py.get_type::<errors::CompileWarning>();
+        for message in artifacts.warnings {
+            let message = CString::new(message).map_err(errors::invalid_argument)?;
+            PyErr::warn(py, &category, &message, 1)?;
+        }
     }
-    let category = py.get_type::<errors::CompileWarning>();
-    for message in warnings {
-        let message = CString::new(*message).map_err(errors::invalid_argument)?;
-        PyErr::warn(py, &category, &message, 1)?;
-    }
-    Ok(())
+    Ok(artifacts.bloq.into())
 }
 
 /// Builds a validated [`CompileConfig`]. An out-of-range distance is a bad
@@ -184,17 +184,14 @@ impl PyCompileContext {
         // The compile touches no Python object: `graph` stays borrowed for the
         // whole call, so Python cannot mutate it meanwhile.
         let source = &graph.0;
-        let artifacts = py
-            .detach(move || {
-                if validate {
-                    self.context.compile_and_validate(source)
-                } else {
-                    self.context.compile(source)
-                }
-            })
-            .map_err(compile_error)?;
-        warn_compile(py, &artifacts.warnings)?;
-        Ok(PyBloq::from(artifacts.bloq))
+        let result = py.detach(move || {
+            if validate {
+                self.context.compile_and_validate(source)
+            } else {
+                self.context.compile(source)
+            }
+        });
+        finish_compile(py, result)
     }
 
     fn __repr__(&self) -> String {
@@ -353,11 +350,8 @@ fn compile_clifford_proxy(
     let config = resolve_config(distance, prepare_t_with_mpps, limits)?;
     // Release the GIL during compilation; distance sweeps call this in a loop.
     let source = &graph.0;
-    let artifacts = py
-        .detach(move || bloq_compile::compile_clifford_proxy(config, source, &pins))
-        .map_err(compile_error)?;
-    warn_compile(py, &artifacts.warnings)?;
-    Ok(PyBloq::from(artifacts.bloq))
+    let result = py.detach(move || bloq_compile::compile_clifford_proxy(config, source, &pins));
+    finish_compile(py, result)
 }
 
 /// Compiles one random static Clifford proxy path. Shared selective controls
@@ -385,11 +379,9 @@ fn compile_random_clifford_proxy(
     let config = resolve_config(distance, prepare_t_with_mpps, limits)?;
     let seed = seed.unwrap_or_else(rand::random);
     let source = &graph.0;
-    let artifacts = py
-        .detach(move || bloq_compile::compile_random_clifford_proxy(config, source, seed))
-        .map_err(compile_error)?;
-    warn_compile(py, &artifacts.warnings)?;
-    Ok(PyBloq::from(artifacts.bloq))
+    let result =
+        py.detach(move || bloq_compile::compile_random_clifford_proxy(config, source, seed));
+    finish_compile(py, result)
 }
 
 /// One node's chunk of a segmented Stim program.

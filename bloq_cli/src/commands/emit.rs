@@ -1,23 +1,9 @@
-use std::path::{Path, PathBuf};
-
 use color_eyre::eyre::{self, WrapErr};
 
-use crate::BuiltInBackend;
 use crate::terminal;
+use crate::{BuiltInBackend, EmitCmd};
 
 use super::atomic_write;
-
-#[derive(Debug)]
-pub(crate) struct EmitCommandOptions {
-    pub(crate) backend: BuiltInBackend,
-    pub(crate) output: Option<PathBuf>,
-    pub(crate) print: bool,
-    /// Run the full well-formedness check when `--validate` was requested.
-    pub(crate) validate: bool,
-    /// Align and merge Clifford circuit moments within each z layer.
-    pub(crate) align_moments: bool,
-    pub(crate) quiet: bool,
-}
 
 /// Emit a backend target from a saved Bloq IR program.
 ///
@@ -25,10 +11,11 @@ pub(crate) struct EmitCommandOptions {
 /// same targets in one step. Splitting the two lets a compiled program be
 /// stored once and re-emitted — and makes IR-to-IR codec conversion fall out
 /// for free.
-pub(crate) fn run(input: &Path, options: EmitCommandOptions) -> eyre::Result<()> {
+pub(crate) fn run(options: EmitCmd, quiet: bool) -> eyre::Result<()> {
     if options.align_moments && options.backend != BuiltInBackend::Stim {
         eyre::bail!("--align-moments requires --backend stim");
     }
+    let input = &options.input;
     let program = super::load_bloq_ir(input)?;
     let trust = if options.validate {
         bloq_stim::InputTrust::Checked
@@ -60,7 +47,7 @@ pub(crate) fn run(input: &Path, options: EmitCommandOptions) -> eyre::Result<()>
     super::reject_input_output_alias(input, &path)?;
     atomic_write(&path, emitted.bytes())
         .wrap_err_with(|| format!("write output file {}", path.display()))?;
-    if !options.quiet {
+    if !quiet {
         terminal::status(
             "Emitted",
             format!("{} -> {}", input.display(), path.display()),
@@ -76,17 +63,16 @@ mod tests {
 
     #[test]
     fn align_moments_rejects_ir_backend_before_loading() {
-        let options = EmitCommandOptions {
+        let options = EmitCmd {
+            input: "missing.bloq".into(),
             backend: BuiltInBackend::IrText,
             output: None,
             print: false,
             validate: true,
             align_moments: true,
-            quiet: true,
         };
 
-        let error = run(Path::new("missing.bloq"), options)
-            .expect_err("moment alignment only changes Stim emission");
+        let error = run(options, true).expect_err("moment alignment only changes Stim emission");
 
         assert!(error.to_string().contains("requires --backend stim"));
     }
@@ -97,18 +83,18 @@ mod tests {
         let input = dir.path().join("invalid.bloqir");
         std::fs::write(&input, "BLOQIR 1\ngraph {\n  n0 compute in0\n}\n")
             .expect("write structurally invalid IR");
-        let options = |validate| EmitCommandOptions {
+        let options = |validate| EmitCmd {
+            input: input.clone(),
             backend: BuiltInBackend::IrText,
             output: Some(dir.path().join("roundtrip.bloqir")),
             print: false,
             validate,
             align_moments: false,
-            quiet: true,
         };
 
-        run(&input, options(false)).expect("IR exchange does not run a full audit");
+        run(options(false), true).expect("IR exchange does not run a full audit");
         assert!(dir.path().join("roundtrip.bloqir").exists());
-        let error = run(&input, options(true)).expect_err("explicit audit rejects invalid IR");
+        let error = run(options(true), true).expect_err("explicit audit rejects invalid IR");
         assert!(format!("{error:?}").contains("WF-11"));
     }
 }

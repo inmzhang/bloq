@@ -43,7 +43,7 @@ mod web_compilation;
 
 #[cfg(test)]
 pub(crate) use compilation::compile_graph_for_viewer;
-use compilation::{CompiledDownload, build_detslice, save_compiled_downloads};
+use compilation::{CompiledDownload, build_detslice};
 
 /// Background jobs and their result polling. Owns the compile/validation UI
 /// state the jobs write back into.
@@ -80,7 +80,9 @@ pub(crate) struct EditorJobs {
     live_blog: Option<Task<LiveBlogJobResult>>,
     #[cfg(target_arch = "wasm32")]
     live_blog: Option<LiveBlogRequest>,
+    #[cfg(not(target_arch = "wasm32"))]
     compile: Option<Task<CompileJobResult>>,
+    #[cfg(not(target_arch = "wasm32"))]
     viewer_compile: Option<Task<ViewerCompileJobResult>>,
     #[cfg(not(target_arch = "wasm32"))]
     progress: Option<CompileProgress>,
@@ -104,9 +106,7 @@ impl EditorJobs {
             || self.import_blog_file.is_some()
             || self.parse_blog.is_some()
             || self.live_blog.is_some()
-            || self.compile.is_some()
-            || self.viewer_compile.is_some()
-            || self.web_compilation_running()
+            || self.compilation_running()
             || self.concurrent_ops.is_some()
             || self.detslice.is_some()
             || self.zx_simplification_running()
@@ -124,7 +124,14 @@ impl EditorJobs {
 
     /// Whether a download or viewer compile is running.
     pub(crate) fn compilation_running(&self) -> bool {
-        self.compile.is_some() || self.viewer_compile.is_some() || self.web_compilation_running()
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.compile.is_some() || self.viewer_compile.is_some()
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.web_compile.is_some()
+        }
     }
 
     pub(crate) fn compilation_owner(&self) -> Option<(EditorTabId, u64, bool)> {
@@ -202,14 +209,52 @@ impl EditorJobs {
         true
     }
 
-    fn web_compilation_running(&self) -> bool {
-        #[cfg(target_arch = "wasm32")]
-        {
-            self.web_compile.is_some()
+    #[cfg(not(target_arch = "wasm32"))]
+    fn poll_compilation(&mut self) -> (Option<CompileJobResult>, Option<ViewerCompileJobResult>) {
+        let download = poll_task(&mut self.compile);
+        let viewer = poll_task(&mut self.viewer_compile);
+        if download.is_some() || viewer.is_some() {
+            self.progress = None;
         }
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            false
+        (download, viewer)
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn poll_compilation(&mut self) -> (Option<CompileJobResult>, Option<ViewerCompileJobResult>) {
+        let Some(pending) = self.web_compile.as_mut() else {
+            return (None, None);
+        };
+        let Some(result) = pending.result.take() else {
+            // Let the download/view-building stage paint before doing its work.
+            pending.result = web_compilation::poll();
+            return (None, None);
+        };
+        let job = self.web_compile.take().expect("completed browser compile");
+        let result = result.map_err(eyre::Report::msg);
+        if job.viewer {
+            let viewer = ViewerCompileJobResult {
+                tab_id: job.tab_id,
+                revision: job.revision,
+                result: result.and_then(|result| {
+                    let config = compilation::config_from_request(&job.request)?;
+                    compilation::build_view_from_artifacts(
+                        &job.source,
+                        &job.request,
+                        result.bloq,
+                        config,
+                        result.compile_duration,
+                    )
+                }),
+            };
+            (None, Some(viewer))
+        } else {
+            let download = CompileJobResult {
+                tab_id: job.tab_id,
+                revision: job.revision,
+                result: result
+                    .and_then(|result| compilation::export_download(result.bloq, &job.request)),
+            };
+            (Some(download), None)
         }
     }
 
@@ -1146,14 +1191,10 @@ fn accept_compile_request(
         notifications.push_warn("Finish or cancel the captured branch arm first");
         return false;
     }
-    warn_spatial_hadamard_distance(&graph_state.graph, notifications);
-    true
-}
-
-fn warn_spatial_hadamard_distance(graph: &BlockGraph, notifications: &mut Notifications) {
-    if let Some(message) = spatial_hadamard_distance_warning(graph) {
+    if let Some(message) = spatial_hadamard_distance_warning(&graph_state.graph) {
         notifications.push_warn(message);
     }
+    true
 }
 
 pub(crate) fn request_concurrent_ops(
@@ -1520,7 +1561,7 @@ fn finalize_compile_result(
     }
 
     match done.result {
-        Ok(output) => match save_compiled_downloads(&output) {
+        Ok(output) => match crate::utils::save_download(&output.file_name, &output.contents) {
             Ok(Some(location)) => {
                 notifications.push_info(format!("Downloaded compiled output to {}", location));
                 compile_ui.mark_compile_succeeded("Downloaded 1 output file".to_string());
@@ -2045,11 +2086,8 @@ fn poll_editor_jobs_system(
         &mut circuit_viewer,
         &mut notifications,
     );
-    if let Some(done) = poll_task(&mut jobs.compile) {
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            jobs.progress = None;
-        }
+    let (download, viewer) = jobs.poll_compilation();
+    if let Some(done) = download {
         if done.tab_id != tabs.active {
             apply_compile_result_to_tab(&mut tabs, done, &mut notifications);
         } else {
@@ -2062,11 +2100,7 @@ fn poll_editor_jobs_system(
         }
     }
 
-    if let Some(done) = poll_task(&mut jobs.viewer_compile) {
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            jobs.progress = None;
-        }
+    if let Some(done) = viewer {
         if done.tab_id != tabs.active {
             apply_viewer_compile_result_to_tab(&mut tabs, done, &mut notifications);
         } else {
@@ -2077,67 +2111,6 @@ fn poll_editor_jobs_system(
                 &mut notifications,
             );
         }
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    if jobs
-        .web_compile
-        .as_ref()
-        .is_some_and(|job| job.result.is_some())
-    {
-        if let Some(mut job) = jobs.web_compile.take() {
-            let result = job.result.take().expect("checked worker result");
-            if job.viewer {
-                let view = result.map_err(eyre::Report::msg).and_then(|result| {
-                    let config = compilation::config_from_request(&job.request)?;
-                    compilation::build_view_from_artifacts(
-                        &job.source,
-                        &job.request,
-                        result.bloq,
-                        config,
-                        result.compile_duration,
-                    )
-                });
-                let done = ViewerCompileJobResult {
-                    tab_id: job.tab_id,
-                    revision: job.revision,
-                    result: view,
-                };
-                if done.tab_id != tabs.active {
-                    apply_viewer_compile_result_to_tab(&mut tabs, done, &mut notifications);
-                } else {
-                    finalize_viewer_compile_result(
-                        done,
-                        graph_state.revision,
-                        &mut circuit_viewer,
-                        &mut notifications,
-                    );
-                }
-            } else {
-                let output = result
-                    .map_err(eyre::Report::msg)
-                    .and_then(|result| compilation::export_download(result.bloq, &job.request));
-                let done = CompileJobResult {
-                    tab_id: job.tab_id,
-                    revision: job.revision,
-                    result: output,
-                };
-                if done.tab_id != tabs.active {
-                    apply_compile_result_to_tab(&mut tabs, done, &mut notifications);
-                } else {
-                    finalize_compile_result(
-                        done,
-                        graph_state.revision,
-                        &mut compile_ui,
-                        &mut notifications,
-                    );
-                }
-            }
-        }
-    } else if jobs.web_compile.is_some()
-        && let Some(result) = web_compilation::poll()
-    {
-        jobs.web_compile.as_mut().expect("checked web job").result = Some(result);
     }
 
     if let Some(done) = poll_task(&mut jobs.concurrent_ops) {
@@ -2539,7 +2512,7 @@ mod tests {
         apply_parse_blog_result_to_tab, apply_validation_outcome, decode_imported_blog_file,
         finalize_compile_result, parse_blog_for_editor, replace_graph_with_cleanup_and_selection,
         request_concurrent_ops, request_detslice, schedule_stabilizers_job,
-        validate_graph_for_editor, warn_spatial_hadamard_distance,
+        validate_graph_for_editor,
     };
     use crate::components::GraphElement;
     use crate::resources::{
@@ -2929,10 +2902,17 @@ mod tests {
         let tab = EditorTabId::new(1);
         let other_tab = EditorTabId::new(2);
         let progress = CompileProgress::new(tab, 7);
+        let (finish, wait) = std::sync::mpsc::channel();
         let mut jobs = EditorJobs {
             compile: Some(
-                AsyncComputeTaskPool::get_or_init(TaskPool::new)
-                    .spawn(async { std::future::pending::<CompileJobResult>().await }),
+                AsyncComputeTaskPool::get_or_init(TaskPool::new).spawn(async move {
+                    wait.recv().unwrap();
+                    CompileJobResult {
+                        tab_id: tab,
+                        revision: 7,
+                        result: Ok(CompiledDownload::empty()),
+                    }
+                }),
             ),
             progress: Some(progress.clone()),
             ..Default::default()
@@ -2944,9 +2924,25 @@ mod tests {
         );
         assert!(jobs.compilation_progress(other_tab, 7).is_none());
         assert!(jobs.compilation_progress(tab, 8).is_none());
-        jobs.compile = None;
-        jobs.progress = None;
+        let (download, viewer) = jobs.poll_compilation();
+        assert!(download.is_none() && viewer.is_none());
+        assert!(jobs.compilation_progress(tab, 7).is_some());
+
+        finish.send(()).unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            let (download, viewer) = jobs.poll_compilation();
+            assert!(viewer.is_none());
+            if let Some(download) = download {
+                assert_eq!(download.tab_id, tab);
+                assert_eq!(download.revision, 7);
+                break;
+            }
+            assert!(std::time::Instant::now() < deadline);
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
         assert!(jobs.compilation_progress(tab, 7).is_none());
+        assert!(!jobs.compilation_running());
     }
 
     #[test]
@@ -3090,8 +3086,16 @@ mod tests {
         graph.add_block(Block::new(glam::IVec3::X, BlockKind::Cube(CubeKind::XXZ)));
         graph.add_pipe(Pipe::new(glam::IVec3::ZERO, Direction::XPLUS).with_hadamard());
 
+        let graph_state = GraphState {
+            graph,
+            ..Default::default()
+        };
         let mut notifications = Notifications::default();
-        warn_spatial_hadamard_distance(&graph, &mut notifications);
+        assert!(super::accept_compile_request(
+            &EditorJobs::default(),
+            &graph_state,
+            &mut notifications,
+        ));
         assert_eq!(notifications.toasts.len(), 1);
         assert_eq!(notifications.toasts[0].level, ToastLevel::Warn);
         assert!(

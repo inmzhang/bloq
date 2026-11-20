@@ -60,7 +60,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use super::circuit::ShotRecord;
 use super::prepared::PreparedProgramCore;
-use super::{ExecError, MAX_PHYSICAL_BOUNDARY_BINDINGS};
+use super::{ExecError, count_boundary_binding_work};
 use crate::backend::{Pauli, PauliString, Simulator};
 use crate::verify::{FramePairReport, ObservableReport, VerifyReport, detector_report};
 
@@ -302,12 +302,7 @@ fn collect_bound_operators<'a>(
             continue;
         }
         if nested_recipe {
-            *expanded = expanded.saturating_add(1);
-            if *expanded > MAX_PHYSICAL_BOUNDARY_BINDINGS {
-                return Err(ExecError::BoundaryBindingExpansionLimit {
-                    limit: MAX_PHYSICAL_BOUNDARY_BINDINGS,
-                });
-            }
+            count_boundary_binding_work(expanded, 1)?;
         }
         if !active.insert(producer) {
             return Err(ExecError::MalformedGraph("cyclic binding recipe"));
@@ -315,23 +310,13 @@ fn collect_bound_operators<'a>(
         match bindings.get(&producer.0) {
             Some(BoundOperators::Owned(operators)) => {
                 if nested_recipe {
-                    *expanded = expanded.saturating_add(operators.len());
-                    if *expanded > MAX_PHYSICAL_BOUNDARY_BINDINGS {
-                        return Err(ExecError::BoundaryBindingExpansionLimit {
-                            limit: MAX_PHYSICAL_BOUNDARY_BINDINGS,
-                        });
-                    }
+                    count_boundary_binding_work(expanded, operators.len())?;
                 }
                 out.extend(operators);
                 active.remove(&producer);
             }
             Some(BoundOperators::Recipe(operators, children)) => {
-                *expanded = expanded.saturating_add(operators.len());
-                if *expanded > MAX_PHYSICAL_BOUNDARY_BINDINGS {
-                    return Err(ExecError::BoundaryBindingExpansionLimit {
-                        limit: MAX_PHYSICAL_BOUNDARY_BINDINGS,
-                    });
-                }
+                count_boundary_binding_work(expanded, operators.len())?;
                 out.extend(operators);
                 stack.push((producer, true, nested_recipe));
                 stack.extend(children.iter().rev().map(|child| (*child, false, true)));

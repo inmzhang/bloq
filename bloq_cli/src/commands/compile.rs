@@ -8,7 +8,7 @@ use clap::ValueEnum;
 use color_eyre::eyre::{self, WrapErr};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 
-use crate::{BuiltInBackend, terminal};
+use crate::{BuiltInBackend, CompileArgs, terminal};
 
 use super::{EmittedArtifact, atomic_write};
 
@@ -125,8 +125,8 @@ fn compile_error_report(error: bloq_compile::CompileError) -> eyre::Report {
 }
 
 #[derive(Debug)]
-pub(crate) struct CompileVariant {
-    pub(crate) fill_variant: Option<usize>,
+struct CompileVariant {
+    fill_variant: Option<usize>,
     source: BlockGraph,
 }
 
@@ -152,87 +152,40 @@ impl OutputDescriptor {
     }
 }
 
-#[derive(Debug)]
-pub(crate) struct CompileCommandOptions {
-    pub(crate) distances: Vec<u32>,
-    pub(crate) backend: BuiltInBackend,
-    pub(crate) print: bool,
-    pub(crate) prepare_t_with_mpps: bool,
-    pub(crate) limits: ModuleCertificationLimits,
-    pub(crate) align_moments: bool,
-    pub(crate) clifford_proxy: bool,
-    pub(crate) proxy_seed: Option<u64>,
-    pub(crate) auto_fill: bool,
-    pub(crate) fill: Option<usize>,
-    pub(crate) jobs: Option<NonZeroUsize>,
-    pub(crate) verbose: bool,
-    pub(crate) quiet: bool,
-}
-
 pub(crate) fn run(
     source: CompileSource,
-    output: Option<PathBuf>,
-    options: CompileCommandOptions,
+    options: CompileArgs,
+    verbose: bool,
+    quiet: bool,
 ) -> eyre::Result<()> {
+    let limits = resolve_limits(&options.limits);
     if options.align_moments && options.backend != BuiltInBackend::Stim {
         eyre::bail!("--align-moments requires --backend stim");
     }
     let started = std::time::Instant::now();
-    let quiet = options.quiet;
-    let progress = CompileProgress::new(!options.quiet);
+    let progress = CompileProgress::new(!quiet);
     let loading = progress.begin("input", "Loading source");
-    let graph = source.load_graph_with_limits(options.limits)?;
+    let graph = source.load_graph_with_limits(limits)?;
     drop(loading);
-    run_loaded(&source, &graph, output.as_deref(), options, &progress)?;
-    if !quiet {
-        terminal::status(
-            "Finished",
-            format!("compilation in {:.2}s", started.elapsed().as_secs_f64()),
-        );
-    }
-    Ok(())
-}
-
-fn run_loaded(
-    source: &CompileSource,
-    graph: &BlockGraph,
-    output: Option<&Path>,
-    options: CompileCommandOptions,
-    progress: &CompileProgress,
-) -> eyre::Result<()> {
-    let CompileCommandOptions {
-        distances,
-        backend,
-        print,
-        prepare_t_with_mpps,
-        limits,
-        align_moments,
-        clifford_proxy,
-        proxy_seed,
-        auto_fill,
-        fill,
-        jobs,
-        verbose,
-        quiet,
-    } = options;
-
-    let clifford_proxy_seed = clifford_proxy.then(|| proxy_seed.unwrap_or_else(random_proxy_seed));
+    let clifford_proxy_seed = options
+        .clifford_proxy
+        .then(|| options.proxy_seed.unwrap_or_else(random_proxy_seed));
     if !quiet && let Some(seed) = clifford_proxy_seed {
         terminal::note(format!("Clifford proxy seed: {seed}"));
     }
 
-    let variants = if auto_fill || fill.is_some() {
+    let variants = if options.auto_fill || options.fill.is_some() {
         let preparing = progress.begin("input", "Preparing fill variants");
         let flat = graph
             .flatten_with_limits(limits)
             .wrap_err("flatten source for port filling")?;
-        let variants = prepare_compile_variants(&flat, fill, limits)?;
+        let variants = prepare_compile_variants(&flat, options.fill, limits)?;
         drop(preparing);
         variants
     } else {
         vec![CompileVariant {
             fill_variant: None,
-            source: graph.clone(),
+            source: graph,
         }]
     };
     if !quiet && variants.len() > 1 {
@@ -242,15 +195,13 @@ fn run_loaded(
             variants.len()
         ));
     }
-    let artifact_count = variants.len() * distances.len();
-    if print
-        && matches!(backend, BuiltInBackend::IrText | BuiltInBackend::IrBinary)
-        && artifact_count > 1
-    {
+    let artifact_count = variants.len() * options.distance.len();
+    if options.print && options.backend != BuiltInBackend::Stim && artifact_count > 1 {
         eyre::bail!(
             "--print with the {} backend emits a single artifact, but this run \
              produces {artifact_count} (pick one --distance and, for open inputs, one --fill)",
-            backend
+            options
+                .backend
                 .to_possible_value()
                 .expect("built-in backend name")
                 .get_name()
@@ -258,40 +209,36 @@ fn run_loaded(
     }
 
     let ctx = CompileRunContext {
-        source,
-        output,
-        backend,
+        source: &source,
+        options: &options,
         output_shape: OutputPathShape {
             multiple_variants: variants.len() > 1,
-            multiple_distances: distances.len() > 1,
+            multiple_distances: options.distance.len() > 1,
         },
-        print,
-        prepare_t_with_mpps,
         limits,
-        align_moments,
         clifford_proxy_seed,
-        jobs,
         verbose,
         quiet,
-        progress,
+        progress: &progress,
     };
-    log_run_configuration(&ctx, &distances);
-    reject_input_output_aliases(&ctx, &variants, &distances)?;
-    compile_requested_variants(&ctx, &variants, &distances)
+    log_run_configuration(&ctx);
+    compile_requested_variants(&ctx, &variants)?;
+    if !quiet {
+        terminal::status(
+            "Finished",
+            format!("compilation in {:.2}s", started.elapsed().as_secs_f64()),
+        );
+    }
+    Ok(())
 }
 
 #[derive(Debug)]
 struct CompileRunContext<'a> {
     source: &'a CompileSource,
-    output: Option<&'a Path>,
-    backend: BuiltInBackend,
+    options: &'a CompileArgs,
     output_shape: OutputPathShape,
-    print: bool,
-    prepare_t_with_mpps: bool,
     limits: ModuleCertificationLimits,
-    align_moments: bool,
     clifford_proxy_seed: Option<u64>,
-    jobs: Option<NonZeroUsize>,
     verbose: bool,
     quiet: bool,
     progress: &'a CompileProgress,
@@ -382,7 +329,7 @@ fn random_proxy_seed() -> u64 {
     (nanos as u64) ^ ((nanos >> 64) as u64) ^ u64::from(std::process::id())
 }
 
-fn log_run_configuration(ctx: &CompileRunContext<'_>, distances: &[u32]) {
+fn log_run_configuration(ctx: &CompileRunContext<'_>) {
     if !ctx.verbose {
         return;
     }
@@ -393,7 +340,8 @@ fn log_run_configuration(ctx: &CompileRunContext<'_>, distances: &[u32]) {
     ));
     terminal::note(format!(
         "code distances: {}",
-        distances
+        ctx.options
+            .distance
             .iter()
             .map(u32::to_string)
             .collect::<Vec<_>>()
@@ -401,18 +349,23 @@ fn log_run_configuration(ctx: &CompileRunContext<'_>, distances: &[u32]) {
     ));
     terminal::note(format!(
         "backend: {}",
-        ctx.backend
+        ctx.options
+            .backend
             .to_possible_value()
             .expect("built-in backends have clap names")
             .get_name()
     ));
     terminal::note(format!(
         "output mode: {}",
-        if ctx.print { "print" } else { "write-files" }
+        if ctx.options.print {
+            "print"
+        } else {
+            "write-files"
+        }
     ));
     terminal::note(format!(
         "concurrent compile targets: {}",
-        compile_batch_size(ctx.jobs)
+        compile_batch_size(ctx.options.jobs)
     ));
 }
 
@@ -430,22 +383,40 @@ struct CompiledTarget {
     warnings: Vec<&'static str>,
 }
 
+#[derive(Clone, Copy)]
+struct CompileTarget<'a> {
+    variant: &'a CompileVariant,
+    distance: u32,
+}
+
+impl CompileTarget<'_> {
+    fn output(self) -> OutputDescriptor {
+        OutputDescriptor {
+            distance: self.distance,
+            fill_variant: self.variant.fill_variant,
+        }
+    }
+}
+
 fn compile_requested_variants(
     ctx: &CompileRunContext<'_>,
     variants: &[CompileVariant],
-    distances: &[u32],
 ) -> eyre::Result<()> {
-    let single_output = variants.len() == 1 && distances.len() == 1;
-    let targets: Vec<(&CompileVariant, u32)> = variants
-        .iter()
-        .flat_map(|variant| distances.iter().map(move |&distance| (variant, distance)))
-        .collect();
+    let distances = &ctx.options.distance;
+    let targets = variants.iter().flat_map(|variant| {
+        distances
+            .iter()
+            .map(move |&distance| CompileTarget { variant, distance })
+    });
+    reject_input_output_aliases(ctx, targets.clone())?;
+    let targets: Vec<_> = targets.collect();
+    let single_output = targets.len() == 1;
 
     // Targets compile independently. One shared cache across
     // the run pays for each distinct circuit template once: the
     // (variant × distance) grid repeats block signatures heavily.
     let cache = SharedCompileCache::new();
-    let batch_size = compile_batch_size(ctx.jobs);
+    let batch_size = compile_batch_size(ctx.options.jobs);
     let mut failed = 0usize;
     let mut reported_warnings = std::collections::HashSet::new();
     // Batched rather than compile-everything-then-report: peak memory stays
@@ -454,12 +425,8 @@ fn compile_requested_variants(
     // Reporting stays sequential and in target order, so output ordering,
     // interleaved error lines, and broken-pipe handling match a serial run.
     for batch in targets.chunks(batch_size) {
-        for (&(variant, distance), compiled) in batch.iter().zip(compile_batch(ctx, &cache, batch))
-        {
-            let descriptor = OutputDescriptor {
-                distance,
-                fill_variant: variant.fill_variant,
-            };
+        for (&target, compiled) in batch.iter().zip(compile_batch(ctx, &cache, batch)) {
+            let descriptor = target.output();
             let reported = compiled.and_then(|target| {
                 if !ctx.quiet {
                     for warning in &target.warnings {
@@ -514,15 +481,15 @@ fn compile_batch_size(jobs: Option<NonZeroUsize>) -> usize {
 fn compile_batch(
     ctx: &CompileRunContext<'_>,
     cache: &SharedCompileCache,
-    batch: &[(&CompileVariant, u32)],
+    batch: &[CompileTarget<'_>],
 ) -> Vec<eyre::Result<CompiledTarget>> {
-    if let [(variant, distance)] = batch {
-        return vec![compile_target(ctx, cache, variant, *distance)];
+    if let [target] = batch {
+        return vec![compile_target(ctx, cache, *target)];
     }
     std::thread::scope(|scope| {
         let mut workers = Vec::with_capacity(batch.len());
-        for &(variant, distance) in batch {
-            workers.push(scope.spawn(move || compile_target(ctx, cache, variant, distance)));
+        for &target in batch {
+            workers.push(scope.spawn(move || compile_target(ctx, cache, target)));
         }
         workers
             .into_iter()
@@ -534,29 +501,27 @@ fn compile_batch(
 fn compile_target(
     ctx: &CompileRunContext<'_>,
     cache: &SharedCompileCache,
-    variant: &CompileVariant,
-    distance: u32,
+    target: CompileTarget<'_>,
 ) -> eyre::Result<CompiledTarget> {
-    let descriptor = OutputDescriptor {
-        distance,
-        fill_variant: variant.fill_variant,
-    };
+    let descriptor = target.output();
     let progress = ctx.progress.begin(&descriptor.display_label(), "Compiling");
     if ctx.clifford_proxy_seed.is_some() {
         progress.stage("Compiling Clifford proxy");
     }
-    let config = CompileConfig::try_new(distance)
+    let config = CompileConfig::try_new(target.distance)
         .wrap_err("build the compile config")?
-        .with_prepare_t_with_mpps(ctx.prepare_t_with_mpps)
+        .with_prepare_t_with_mpps(ctx.options.prepare_t_with_mpps)
         .with_certification_limits(ctx.limits);
 
     let artifacts = match ctx.clifford_proxy_seed {
-        Some(seed) => bloq_compile::compile_random_clifford_proxy(config, &variant.source, seed),
+        Some(seed) => {
+            bloq_compile::compile_random_clifford_proxy(config, &target.variant.source, seed)
+        }
         None => {
             let sink = progress.sink.clone();
             CompileContext::with_shared_cache(config, cache)
                 .with_progress_observer(move |stage| sink.stage(&stage.to_string()))
-                .compile(&variant.source)
+                .compile(&target.variant.source)
         }
     }
     .map_err(compile_error_report)
@@ -583,9 +548,9 @@ fn compile_target(
         ));
     }
 
-    let emitted = ctx.backend.emit(
+    let emitted = ctx.options.backend.emit(
         &artifacts.bloq,
-        &bloq_stim::BloqStimOptions::new().with_align_moments(ctx.align_moments),
+        &bloq_stim::BloqStimOptions::new().with_align_moments(ctx.options.align_moments),
     )?;
     Ok(CompiledTarget {
         emitted,
@@ -605,7 +570,7 @@ fn report_compiled_target(
         terminal::note(note);
     }
 
-    if ctx.print {
+    if ctx.options.print {
         print_rendered_output(ctx, descriptor, &emitted, single_output)?;
     } else {
         let path = resolve_output_path(ctx, descriptor);
@@ -674,35 +639,26 @@ fn prepare_compile_variants(
 }
 
 fn resolve_output_path(ctx: &CompileRunContext, descriptor: OutputDescriptor) -> PathBuf {
-    match ctx.output {
+    match ctx.options.output.as_deref() {
         Some(path) => output_path_for_requested_output(path, descriptor, ctx.output_shape),
-        None => default_output_path(ctx.source, ctx.backend, descriptor),
+        None => default_output_path(ctx.source, ctx.options.backend, descriptor),
     }
 }
 
-fn reject_input_output_aliases(
+fn reject_input_output_aliases<'a>(
     ctx: &CompileRunContext,
-    variants: &[CompileVariant],
-    distances: &[u32],
+    targets: impl Iterator<Item = CompileTarget<'a>>,
 ) -> eyre::Result<()> {
     let CompileSource::InputFile(input) = ctx.source else {
         return Ok(());
     };
-    if ctx.print {
+    if ctx.options.print {
         return Ok(());
     }
 
-    for variant in variants {
-        for &distance in distances {
-            let output = resolve_output_path(
-                ctx,
-                OutputDescriptor {
-                    distance,
-                    fill_variant: variant.fill_variant,
-                },
-            );
-            super::reject_input_output_alias(input, &output)?;
-        }
+    for target in targets {
+        let output = resolve_output_path(ctx, target.output());
+        super::reject_input_output_alias(input, &output)?;
     }
     Ok(())
 }
@@ -782,22 +738,30 @@ mod tests {
 
     use super::*;
 
-    fn options(distances: Vec<u32>) -> CompileCommandOptions {
-        CompileCommandOptions {
-            distances,
+    fn options(distance: Vec<u32>) -> CompileArgs {
+        CompileArgs {
+            distance,
             backend: BuiltInBackend::Stim,
             print: false,
             auto_fill: false,
             prepare_t_with_mpps: false,
-            limits: ModuleCertificationLimits::DEFAULT,
+            limits: Vec::new(),
             align_moments: false,
             clifford_proxy: false,
             proxy_seed: None,
             fill: None,
             jobs: None,
-            verbose: false,
-            quiet: true,
+            output: None,
         }
+    }
+
+    fn run(
+        source: CompileSource,
+        output: Option<PathBuf>,
+        mut options: CompileArgs,
+    ) -> eyre::Result<()> {
+        options.output = output;
+        super::run(source, options, false, true)
     }
 
     fn write_single_cube_blog(root: &Path) -> PathBuf {
@@ -878,7 +842,7 @@ mod tests {
         let output = dir.path().join("program.bloqir");
         let mut opts = options(vec![3]);
         opts.backend = BuiltInBackend::IrText;
-        opts.limits.max_expanded_blocks = 0;
+        opts.limits.push("max_expanded_blocks=0".parse().unwrap());
         let error = run(
             CompileSource::InputFile(input.clone()),
             Some(output.clone()),
@@ -892,7 +856,8 @@ mod tests {
 
         let mut opts = options(vec![3]);
         opts.backend = BuiltInBackend::IrText;
-        opts.limits.max_expanded_blocks = usize::MAX;
+        opts.limits
+            .push("max_expanded_blocks=unlimited".parse().unwrap());
         run(CompileSource::InputFile(input), Some(output.clone()), opts)
             .expect("raising only the exhausted budget permits compilation");
         assert!(output.exists());

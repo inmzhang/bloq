@@ -414,6 +414,16 @@ mod tests {
                 .len(),
             21
         );
+        assert_eq!(
+            phase.direct_pipe_endpoints_by_module(),
+            phase
+                .modules()
+                .map(|module| (
+                    module.name.clone(),
+                    phase.direct_pipe_endpoints(&module.name).unwrap()
+                ))
+                .collect()
+        );
     }
 
     #[test]

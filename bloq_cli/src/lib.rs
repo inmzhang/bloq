@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use bloq_graph::{Direction, GalleryItem};
 use clap::{Args, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum, ValueHint};
 use clap_complete::Shell;
-use color_eyre::eyre::{self, WrapErr};
+use color_eyre::eyre;
 
 mod commands;
 mod terminal;
@@ -100,6 +100,12 @@ struct CompileCmd {
     #[command(flatten)]
     source: SourceArgs,
 
+    #[command(flatten)]
+    options: CompileArgs,
+}
+
+#[derive(Debug, Args)]
+struct CompileArgs {
     /// Code distance. Repeat or comma-separate to compile multiple distances.
     #[arg(
         short,
@@ -175,6 +181,12 @@ struct ViewCmd {
     #[command(flatten)]
     source: SourceArgs,
 
+    #[command(flatten)]
+    options: ViewArgs,
+}
+
+#[derive(Debug, Args)]
+struct ViewArgs {
     /// Render saved Bloq IR (.bloqir or .bloq) as an SVG dependency graph
     #[arg(long, conflicts_with_all = ["gltf", "html"], help_heading = "View")]
     svg: bool,
@@ -282,75 +294,7 @@ fn build_cli() -> clap::Command {
 }
 
 fn run_compile(cmd: CompileCmd, verbose: bool, quiet: bool) -> eyre::Result<()> {
-    let source = cmd.source.resolve()?;
-    commands::compile::run(
-        source,
-        cmd.output,
-        commands::compile::CompileCommandOptions {
-            distances: cmd.distance,
-            backend: cmd.backend,
-            print: cmd.print,
-            prepare_t_with_mpps: cmd.prepare_t_with_mpps,
-            limits: commands::compile::resolve_limits(&cmd.limits),
-            align_moments: cmd.align_moments,
-            clifford_proxy: cmd.clifford_proxy,
-            proxy_seed: cmd.proxy_seed,
-            auto_fill: cmd.auto_fill,
-            fill: cmd.fill,
-            jobs: cmd.jobs,
-            verbose,
-            quiet,
-        },
-    )
-}
-
-fn run_view(cmd: ViewCmd, quiet: bool) -> eyre::Result<()> {
-    let ir_input = cmd.source.input.as_ref().is_some_and(|input| {
-        matches!(
-            input.extension().and_then(|ext| ext.to_str()),
-            Some("bloq" | "bloqir")
-        )
-    });
-    if cmd.svg || ir_input {
-        eyre::ensure!(
-            !cmd.gltf && !cmd.html && !cmd.module_view,
-            "saved Bloq IR supports SVG views only"
-        );
-        let input =
-            cmd.source.input.as_ref().ok_or_else(|| {
-                eyre::eyre!("SVG visualization requires a saved Bloq IR input file")
-            })?;
-        return commands::view::run_ir(input, cmd.output.as_deref(), cmd.include_classical, quiet);
-    }
-    eyre::ensure!(
-        !cmd.include_classical && cmd.output.is_none(),
-        "--include-classical and --output apply to saved Bloq IR SVG views"
-    );
-    let source = cmd.source.resolve()?;
-    let loaded = source.load_graph()?;
-    let graph = if cmd.module_view {
-        loaded
-    } else {
-        loaded.flatten().wrap_err("flatten source for rendering")?
-    };
-    // With no explicit selection, `bloq view` generates every view kind.
-    let (gltf, html) = if cmd.gltf || cmd.html {
-        (cmd.gltf, cmd.html)
-    } else {
-        (true, true)
-    };
-    commands::view::run(
-        &source,
-        &graph,
-        commands::view::ViewCommandOptions {
-            gltf,
-            html,
-            module_view: cmd.module_view,
-            pipe_length: cmd.pipe_length,
-            pop_faces_at_directions: cmd.pop_faces_at_directions,
-            quiet,
-        },
-    )
+    commands::compile::run(cmd.source.resolve()?, cmd.options, verbose, quiet)
 }
 
 fn parse_cli(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<Cli, u8> {
@@ -383,18 +327,8 @@ fn execute(cli: Cli) -> eyre::Result<()> {
     match command {
         None => run_compile(root, verbose, quiet)?,
         Some(Commands::Compile(cmd)) => run_compile(cmd, verbose, quiet)?,
-        Some(Commands::View(cmd)) => run_view(cmd, quiet)?,
-        Some(Commands::Emit(cmd)) => commands::emit::run(
-            &cmd.input,
-            commands::emit::EmitCommandOptions {
-                backend: cmd.backend,
-                output: cmd.output,
-                print: cmd.print,
-                validate: cmd.validate,
-                align_moments: cmd.align_moments,
-                quiet,
-            },
-        )?,
+        Some(Commands::View(cmd)) => commands::view::run(cmd, quiet)?,
+        Some(Commands::Emit(cmd)) => commands::emit::run(cmd, quiet)?,
         Some(Commands::Validate(cmd)) => commands::validate::run(&cmd.input, quiet)?,
         Some(Commands::Stats(cmd)) => commands::stats::run(&cmd.input)?,
         Some(Commands::Gallery) => commands::gallery::run()?,
@@ -470,7 +404,7 @@ mod tests {
             cli.root.source.input.as_deref(),
             Some(std::path::Path::new("foo.blog"))
         );
-        assert_eq!(cli.root.distance, vec![3]);
+        assert_eq!(cli.root.options.distance, vec![3]);
     }
 
     #[test]
@@ -480,8 +414,8 @@ mod tests {
         let Some(Commands::Compile(cmd)) = cli.command else {
             panic!("expected compile subcommand");
         };
-        assert_eq!(cmd.distance, vec![3, 5]);
-        assert_eq!(cmd.fill, Some(1));
+        assert_eq!(cmd.options.distance, vec![3, 5]);
+        assert_eq!(cmd.options.fill, Some(1));
     }
 
     #[test]
@@ -499,7 +433,7 @@ mod tests {
             "max_frontier_width=8",
         ])
         .expect("compiler budget overrides parse");
-        let limits = commands::compile::resolve_limits(&cli.root.limits);
+        let limits = commands::compile::resolve_limits(&cli.root.options.limits);
         assert_eq!(limits.max_boolean_steps, usize::MAX);
         assert_eq!(limits.max_frontier_width, 8);
         assert_eq!(
@@ -555,8 +489,8 @@ mod tests {
             "17",
         ])
         .expect("seeded proxy parses");
-        assert!(cli.root.clifford_proxy);
-        assert_eq!(cli.root.proxy_seed, Some(17));
+        assert!(cli.root.options.clifford_proxy);
+        assert_eq!(cli.root.options.proxy_seed, Some(17));
     }
 
     #[test]
@@ -574,9 +508,9 @@ mod tests {
             panic!("expected view subcommand");
         };
         assert_eq!(cmd.source.gallery, Some(GalleryItem::CNOT));
-        assert!(cmd.gltf);
-        assert!(!cmd.html);
-        assert_eq!(cmd.pop_faces_at_directions, vec![Direction::YMINUS]);
+        assert!(cmd.options.gltf);
+        assert!(!cmd.options.html);
+        assert_eq!(cmd.options.pop_faces_at_directions, vec![Direction::YMINUS]);
     }
 
     #[test]
@@ -609,7 +543,7 @@ mod tests {
                 None => cli.root,
                 _ => panic!("expected compile command"),
             };
-            assert_eq!(cmd.distance, [3]);
+            assert_eq!(cmd.options.distance, [3]);
             assert_eq!(
                 cmd.source.input.as_deref(),
                 Some(std::path::Path::new("foo.blog"))

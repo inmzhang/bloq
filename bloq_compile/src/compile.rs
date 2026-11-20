@@ -1211,22 +1211,7 @@ impl CompileContext {
         } = self.preflight_proxy()?;
         self.report_progress(CompileStage::Templates)?;
         let mut compiled = self.compile_blocks(&graph, &ordered_blocks(&graph), &signatures)?;
-        for (source, dir) in ports
-            .values()
-            .filter_map(|port| port.cube_pipe_dir().map(|dir| (port.source, dir)))
-        {
-            let derived = compiled
-                .get_mut(&source)
-                .expect("derived cube was compiled");
-            derived.graph_connectivity = derived.graph_connectivity.with_pipe(dir);
-        }
-        let port_templates = self.compile_port_templates(&ports)?;
-        for port in ports.values().filter(|port| !port.is_spatial()) {
-            compiled
-                .get_mut(&port.source)
-                .expect("temporal Port was compiled")
-                .template = port_templates[&port.source].template;
-        }
+        let port_templates = self.compile_port_templates(&ports, &mut compiled)?;
         let plan = crate::lower::LinkedPlanInput::from_module_graph(
             &graph,
             &ports,
@@ -1493,9 +1478,12 @@ impl CompileContext {
         Ok(compiled)
     }
 
+    /// A temporal Port uses the boundary template directly. A spatial Port's
+    /// derived cube stays in the block plan and connects to a virtual Port.
     fn compile_port_templates(
         &self,
         ports: &PortExpansionMap,
+        blocks: &mut CompiledTemplateMap,
     ) -> Result<CompiledTemplateMap, CompileError> {
         let mut compiled = CompiledTemplateMap::default();
         for expansion in ports.values().copied() {
@@ -1536,6 +1524,14 @@ impl CompileContext {
                     surgery_side: None,
                 })?
             };
+            let block = blocks
+                .get_mut(&expansion.source)
+                .expect("expanded Port source has a compiled block");
+            if let Some(direction) = expansion.cube_pipe_dir() {
+                block.graph_connectivity = block.graph_connectivity.with_pipe(direction);
+            } else {
+                block.template = template;
+            }
             compiled.insert(
                 expansion.source,
                 CompiledTemplateInfo {

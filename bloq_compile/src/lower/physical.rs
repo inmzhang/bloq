@@ -12,8 +12,8 @@ use glam::IVec3;
 use petgraph::{graph::NodeIndex, visit::EdgeRef};
 
 use super::{
-    BloqLowerContext, ChunkSiteSource, LowerPlan, SpatialPipeRef, TemplateInstanceAllocator,
-    TemplatePlan, TemplateRemapper,
+    BloqLowerContext, ChunkSiteSource, LowerPlan, PlacedInstance, SpatialPipeRef,
+    TemplateInstanceAllocator, TemplatePlan, TemplateRemapper,
     classify::{NodeLowering, classify_nodes},
     detector::attach_temporal_component_detectors,
     place::{PlacedInstances, place_instances},
@@ -186,16 +186,14 @@ impl<'a> PlacedPlan<'a> {
                 // escape quantum nodes, the intra-body seam restarts, and the GAP
                 // observable recipes feeding the explicit Flip retry predicate (U17 §5.3).
                 NodeLowering::TRegion {
-                    pos,
-                    cultivation,
-                    escape,
+                    pos, cultivation, ..
                 } => {
-                    let escape_id = {
+                    let escape = {
                         let taken =
                             std::mem::take(&mut self.placed.node_instances[plan_index.index()]);
                         let [instance] = <[_; 1]>::try_from(taken)
                             .expect("T plan node carries exactly its escape instance");
-                        instance.instance.id
+                        instance.instance
                     };
                     let observable_base = next_t_observable;
                     next_t_observable = add_resource(
@@ -206,21 +204,18 @@ impl<'a> PlacedPlan<'a> {
                     )? as u32;
                     let region = region::build_t_region(
                         *pos,
-                        region::TStage {
+                        PlacedInstance {
                             template: *cultivation,
-                            instance: self.placed.t_cultivation_instances[pos],
+                            id: self.placed.t_cultivation_instances[pos],
+                            offset: escape.offset,
                         },
-                        region::TStage {
-                            template: *escape,
-                            instance: escape_id,
-                        },
+                        escape,
                         observable_base,
                         &mut TemplateRemapper::new(
                             &mut bloq,
                             &mut program_template_ids,
                             template_pool,
                         ),
-                        layout,
                     )?;
                     let id = bloq.add_node(BloqNode::region(region));
                     node_map[plan_index.index()] = Some(id);

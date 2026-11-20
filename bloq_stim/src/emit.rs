@@ -10,6 +10,7 @@ use bloq_circuit::{
     GateType, LoopCarriedDetectorState, LoopStateId, MeasurementFrameError, Op, PauliBasis,
     PauliMap, measurement_gate_name,
 };
+use bloq_ir::lowering::{InstanceMeasurement, TemplateInstanceId};
 use thiserror::Error;
 
 use crate::layout::QubitLayout;
@@ -175,29 +176,52 @@ fn push_lookback(output: &mut String, lookback: i32) {
     output.push(']');
 }
 
-pub(crate) trait StimMeasurementMapper {
-    /// Return the same mapped id for repeated calls with the same measurement.
-    ///
-    /// Stim repeat preservation probes future iterations before committing to
-    /// the output, so mapping may allocate lazily but must be idempotent.
-    fn map_measurement(&mut self, measurement: u32) -> Result<u32, CircuitError>;
-
-    fn map_annotation_measurement(&mut self, measurement: u32) -> Result<u32, CircuitError> {
-        self.map_measurement(measurement)
-    }
+/// Measurement IDs used by circuit operations. Program annotations already
+/// carry global IDs, including when emitting a single instance's local circuit.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum MeasurementIds<'a> {
+    #[cfg(any(test, feature = "verify"))]
+    Standalone,
+    Global {
+        count: u32,
+    },
+    Instance {
+        instance: TemplateInstanceId,
+        measurements: &'a FxHashMap<InstanceMeasurement, u32>,
+        count: u32,
+    },
 }
 
-/// Passes measurement ids through unchanged. Used by the standalone
-/// coordinate-circuit paths (the `verify` feature and tests); the program
-/// emitter supplies its own instance-aware mappers instead.
-#[cfg(any(test, feature = "verify"))]
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct IdentityMeasurementMapper;
+impl MeasurementIds<'_> {
+    fn map_operation(self, measurement: u32) -> Result<u32, CircuitError> {
+        if let Self::Instance {
+            instance,
+            measurements,
+            ..
+        } = self
+        {
+            return measurements
+                .get(&InstanceMeasurement {
+                    instance,
+                    measurement,
+                })
+                .copied()
+                .ok_or(CircuitError::InvalidMeasurementId(measurement));
+        }
+        self.map_annotation(measurement)
+    }
 
-#[cfg(any(test, feature = "verify"))]
-impl StimMeasurementMapper for IdentityMeasurementMapper {
-    fn map_measurement(&mut self, measurement: u32) -> Result<u32, CircuitError> {
-        Ok(measurement)
+    fn map_annotation(self, measurement: u32) -> Result<u32, CircuitError> {
+        let count = match self {
+            #[cfg(any(test, feature = "verify"))]
+            Self::Standalone => return Ok(measurement),
+            Self::Global { count } | Self::Instance { count, .. } => count,
+        };
+        if measurement < count {
+            Ok(measurement)
+        } else {
+            Err(CircuitError::InvalidMeasurementId(measurement))
+        }
     }
 }
 
@@ -234,7 +258,7 @@ pub(crate) fn emit_standalone_stim(
         circuit,
         annotations,
         &mut ctx,
-        &mut IdentityMeasurementMapper,
+        MeasurementIds::Standalone,
         StimEmitOptions {
             enable_clifford_proxy,
             ..StimEmitOptions::default()
@@ -243,11 +267,11 @@ pub(crate) fn emit_standalone_stim(
     Ok((output, frame))
 }
 
-pub(crate) fn emit_stim_circuit<M: StimMeasurementMapper>(
+pub(crate) fn emit_stim_circuit(
     circuit: &CoordCircuit,
     annotations: Option<&StimCircuitAnnotations>,
     ctx: &mut StimEmitContext<'_>,
-    mapper: &mut M,
+    measurement_ids: MeasurementIds<'_>,
     options: StimEmitOptions,
 ) -> Result<bool, CircuitError> {
     let base_indent = ctx.indent;
@@ -255,7 +279,7 @@ pub(crate) fn emit_stim_circuit<M: StimMeasurementMapper>(
         source: circuit,
         annotations,
         ctx,
-        mapper,
+        measurement_ids,
         options,
         detector_state_stack: Vec::new(),
         base_indent,
@@ -266,14 +290,11 @@ pub(crate) fn emit_stim_circuit<M: StimMeasurementMapper>(
     Ok(emitter.needs_node_boundary_tick)
 }
 
-struct StimTextEmitter<'circuit, 'ctx, 'data, 'mapper, M>
-where
-    M: StimMeasurementMapper,
-{
+struct StimTextEmitter<'circuit, 'ctx, 'data, 'measurements> {
     source: &'circuit CoordCircuit,
     annotations: Option<&'circuit StimCircuitAnnotations>,
     ctx: &'ctx mut StimEmitContext<'data>,
-    mapper: &'mapper mut M,
+    measurement_ids: MeasurementIds<'measurements>,
     options: StimEmitOptions,
     detector_state_stack: Vec<LoopStateFrame>,
     /// The indent level [`emit_stim_circuit`] started at.
@@ -287,10 +308,7 @@ enum StimTarget {
     Pauli { pauli: Pauli, qubit: u32 },
 }
 
-impl<M> StimTextEmitter<'_, '_, '_, '_, M>
-where
-    M: StimMeasurementMapper,
-{
+impl StimTextEmitter<'_, '_, '_, '_> {
     fn note_instruction(&mut self, needs_node_boundary_tick: bool) {
         if self.ctx.indent == self.base_indent {
             self.needs_node_boundary_tick = needs_node_boundary_tick;
@@ -366,7 +384,7 @@ where
         corrections: &[ConditionalCorrection],
     ) -> Result<(), CircuitError> {
         for correction in corrections {
-            let measurement = self.mapper.map_measurement(correction.control)?;
+            let measurement = self.measurement_ids.map_operation(correction.control)?;
             let lookback = self.ctx.frame.resolve_measurement(measurement)?;
             let coord = correction.target + self.options.qubit_offset;
             let Some(qubit) = self.ctx.layout.get(coord) else {
@@ -383,10 +401,10 @@ where
     }
 
     /// Map a body op's raw measurement ids to their backend ids, in order.
-    fn map_measurements(&mut self, measurements: &[u32]) -> Result<Vec<u32>, CircuitError> {
+    fn map_measurements(&self, measurements: &[u32]) -> Result<Vec<u32>, CircuitError> {
         measurements
             .iter()
-            .map(|&measurement| self.mapper.map_measurement(measurement))
+            .map(|&measurement| self.measurement_ids.map_operation(measurement))
             .collect()
     }
 
@@ -521,7 +539,7 @@ where
         detector_states: &[LoopCarriedDetectorState],
     ) -> Result<(), CircuitError> {
         let (offsets, body_measurements) =
-            repeat_body_measurement_offsets(self.source, body, self.mapper)?;
+            repeat_body_measurement_offsets(self.source, body, self.measurement_ids)?;
         self.record_repeat_body_measurements(body_measurements, 1, offsets.iter().copied())?;
         self.update_loop_detector_states(detector_states)?;
         self.record_repeat_body_measurements(body_measurements, tail_repetitions, offsets)?;
@@ -566,7 +584,7 @@ where
             source: self.source,
             annotations: self.annotations,
             ctx: &mut ctx,
-            mapper: self.mapper,
+            measurement_ids: self.measurement_ids,
             options: self.options,
             detector_state_stack: std::mem::take(detector_state_stack),
             base_indent: self.base_indent,
@@ -766,7 +784,7 @@ where
         for &term in parity.terms() {
             match term {
                 DetectorTerm::Measurement(measurement) => {
-                    let measurement = self.mapper.map_annotation_measurement(measurement)?;
+                    let measurement = self.measurement_ids.map_annotation(measurement)?;
                     absolutes.push(self.ctx.frame.resolve_absolute_measurement(measurement)?);
                 }
                 DetectorTerm::LoopState(state) => {
@@ -793,11 +811,7 @@ where
     ) -> Result<Vec<i32>, CircuitError> {
         // Fast path: a pure measurement parity resolves each term to a lookback
         // directly, skipping the absolute-id round trip. Duplicate lookbacks
-        // still XOR-cancel like the general path. Today no production input
-        // produces one here — `DetectorParity` canonicalizes at construction
-        // and re-canonicalizes after id remaps, and distinct backend ids
-        // resolve to distinct records — so this guards a future mapper whose
-        // `map_annotation_measurement` merges ids at emit time.
+        // still XOR-cancel like the general path.
         if parity
             .terms()
             .iter()
@@ -808,7 +822,7 @@ where
                 let DetectorTerm::Measurement(measurement) = term else {
                     unreachable!("the all-Measurement guard admits no LoopState terms")
                 };
-                let measurement = self.mapper.map_annotation_measurement(measurement)?;
+                let measurement = self.measurement_ids.map_annotation(measurement)?;
                 lookbacks.push(self.ctx.frame.resolve_measurement(measurement)?);
             }
             lookbacks.sort_unstable();
@@ -1144,14 +1158,14 @@ enum LoopStateUpdate {
 fn repeat_body_measurement_offsets(
     circuit: &CoordCircuit,
     body: BodyId,
-    mapper: &mut impl StimMeasurementMapper,
+    measurement_ids: MeasurementIds<'_>,
 ) -> Result<(Vec<(u32, u32)>, u32), CircuitError> {
     let mut offsets = Vec::new();
     let mut body_measurements = 0;
     collect_repeat_body_measurement_offsets(
         circuit,
         body,
-        mapper,
+        measurement_ids,
         &mut offsets,
         &mut body_measurements,
     )?;
@@ -1161,7 +1175,7 @@ fn repeat_body_measurement_offsets(
 fn collect_repeat_body_measurement_offsets(
     circuit: &CoordCircuit,
     body: BodyId,
-    mapper: &mut impl StimMeasurementMapper,
+    measurement_ids: MeasurementIds<'_>,
     offsets: &mut Vec<(u32, u32)>,
     next_offset: &mut u32,
 ) -> Result<(), CircuitError> {
@@ -1172,7 +1186,7 @@ fn collect_repeat_body_measurement_offsets(
         match op {
             Op::Measure { measurements, .. } | Op::MPP { measurements, .. } => {
                 for &measurement in measurements {
-                    offsets.push((mapper.map_measurement(measurement)?, *next_offset));
+                    offsets.push((measurement_ids.map_operation(measurement)?, *next_offset));
                     let Some(next) = next_offset.checked_add(1) else {
                         return Err(MeasurementFrameError::RepeatMeasurementOffsetOverflow.into());
                     };
@@ -1190,7 +1204,7 @@ fn collect_repeat_body_measurement_offsets(
                 collect_repeat_body_measurement_offsets(
                     circuit,
                     *body,
-                    mapper,
+                    measurement_ids,
                     &mut nested_offsets,
                     &mut nested_body_measurements,
                 )?;

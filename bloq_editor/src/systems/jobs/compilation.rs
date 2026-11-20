@@ -27,8 +27,8 @@ use glam::{IVec2, IVec3};
 
 #[derive(Debug)]
 pub(super) struct CompiledDownload {
-    file_name: String,
-    contents: Vec<u8>,
+    pub(super) file_name: String,
+    pub(super) contents: Vec<u8>,
 }
 
 impl CompiledDownload {
@@ -574,12 +574,6 @@ fn convert_region(
 fn detslice_note(skipped_cross_tape: usize, broken: usize) -> Option<String> {
     let total = skipped_cross_tape + broken;
     (total > 0).then(|| format!("{total} regions break (seam)"))
-}
-
-/// Saves a compiled download through the shared file-save backend. `None` means
-/// the user canceled the save dialog — not an error.
-pub(super) fn save_compiled_downloads(output: &CompiledDownload) -> eyre::Result<Option<String>> {
-    crate::utils::save_download(&output.file_name, &output.contents)
 }
 
 #[cfg(test)]

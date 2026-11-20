@@ -1,24 +1,13 @@
 use bloq_ir::{
     BloqEdge, BloqNode, BoundaryFace, ClassicalExpr, ClassicalNode, NodeProvenance, RegionNode,
     SourceBlockRef, SubGraph,
-    lowering::{
-        InstanceBoundaryOperator, InstanceMeasurement, TemplateInstance, TemplateInstanceId,
-    },
+    lowering::{InstanceBoundaryOperator, InstanceMeasurement, TemplateInstance},
 };
 use glam::IVec3;
 
-use crate::block::LoweringTemplateId;
-use crate::{BlockLayout, CompileError};
+use crate::CompileError;
 
-use super::{TemplateRemapper, detector};
-
-/// One of a T region's two quantum stages: the pool template it instantiates
-/// and the instance id allocated for it.
-#[derive(Debug, Clone, Copy)]
-pub(super) struct TStage {
-    pub(super) template: LoweringTemplateId,
-    pub(super) instance: TemplateInstanceId,
-}
+use super::{PlacedInstance, TemplateRemapper, detector};
 
 /// Build the `RepeatUntilSuccess` region for a T block: cultivation
 /// and escape quantum nodes joined by the intra-body seam (whose cross-template
@@ -27,28 +16,21 @@ pub(super) struct TStage {
 /// physical postselection parities remain attached to the quantum stages.
 pub(super) fn build_t_region(
     pos: IVec3,
-    cultivation: TStage,
-    escape: TStage,
+    cultivation: PlacedInstance,
+    escape: PlacedInstance,
     observable_base: u32,
     remapper: &mut TemplateRemapper<'_>,
-    layout: BlockLayout,
 ) -> Result<RegionNode, CompileError> {
-    let xy_offset = layout.offset(pos)?;
-
     // The cultivation template's six restart-flagged open Steane chains close
     // against the escape template's first merge round: cross-template restart
     // parities (U17b §4), attached to the escape node inside the body.
     let (seam_detectors, seam_restarts) = detector::compose_instance_seam(&[
         (
             &remapper.pool()[cultivation.template],
-            xy_offset,
-            cultivation.instance,
+            cultivation.offset,
+            cultivation.id,
         ),
-        (
-            &remapper.pool()[escape.template],
-            xy_offset,
-            escape.instance,
-        ),
+        (&remapper.pool()[escape.template], escape.offset, escape.id),
     ])?;
 
     let mut body = SubGraph::new();
@@ -57,9 +39,9 @@ pub(super) fn build_t_region(
         .expect_quantum_mut()
         .instances
         .push(TemplateInstance::new(
-            cultivation.instance,
+            cultivation.id,
             remapper.remap(cultivation.template),
-            xy_offset,
+            cultivation.offset,
         ));
     let cultivation_node = body.add_node(cultivation_node);
 
@@ -67,9 +49,9 @@ pub(super) fn build_t_region(
     {
         let quantum = escape_node.expect_quantum_mut();
         quantum.instances.push(TemplateInstance::new(
-            escape.instance,
+            escape.id,
             remapper.remap(escape.template),
-            xy_offset,
+            escape.offset,
         ));
         quantum.detectors = seam_detectors;
         quantum.restarts = seam_restarts;
@@ -107,7 +89,7 @@ pub(super) fn build_t_region(
                 measurements: measurements
                     .into_iter()
                     .map(|measurement| InstanceMeasurement {
-                        instance: escape.instance,
+                        instance: escape.id,
                         measurement,
                     })
                     .collect(),
@@ -118,9 +100,9 @@ pub(super) fn build_t_region(
                 .into_iter()
                 .map(|(face, operator)| {
                     Ok(InstanceBoundaryOperator {
-                        instance: escape.instance,
+                        instance: escape.id,
                         face,
-                        operator: operator.try_translated(xy_offset)?,
+                        operator: operator.try_translated(escape.offset)?,
                     })
                 })
                 .collect::<Result<_, CompileError>>()?,

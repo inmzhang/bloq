@@ -472,9 +472,8 @@ impl PositionedSupport {
     }
 }
 
-#[derive(Clone)]
-struct ModuleGeometry {
-    ports: Vec<QuantumPort>,
+struct ModuleGeometry<'a> {
+    ports: &'a [QuantumPort],
     signatures: Vec<ModulePortSignature>,
 }
 
@@ -631,9 +630,9 @@ impl BlockGraph {
     /// Panics if validated module geometry is internally inconsistent.
     pub fn direct_pipe_endpoints(&self, module: &str) -> Option<Vec<(IVec3, IVec3)>> {
         let definition = self.module(module)?;
-        let mut memo = HashMap::new();
-        module_geometry(self, module, &mut memo).expect("validated module geometry remains valid");
-        Some(direct_pipe_endpoints(definition, &memo))
+        let geometry = module_geometries(module_postorder_from(self, [module]))
+            .expect("validated module geometry remains valid");
+        Some(direct_pipe_endpoints(definition, &geometry))
     }
 
     /// Physical direct-pipe endpoints for every module, sharing geometry work.
@@ -642,20 +641,23 @@ impl BlockGraph {
     ///
     /// Panics if validated module geometry is internally inconsistent.
     pub fn direct_pipe_endpoints_by_module(&self) -> HashMap<String, Vec<(IVec3, IVec3)>> {
-        let mut memo = HashMap::new();
-        for module in self.modules() {
-            module_geometry(self, &module.name, &mut memo)
-                .expect("validated module geometry remains valid");
-        }
+        let roots = self.modules().map(|module| module.name.as_str());
+        let geometry = module_geometries(module_postorder_from(self, roots))
+            .expect("validated module geometry remains valid");
         self.modules()
-            .map(|module| (module.name.clone(), direct_pipe_endpoints(module, &memo)))
+            .map(|module| {
+                (
+                    module.name.clone(),
+                    direct_pipe_endpoints(module, &geometry),
+                )
+            })
             .collect()
     }
 }
 
 fn direct_pipe_endpoints(
     definition: &BlockGraph,
-    geometry: &HashMap<String, ModuleGeometry>,
+    geometry: &HashMap<&str, ModuleGeometry<'_>>,
 ) -> Vec<(IVec3, IVec3)> {
     let children = definition
         .instances
@@ -663,7 +665,7 @@ fn direct_pipe_endpoints(
         .map(|instance| {
             (
                 instance.name.as_str(),
-                (instance, geometry[&instance.definition].clone()),
+                (instance, &geometry[instance.definition.as_str()]),
             )
         })
         .collect::<HashMap<_, _>>();
@@ -784,11 +786,11 @@ fn source_expansion_size(
 /// Count each definition once, then add its cached size for each instance edge.
 /// Both branch arms and Ports consumed by seams count toward the allocation bound.
 pub(crate) fn preflight_program_expansion(
-    program: &BlockGraph,
+    ordered: &[&BlockGraph],
     limits: ModuleCertificationLimits,
 ) -> Result<(), ModuleError> {
     let mut sizes = HashMap::<&str, [usize; 3]>::new();
-    for module in module_postorder(program) {
+    for module in ordered {
         let error = |source| {
             let crate::StabilizerError::ResourceLimited {
                 phase,
@@ -814,26 +816,15 @@ pub(crate) fn preflight_program_expansion(
     Ok(())
 }
 
-pub(crate) fn validate_program_geometry(program: &BlockGraph) -> Result<(), ModuleError> {
-    for module in module_postorder(program)
-        .into_iter()
-        .filter(|module| !module.instances.is_empty())
-    {
+pub(crate) fn validate_program_geometry(
+    program: &BlockGraph,
+    ordered: &[&BlockGraph],
+) -> Result<(), ModuleError> {
+    for module in ordered.iter().filter(|module| !module.instances.is_empty()) {
         validate_composite_geometry(program, module)
             .map_err(|error| program_geometry_error(&module.name, error))?;
     }
-    let mut memo = HashMap::new();
-    for module in program.modules() {
-        module_geometry(program, &module.name, &mut memo)?;
-    }
-    Ok(())
-}
-
-fn module_postorder(program: &BlockGraph) -> Vec<&BlockGraph> {
-    module_postorder_from(
-        program,
-        program.modules().map(|module| module.name.as_str()),
-    )
+    module_geometries(ordered.iter().copied()).map(drop)
 }
 
 fn module_postorder_from<'a>(
@@ -844,41 +835,18 @@ fn module_postorder_from<'a>(
         .modules()
         .map(|module| (module.name.as_str(), module))
         .collect::<HashMap<_, _>>();
-    let mut seen = FxHashSet::default();
-    let mut ordered = Vec::new();
-    for root in roots {
-        let mut pending = vec![(root, false)];
-        while let Some((name, exiting)) = pending.pop() {
-            let module = definitions[name];
-            if exiting {
-                ordered.push(module);
-            } else if seen.insert(name) {
-                pending.push((name, true));
-                pending.extend(
-                    module
-                        .instances
-                        .iter()
-                        .rev()
-                        .map(|instance| (instance.definition.as_str(), false)),
-                );
-            }
-        }
-    }
-    ordered
+    crate::program::module_postorder(
+        roots.into_iter().map(|name| definitions[name]),
+        &definitions,
+    )
+    .expect("validated hierarchy is acyclic")
 }
 
-fn module_geometry(
-    program: &BlockGraph,
-    name: &str,
-    memo: &mut HashMap<String, ModuleGeometry>,
-) -> Result<ModuleGeometry, ModuleError> {
-    if let Some(geometry) = memo.get(name) {
-        return Ok(geometry.clone());
-    }
-    for module in module_postorder_from(program, [name]) {
-        if memo.contains_key(&module.name) {
-            continue;
-        }
+fn module_geometries<'a>(
+    ordered: impl IntoIterator<Item = &'a BlockGraph>,
+) -> Result<HashMap<&'a str, ModuleGeometry<'a>>, ModuleError> {
+    let mut geometries = HashMap::new();
+    for module in ordered {
         let name = module.name.as_str();
         let geometry = if module.instances.is_empty() {
             let body = module.copy_local_geometry().fix_shadowed_faces();
@@ -890,13 +858,13 @@ fn module_geometry(
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|error| program_geometry_error(name, error))?;
             ModuleGeometry {
-                ports: module.interface.quantum_ports.clone(),
+                ports: &module.interface.quantum_ports,
                 signatures,
             }
         } else {
             let mut children = HashMap::new();
             for instance in &module.instances {
-                let geometry = memo[&instance.definition].clone();
+                let geometry = &geometries[instance.definition.as_str()];
                 children.insert(instance.name.as_str(), (instance, geometry));
             }
 
@@ -939,14 +907,14 @@ fn module_geometry(
             validate_bind_bases(module, &body, &binds)
                 .map_err(|error| program_geometry_error(name, error))?;
             ModuleGeometry {
-                ports: module.interface.quantum_ports.clone(),
+                ports: &module.interface.quantum_ports,
                 signatures: parent_signatures(module, &body, &binds)
                     .map_err(|error| program_geometry_error(name, error))?,
             }
         };
-        memo.insert(name.to_string(), geometry);
+        geometries.insert(name, geometry);
     }
-    Ok(memo[name].clone())
+    Ok(geometries)
 }
 
 fn program_geometry_error(module: &str, error: ModuleCertificationError) -> ModuleError {
@@ -1527,7 +1495,7 @@ fn geometry_bind_seam(
     endpoint: &InstancePort,
     block: IVec3,
     hadamard: bool,
-    children: &HashMap<&str, (&ModuleInstance, ModuleGeometry)>,
+    children: &HashMap<&str, (&ModuleInstance, &ModuleGeometry<'_>)>,
 ) -> BindSeam {
     let mut signature = validated_port(children, endpoint).signature;
     signature.hadamard ^= hadamard;
@@ -1538,7 +1506,7 @@ fn geometry_direct_seam(
     output: &InstancePort,
     input: &InstancePort,
     hadamard: bool,
-    children: &HashMap<&str, (&ModuleInstance, ModuleGeometry)>,
+    children: &HashMap<&str, (&ModuleInstance, &ModuleGeometry<'_>)>,
     module: &str,
 ) -> Result<bool, ModuleCertificationError> {
     direct_seam_hadamard_parts(
@@ -1580,12 +1548,11 @@ fn direct_seam_hadamard_parts(
 }
 
 fn validated_port<'a>(
-    children: &'a HashMap<&str, (&ModuleInstance, ModuleGeometry)>,
+    children: &HashMap<&str, (&'a ModuleInstance, &'a ModuleGeometry<'_>)>,
     endpoint: &InstancePort,
 ) -> PortGeometry<'a> {
-    let (instance, geometry) = children
+    let &(instance, geometry) = children
         .get(endpoint.instance.as_str())
-        .map(|(instance, geometry)| (*instance, geometry))
         .expect("program validation resolved the child instance");
     let index = geometry
         .ports

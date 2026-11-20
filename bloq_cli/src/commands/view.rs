@@ -1,12 +1,12 @@
 use color_eyre::eyre::{self, WrapErr};
 
-use bloq_graph::{BlockGraph, Direction, GltfFaceSelector};
+use bloq_graph::GltfFaceSelector;
 
 use super::atomic_write_with;
 use super::compile::CompileSource;
-use crate::terminal;
+use crate::{ViewCmd, terminal};
 
-pub(crate) fn run_ir(
+fn run_ir(
     input: &std::path::Path,
     output: Option<&std::path::Path>,
     include_classical: bool,
@@ -24,26 +24,52 @@ pub(crate) fn run_ir(
     Ok(())
 }
 
-#[derive(Debug)]
-pub(crate) struct ViewCommandOptions {
-    pub(crate) gltf: bool,
-    pub(crate) html: bool,
-    pub(crate) module_view: bool,
-    pub(crate) pipe_length: f32,
-    pub(crate) pop_faces_at_directions: Vec<Direction>,
-    pub(crate) quiet: bool,
-}
-
-pub(crate) fn run(
-    source: &CompileSource,
-    graph: &BlockGraph,
-    options: ViewCommandOptions,
-) -> eyre::Result<()> {
-    let outputs = [(options.gltf, "gltf"), (options.html, "html")]
+pub(crate) fn run(cmd: ViewCmd, quiet: bool) -> eyre::Result<()> {
+    let ViewCmd { source, options } = cmd;
+    let ir_input = source.input.as_ref().is_some_and(|input| {
+        matches!(
+            input.extension().and_then(|ext| ext.to_str()),
+            Some(bloq_ir::BLOQ_BINARY_EXTENSION | bloq_ir::BLOQ_TEXT_EXTENSION)
+        )
+    });
+    if options.svg || ir_input {
+        eyre::ensure!(
+            !options.gltf && !options.html && !options.module_view,
+            "saved Bloq IR supports SVG views only"
+        );
+        let input = source
+            .input
+            .as_deref()
+            .ok_or_else(|| eyre::eyre!("SVG visualization requires a saved Bloq IR input file"))?;
+        return run_ir(
+            input,
+            options.output.as_deref(),
+            options.include_classical,
+            quiet,
+        );
+    }
+    eyre::ensure!(
+        !options.include_classical && options.output.is_none(),
+        "--include-classical and --output apply to saved Bloq IR SVG views"
+    );
+    let source = source.resolve()?;
+    let loaded = source.load_graph()?;
+    let graph = if options.module_view {
+        loaded
+    } else {
+        loaded.flatten().wrap_err("flatten source for rendering")?
+    };
+    // With no explicit selection, `bloq view` generates every view kind.
+    let (gltf, html) = if options.gltf || options.html {
+        (options.gltf, options.html)
+    } else {
+        (true, true)
+    };
+    let outputs = [(gltf, "gltf"), (html, "html")]
         .into_iter()
         .filter(|(enabled, _)| *enabled)
         .map(|(_, extension)| source.default_output_path_with_extension(extension));
-    if let CompileSource::InputFile(input) = source {
+    if let CompileSource::InputFile(input) = &source {
         for output in outputs {
             super::reject_input_output_alias(input, &output)?;
         }
@@ -54,7 +80,7 @@ pub(crate) fn run(
         .into_iter()
         .map(GltfFaceSelector::All)
         .collect::<Vec<_>>();
-    if options.gltf {
+    if gltf {
         let output = source.default_output_path_with_extension("gltf");
         if let Err(error) = atomic_write_with(&output, |temporary| {
             let result = if options.module_view {
@@ -71,12 +97,12 @@ pub(crate) fn run(
                 "generate glTF view at {}: {error:#}",
                 output.display()
             ));
-        } else if !options.quiet {
+        } else if !quiet {
             terminal::status("Generated", format!("glTF model -> {}", output.display()));
         }
     }
 
-    if options.html {
+    if html {
         let output = source.default_output_path_with_extension("html");
         if let Err(error) = atomic_write_with(&output, |temporary| {
             let result = if options.module_view {
@@ -93,7 +119,7 @@ pub(crate) fn run(
                 "generate HTML viewer at {}: {error:#}",
                 output.display()
             ));
-        } else if !options.quiet {
+        } else if !quiet {
             terminal::status("Generated", format!("HTML viewer -> {}", output.display()));
         }
     }
@@ -108,6 +134,7 @@ pub(crate) fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{SourceArgs, ViewArgs};
 
     #[test]
     fn all_view_outputs_are_checked_before_writing() {
@@ -130,16 +157,23 @@ mod tests {
                     _ => continue,
                 }
                 let error = run(
-                    &CompileSource::InputFile(input.clone()),
-                    &bloq_graph::GalleryItem::CNOT.build(),
-                    ViewCommandOptions {
-                        gltf: true,
-                        html: true,
-                        module_view: false,
-                        pipe_length: 1.0,
-                        pop_faces_at_directions: Vec::new(),
-                        quiet: true,
+                    ViewCmd {
+                        source: SourceArgs {
+                            input: Some(input.clone()),
+                            gallery: None,
+                        },
+                        options: ViewArgs {
+                            svg: false,
+                            include_classical: false,
+                            output: None,
+                            gltf: true,
+                            html: true,
+                            module_view: false,
+                            pipe_length: 1.0,
+                            pop_faces_at_directions: Vec::new(),
+                        },
                     },
+                    true,
                 )
                 .unwrap_err();
                 assert!(error.to_string().contains("aliases the input file"));

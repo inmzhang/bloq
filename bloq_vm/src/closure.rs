@@ -46,7 +46,7 @@ use bloq_ir::{
 use glam::IVec2;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use super::{ExecError, MAX_PHYSICAL_BOUNDARY_BINDINGS};
+use super::{ExecError, count_boundary_binding_work};
 
 // ============================================================
 // Shared schedule / footprint model
@@ -244,12 +244,7 @@ fn collect_exported_boundary_operators<'a>(
             continue;
         }
         if nested_recipe {
-            *expanded = expanded.saturating_add(1);
-            if *expanded > MAX_PHYSICAL_BOUNDARY_BINDINGS {
-                return Err(ExecError::BoundaryBindingExpansionLimit {
-                    limit: MAX_PHYSICAL_BOUNDARY_BINDINGS,
-                });
-            }
+            count_boundary_binding_work(expanded, 1)?;
         }
         let node = level.node(producer).ok_or(ExecError::MalformedGraph(
             "boundary export names missing producer",
@@ -272,17 +267,13 @@ fn collect_exported_boundary_operators<'a>(
         match (node.try_classical(), node.try_region()) {
             (Some(ClassicalNode::Observable { operators, .. }), _) => {
                 if nested_recipe {
-                    *expanded = expanded.saturating_add(
+                    count_boundary_binding_work(
+                        expanded,
                         operators
                             .iter()
                             .filter(|operator| operator.face == BoundaryFace::Output)
                             .count(),
-                    );
-                    if *expanded > MAX_PHYSICAL_BOUNDARY_BINDINGS {
-                        return Err(ExecError::BoundaryBindingExpansionLimit {
-                            limit: MAX_PHYSICAL_BOUNDARY_BINDINGS,
-                        });
-                    }
+                    )?;
                 }
                 out.extend(
                     operators

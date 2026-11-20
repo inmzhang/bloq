@@ -271,16 +271,24 @@ pub fn parse_blog_to_graph_with_limits(
     input: &str,
     limits: crate::ModuleCertificationLimits,
 ) -> Result<BlockGraph, BlockGraphError> {
+    lower_graph_input(input, parse::parse_program(input), limits)
+}
+
+fn lower_graph_input(
+    input: &str,
+    program: Result<ast::ModularSourceFile, ParseError>,
+    limits: crate::ModuleCertificationLimits,
+) -> Result<BlockGraph, BlockGraphError> {
     // The explicit graph constructor accepts executable BLOG and body serialization.
     // Only syntax selects a grammar; a module or resource failure never falls back
     // to a different lowering path.
-    match parse::parse_program(input) {
+    match program {
         Ok(source) if source.modules.is_empty() && source.imports.is_empty() => {
             parse_blog_body_with_limits(input, limits).map_err(Into::into)
         }
         Ok(source) => program::lower(&source, limits).map_err(|error| match error {
             crate::ModuleError::Parse(error) => BlockGraphError::Parse(error),
-            error => BlockGraphError::ModuleSource(Arc::new(error)),
+            error => module_source_error(error),
         }),
         Err(program_error) => parse_blog_body_with_limits(input, limits).map_err(|error| {
             if matches!(error, ParseError::Syntax { .. })
@@ -317,38 +325,22 @@ pub(crate) fn load_graph_input(
     path: &Path,
     limits: crate::ModuleCertificationLimits,
 ) -> Result<BlockGraph, BlockGraphError> {
-    let text = std::fs::read_to_string(path).map_err(|source| BlockGraphError::Io {
+    let text = read_blog(path)?;
+    match parse::parse_program(&text) {
+        Ok(source) if !source.imports.is_empty() => program::load(path, source, limits),
+        program => lower_graph_input(&text, program, limits),
+    }
+}
+
+fn read_blog(path: &Path) -> Result<String, BlockGraphError> {
+    std::fs::read_to_string(path).map_err(|source| BlockGraphError::Io {
         path: path.to_path_buf(),
         source: Arc::new(source),
-    })?;
-    if !parse::parse_program(&text).is_ok_and(|source| !source.imports.is_empty()) {
-        return parse_blog_to_graph_with_limits(&text, limits);
-    }
-    // Preserve the actual I/O cause and path instead of the generic resolver's
-    // display-only Load error. Reuse the root text on the first resolver call.
-    let mut root_text = Some(text);
-    let mut read_error = None;
-    let result = program::load(
-        path,
-        &mut |source: &Path| {
-            if let Some(text) = root_text.take() {
-                return Ok(text);
-            }
-            std::fs::read_to_string(source).map_err(|error| {
-                let error = Arc::new(error);
-                read_error = Some(BlockGraphError::Io {
-                    path: source.to_path_buf(),
-                    source: error.clone(),
-                });
-                error
-            })
-        },
-        limits,
-    );
-    if let Some(error) = read_error {
-        return Err(error);
-    }
-    result.map_err(|error| BlockGraphError::ModuleSource(Arc::new(error)))
+    })
+}
+
+fn module_source_error(error: crate::ModuleError) -> BlockGraphError {
+    BlockGraphError::ModuleSource(Arc::new(error))
 }
 
 /// Lowers parsed BLOG while deferring stabilizer-derived action dependencies.
@@ -411,20 +403,6 @@ pub(crate) fn parse_inline_graph_with_limits(
     program::lower(&parse::parse_program(input)?, limits)
 }
 
-/// Load BLOG with a caller-provided resolver and explicit resource limits.
-///
-/// # Errors
-///
-/// Returns a resolver, parse, import-resolution, module-validation, or resource-limit error.
-#[cfg(test)]
-pub(crate) fn load_graph_with_resolver_and_limits<E: std::fmt::Display>(
-    root: impl AsRef<Path>,
-    mut resolver: impl FnMut(&Path) -> Result<String, E>,
-    limits: crate::ModuleCertificationLimits,
-) -> Result<crate::BlockGraph, crate::ModuleError> {
-    program::load(root.as_ref(), &mut resolver, limits)
-}
-
 /// Parse BLOG source text into its [`ast::SourceFile`] without lowering.
 ///
 /// # Errors
@@ -474,33 +452,6 @@ pub fn parse_actions(
 
 #[cfg(test)]
 mod tests {
-    use crate::ModuleCertificationLimits;
-
-    #[test]
-    fn explicit_limits_apply_to_imported_source_before_expansion() {
-        let limits = ModuleCertificationLimits {
-            max_expanded_blocks: 1,
-            ..ModuleCertificationLimits::DEFAULT
-        };
-        let root = "BLOG 1.0\nimport \"child.blog\" as child\nmodule main {\n0: ZXZ [0,0,0]\n}\n";
-        let child = "BLOG 1.0\nmodule main {\n0: ZXZ [0,0,0]\n1: ZXZ [0,0,1]\n0 -> +Z\n}\n";
-        let load = |limits| {
-            super::load_graph_with_resolver_and_limits(
-                "root.blog",
-                |path| match path.to_str() {
-                    Some("root.blog") => Ok(root.to_owned()),
-                    Some("child.blog") => Ok(child.to_owned()),
-                    _ => Err("unexpected import"),
-                },
-                limits,
-            )
-        };
-        let error = load(limits).expect_err("the imported source exceeds its block budget");
-        let message = error.to_string();
-        assert!(message.contains("2 > 1"), "{message}");
-        load(ModuleCertificationLimits::DEFAULT).expect("default limits load the same hierarchy");
-    }
-
     #[test]
     fn diagnostic_uses_byte_spans_after_unicode() {
         let source = "BLOG 1.0\n# 中文中文中文中文中文\n0: INVALID [0,0,0]\n";

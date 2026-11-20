@@ -174,7 +174,14 @@ mod public_api_tests {
 
 use glam::IVec2;
 
-pub(crate) const MAX_PHYSICAL_BOUNDARY_BINDINGS: usize = 1_000_000;
+fn count_boundary_binding_work(expanded: &mut usize, additional: usize) -> Result<(), ExecError> {
+    const LIMIT: usize = 1_000_000;
+    *expanded = expanded.saturating_add(additional);
+    if *expanded > LIMIT {
+        return Err(ExecError::BoundaryBindingExpansionLimit { limit: LIMIT });
+    }
+    Ok(())
+}
 
 /// Failures on the *noiseless physical-verification* path.
 ///

@@ -352,6 +352,26 @@ struct Candidate {
     graph: BlockGraph,
 }
 
+impl Candidate {
+    fn from_fixture(
+        fixture: TestFixture,
+        graph: BlockGraph,
+        suffix: impl std::fmt::Display,
+        fill_variant: Option<usize>,
+    ) -> Self {
+        Self {
+            origin: TestCaseOrigin {
+                name: format!("{}[{suffix}]", fixture.id()),
+                fixture,
+                fill_variant,
+                flip_xz_basis: false,
+                rotation: None,
+            },
+            graph,
+        }
+    }
+}
+
 /// Returns the fixtures the compile and benchmark surfaces are generated from.
 pub fn compile_fixtures() -> &'static [TestFixture] {
     COMPILE_FIXTURES
@@ -648,33 +668,12 @@ fn build_fixture_cases() -> Result<(Vec<Candidate>, Vec<Candidate>), TestCaseErr
         {
             // Module cases retain their authored hierarchy. Flat auto-fill and
             // rotations belong to the primitive and focused transform suites.
-            open.push(Candidate {
-                origin: TestCaseOrigin {
-                    name: format!(
-                        "{}[{}]",
-                        fixture.id(),
-                        if graph.is_open() { "open" } else { "base" }
-                    ),
-                    fixture,
-                    fill_variant: None,
-                    flip_xz_basis: false,
-                    rotation: None,
-                },
-                graph,
-            });
+            let suffix = if graph.is_open() { "open" } else { "base" };
+            open.push(Candidate::from_fixture(fixture, graph, suffix, None));
             continue;
         }
         if !graph.is_open() {
-            closed.push(Candidate {
-                origin: TestCaseOrigin {
-                    name: format!("{}[base]", fixture.id()),
-                    fixture,
-                    fill_variant: None,
-                    flip_xz_basis: false,
-                    rotation: None,
-                },
-                graph,
-            });
+            closed.push(Candidate::from_fixture(fixture, graph, "base", None));
             continue;
         }
         let compilable = is_compilable_open_graph(&graph);
@@ -703,28 +702,15 @@ fn build_fixture_cases() -> Result<(Vec<Candidate>, Vec<Candidate>), TestCaseErr
                     fixture.id()
                 )));
             }
-            filled.push(Candidate {
-                origin: TestCaseOrigin {
-                    name: format!("{}[fill:{variant_index}]", fixture.id()),
-                    fixture,
-                    fill_variant: Some(variant_index),
-                    flip_xz_basis: false,
-                    rotation: None,
-                },
-                graph: filled_graph,
-            });
+            filled.push(Candidate::from_fixture(
+                fixture,
+                filled_graph,
+                format_args!("fill:{variant_index}"),
+                Some(variant_index),
+            ));
         }
         if compilable {
-            open.push(Candidate {
-                origin: TestCaseOrigin {
-                    name: format!("{}[open]", fixture.id()),
-                    fixture,
-                    fill_variant: None,
-                    flip_xz_basis: false,
-                    rotation: None,
-                },
-                graph,
-            });
+            open.push(Candidate::from_fixture(fixture, graph, "open", None));
         }
     }
     closed.extend(filled);

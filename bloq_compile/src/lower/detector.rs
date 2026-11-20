@@ -9,9 +9,9 @@ use petgraph::graph::NodeIndex;
 use crate::CompileError;
 use crate::block::LoweringTemplate;
 
+use super::BloqLowerContext;
 use super::classify::NodeLowering;
 use super::plan::LowerPlan;
-use super::{BloqLowerContext, ChunkSiteSource};
 
 type DetectorFlowEngine<'c> = bloq_circuit::FlowEngine<'c, DetectorTerm<InstanceMeasurement>>;
 
@@ -22,108 +22,34 @@ impl<'ctx> BloqLowerContext<'ctx> {
     /// The detector pass walks template flows directly instead of per-node
     /// translated copies: the engine's offset-aware keys make that exact, and
     /// it skips materializing two translated `PauliMap`s per flow per node.
-    fn detector_node_context(
-        &self,
-        plan_node: NodeIndex,
-    ) -> Result<DetectorNodeContext<'ctx>, CompileError> {
+    fn detector_node_context(&self, plan_node: NodeIndex) -> DetectorNodeContext<'ctx> {
         let node = &self.input.plan.graph()[plan_node];
-        let node_instances = self
-            .node_instances
-            .get(plan_node.index())
-            .expect("plan node has lowered template instances");
-        let mut sources = Vec::new();
-        match &self.classified[plan_node.index()] {
+        let skip_unmatched_inputs = match &self.classified[plan_node.index()] {
             NodeLowering::Selective { .. } => {
                 unreachable!("static detector lowering receives pinned selective templates")
             }
-            // A T block lowers to a `RepeatUntilSuccess` region; its escape
-            // instance is the block's temporal face toward the +Z neighbour
-            // (U8's source-only residual). The escape template's boundary flows
-            // also carry the six Steane-side consumers already closed by the
-            // intra-body cultivation seam (`compose_instance_seam`) — at top
-            // level they have nothing to match, so this source skips unmatched
-            // inputs instead of erroring. The end-face creators stay live and
-            // the neighbour's consumers close them into ordinary top-level
-            // `NodeDetector`s referencing the in-body escape instance.
-            NodeLowering::TRegion { pos, escape, .. } => {
-                let [instance] = &node_instances[..] else {
-                    unreachable!("T plan node carries exactly its escape instance");
-                };
-                debug_assert_eq!(instance.site_source, ChunkSiteSource::Block(*pos));
-                sources.push(MemberFlowSource {
-                    template: &self.input.template_pool[*escape],
-                    offset: self.input.layout.offset(*pos)?,
-                    instance_id: instance.instance.id,
-                    skip_unmatched_inputs: true,
-                });
-            }
-            NodeLowering::TemporalPipe {
-                pipe,
-                template,
-                origin,
-            } => {
-                assert_eq!(
-                    node_instances.len(),
-                    1,
-                    "temporal pipe node has one lowered template instance"
-                );
-                let instance = &node_instances[0];
-                debug_assert_eq!(instance.site_source, ChunkSiteSource::TemporalPipe(*pipe));
-                sources.push(MemberFlowSource {
-                    template: &self.input.template_pool[*template],
-                    offset: self.input.layout.offset(*origin)?,
-                    instance_id: instance.instance.id,
-                    skip_unmatched_inputs: false,
-                });
-            }
-            NodeLowering::SpatialPort { source, template } => {
-                let [instance] = &node_instances[..] else {
-                    unreachable!("derived temporal Port has one instance");
-                };
-                debug_assert_eq!(instance.site_source, ChunkSiteSource::SpatialPort(*source));
-                sources.push(MemberFlowSource {
-                    template: &self.input.template_pool[*template],
-                    offset: self.input.layout.offset(*source)?,
-                    instance_id: instance.instance.id,
-                    skip_unmatched_inputs: false,
-                });
-            }
-            NodeLowering::Fixed { members, walls } => {
-                assert_eq!(
-                    node_instances.len(),
-                    members.len() + walls.len(),
-                    "block node has one lowered template instance per member and wall"
-                );
-                let (member_instances, wall_instances) = node_instances.split_at(members.len());
-                for (&(member, template), instance) in members.iter().zip(member_instances) {
-                    debug_assert_eq!(instance.site_source, ChunkSiteSource::Block(member.pos));
-                    sources.push(MemberFlowSource {
-                        template: &self.input.template_pool[template],
-                        offset: self.input.layout.offset(member.pos)?,
-                        instance_id: instance.instance.id,
-                        skip_unmatched_inputs: false,
-                    });
-                }
-                for (wall, instance) in walls.iter().zip(wall_instances) {
-                    debug_assert_eq!(
-                        instance.site_source,
-                        ChunkSiteSource::SpatialPipe(wall.pipe)
-                    );
-                    sources.push(MemberFlowSource {
-                        template: &self.input.template_pool[wall.template],
-                        offset: self.input.layout.offset(wall.pipe.src)?,
-                        instance_id: instance.instance.id,
-                        skip_unmatched_inputs: false,
-                    });
-                }
-            }
-        }
-        Ok(DetectorNodeContext {
+            // The intra-region seam already closed the escape template's
+            // cultivation-side consumers. Its output flows stay live here.
+            NodeLowering::TRegion { .. } => true,
+            NodeLowering::Fixed { .. }
+            | NodeLowering::TemporalPipe { .. }
+            | NodeLowering::SpatialPort { .. } => false,
+        };
+        let sources = self.node_instances[plan_node.index()]
+            .iter()
+            .map(|placed| MemberFlowSource {
+                template: &self.input.template_pool[placed.instance.template],
+                offset: placed.instance.offset,
+                instance_id: placed.instance.id,
+            })
+            .collect();
+        DetectorNodeContext {
             plan_node: plan_node.index(),
             layer: node.layer,
             members: node.block_members(),
             sources,
-        })
+            skip_unmatched_inputs,
+        }
     }
 }
 
@@ -132,6 +58,8 @@ struct DetectorNodeContext<'a> {
     layer: i64,
     members: &'a [SourceBlockRef],
     sources: Vec<MemberFlowSource<'a>>,
+    /// True only for a T region's escape instance at the outer level.
+    skip_unmatched_inputs: bool,
 }
 
 /// One node member's compiled template, placed at the member's XY offset.
@@ -139,11 +67,6 @@ struct MemberFlowSource<'a> {
     template: &'a LoweringTemplate,
     offset: IVec2,
     instance_id: TemplateInstanceId,
-    /// Compose with `append_group_skipping_unmatched_inputs`: a consumer flow
-    /// with no matching open chain is dropped instead of erroring. Set only for
-    /// a T block's escape template at top level, whose Steane-side consumers
-    /// were already closed by the intra-body cultivation seam.
-    skip_unmatched_inputs: bool,
 }
 
 /// Composed boundary detectors grouped by the plan node the chains closed on.
@@ -242,7 +165,7 @@ fn order_same_layer_flows(
     let mut consumers = crate::FxMap::<FlowKey<'_>, smallvec::SmallVec<[usize; 1]>>::default();
     let mut produced = vec![Vec::new(); nodes.len()];
     for (index, &node) in nodes.iter().enumerate() {
-        let node = context.detector_node_context(node)?;
+        let node = context.detector_node_context(node);
         for source in node.sources {
             for flow in &source.template.program_template.boundary_flows {
                 if !flow.start.is_empty() {
@@ -312,7 +235,7 @@ fn attach_component_detectors(
         engine: DetectorFlowEngine::new(),
     };
     for &node in nodes {
-        let node_context = context.detector_node_context(node)?;
+        let node_context = context.detector_node_context(node);
         append_node_boundary_flows(&mut state, &node_context)?;
     }
     let remaining = state
@@ -334,24 +257,37 @@ fn attach_component_detectors(
     Ok(())
 }
 
-/// Append one node's boundary flows to the component engine, one group per
-/// source.
+/// Append a node's boundary flows as one parallel group. Every member consumes
+/// flows from earlier groups before any member publishes its outputs.
 ///
-/// Each source's `boundary_flows` are already fused into mutually independent
-/// chains, so the whole list goes in as a single `TopLevel` group. Sources are
-/// appended independently: a node's members lie in one z-layer and expose
-/// boundary flows only on their own temporal faces, so two members never collide
-/// on a key. There is no loop arm — a top-open loop's residual arrives as a plain
-/// creator flow, resolved by the backend's post-`REPEAT` lookback.
+/// A top-level T region contributes only its escape template. Its cultivation-side
+/// inputs were already closed inside the region and can be unmatched here.
+/// A top-open loop's residual arrives as a creator flow, resolved by the
+/// backend's post-`REPEAT` lookback.
 fn append_node_boundary_flows<'c>(
     state: &mut DetectorLowerState<'c>,
     node: &DetectorNodeContext<'c>,
 ) -> Result<(), CompileError> {
-    if !node
-        .sources
-        .iter()
-        .any(|source| source.skip_unmatched_inputs)
-    {
+    if node.skip_unmatched_inputs {
+        let [escape] = node.sources.as_slice() else {
+            unreachable!("T plan node carries exactly its escape instance");
+        };
+        let flows = &escape.template.program_template.boundary_flows;
+        if !flows.is_empty() {
+            state
+                .engine
+                .append_group_skipping_unmatched_inputs(
+                    &[OffsetFlows::new(flows, escape.offset)],
+                    |_, &measurement| {
+                        DetectorTerm::Measurement(InstanceMeasurement {
+                            instance: escape.instance_id,
+                            measurement,
+                        })
+                    },
+                )
+                .map_err(|error| node_flow_error(node, error))?;
+        }
+    } else {
         let sources: Vec<_> = node
             .sources
             .iter()
@@ -375,33 +311,6 @@ fn append_node_boundary_flows<'c>(
                 })
             })
             .map_err(|error| node_flow_error(node, error))?;
-        state.drain_node_chains(node.plan_node);
-        return Ok(());
-    }
-
-    for source in &node.sources {
-        if source.template.program_template.boundary_flows.is_empty() {
-            continue;
-        }
-        let instance = source.instance_id;
-        let parts = [OffsetFlows::new(
-            &source.template.program_template.boundary_flows,
-            source.offset,
-        )];
-        let term = |_: usize, &measurement: &u32| {
-            DetectorTerm::Measurement(InstanceMeasurement {
-                instance,
-                measurement,
-            })
-        };
-        if source.skip_unmatched_inputs {
-            state
-                .engine
-                .append_group_skipping_unmatched_inputs(&parts, term)
-        } else {
-            state.engine.append_group_allowing_dangling(&parts, term)
-        }
-        .map_err(|error| node_flow_error(node, error))?;
     }
     // Classification (Discard drop / Restart -> `NodeRestart` / else
     // `NodeDetector`) is shared with the U11 edit recompose so the marker
@@ -432,11 +341,11 @@ pub(super) fn compose_instance_seam(
             plan_node: 0,
             layer: 0,
             members: &[],
+            skip_unmatched_inputs: false,
             sources: vec![MemberFlowSource {
                 template,
                 offset,
                 instance_id,
-                skip_unmatched_inputs: false,
             }],
         };
         append_node_boundary_flows(&mut state, &node)?;
@@ -511,11 +420,11 @@ mod tests {
             plan_node,
             layer: 0,
             members: &[],
+            skip_unmatched_inputs: false,
             sources: vec![MemberFlowSource {
                 template,
                 offset: IVec2::ZERO,
                 instance_id: TemplateInstanceId(instance),
-                skip_unmatched_inputs: false,
             }],
         };
         let mut state = DetectorLowerState {

@@ -346,12 +346,13 @@ def test_root_only_module_export_keeps_normal_rendering(tmp_path):
     assert '<details class="module-legend"' not in viewer.read_text()
 
 
-def test_module_view_rejects_a_stabilizer_overlay_before_writing(tmp_path):
+@pytest.mark.parametrize("method,extension", [("export_gltf", "gltf"), ("export_html_viewer", "html")])
+def test_module_view_rejects_a_stabilizer_overlay_before_writing(tmp_path, method, extension):
     graph = bloq.GalleryItem.CNOT.load().flatten()
     generator = graph.stabilizers()[0]
-    output = tmp_path / "invalid.html"
+    output = tmp_path / f"invalid.{extension}"
     with pytest.raises(bloq.InvalidArgumentError, match="stabilizer overlay"):
-        graph.export_html_viewer(output, stabilizer=generator, module_view=True)
+        getattr(graph, method)(output, stabilizer=generator, module_view=True)
     assert not output.exists()
 
 

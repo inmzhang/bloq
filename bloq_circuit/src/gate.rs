@@ -145,31 +145,12 @@ impl GateType {
 
     /// Returns `true` for the non-Clifford [`T`](GateType::T)-family gates.
     pub const fn is_non_clifford(&self) -> bool {
-        matches!(
-            self,
-            GateType::T_YZ
-                | GateType::T_YZ_DAG
-                | GateType::T_XZ
-                | GateType::T_XZ_DAG
-                | GateType::T
-                | GateType::T_DAG
-        )
+        self.non_clifford_proxy().is_some()
     }
 
     /// Returns `true` for the two-qubit unitary (controlled) gates.
     pub const fn is_two_qubit_gate(&self) -> bool {
-        matches!(
-            self,
-            GateType::XCX
-                | GateType::XCY
-                | GateType::XCZ
-                | GateType::YCX
-                | GateType::YCY
-                | GateType::YCZ
-                | GateType::CX
-                | GateType::CY
-                | GateType::CZ
-        )
+        self.two_qubit_bases().is_some()
     }
 
     /// Maps a non-Clifford gate to the Clifford that shares its axis and sign,
@@ -177,15 +158,23 @@ impl GateType {
     /// [`S`](GateType::S) proxy.
     /// Clifford gates map to themselves.
     pub const fn clifford_proxy(&self) -> GateType {
-        match self {
+        match self.non_clifford_proxy() {
+            Some(proxy) => proxy,
+            None => *self,
+        }
+    }
+
+    const fn non_clifford_proxy(&self) -> Option<GateType> {
+        let proxy = match self {
             GateType::T => GateType::S,
             GateType::T_DAG => GateType::S_DAG,
             GateType::T_YZ => GateType::SQRT_X,
             GateType::T_YZ_DAG => GateType::SQRT_X_DAG,
             GateType::T_XZ => GateType::SQRT_Y,
             GateType::T_XZ_DAG => GateType::SQRT_Y_DAG,
-            _ => *self,
-        }
+            _ => return None,
+        };
+        Some(proxy)
     }
 
     /// For two-qubit gates in the `ACB` naming convention, returns the (control,
