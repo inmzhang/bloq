@@ -1,7 +1,7 @@
 use crate::emit::{
-    ResolvedLoopStates, StimAnnotationScope, StimCircuitAnnotations, StimDetector,
-    StimEmissionError, StimEmitContext, StimEmitOptions, StimMeasurementMapper, StimRepeatState,
-    emit_stim_circuit, first_unsupported_gate,
+    MeasurementIds, ResolvedLoopStates, StimAnnotationScope, StimCircuitAnnotations, StimDetector,
+    StimEmissionError, StimEmitContext, StimEmitOptions, StimRepeatState, emit_stim_circuit,
+    first_unsupported_gate,
 };
 use crate::layout::{QubitLayout, coordinate_index, detector_index};
 use crate::measurement_frame::{MeasurementFrame, stim_record_lookback};
@@ -1470,9 +1470,6 @@ impl<'a> BloqStimEmitter<'a> {
         circuit: &CoordCircuit,
         annotations: Option<&StimCircuitAnnotations>,
     ) -> Result<bool, CircuitError> {
-        let mut mapper = PassthroughMeasurementMapper {
-            num_measurements: self.num_measurements,
-        };
         let mut ctx = StimEmitContext {
             layout: &self.layout,
             frame: &mut self.frame,
@@ -1484,7 +1481,9 @@ impl<'a> BloqStimEmitter<'a> {
             circuit,
             annotations,
             &mut ctx,
-            &mut mapper,
+            MeasurementIds::Global {
+                count: self.num_measurements,
+            },
             StimEmitOptions::default(),
         )
     }
@@ -1959,9 +1958,6 @@ impl<'a> BloqStimEmitter<'a> {
                 include_restarts: self.attempt.is_some(),
             },
         )?;
-        let mut mapper = PassthroughMeasurementMapper {
-            num_measurements: self.num_measurements,
-        };
         let mut ctx = StimEmitContext {
             layout: &self.layout,
             frame: &mut self.frame,
@@ -1973,7 +1969,9 @@ impl<'a> BloqStimEmitter<'a> {
             &circuit,
             Some(&self.annotations_scratch),
             &mut ctx,
-            &mut mapper,
+            MeasurementIds::Global {
+                count: self.num_measurements,
+            },
             StimEmitOptions::default(),
         )?;
         self.collect_detector_metadata()?;
@@ -2039,11 +2037,6 @@ impl<'a> BloqStimEmitter<'a> {
         let emit_postselection_tags = self
             .attempt
             .is_none_or(AttemptRender::emits_postselection_tags);
-        let mut mapper = SingleInstanceMeasurementMapper {
-            instance: instance.id,
-            measurements: &self.instance_measurements,
-            num_measurements: self.num_measurements,
-        };
         let mut ctx = StimEmitContext {
             layout: &self.layout,
             frame: &mut self.frame,
@@ -2055,7 +2048,11 @@ impl<'a> BloqStimEmitter<'a> {
             circuit,
             Some(&self.annotations_scratch),
             &mut ctx,
-            &mut mapper,
+            MeasurementIds::Instance {
+                instance: instance.id,
+                measurements: &self.instance_measurements,
+                count: self.num_measurements,
+            },
             StimEmitOptions {
                 enable_clifford_proxy,
                 allow_non_clifford,
@@ -2173,59 +2170,6 @@ fn estimate_circuit_stim_capacity(circuit: &bloq_circuit::CoordCircuit) -> usize
         })
         .sum::<usize>()
         * STIM_BYTES_PER_OP
-}
-
-/// A measurement id passes through unchanged when it is live: global ids are
-/// allocated contiguously from 0, so any id below the total count exists.
-/// Otherwise it refers to a measurement outside the emitted range and is rejected.
-fn passthrough_live_measurement(
-    measurement: u32,
-    num_measurements: u32,
-) -> Result<u32, bloq_circuit::CircuitError> {
-    if measurement < num_measurements {
-        return Ok(measurement);
-    }
-    Err(bloq_circuit::CircuitError::InvalidMeasurementId(
-        measurement,
-    ))
-}
-
-/// Passes already-global measurement ids through unchanged, rejecting any id
-/// not live in this node. Used by the multi-instance merge path, whose merged
-/// circuit already carries backend-global ids.
-struct PassthroughMeasurementMapper {
-    num_measurements: u32,
-}
-
-impl StimMeasurementMapper for PassthroughMeasurementMapper {
-    fn map_measurement(&mut self, measurement: u32) -> Result<u32, bloq_circuit::CircuitError> {
-        passthrough_live_measurement(measurement, self.num_measurements)
-    }
-}
-
-struct SingleInstanceMeasurementMapper<'a> {
-    instance: TemplateInstanceId,
-    measurements: &'a FxHashMap<InstanceMeasurement, u32>,
-    num_measurements: u32,
-}
-
-impl StimMeasurementMapper for SingleInstanceMeasurementMapper<'_> {
-    fn map_measurement(&mut self, measurement: u32) -> Result<u32, bloq_circuit::CircuitError> {
-        let measurement = InstanceMeasurement {
-            instance: self.instance,
-            measurement,
-        };
-        self.measurements.get(&measurement).copied().ok_or(
-            bloq_circuit::CircuitError::InvalidMeasurementId(measurement.measurement),
-        )
-    }
-
-    fn map_annotation_measurement(
-        &mut self,
-        measurement: u32,
-    ) -> Result<u32, bloq_circuit::CircuitError> {
-        passthrough_live_measurement(measurement, self.num_measurements)
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

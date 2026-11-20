@@ -632,15 +632,7 @@ impl<'a> Machine<'a> {
                 self.complete_task(task, epoch, start, start);
             }
             Instruction::ReadoutRecipe { bits, bindings } => {
-                let mut parity = Some(false);
-                let mut measured = None;
-                for bit in bits {
-                    parity = match (parity, self.bits[bit as usize]) {
-                        (Some(left), Some(right)) => Some(left ^ right),
-                        _ => None,
-                    };
-                    measured = max_time(measured, self.bit_times[bit as usize]);
-                }
+                let (parity, measured) = self.readout_parity(bits);
                 if let Some(output) = value.output {
                     self.write_bit(output, parity, measured)?;
                 }
@@ -654,15 +646,7 @@ impl<'a> Machine<'a> {
                 bits,
                 bindings,
             } => {
-                let mut raw = Some(false);
-                let mut measured = None;
-                for bit in bits {
-                    raw = match (raw, self.bits[bit as usize]) {
-                        (Some(left), Some(right)) => Some(left ^ right),
-                        _ => None,
-                    };
-                    measured = max_time(measured, self.bit_times[bit as usize]);
-                }
+                let (raw, measured) = self.readout_parity(bits);
                 let mut boundary = None;
                 let mut products = HashMap::new();
                 for &binding_task in &bindings {
@@ -1791,15 +1775,7 @@ impl<'a> Machine<'a> {
         }
         let value = &self.program.tasks[task as usize];
         let mut descended = false;
-        if matches!(
-            value.instruction,
-            Instruction::Eval(_)
-                | Instruction::Accumulate(_)
-                | Instruction::Bind(_)
-                | Instruction::ReadoutRecipe { .. }
-                | Instruction::Observable { .. }
-                | Instruction::SignalReady { .. }
-        ) {
+        if completes_without_duration(&value.instruction) {
             for dependency in value
                 .dependencies
                 .iter()
@@ -1864,15 +1840,7 @@ impl<'a> Machine<'a> {
             for dependency in &value.dependencies {
                 start = start.max(self.known_completion_inner(*dependency, visiting)?);
             }
-            if matches!(
-                value.instruction,
-                Instruction::Eval(_)
-                    | Instruction::Accumulate(_)
-                    | Instruction::Bind(_)
-                    | Instruction::ReadoutRecipe { .. }
-                    | Instruction::Observable { .. }
-                    | Instruction::SignalReady { .. }
-            ) {
+            if completes_without_duration(&value.instruction) {
                 return Some(start);
             }
             value.source?;
@@ -2409,6 +2377,19 @@ impl<'a> Machine<'a> {
         Ok(time)
     }
 
+    fn readout_parity(&self, bits: Box<[BitId]>) -> (Option<bool>, Option<f64>) {
+        let mut parity = Some(false);
+        let mut measured = None;
+        for bit in bits {
+            parity = match (parity, self.bits[bit as usize]) {
+                (Some(left), Some(right)) => Some(left ^ right),
+                _ => None,
+            };
+            measured = max_time(measured, self.bit_times[bit as usize]);
+        }
+        (parity, measured)
+    }
+
     fn eval_bool(&self, expression: &BoolOp) -> Result<(Option<bool>, Option<f64>), RuntimeError> {
         self.eval_bool_using(expression, &|bit| {
             Ok((self.bit(bit)?, self.bit_times[bit as usize]))
@@ -2654,6 +2635,18 @@ impl<'a> Machine<'a> {
         }
         self.artifact.final_bits.clone_from(&self.bits);
     }
+}
+
+fn completes_without_duration(instruction: &Instruction) -> bool {
+    matches!(
+        instruction,
+        Instruction::Eval(_)
+            | Instruction::Accumulate(_)
+            | Instruction::Bind(_)
+            | Instruction::ReadoutRecipe { .. }
+            | Instruction::Observable { .. }
+            | Instruction::SignalReady { .. }
+    )
 }
 
 fn attempt_epoch(task: TaskId, attempt: u32) -> u64 {

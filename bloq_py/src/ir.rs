@@ -1820,12 +1820,7 @@ pub(crate) struct PyWalkNode {
 impl From<NodeCx<'_>> for PyWalkNode {
     fn from(cx: NodeCx<'_>) -> Self {
         Self {
-            path: cx
-                .path
-                .segments()
-                .iter()
-                .map(|segment| (segment.region.0, segment.body.name().to_owned()))
-                .collect(),
+            path: level_path_into(cx.path),
             id: cx.id.0,
             node: cx.node.into(),
         }
@@ -3124,14 +3119,7 @@ impl PyBloq {
     fn levels(&self) -> Vec<(Vec<(u32, String)>, PySubGraph)> {
         self.0
             .levels()
-            .map(|(path, level)| {
-                let path = path
-                    .segments()
-                    .iter()
-                    .map(|segment| (segment.region.0, segment.body.name().to_owned()))
-                    .collect();
-                (path, PySubGraph(level.clone()))
-            })
+            .map(|(path, level)| (level_path_into(&path), PySubGraph(level.clone())))
             .collect()
     }
 

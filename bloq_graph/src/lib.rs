@@ -77,8 +77,6 @@ pub use guarded::{GuardedProjection, GuardedTopology, GuardedVariable, selective
 pub use height::{CubeHeight, MAX_CUBE_HEIGHT_CELLS};
 pub use module_view::{ModuleView, ModuleViewModule, module_color};
 #[cfg(test)]
-pub(crate) use parser::load_graph_with_resolver_and_limits;
-#[cfg(test)]
 pub(crate) use parser::parse_inline_graph;
 pub(crate) use parser::parse_inline_graph_with_limits;
 pub use parser::{

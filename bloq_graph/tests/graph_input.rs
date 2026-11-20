@@ -80,8 +80,9 @@ fn module_errors_and_expansion_budgets_never_fall_back_to_body_lowering() {
 fn file_loading_resolves_nested_imports_and_preserves_the_original_io_failure() {
     let directory =
         std::env::temp_dir().join(format!("bloq-graph-input-{}", rand::random::<u64>()));
+    std::fs::create_dir_all(directory.join("children")).unwrap();
+    let directory = directory.canonicalize().unwrap();
     let child_directory = directory.join("children");
-    std::fs::create_dir_all(&child_directory).unwrap();
     let root = directory.join("main.blog");
     let child = child_directory.join("leaf.blog");
     let grandchild = child_directory.join("body.blog");
@@ -120,6 +121,22 @@ fn file_loading_resolves_nested_imports_and_preserves_the_original_io_failure() 
     )
     .unwrap_err();
     assert!(has_resource_limit(&refused), "{refused:?}");
+    assert!(matches!(
+        refused,
+        BlockGraphError::ModuleSource(error)
+            if matches!(error.as_ref(), ModuleError::Parse(bloq_graph::ParseError::Graph { .. }))
+    ));
+
+    std::fs::write(
+        &grandchild,
+        "BLOG 1.0\nimport \"../main.blog\" as Root\nmodule main {\n}\n",
+    )
+    .unwrap();
+    assert!(matches!(
+        BlockGraph::load(&root),
+        Err(BlockGraphError::ModuleSource(error))
+            if matches!(error.as_ref(), ModuleError::ImportCycle { path } if path == &root.display().to_string())
+    ));
 
     let invalid = "BLOG 1.0\nmodule main {\n0: ZXZ [0,0,0]\n0: ZXZ [2,0,0]\n}\n";
     std::fs::write(&grandchild, invalid).unwrap();

@@ -297,23 +297,8 @@ impl PhysicalProjection {
                 t_sides,
             )?
         };
-        for (source, dir) in ports
-            .values()
-            .filter_map(|port| port.cube_pipe_dir().map(|dir| (port.source, dir)))
-        {
-            let info = compiled
-                .get_mut(&source)
-                .expect("compiled geometry contains every expanded Port source");
-            info.graph_connectivity = info.graph_connectivity.with_pipe(dir);
-        }
         let input = LinkedPlanInput::from_module_graph(graph, ports, positions.iter().copied());
-        let port_templates = context.compile_port_templates(ports)?;
-        for port in ports.values().filter(|port| !port.is_spatial()) {
-            compiled
-                .get_mut(&port.source)
-                .expect("temporal Port was compiled")
-                .template = port_templates[&port.source].template;
-        }
+        let port_templates = context.compile_port_templates(ports, &mut compiled)?;
         let temporal_templates =
             context.compile_temporal_template_plans(input.temporal_templates())?;
         let wall_templates =

@@ -1,7 +1,6 @@
 //! Lowering parsed module declarations into a hierarchical block graph.
 
 use std::collections::{BTreeSet, HashMap};
-use std::fmt::Display;
 use std::path::{Component, Path, PathBuf};
 
 use crate::parser::ast::{
@@ -13,7 +12,9 @@ use crate::program::{
     ModuleInstance, ModuleInterface, ModuleRotation, PortDirection, QuantumConnection, QuantumPort,
     split_member,
 };
-use crate::{BlockGraph, ParseError};
+use crate::{BlockGraph, BlockGraphError, ParseError};
+
+use super::{module_source_error, read_blog};
 
 pub(super) fn lower(
     source: &ModularSourceFile,
@@ -34,86 +35,87 @@ fn lower_impl(
     if !source.imports.is_empty() {
         return Err(ModuleError::ImportsRequireLoader);
     }
-    check_version(source)?;
-    let modules = source
-        .modules
-        .iter()
-        .map(|module| lower_module(source, &module.node, deferred, limits))
-        .collect::<Result<Vec<_>, _>>()?;
+    let modules = lower_modules(source, deferred, limits)?;
     with_module_span(
         BlockGraph::from_definitions_with_limits(modules, limits),
         source,
     )
 }
 
-pub(super) fn lower_modules(
+fn lower_modules(
     source: &ModularSourceFile,
+    deferred: bool,
     limits: ModuleCertificationLimits,
 ) -> Result<Vec<BlockGraph>, ModuleError> {
     check_version(source)?;
     source
         .modules
         .iter()
-        .map(|module| lower_module(source, &module.node, false, limits))
+        .map(|module| lower_module(source, &module.node, deferred, limits))
         .collect()
 }
 
-pub(super) fn load<E: Display>(
+pub(super) fn load(
     root: &Path,
-    resolver: &mut impl FnMut(&Path) -> Result<String, E>,
+    source: ModularSourceFile,
     limits: ModuleCertificationLimits,
-) -> Result<BlockGraph, ModuleError> {
-    load_inner(root, resolver, &mut Vec::new(), &mut HashMap::new(), limits)
+) -> Result<BlockGraph, BlockGraphError> {
+    load_inner(
+        root,
+        Some(source),
+        &mut Vec::new(),
+        &mut HashMap::new(),
+        limits,
+    )
 }
 
-fn load_inner<E: Display>(
+fn load_inner(
     path: &Path,
-    resolver: &mut impl FnMut(&Path) -> Result<String, E>,
+    root_source: Option<ModularSourceFile>,
     stack: &mut Vec<PathBuf>,
     cache: &mut HashMap<PathBuf, BlockGraph>,
     limits: ModuleCertificationLimits,
-) -> Result<BlockGraph, ModuleError> {
+) -> Result<BlockGraph, BlockGraphError> {
     let path = normalize_path(path);
     if stack.contains(&path) {
-        return Err(ModuleError::ImportCycle {
+        return Err(module_source_error(ModuleError::ImportCycle {
             path: path.display().to_string(),
-        });
+        }));
     }
     if let Some(program) = cache.get(&path) {
         return Ok(program.clone());
     }
     stack.push(path.clone());
-    let source = resolver(&path).map_err(|error| ModuleError::Load {
-        path: path.display().to_string(),
-        message: error.to_string(),
-    })?;
-    let parsed = super::parse::parse_program(&source)?;
-    let mut modules = lower_modules(&parsed, limits)?;
+    let parsed = match root_source {
+        Some(source) => source,
+        None => super::parse::parse_program(&read_blog(&path)?)
+            .map_err(|error| module_source_error(ModuleError::Parse(error)))?,
+    };
+    let mut modules = lower_modules(&parsed, false, limits).map_err(module_source_error)?;
     for import in &parsed.imports {
         let import_path = Path::new(&import.node.path.node);
         if import_path.as_os_str().is_empty() || import_path.is_absolute() {
-            return Err(ModuleError::InvalidModule {
+            return Err(module_source_error(ModuleError::InvalidModule {
                 module: "main".to_string(),
                 message: format!("import path '{}' must be relative", import.node.path.node),
                 span: Some(import.span),
-            });
+            }));
         }
         let child_path = path
             .parent()
             .unwrap_or_else(|| Path::new(""))
             .join(import_path);
-        let child = load_inner(&child_path, resolver, stack, cache, limits)?;
+        let child = load_inner(&child_path, None, stack, cache, limits)?;
         modules.extend(prefix_modules(&child, &import.node.alias.node));
     }
-    let result = with_module_span(
+    let program = with_module_span(
         BlockGraph::from_definitions_with_limits(modules, limits),
         &parsed,
-    );
+    )
+    .map_err(module_source_error)?;
     stack.pop();
-    if let Ok(program) = &result {
-        cache.insert(path, program.clone());
-    }
-    result
+    cache.insert(path, program.clone());
+    Ok(program)
 }
 
 fn with_module_span(

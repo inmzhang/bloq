@@ -978,19 +978,19 @@ impl BlockGraph {
         &self,
         limits: ModuleCertificationLimits,
     ) -> Result<(), ModuleError> {
-        self.validate_definition_structure()?;
-        crate::summary::preflight_program_expansion(self, limits)
+        let ordered = self.validate_definition_structure()?;
+        crate::summary::preflight_program_expansion(&ordered, limits)
     }
 
     /// Source transport checks. Geometry certification remains an explicit
     /// validation/compile step, not repeated when receiving a worker result.
     pub(crate) fn validate_snapshot_hierarchy(&self) -> Result<(), ModuleError> {
-        let definitions = self.validate_definition_structure()?;
-        crate::summary::preflight_program_expansion(self, ModuleCertificationLimits::DEFAULT)?;
-        validate_classical_cycles(&self.modules().collect::<Vec<_>>(), &definitions)
+        let ordered = self.validate_definition_structure()?;
+        crate::summary::preflight_program_expansion(&ordered, ModuleCertificationLimits::DEFAULT)?;
+        validate_classical_cycles(&ordered)
     }
 
-    fn validate_definition_structure(&self) -> Result<HashMap<&str, &Self>, ModuleError> {
+    fn validate_definition_structure(&self) -> Result<Vec<&Self>, ModuleError> {
         let mut definitions = HashMap::new();
         for module in self.modules() {
             if !module.definitions.is_empty() && !std::ptr::eq(module, self) {
@@ -1011,8 +1011,7 @@ impl BlockGraph {
         for module in self.modules() {
             validate_module(module, &definitions)?;
         }
-        validate_acyclic(&self.modules().collect::<Vec<_>>(), &definitions)?;
-        Ok(definitions)
+        module_postorder(self.modules(), &definitions)
     }
 
     /// Validates all authored definitions, interfaces, seams, and dependency cycles.
@@ -1037,10 +1036,10 @@ impl BlockGraph {
                 })?;
             return Ok(());
         }
-        let definitions = self.validate_definition_structure()?;
-        crate::summary::preflight_program_expansion(self, limits)?;
-        validate_classical_cycles(&self.modules().collect::<Vec<_>>(), &definitions)?;
-        crate::summary::validate_program_geometry(self)
+        let ordered = self.validate_definition_structure()?;
+        crate::summary::preflight_program_expansion(&ordered, limits)?;
+        validate_classical_cycles(&ordered)?;
+        crate::summary::validate_program_geometry(self, &ordered)
     }
 
     /// Extracts an independently compilable graph rooted at one named definition.
@@ -2394,82 +2393,65 @@ fn port_direction(graph: &BlockGraph, position: IVec3) -> Result<PortDirection, 
     }
 }
 
-fn validate_acyclic(
-    modules: &[&BlockGraph],
-    definitions: &HashMap<&str, &BlockGraph>,
-) -> Result<(), ModuleError> {
-    let mut active = HashSet::new();
-    let mut done = HashSet::new();
-    for module in modules {
-        let mut pending = vec![(module.name.as_str(), false)];
-        while let Some((name, exiting)) = pending.pop() {
+/// Visits each reachable definition once, after its children, detecting cycles.
+pub(crate) fn module_postorder<'a>(
+    roots: impl IntoIterator<Item = &'a BlockGraph>,
+    definitions: &HashMap<&str, &'a BlockGraph>,
+) -> Result<Vec<&'a BlockGraph>, ModuleError> {
+    use std::collections::hash_map::Entry;
+
+    let mut finished = HashMap::new();
+    let mut ordered = Vec::new();
+    for root in roots {
+        let mut pending = vec![(root, false)];
+        while let Some((module, exiting)) = pending.pop() {
+            let name = module.name.as_str();
             if exiting {
-                active.remove(name);
-                done.insert(name);
-            } else if !done.contains(name) {
-                if !active.insert(name) {
+                finished.insert(name, true);
+                ordered.push(module);
+                continue;
+            }
+            match finished.entry(name) {
+                Entry::Occupied(state) if *state.get() => continue,
+                Entry::Occupied(_) => {
                     return Err(ModuleError::InvalidModule {
                         module: name.to_string(),
                         message: "module dependency cycle".to_string(),
                         span: None,
                     });
                 }
-                pending.push((name, true));
-                pending.extend(
-                    definitions[name]
-                        .instances
-                        .iter()
-                        .rev()
-                        .map(|instance| (instance.definition.as_str(), false)),
-                );
+                Entry::Vacant(state) => {
+                    state.insert(false);
+                }
             }
+            pending.push((module, true));
+            pending.extend(
+                module
+                    .instances
+                    .iter()
+                    .rev()
+                    .map(|instance| (definitions[instance.definition.as_str()], false)),
+            );
         }
     }
-    Ok(())
+    Ok(ordered)
 }
 
 type BitDependencies = HashMap<String, HashSet<String>>;
 
-fn validate_classical_cycles(
-    modules: &[&BlockGraph],
-    definitions: &HashMap<&str, &BlockGraph>,
-) -> Result<(), ModuleError> {
+fn validate_classical_cycles(ordered: &[&BlockGraph]) -> Result<(), ModuleError> {
     let mut memo = HashMap::new();
-    let mut seen = HashSet::new();
-    for module in modules {
-        let mut pending = vec![(*module, false)];
-        while let Some((module, exiting)) = pending.pop() {
-            if exiting {
-                module_bit_dependencies(&module.name, definitions, &mut memo)?;
-            } else if seen.insert(module.name.as_str()) {
-                pending.push((module, true));
-                pending.extend(
-                    module
-                        .instances
-                        .iter()
-                        .rev()
-                        .map(|instance| (definitions[instance.definition.as_str()], false)),
-                );
-            }
-        }
+    for module in ordered {
+        let dependencies = module_bit_dependencies(module, &memo)?;
+        memo.insert(module.name.as_str(), dependencies);
     }
     Ok(())
 }
 
 fn module_bit_dependencies(
-    name: &str,
-    definitions: &HashMap<&str, &BlockGraph>,
-    memo: &mut HashMap<String, BitDependencies>,
+    module: &BlockGraph,
+    child_dependencies: &HashMap<&str, BitDependencies>,
 ) -> Result<BitDependencies, ModuleError> {
-    if let Some(dependencies) = memo.get(name) {
-        return Ok(dependencies.clone());
-    }
-    let module = definitions[name];
-    let mut child_dependencies = HashMap::new();
-    for instance in &module.instances {
-        child_dependencies.insert(instance.name.as_str(), memo[&instance.definition].clone());
-    }
-
     let mut dependencies = BitDependencies::new();
     let actions = module.local_body().action_graph();
     for node in actions.ordered_nodes() {
@@ -2499,7 +2481,7 @@ fn module_bit_dependencies(
         );
     }
     for instance in &module.instances {
-        for (output, inputs) in &child_dependencies[instance.name.as_str()] {
+        for (output, inputs) in &child_dependencies[instance.definition.as_str()] {
             dependencies.insert(
                 format!("{}.{}", instance.name, output),
                 inputs
@@ -2563,7 +2545,6 @@ fn module_bit_dependencies(
         );
         output_dependencies.insert(output.name.clone(), found);
     }
-    memo.insert(name.to_string(), output_dependencies.clone());
     Ok(output_dependencies)
 }
 
@@ -3535,7 +3516,8 @@ module main {
 
         assert!(matches!(
             parse_inline_graph(source),
-            Err(ModuleError::InvalidModule { .. })
+            Err(ModuleError::InvalidModule { module, message, .. })
+                if module == "main" && message == "classical binding cycle at 'a.i'"
         ));
     }
 
@@ -4079,46 +4061,6 @@ module main {
     }
 
     #[test]
-    fn loader_resolves_relative_import_root() {
-        let stage = format!(
-            "BLOG 1.0\n\n{}",
-            STAGE.replacen("module Stage", "module main", 1)
-        );
-        let root = pair_source("import \"stage.blog\" as Stage");
-        let program = crate::load_graph_with_resolver_and_limits(
-            "root.blog",
-            |path| match path.to_str() {
-                Some("root.blog") => Ok(root.clone()),
-                Some("stage.blog") => Ok(stage.to_string()),
-                _ => Err("missing"),
-            },
-            ModuleCertificationLimits::DEFAULT,
-        )
-        .unwrap();
-        assert!(program.module("Stage").is_some());
-        assert_eq!(program.root().name, "main");
-    }
-
-    #[test]
-    fn loader_rejects_import_cycle() {
-        let error = crate::load_graph_with_resolver_and_limits(
-            "a.blog",
-            |path| match path.to_str() {
-                Some("a.blog") => {
-                    Ok("BLOG 1.0\nimport \"b.blog\" as B\nmodule main {\n}\n".to_string())
-                }
-                Some("b.blog") => {
-                    Ok("BLOG 1.0\nimport \"./a.blog\" as A\nmodule main {\n}\n".to_string())
-                }
-                _ => Err("missing"),
-            },
-            ModuleCertificationLimits::DEFAULT,
-        )
-        .unwrap_err();
-        assert!(matches!(error, ModuleError::ImportCycle { .. }));
-    }
-
-    #[test]
     fn compact_hierarchy_is_bounded_before_geometry_expansion() {
         let make_modules = |body: &str, depth| {
             let leaf = crate::parse_blog_to_graph(body).unwrap();
@@ -4212,8 +4154,8 @@ module main {
         let error = parse_inline_graph(source).unwrap_err();
         assert!(matches!(
             error,
-            ModuleError::InvalidModule { message, .. }
-                if message == "module dependency cycle"
+            ModuleError::InvalidModule { module, message, .. }
+                if module == "B" && message == "module dependency cycle"
         ));
     }
 }

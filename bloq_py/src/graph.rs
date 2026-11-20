@@ -121,6 +121,21 @@ fn gltf_face_selectors(
     Ok(selectors)
 }
 
+fn gltf_stabilizer(
+    graph: &bloq_graph::BlockGraph,
+    stabilizer: Option<StabilizerLike>,
+    module_view: bool,
+) -> PyResult<Option<bloq_graph::StabilizerGenerator>> {
+    if module_view && stabilizer.is_some() {
+        return Err(errors::InvalidArgumentError::new_err(
+            "module_view does not accept a stabilizer overlay",
+        ));
+    }
+    stabilizer
+        .map(|selection| selection.resolve(graph))
+        .transpose()
+}
+
 // ==============================================================================
 // Error mapping
 // ==============================================================================
@@ -2176,23 +2191,15 @@ impl PyBlockGraph {
             pop_faces_at_blocks,
             pop_faces_at_pipes,
         )?;
+        let stabilizer = gltf_stabilizer(&self.0, stabilizer, module_view)?;
         if module_view {
-            if stabilizer.is_some() {
-                return Err(errors::InvalidArgumentError::new_err(
-                    "module_view does not accept a stabilizer overlay",
-                ));
-            }
-            return self
-                .0
+            self.0
                 .write_module_gltf_file(pipe_length, path, &popped_faces)
-                .map_err(graph_err);
+        } else {
+            self.0
+                .write_to_gltf_file(pipe_length, path, stabilizer.as_ref(), &popped_faces)
         }
-        let stabilizer = stabilizer
-            .map(|selection| selection.resolve(&self.0))
-            .transpose()?;
-        self.0
-            .write_to_gltf_file(pipe_length, path, stabilizer.as_ref(), &popped_faces)
-            .map_err(graph_err)
+        .map_err(graph_err)
     }
 
     /// Exports the graph as a self-contained HTML viewer page (the
@@ -2235,23 +2242,15 @@ impl PyBlockGraph {
             pop_faces_at_blocks,
             pop_faces_at_pipes,
         )?;
+        let stabilizer = gltf_stabilizer(&self.0, stabilizer, module_view)?;
         if module_view {
-            if stabilizer.is_some() {
-                return Err(errors::InvalidArgumentError::new_err(
-                    "module_view does not accept a stabilizer overlay",
-                ));
-            }
-            return self
-                .0
+            self.0
                 .write_module_html_viewer(pipe_length, path, &popped_faces)
-                .map_err(graph_err);
+        } else {
+            self.0
+                .write_to_gltf_html_viewer(pipe_length, path, stabilizer.as_ref(), &popped_faces)
         }
-        let stabilizer = stabilizer
-            .map(|selection| selection.resolve(&self.0))
-            .transpose()?;
-        self.0
-            .write_to_gltf_html_viewer(pipe_length, path, stabilizer.as_ref(), &popped_faces)
-            .map_err(graph_err)
+        .map_err(graph_err)
     }
 
     // --- actions ------------------------------------------------------------------
