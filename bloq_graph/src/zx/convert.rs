@@ -5,7 +5,7 @@ use super::{NodeKind, ZXError, ZXGraph};
 use crate::{Block, BlockGraph, BlockKind, CubeKind, Direction, Pipe};
 use bloq_utils::{Basis, UDirection};
 use glam::IVec3;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 impl TryFrom<&BlockGraph> for ZXGraph {
     type Error = ZXError;
@@ -84,11 +84,17 @@ impl ZXGraph {
                     .with_role(block.port_role().unwrap_or_default())
             })
             .collect::<Vec<_>>();
-        let pos_to_node = nodes
+        let pos_to_node = blocks
             .iter()
-            .map(|node| (node.pos, node.id))
+            .enumerate()
+            .flat_map(|(id, block)| {
+                block
+                    .connectable_offsets()
+                    .into_iter()
+                    .map(move |offset| (block.pos + offset, id))
+            })
             .collect::<crate::FxHashMap<_, _>>();
-        let mut pipes = graph
+        let pipes = graph
             .pipes_at(center.pos)
             .map(|pipe| {
                 let source = graph
@@ -97,25 +103,11 @@ impl ZXGraph {
                 let target = graph
                     .get_endpoint_block(pipe.dst())
                     .expect("validated pipe target has an owner");
-                let (a, b) = (pos_to_node[&source.pos], pos_to_node[&target.pos]);
-                (a.min(b), a.max(b), pipe.hadamard)
+                (pos_to_node[&source.pos], pos_to_node[&target.pos], pipe)
             })
             .collect::<Vec<_>>();
-        pipes.sort_unstable_by_key(|&(a, b, _)| (a, b));
-        let mut total_ids = nodes.len();
-        let mut edges = Vec::with_capacity(2 * pipes.len());
-        let mut directed_edges = Vec::with_capacity(2 * pipes.len());
-        for (a, b, hadamard) in pipes {
-            push_edge_pair(
-                a,
-                b,
-                hadamard,
-                &mut total_ids,
-                &mut edges,
-                &mut directed_edges,
-            );
-        }
-        let adjacency = CsrAdjacency::from_edges(nodes.len(), &directed_edges);
+        let (edges, adjacency) = pipe_edges(&nodes, pipes);
+        let total_ids = nodes.len() + edges.len();
         Ok(Self {
             nodes,
             edges,
@@ -136,23 +128,19 @@ impl ZXGraph {
             .require_flat_hierarchy("ZX conversion")
             .map_err(|error| ZXError::Graph(Box::new(error)))?;
         let mut nodes = Vec::with_capacity(graph.block_count());
-        let mut edges = Vec::with_capacity(2 * graph.pipe_count());
-        let mut directed_edges = Vec::with_capacity(2 * graph.pipe_count());
-        let mut endpoint_to_node: HashMap<IVec3, usize> =
-            HashMap::with_capacity(graph.block_count());
-        let mut id = 0;
+        let mut endpoint_to_node =
+            crate::FxHashMap::with_capacity_and_hasher(graph.block_count(), Default::default());
 
         // Stable columns keep measurement witnesses independent of source storage order.
         let mut blocks = graph.blocks().collect::<Vec<_>>();
         blocks.sort_unstable_by_key(|block| block.pos.to_array());
-        for block in blocks {
+        for (id, block) in blocks.into_iter().enumerate() {
             let node = ZXNode::new(id, block.pos, block_to_node_kind(block))
                 .with_role(block.port_role().unwrap_or_default());
             for endpoint in block.connectable_offsets() {
                 endpoint_to_node.insert(block.pos + endpoint, id);
             }
             nodes.push(node);
-            id += 1;
         }
 
         // Source records use the authored pipe source; both ZX edge columns use
@@ -189,76 +177,62 @@ impl ZXGraph {
         }
 
         // Resolve endpoints once; sorting by node pair must not repeat the lookups.
-        let mut pipes = graph
+        let pipes = graph
             .pipes()
             .map(|pipe| {
                 let first = endpoint_to_node[&pipe.src];
                 let second = endpoint_to_node[&pipe.dst()];
-                (
-                    (first.min(second), first.max(second)),
-                    first,
-                    second,
-                    pipe.hadamard,
-                )
+                (first, second, pipe)
             })
             .collect::<Vec<_>>();
-        pipes.sort_unstable_by_key(|&(pair, ..)| pair);
-        for (_, first, second, hadamard) in pipes {
-            push_edge_pair(
-                first,
-                second,
-                hadamard,
-                &mut id,
-                &mut edges,
-                &mut directed_edges,
-            );
-        }
-        let adjacency = CsrAdjacency::from_edges(nodes.len(), &directed_edges);
-
-        // node_at needs only block centers, so key the lookup by `node.pos`
-        // rather than reusing the endpoint-offset map above.
-        let pos_to_node = nodes.iter().map(|node| (node.pos, node.id)).collect();
+        let (edges, adjacency) = pipe_edges(&nodes, pipes);
+        let total_ids = nodes.len() + edges.len();
 
         Ok(ZXGraph {
             nodes,
             edges,
             adjacency,
-            pos_to_node,
+            pos_to_node: endpoint_to_node,
             action_graph,
-            total_ids: id,
+            total_ids,
             cross_incident: Default::default(),
             stabilizer_phase_basis: Default::default(),
         })
     }
 }
 
-fn push_edge_pair(
-    mut n1: usize,
-    mut n2: usize,
-    hadamard: bool,
-    id: &mut usize,
-    edges: &mut Vec<ZXEdge>,
-    directed_edges: &mut Vec<(usize, usize, usize)>,
-) {
-    if n1 > n2 {
-        std::mem::swap(&mut n1, &mut n2);
+fn pipe_edges(
+    nodes: &[ZXNode],
+    mut pipes: Vec<(usize, usize, &Pipe)>,
+) -> (Vec<ZXEdge>, CsrAdjacency) {
+    pipes.sort_unstable_by_key(|&(a, b, _)| (a.min(b), a.max(b)));
+    let mut edges = Vec::with_capacity(2 * pipes.len());
+    let mut directed = Vec::with_capacity(2 * pipes.len());
+    let mut displaced_pipes = crate::FxHashMap::default();
+    for (src, dst, pipe) in pipes {
+        let (first, second) = (src.min(dst), src.max(dst));
+        for (n1, n2) in [(first, second), (second, first)] {
+            let id = nodes.len() + edges.len();
+            edges.push(ZXEdge {
+                n1,
+                n2,
+                id,
+                hadamard: pipe.is_hadamard(),
+            });
+            directed.push((n1, n2, id));
+            let endpoints = if n1 == src {
+                pipe.endpoints()
+            } else {
+                (pipe.dst(), pipe.src())
+            };
+            if endpoints != (nodes[n1].pos, nodes[n2].pos) {
+                displaced_pipes.insert(id, endpoints);
+            }
+        }
     }
-    edges.push(ZXEdge {
-        n1,
-        n2,
-        id: *id,
-        hadamard,
-    });
-    directed_edges.push((n1, n2, *id));
-    *id += 1;
-    edges.push(ZXEdge {
-        n1: n2,
-        n2: n1,
-        id: *id,
-        hadamard,
-    });
-    directed_edges.push((n2, n1, *id));
-    *id += 1;
+    let mut adjacency = CsrAdjacency::from_edges(nodes.len(), &directed);
+    adjacency.displaced_pipes = displaced_pipes;
+    (edges, adjacency)
 }
 
 impl TryFrom<&ZXGraph> for BlockGraph {
@@ -937,6 +911,27 @@ mod tests {
                 pipe.dst()
             );
         }
+    }
+
+    #[test]
+    fn planar_rotation_far_pipe_has_one_directed_column_per_side() {
+        use glam::IVec3;
+        let graph = BlockGraph::from_blog_text("BLOG 1.0\n0: XZX [-1,0,0]\n1: rotate X [0,0,0] -> [1,1,0]\n2: XXZ [2,1,0]\n0 -> 1\n1 -> 2\nm = measure 1 -> +X\n").unwrap();
+        let zx = graph.to_zx_graph().unwrap();
+        let far = glam::ivec3(1, 1, 0);
+        let port = far + IVec3::X;
+        assert!(zx.node_at(far).is_none());
+        let forward = zx.edge_at(far, Direction::XPLUS).unwrap();
+        let reverse = zx.edge_at(port, Direction::XMINUS).unwrap();
+        assert_eq!(zx.nodes()[forward.n1].pos, IVec3::ZERO);
+        assert_eq!((forward.n1, forward.n2), (reverse.n2, reverse.n1));
+        assert!(zx.edge_at(IVec3::ZERO, Direction::XPLUS).is_none());
+        assert_eq!(zx.measurement_columns()["m"], forward.id);
+        #[cfg(feature = "gltf")]
+        assert_eq!(
+            zx.measurement_outcome_position("m"),
+            Some(glam::vec3(1.5, 1., 0.))
+        );
     }
 
     #[test]

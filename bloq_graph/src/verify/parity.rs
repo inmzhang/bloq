@@ -71,12 +71,9 @@ impl MeasurementKey {
         Some(match target {
             MeasureTarget::Node(pos) => Self::Node { pos, pauli },
             MeasureTarget::Edge { src, dir } => {
-                let dst = src + dir.to_ivec3();
-                let (src, dst) = if zx.node_at(src)?.id < zx.node_at(dst)?.id {
-                    (src, dst)
-                } else {
-                    (dst, src)
-                };
+                let edge = zx.edge_at(src, dir)?;
+                let src = zx.nodes()[edge.n1.min(edge.n2)].pos;
+                let dst = zx.nodes()[edge.n1.max(edge.n2)].pos;
                 Self::Edge { src, dst, pauli }
             }
         })

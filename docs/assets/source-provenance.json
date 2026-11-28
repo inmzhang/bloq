@@ -193,6 +193,12 @@
       "sha256": "61136accb908173ed1401150363f38b4eea5352b1b3103d972131d6938f64629",
       "derivation": "Six input-state infidelities and independent Choi estimates replotted with nominal 95% half-widths by tools/plot_tutorial_results.py. The six-state mean uses equal weights. No new sampling.",
       "source_revision": "61ebd6698814d8d3e2125709b30afd9e22a4f8b0"
+    },
+    {
+      "file": "assets/planar-rotation-detectors.png",
+      "source": "_static/constructions/planar-rotation.stim",
+      "sha256": "2b651ba13477b25494dd17ad1f91348e5ea69dcf322c8064ceafc57ed0769e1f",
+      "derivation": "Native Stim detector slices after ticks 12 and 14–17, with qubit coordinates drawn y-up by tools/render_planar_rotation_figure.py."
     }
   ]
 }

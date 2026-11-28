@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use bloq_graph::{Basis, BlockGraph, BlockKind, CubeHeight, CubeKind, Direction, PortRole};
+use bloq_graph::{Basis, Block, BlockGraph, BlockKind, CubeHeight, CubeKind, Direction, PortRole};
 use glam::{IVec2, IVec3};
 
 use crate::{CompileError, compile::block_xy_offset};
@@ -37,6 +37,15 @@ impl PortExpansion {
 }
 
 pub(crate) type PortExpansionMap = crate::FxMap<IVec3, PortExpansion>;
+
+/// Face bases for a block that can meet a fixed-bulk spatial seam.
+pub(crate) fn spatial_endpoint_bases(block: &Block, endpoint: IVec3) -> Option<[Basis; 3]> {
+    match block.kind() {
+        BlockKind::Cube(cube) => Some(cube.bases()),
+        BlockKind::PatchRotation(kind) if kind.is_planar() => block.bases_at_endpoint(endpoint),
+        _ => None,
+    }
+}
 
 /// Plan ideal boundaries and replace spatial Ports with their cube half.
 /// `LowerPlan` adds the positionless temporal half of each spatial boundary.
@@ -79,12 +88,13 @@ fn port_expansions(
         let Some(pipe) = source.pipes_at(pos).next() else {
             continue;
         };
+        let endpoint = if pipe.src() == pos {
+            pipe.dst()
+        } else {
+            pipe.src()
+        };
         let neighbor = source
-            .get_endpoint_block(if pipe.src() == pos {
-                pipe.dst()
-            } else {
-                pipe.src()
-            })
+            .get_endpoint_block(endpoint)
             .expect("Port pipe has a neighbor");
         let role = block.port_role().expect("Port blocks expose a role");
         if !pipe.dir().is_spatial() {
@@ -124,12 +134,12 @@ fn port_expansions(
             PortRole::Auto,
             "source validation requires a spatial role"
         );
-        let BlockKind::Cube(_) = neighbor.kind() else {
+        if spatial_endpoint_bases(neighbor, endpoint).is_none() {
             return Err(CompileError::SpatialPortNeighborNotCube {
                 port: pos,
                 neighbor: neighbor.pos(),
             });
-        };
+        }
         if neighbor.height_cells() != 1 {
             return Err(CompileError::TallSpatialPortUnsupported {
                 port: pos,
@@ -251,7 +261,7 @@ pub(crate) fn allocate_private_port_qubits(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bloq_graph::{Action, Block, Expr, MeasureTarget, Pipe};
+    use bloq_graph::{Action, Expr, MeasureTarget, Pipe};
 
     #[test]
     fn batch_expansion_preserves_actions_inputs_and_lenient_error() {

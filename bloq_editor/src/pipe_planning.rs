@@ -346,7 +346,20 @@ impl PipePlacementPlan {
             match change {
                 EndpointChange::CreatePort { pos } => {
                     if !next.has_endpoint_at(pos) {
-                        next.try_add_block(Block::new(pos, BlockKind::Port))?;
+                        let (src, dst) = self.pipe.endpoints();
+                        let neighbor = if pos == src { dst } else { src };
+                        let mut port = Block::new(pos, BlockKind::Port);
+                        if let Some(slab) = graph.get_endpoint_block(neighbor)
+                            && slab.kind().is_planar_rotation()
+                        {
+                            let role = if neighbor == slab.pos() {
+                                bloq_graph::PortRole::Input
+                            } else {
+                                bloq_graph::PortRole::Output
+                            };
+                            port = port.with_port_role(role).expect("new block is a Port");
+                        }
+                        next.try_add_block(port)?;
                     }
                 }
                 EndpointChange::SetKind { pos, kind } => {

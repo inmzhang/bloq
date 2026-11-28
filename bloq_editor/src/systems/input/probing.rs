@@ -1,22 +1,22 @@
 //! Pipe-candidate probing and hint-target queries.
 use super::*;
 
-pub(crate) const WALKING_MOVEMENTS: [IVec2; 8] = [
-    IVec2::new(1, 0),
-    IVec2::new(-1, 0),
-    IVec2::new(0, 1),
-    IVec2::new(0, -1),
-    IVec2::new(1, 1),
-    IVec2::new(1, -1),
-    IVec2::new(-1, 1),
-    IVec2::new(-1, -1),
+pub(crate) const WALKING_MOVEMENTS: [IVec3; 8] = [
+    IVec3::new(1, 0, 1),
+    IVec3::new(-1, 0, 1),
+    IVec3::new(0, 1, 1),
+    IVec3::new(0, -1, 1),
+    IVec3::new(1, 1, 1),
+    IVec3::new(1, -1, 1),
+    IVec3::new(-1, 1, 1),
+    IVec3::new(-1, -1, 1),
 ];
 
-pub(crate) const PATCH_ROTATION_MOVEMENTS: [IVec2; 4] = [
-    IVec2::new(1, 0),
-    IVec2::new(-1, 0),
-    IVec2::new(0, 1),
-    IVec2::new(0, -1),
+const PLANAR_ROTATION_MOVEMENTS: [IVec3; 4] = [
+    IVec3::new(1, 1, 0),
+    IVec3::new(1, -1, 0),
+    IVec3::new(-1, 1, 0),
+    IVec3::new(-1, -1, 0),
 ];
 
 pub(crate) const PIPE_HINT_OFFSETS: [IVec3; 6] = [
@@ -220,6 +220,14 @@ pub(crate) fn patch_rotation_pipe_hint_target(
     let BlockKind::PatchRotation(kind) = block.kind() else {
         return None;
     };
+    if kind.is_planar() {
+        let &offset = PIPE_HINT_OFFSETS.get(index)?;
+        let direction = bloq_graph::Direction::try_from(offset).ok()?;
+        let corner = block
+            .pos()
+            .checked_add(kind.planar_endpoint_offset(direction)?)?;
+        return pipe_candidate_at(graph, corner, offset, force_hadamard);
+    }
     let span_start = block.pos();
     axial_pipe_hint_target(
         graph,
@@ -261,6 +269,17 @@ pub(crate) fn patch_rotation_endpoint_for_pipe_click(
     };
     let start = block.pos();
     let end = kind.end_position(start);
+    if kind.is_planar() {
+        return [start, end].into_iter().min_by_key(|endpoint| {
+            (
+                graph.degree(*endpoint),
+                hovered_grid_pos
+                    .unwrap_or(start)
+                    .as_i64vec3()
+                    .manhattan_distance(endpoint.as_i64vec3()),
+            )
+        });
+    }
     Some(preferred_pipe_endpoint(
         graph,
         start,
@@ -319,10 +338,11 @@ pub(super) fn preferred_pipe_endpoint(
     }
 }
 
-pub(crate) fn moving_block_movements(kind: BlockKind) -> &'static [IVec2] {
+pub(crate) fn moving_block_movements(kind: BlockKind) -> &'static [IVec3] {
     match kind {
         BlockKind::Walking(_) => &WALKING_MOVEMENTS,
-        BlockKind::PatchRotation(_) => &PATCH_ROTATION_MOVEMENTS,
+        BlockKind::PatchRotation(rotation) if rotation.is_planar() => &PLANAR_ROTATION_MOVEMENTS,
+        BlockKind::PatchRotation(_) => &WALKING_MOVEMENTS[..4],
         _ => &[],
     }
 }
@@ -347,8 +367,13 @@ pub(crate) fn moving_block_start_has_candidate(
     moving_block_movements(editor_state.block_kind)
         .iter()
         .any(|&movement| {
-            moving_block_kind_if_placeable(graph, start, editor_state.block_kind, movement)
-                .is_some()
+            moving_block_kind_if_placeable(
+                graph,
+                start,
+                editor_state.block_kind,
+                movement.truncate(),
+            )
+            .is_some()
         })
 }
 

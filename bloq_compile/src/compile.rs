@@ -1137,12 +1137,21 @@ impl CompileContext {
                     &local_positions,
                     self.config.code_distance(),
                 )?;
+                // This is the linked definition, including its descendants. A spatial
+                // public port can later join a rotation in any parent. Both projections
+                // of a branch must also support the common component schedule.
+                let may_join_planar = !graph.branch_definitions().is_empty()
+                    || ports.values().any(|port| port.is_spatial())
+                    || graph
+                        .blocks()
+                        .any(|block| block.kind().is_planar_rotation());
                 let mut inventories = vec![self.compile_definition_variants(
                     &graph,
                     &signatures,
                     &oriented_sites,
                     &seam_faces,
                     &ports,
+                    may_join_planar,
                 )?];
                 let regions = graph.branch_regions()?;
                 if !regions.is_empty() {
@@ -1160,6 +1169,7 @@ impl CompileContext {
                         &oriented_sites,
                         &seam_faces,
                         &ports,
+                        may_join_planar,
                     )?);
                 }
 
@@ -1219,7 +1229,11 @@ impl CompileContext {
         );
         let temporal_templates = self.compile_temporal_template_plans(plan.temporal_templates())?;
         let wall_templates =
-            self.compile_spatial_template_walls(&graph, &ports, plan.spatial_walls())?;
+            self.compile_spatial_template_walls(&graph, &ports, plan.spatial_walls(), |pos| {
+                signatures[&pos]
+                    .layer_schedule
+                    .expect("spatial wall endpoint has a layer schedule")
+            })?;
         let needs_padding = !ports.is_empty() || graph.pipes().any(|pipe| !pipe.dir().is_spatial());
         let padding_templates = self
             .cache
@@ -1297,6 +1311,7 @@ impl CompileContext {
         module_sites: &std::collections::HashMap<IVec3, bloq_graph::MaterializedModuleSite>,
         seam_faces: &std::collections::HashMap<(String, IVec3), Vec<bloq_graph::Direction>>,
         ports: &PortExpansionMap,
+        may_join_planar: bool,
     ) -> Result<CompiledDefinitionVariantMap, CompileError> {
         let mut inventory = CompiledDefinitionVariantMap::default();
         for (&position, &signature) in signatures {
@@ -1348,45 +1363,29 @@ impl CompileContext {
 
             let mut candidates = crate::FxSet::default();
             for (template_connectivity, graph_connectivity) in connectivity {
-                let schedules: &[crate::signature::LayerSchedule] =
-                    if matches!(signature.kind, BlockKind::Cube(_)) {
-                        match template_connectivity.hadamard_wall_axes() {
-                            (true, true) => continue,
-                            (true, false) => &[crate::signature::LayerSchedule::Extended],
-                            (false, true) => &[crate::signature::LayerSchedule::ExtendedY],
-                            (false, false) => &[
-                                crate::signature::LayerSchedule::Compact,
-                                crate::signature::LayerSchedule::Padded,
-                                crate::signature::LayerSchedule::Extended,
-                                crate::signature::LayerSchedule::ExtendedY,
-                            ],
-                        }
-                    } else {
-                        &[]
-                    };
-                if schedules.is_empty() {
-                    let mut candidate = signature;
-                    candidate.connectivity = template_connectivity;
-                    if candidate.kind == BlockKind::T && !self.config.prepare_t_with_mpps() {
-                        for side in [
-                            bloq_graph::Direction::YMINUS,
-                            bloq_graph::Direction::XPLUS,
-                            bloq_graph::Direction::YPLUS,
-                            bloq_graph::Direction::XMINUS,
-                        ] {
-                            candidate.surgery_side = Some(side);
-                            candidates.insert((candidate, graph_connectivity));
-                        }
-                    } else {
-                        candidates.insert((candidate, graph_connectivity));
-                    }
-                } else {
-                    for &schedule in schedules {
-                        let mut candidate = signature;
-                        candidate.connectivity = template_connectivity;
+                let mut candidate = signature;
+                candidate.connectivity = template_connectivity;
+                if signature.layer_schedule.is_some() {
+                    for schedule in crate::signature::definition_layer_schedules(
+                        signature.kind,
+                        template_connectivity,
+                        may_join_planar,
+                    ) {
                         candidate.layer_schedule = Some(schedule);
                         candidates.insert((candidate, graph_connectivity));
                     }
+                } else if candidate.kind == BlockKind::T && !self.config.prepare_t_with_mpps() {
+                    for side in [
+                        bloq_graph::Direction::YMINUS,
+                        bloq_graph::Direction::XPLUS,
+                        bloq_graph::Direction::YPLUS,
+                        bloq_graph::Direction::XMINUS,
+                    ] {
+                        candidate.surgery_side = Some(side);
+                        candidates.insert((candidate, graph_connectivity));
+                    }
+                } else {
+                    candidates.insert((candidate, graph_connectivity));
                 }
             }
             if matches!(
@@ -1618,12 +1617,13 @@ impl CompileContext {
         graph: &BlockGraph,
         ports: &PortExpansionMap,
         walls: impl IntoIterator<Item = crate::lower::SpatialPipeRef>,
+        schedule_at: impl Fn(IVec3) -> crate::signature::LayerSchedule,
     ) -> Result<crate::FxMap<crate::lower::SpatialPipeRef, LoweringTemplateId>, CompileError> {
         let mut templates = crate::FxMap::default();
         for wall in walls {
             self.check_cancellation()?;
             let distance = self.config.code_distance();
-            let key = spatial_hadamard_key(graph, ports, wall, distance)?;
+            let key = spatial_hadamard_key(graph, ports, wall, distance, &schedule_at)?;
             let template = self
                 .cache
                 .get_or_compile_fixed(Signature::SpatialHadamardPipe(key), || {
@@ -1650,7 +1650,7 @@ impl CompileContext {
     }
 }
 
-/// Derive a wall's cache key from its two endpoint cubes.
+/// Derive a wall's cache key from the two faces that meet the pipe.
 ///
 /// The graph validator has already established that the transverse bases flip
 /// across the pipe, so the wall may take the negative-axis cube's perpendicular
@@ -1661,26 +1661,47 @@ fn spatial_hadamard_key(
     ports: &PortExpansionMap,
     wall: crate::lower::SpatialPipeRef,
     distance: u32,
+    schedule_at: impl Fn(IVec3) -> crate::signature::LayerSchedule,
 ) -> Result<SpatialHadamardKey, CompileError> {
-    let endpoint = |pos: IVec3| -> Result<(&Block, bloq_graph::CubeKind), CompileError> {
+    let endpoint = |pos: IVec3| -> Result<(&Block, [Basis; 3]), CompileError> {
         let block = graph
             .get_endpoint_block(pos)
             .ok_or(CompileError::SpatialHadamardUnsupportedEndpoint { pos })?;
-        match block.kind() {
-            BlockKind::Cube(kind) => Ok((block, kind)),
-            _ => Err(CompileError::SpatialHadamardUnsupportedEndpoint { pos }),
-        }
+        let bases = crate::port::spatial_endpoint_bases(block, pos)
+            .ok_or(CompileError::SpatialHadamardUnsupportedEndpoint { pos })?;
+        Ok((block, bases))
     };
-    let (minus_block, minus_kind) = endpoint(wall.src)?;
-    let (plus_block, plus_kind) = endpoint(wall.dst)?;
+    let (minus_block, minus_bases) = endpoint(wall.src)?;
+    let (plus_block, plus_bases) = endpoint(wall.dst)?;
     let axis = wall.axis();
     let boundary_basis = match axis {
-        bloq_graph::UDirection::X => minus_kind.y(),
-        bloq_graph::UDirection::Y => minus_kind.x(),
+        bloq_graph::UDirection::X => minus_bases[1],
+        bloq_graph::UDirection::Y => minus_bases[0],
         bloq_graph::UDirection::Z => unreachable!("spatial Hadamard walls are not temporal"),
     };
-    let make_side = |block: &Block, kind: bloq_graph::CubeKind| {
-        let mut connectivity = BlockSignature::template_connectivity(block, graph);
+    let make_side = |block: &Block, pos: IVec3, wall_dir, temporal_basis| {
+        let (mut connectivity, planar_end) = match block.kind() {
+            BlockKind::PatchRotation(kind) => {
+                // The seam column continues one row inward across the
+                // corner cell into the rectangle's interior.
+                let at_start = pos == block.pos();
+                let inward = if at_start {
+                    kind.movement()
+                } else {
+                    -kind.movement()
+                };
+                let arm = match axis {
+                    bloq_graph::UDirection::X => IVec3::Y * inward.y,
+                    bloq_graph::UDirection::Y => IVec3::X * inward.x,
+                    bloq_graph::UDirection::Z => unreachable!(),
+                };
+                let connectivity = Connectivity::ISOLATED
+                    .with_hadamard(wall_dir)
+                    .with_pipe(bloq_graph::Direction::try_from(arm).expect("cardinal arm"));
+                (connectivity, (!at_start).then_some(kind))
+            }
+            _ => (BlockSignature::template_connectivity(block, graph), None),
+        };
         // The positionless Port half leaves this face open in the cube template.
         // The wall must make the same data-collapse decision as that cube.
         if let Some(dir) = ports
@@ -1689,22 +1710,18 @@ fn spatial_hadamard_key(
         {
             connectivity = connectivity.with_pipe(dir);
         }
-        WallSide {
-            temporal_basis: kind.z(),
-            connectivity,
-        }
+        WallSide::new(temporal_basis, connectivity, axis, planar_end)
     };
+    let (toward_minus, toward_plus) = wall.arm_directions();
     Ok(SpatialHadamardKey {
         axis,
-        // The wall runs one round per cube round. Its two endpoints are cubes
-        // in one z-layer joined by a spacelike pipe, so they are in the same
-        // spatial component and the validator has already established that they
-        // share a height — the `max` is belt and braces, not a real choice.
+        planar: schedule_at(minus_block.pos()).planar_start_slot().is_some(),
+        // Spatially joined sites share a validated round count.
         rounds: crate::signature::cube_rounds(minus_block, distance)?
             .max(crate::signature::cube_rounds(plus_block, distance)?),
         boundary_basis,
-        minus: make_side(minus_block, minus_kind),
-        plus: make_side(plus_block, plus_kind),
+        minus: make_side(minus_block, wall.src, toward_plus, minus_bases[2]),
+        plus: make_side(plus_block, wall.dst, toward_minus, plus_bases[2]),
     })
 }
 
@@ -4090,6 +4107,126 @@ mod tests {
     }
 
     #[test]
+    fn terminal_branch_keeps_planar_timing_on_its_memory_arm() {
+        let graph = BlockGraph::from_text(
+            "BLOG 1.0
+             module Route {
+               0: XZX [-1,0,-1]
+               1: ZXZ [2,1,-1]
+               2: ZXZ [5,4,0]
+               branch b {
+                 false {
+                   3: XZX [-1,0,0]
+                   4: ZXZ [2,1,0]
+                   0 -> 3
+                   1 -> 4
+                 }
+                 true {
+                   5: XZX [-1,0,0]
+                   6: rotate X [0,0,0] -> [1,1,0]
+                   7: ZXZ [2,1,0]
+                   0 -> 5
+                   1 -> 7
+                   5 -> +X
+                   [1,1,0] -> +X
+                 }
+               }
+               m = measure 2
+               resolve b if m
+             }
+             module main {
+               route: Route @ [0,0,0]
+             }",
+        )
+        .unwrap();
+        CompileContext::new(CompileConfig::new(3))
+            .compile_and_validate(&graph)
+            .expect("both branch arms can link with the shared planar schedule");
+    }
+
+    #[test]
+    fn planar_corner_module_seam_fuses_the_junction_and_keeps_a_distant_memory_compact() {
+        use bloq_circuit::{GateType, Op};
+
+        let hierarchy = BlockGraph::from_text(
+            "BLOG 1.0
+             module Tail {
+               in q_in: data = 0
+               0: Port [0,0,0] role=input
+               1: ZZX [1,0,0]
+               2: XZX [2,0,0]
+               3: ZXX [1,1,0]
+               0 -> 1
+               1 -> 2
+               1 -> 3
+             }
+             module main {
+               tail: Tail @ [1,1,0]
+               0: ZXZ [-1,0,0]
+               1: rotate Z [0,0,0] -> [1,1,0]
+               2: ZXZ [5,0,0]
+               0 -> 1
+               1 -> tail.q_in
+             }",
+        )
+        .unwrap();
+        let flat = BlockGraph::from_blog_text(
+            "BLOG 1.0
+             0: ZXZ [-1,0,0]
+             1: rotate Z [0,0,0] -> [1,1,0]
+             2: ZZX [2,1,0]
+             3: XZX [3,1,0]
+             4: ZXX [2,2,0]
+             5: ZXZ [5,0,0]
+             0 -> 1
+             [1,1,0] -> 2
+             2 -> 3
+             2 -> 4",
+        )
+        .unwrap();
+        let circuits = |graph: &BlockGraph| {
+            let program = compile(graph, 3).unwrap();
+            let rotation = program.node_by_block(IVec3::ZERO).unwrap();
+            for neighbor in [
+                ivec3(-1, 0, 0),
+                ivec3(2, 1, 0),
+                ivec3(3, 1, 0),
+                ivec3(2, 2, 0),
+            ] {
+                assert_eq!(program.node_by_block(neighbor), Some(rotation));
+            }
+            let memory = program.node_by_block(ivec3(5, 0, 0)).unwrap();
+            assert_ne!(memory, rotation);
+            [(rotation, 5), (memory, 4)].map(|(node, slots_per_round)| {
+                let mut circuit = program[node]
+                    .instantiate_circuit(program.templates())
+                    .unwrap();
+                circuit.flatten().unwrap();
+                let slots = circuit
+                    .body(circuit.entry_body())
+                    .unwrap()
+                    .ops()
+                    .split(|op| matches!(op, Op::Tick))
+                    .filter(|slot| {
+                        slot.iter().any(|op| {
+                            matches!(
+                                op,
+                                Op::Gate {
+                                    gate: GateType::CX,
+                                    ..
+                                }
+                            )
+                        })
+                    })
+                    .count();
+                assert_eq!(slots, 3 * slots_per_round);
+                circuit
+            })
+        };
+        assert_eq!(circuits(&hierarchy), circuits(&flat));
+    }
+
+    #[test]
     fn compile_graph_sets_patch_rotation_timeline() {
         let mut graph = BlockGraph::new();
         let kind = PatchRotationKind::new(Basis::X, glam::IVec2::X).expect("valid rotation");
@@ -4107,6 +4244,67 @@ mod tests {
                 layer_round_ends: vec![3, 6],
             })
         );
+    }
+
+    #[test]
+    fn spatial_port_wall_uses_the_attached_planar_corner() {
+        let start = IVec3::ZERO;
+        let kind = PatchRotationKind::new(Basis::X, IVec2::ONE).unwrap();
+        let end = kind.end_position(start);
+        let input = start - IVec3::X;
+        let output = end + IVec3::Y;
+        for wall_at_start in [true, false] {
+            let mut graph = BlockGraph::new();
+            graph.add_block(Block::new(start, BlockKind::PatchRotation(kind)));
+            for (pos, role) in [(input, PortRole::Input), (output, PortRole::Output)] {
+                graph.add_block(
+                    Block::new(pos, BlockKind::Port)
+                        .with_port_role(role)
+                        .unwrap(),
+                );
+            }
+            for (pipe, is_wall) in [
+                (Pipe::new(input, Direction::XPLUS), wall_at_start),
+                (Pipe::new(end, Direction::YPLUS), !wall_at_start),
+            ] {
+                graph.add_pipe(if is_wall { pipe.with_hadamard() } else { pipe });
+            }
+            graph.validate_structure().unwrap();
+            let (expanded, ports) = crate::port::expand_port_topology(&graph, 3).unwrap();
+            let (src, dst, port, expected_cube) = if wall_at_start {
+                (input, start, input, CubeKind::ZXZ)
+            } else {
+                (end, output, output, CubeKind::ZXX)
+            };
+            assert_eq!(
+                expanded.get_block(port).unwrap().kind(),
+                BlockKind::Cube(expected_cube)
+            );
+            let schedules = join_component_layer_schedules(&expanded).unwrap();
+            let key = spatial_hadamard_key(
+                &expanded,
+                &ports,
+                crate::lower::SpatialPipeRef { src, dst },
+                3,
+                |pos| schedules[&pos],
+            )
+            .unwrap();
+            assert_eq!(key.rounds, 3);
+            assert!(key.planar);
+            assert_eq!(key.boundary_basis, Basis::X);
+            let (side, wall_dir, inward, time_basis) = if wall_at_start {
+                (key.plus, Direction::XMINUS, Direction::YPLUS, Basis::X)
+            } else {
+                (key.minus, Direction::YPLUS, Direction::XMINUS, Basis::Z)
+            };
+            assert_eq!(side.temporal_basis, time_basis);
+            assert_eq!(
+                side.connectivity,
+                Connectivity::ISOLATED
+                    .with_hadamard(wall_dir)
+                    .with_pipe(inward)
+            );
+        }
     }
 
     /// The point of `compile(&self)`: one context, many threads, no `&mut`
@@ -4244,6 +4442,23 @@ mod tests {
                 (name, object)
             })
             .collect()
+    }
+
+    #[test]
+    fn a_module_with_only_temporal_ports_does_not_prepare_planar_templates() {
+        let program = GalleryItem::CNOT.build();
+        let context = CompileContext::new(CompileConfig::new(3));
+        context.compile_object(&program).unwrap();
+        let definitions = cached_module_definitions(&context, &program);
+        assert!(definitions["main"].variants.keys().all(|key| matches!(
+            key.signature.layer_schedule,
+            None | Some(
+                LayerSchedule::Compact
+                    | LayerSchedule::Padded
+                    | LayerSchedule::Extended
+                    | LayerSchedule::ExtendedY
+            )
+        )));
     }
 
     #[test]

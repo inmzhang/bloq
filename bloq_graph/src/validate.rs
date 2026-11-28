@@ -53,18 +53,18 @@ pub enum InvalidBlockGraphError {
         "degenerate pipe face: block at {0} has the same basis on both axes perpendicular to pipe toward {1}"
     )]
     DegeneratePipeFace(IVec3, IVec3),
-    /// Spatially connected cubes have different symbolic heights.
+    /// Blocks joined to a cube by a spatial pipe have different symbolic heights.
     #[error(
-        "spatially connected cubes at {pos} and {neighbor} have different heights (height={height} vs height={neighbor_height})"
+        "spatially connected blocks at {pos} and {neighbor} have different heights (height={height} vs height={neighbor_height})"
     )]
     CubeHeightSpatialMismatch {
         /// First cube position.
         pos: IVec3,
-        /// Neighboring cube position.
+        /// Neighboring block position.
         neighbor: IVec3,
         /// First cube height.
         height: crate::CubeHeight,
-        /// Neighboring cube height.
+        /// Neighboring block height.
         neighbor_height: crate::CubeHeight,
     },
     /// A pipe attaches to an invalid cell of a multi-cell cube.
@@ -103,17 +103,27 @@ pub enum InvalidBlockGraphError {
         /// Walking-block anchor position.
         pos: IVec3,
     },
-    /// A patch-rotation endpoint does not have exactly one temporal pipe.
+    /// A patch-rotation endpoint does not have exactly one pipe.
     #[error(
-        "Patch rotation block at {pos} endpoint {endpoint} requires exactly one temporal pipe, got {count}"
+        "Patch rotation block at {pos} endpoint {endpoint} requires exactly one pipe, got {count}"
     )]
     PatchRotationEndpointPipeCount {
         /// Patch-rotation anchor position.
         pos: IVec3,
         /// Endpoint being checked.
         endpoint: IVec3,
-        /// Number of attached temporal pipes.
+        /// Number of attached pipes.
         count: usize,
+    },
+    /// A pipe reaches a planar rotation through the wrong corner or time face.
+    #[error("Patch rotation block at {pos} endpoint {endpoint} does not expose face {direction}")]
+    PatchRotationInvalidFace {
+        /// Rotation anchor.
+        pos: IVec3,
+        /// Corner where the pipe attaches.
+        endpoint: IVec3,
+        /// Outward direction of the attached pipe.
+        direction: Direction,
     },
     /// A patch-rotation endpoint has a spatial pipe.
     #[error(
@@ -616,6 +626,25 @@ fn collect_patch_rotation_errors(
             continue;
         }
         let pipe = pipes[0];
+        if kind.is_planar() {
+            let direction = if pipe.src() == endpoint {
+                pipe.dir()
+            } else {
+                pipe.dir().negate()
+            };
+            if kind.planar_endpoint_offset(direction) != Some(endpoint - start) {
+                errors.push(
+                    InvalidBlockGraphError::PatchRotationInvalidFace {
+                        pos: start,
+                        endpoint,
+                        direction,
+                    }
+                    .into(),
+                );
+            }
+            // The lattice-surgery checks compare both faces of each planar seam.
+            continue;
+        }
         let neighbor = pipe_neighbor_at(pipe, endpoint)
             .expect("pipe selected for endpoint must include that endpoint");
         if (neighbor - endpoint).abs() != IVec3::Z {
@@ -697,13 +726,15 @@ fn collect_cube_height_errors(
                 );
                 continue;
             }
-            if other_block.kind.is_cube() && other_block.height() != height {
+            if let Some(neighbor_height) = other_block.spatial_height()
+                && neighbor_height != height
+            {
                 errors.push(
                     InvalidBlockGraphError::CubeHeightSpatialMismatch {
                         pos: block.pos(),
                         neighbor: other_block.pos(),
                         height,
-                        neighbor_height: other_block.height(),
+                        neighbor_height,
                     }
                     .into(),
                 );
@@ -1175,6 +1206,43 @@ mod tests {
     }
 
     #[test]
+    fn planar_rotations_reserve_all_four_cells_and_expose_only_two_corners() {
+        let start = IVec3::new(5, -6, 7);
+        for dx in [-1, 1] {
+            for dy in [-1, 1] {
+                let kind = PatchRotationKind::new(Basis::Z, IVec2::new(dx, dy)).unwrap();
+                let end = start + IVec3::new(dx, dy, 0);
+                let block = Block::new(start, BlockKind::PatchRotation(kind));
+                for axis in [IVec3::X * dx, IVec3::Y * dy] {
+                    let dir = Direction::try_from(axis).unwrap();
+                    assert_eq!(block.endpoint_for_direction(dir.negate()), start);
+                    assert_eq!(block.endpoint_for_direction(dir), end);
+                }
+                let mut graph = BlockGraph::new();
+                graph.add_block(block);
+                for offset in [IVec3::new(dx, 0, 0), IVec3::new(0, dy, 0)] {
+                    let corner = start + offset;
+                    assert!(graph.get_endpoint_block(corner).is_none());
+                    assert!(
+                        matches!(graph.try_add_block(Block::new(corner, BlockKind::Port)),
+                        Err(BlockGraphError::BlockPositionOccupied(pos)) if pos == corner)
+                    );
+                }
+                graph.add_block(Block::new(start + IVec3::Z, BlockKind::Port));
+                graph.add_block(Block::new(end - IVec3::Z, BlockKind::Port));
+                graph.add_pipe(Pipe::new(start, Direction::ZPLUS));
+                graph.add_pipe(Pipe::new(end, Direction::ZMINUS));
+                assert!(matches!(
+                    validate(&graph),
+                    Err(BlockGraphError::Invalid(
+                        InvalidBlockGraphError::PatchRotationInvalidFace { .. }
+                    ))
+                ));
+            }
+        }
+    }
+
+    #[test]
     fn patch_rotation_allows_hadamard_only_at_end() {
         let mut graph = BlockGraph::new();
         let kind = PatchRotationKind::new(Basis::X, IVec2::X).unwrap();
@@ -1261,6 +1329,57 @@ mod tests {
                 InvalidBlockGraphError::CubeHeightSpatialMismatch { .. }
             ))
         ));
+    }
+
+    #[test]
+    fn planar_rotation_rejects_incompatible_spatial_cube_duration() {
+        for height in ["d/2", "2d", "d+1"] {
+            let source = format!(
+                "BLOG 1.0\n0: rotate Z [0,0,0] -> [1,1,0]\n1: ZXZ [-1,0,0] height={height}\n2: Port [2,1,0] role=output\n0 -> -X\n0 -> +X\n"
+            );
+            let graph = BlockGraph::from_blog_text(&source).unwrap();
+            assert!(matches!(
+                graph.validate_structure(),
+                Err(BlockGraphError::Invalid(
+                    InvalidBlockGraphError::CubeHeightSpatialMismatch { .. }
+                ))
+            ));
+        }
+    }
+
+    #[test]
+    fn spatial_module_seams_require_matching_rounds() {
+        for (start_port, operation) in [
+            ("[-1,0,0]", "rotate Z [0,0,0] -> [1,1,0]"),
+            ("[0,1,0]", "XZX [1,1,0]"),
+        ] {
+            let stage = format!(
+                "module Stage {{\nin i: data = 0\nout o: data = 1\n0: Port {start_port} role=input\n1: Port [2,1,0] role=output\n2: {operation}\n0 -> 2\n2 -> 1\n}}"
+            );
+            let input = format!(
+                "in q: data = 0\n0: Port {start_port} role=input\nr: Stage @ [0,0,0]\n0 -> r.i\n"
+            );
+            for height in ["d", "d/2"] {
+                let tail = format!("1: XZX [2,1,0] height={height}");
+                let direct = format!(
+                    "module Tail {{\nin i: data = 0\n0: Port [1,1,0] role=input\n{tail}\n0 -> 1\n}}\nmodule main {{\n{input}tail: Tail @ [0,0,0]\nr.o -> tail.i\n}}"
+                );
+                let bound = format!("module main {{\n{input}{tail}\nr.o -> 1\n}}");
+                for body in [direct, bound] {
+                    let graph = BlockGraph::from_text(&format!("BLOG 1.0\n{stage}\n{body}\n"));
+                    if height == "d" {
+                        graph.unwrap().flatten().unwrap().validate().unwrap();
+                    } else {
+                        assert!(
+                            graph
+                                .unwrap_err()
+                                .to_string()
+                                .contains("incompatible heights")
+                        );
+                    }
+                }
+            }
+        }
     }
 
     #[test]

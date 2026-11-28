@@ -67,9 +67,9 @@ occupation or duration. Thumbnails show representative orientations.
   - Logical patch translation by sliding or gliding.
 * - `rotate`
   - ![Patch rotation block with mixed boundary faces](../assets/blocks/rotation.svg)
-  - $2s^2$
-  - $2d$
-  - A $90^\circ$ patch-orientation rotation and one-cell spatial displacement.
+  - $2s^2$ axial;<br>$4s^2$ diagonal
+  - $2d$ axial;<br>$d$ diagonal
+  - A $90^\circ$ patch-orientation rotation with an adjacent or diagonally opposite output.
 * - Pipe
   - ![Pipe between two hidden virtual Ports](../assets/blocks/pipe.svg)
   - /
@@ -132,12 +132,13 @@ allowed, while X or Y support on the retained output is rejected.
 initializes the future patch in $+Y$; with a `-Z` pipe it measures the past
 patch in the Y basis.
 
-**Moving blocks.** Walking (`walk`) and patch rotation (`rotate`) are the two
-moving block families. Walking moves one spatial cell by sliding along a
-spatial axis or gliding diagonally along both axes. Patch rotation turns the
-patch orientation by $90^\circ$ and moves one cell along a spatial axis.
-Both advance one graph time layer and connect to temporal pipes at their
-start and end positions.
+**Moving blocks.** Walking (`walk`) moves one spatial cell by sliding along an
+axis or gliding diagonally. Its endpoints are one graph time layer apart.
+Patch rotation (`rotate`) turns the patch boundary orientation by $90^\circ$.
+An axial rotation moves to an adjacent spatial cell in the next layer and
+connects to temporal pipes. A diagonal rotation reserves a $2\times2$ square
+in one layer and connects opposite corners. Each corner accepts one spatial
+pipe through either outward face. The choices at the two corners are independent.
 
 ## Compose blocks
 

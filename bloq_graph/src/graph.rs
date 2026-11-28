@@ -442,8 +442,21 @@ impl BlockGraph {
     /// — the height propagated here, the CX-slot depth `bloq_compile` derives.
     /// `+Z` pipes are temporal and do not join components.
     pub fn cube_layer_components(&self) -> BTreeMap<i32, Vec<Vec<IVec3>>> {
+        self.layer_components(BlockKind::is_cube)
+    }
+
+    /// Groups cubes and planar rotations joined by spatial pipes in each layer.
+    /// A pipe at either corner joins the entire rotation to its neighbor.
+    pub fn spatial_layer_components(&self) -> BTreeMap<i32, Vec<Vec<IVec3>>> {
+        self.layer_components(|kind| kind.is_cube() || kind.is_planar_rotation())
+    }
+
+    fn layer_components(
+        &self,
+        include: impl Fn(&BlockKind) -> bool,
+    ) -> BTreeMap<i32, Vec<Vec<IVec3>>> {
         let mut layers = BTreeMap::<i32, Vec<IVec3>>::new();
-        for block in self.blocks().filter(|block| block.kind().is_cube()) {
+        for block in self.blocks().filter(|block| include(&block.kind())) {
             layers.entry(block.pos().z).or_default().push(block.pos());
         }
 
@@ -3156,10 +3169,11 @@ fn oriented_block_kind(kind: BlockKind, orientation: crate::ModuleOrientation) -
             let movement = orientation
                 .try_rotate_position(kind.movement_3d())
                 .expect("small patch rotation movement remains representable");
-            let basis = if orientation
-                .rotate_direction(Direction::XPLUS)
-                .as_udirection()
-                == UDirection::X
+            let basis = if kind.is_planar()
+                || orientation
+                    .rotate_direction(Direction::XPLUS)
+                    .as_udirection()
+                    == UDirection::X
             {
                 kind.basis()
             } else {
@@ -4735,6 +4749,25 @@ module main {
         };
         assert_eq!(rotated_kind.movement(), glam::ivec2(-1, 0));
         assert_eq!(rotated_kind.basis(), kind.basis().flip());
+    }
+
+    #[test]
+    fn planar_rotation_keeps_its_cap_basis_in_a_rotated_module() {
+        let kind = PatchRotationKind::new(Basis::X, glam::IVec2::ONE).unwrap();
+        let block = Block::new(IVec3::ZERO, BlockKind::PatchRotation(kind));
+        for turns in 0..4 {
+            let orientation = crate::ModuleRotation::new(UDirection::Z, turns).orientation();
+            let rotated = oriented_block(&block, orientation).unwrap();
+            let end = orientation.try_rotate_position(kind.movement_3d()).unwrap();
+            assert_eq!(
+                rotated.bases_at_endpoint(IVec3::ZERO),
+                Some([Basis::Z, Basis::Z, Basis::X])
+            );
+            assert_eq!(
+                rotated.bases_at_endpoint(end),
+                Some([Basis::X, Basis::X, Basis::Z])
+            );
+        }
     }
 
     #[test]

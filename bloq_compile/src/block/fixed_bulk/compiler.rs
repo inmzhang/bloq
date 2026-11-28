@@ -25,7 +25,16 @@ pub(crate) fn validate_fixed_bulk(signature: BlockSignature) -> Result<(), Compi
     let future = connectivity.has_pipe(Direction::ZPLUS);
     let valid_temporal = match signature.kind {
         BlockKind::Cube(_) | BlockKind::Walking(_) => return Ok(()),
-        // Rotations use only temporal pipes; realignment owns any Hadamard flip.
+        BlockKind::PatchRotation(kind) if kind.is_planar() => {
+            if past || future {
+                return Err(CompileError::InvalidConnectivity {
+                    kind: signature.kind,
+                    connectivity,
+                });
+            }
+            return Ok(());
+        }
+        // Axial rotations use temporal pipes; realignment owns any Hadamard flip.
         BlockKind::PatchRotation(_) => true,
         // Leaves inherit the patch orientation from their single temporal neighbour.
         BlockKind::Y | BlockKind::Port | BlockKind::Selective(_) => past ^ future,
@@ -78,7 +87,18 @@ pub(crate) fn compile_fixed_bulk(
         }
         BlockKind::Walking(kind) => compile_walking(kind, signature.connectivity, distance),
         BlockKind::PatchRotation(kind) => {
-            compile_patch_rotation(kind, signature.connectivity, distance)
+            if kind.is_planar() {
+                super::planar_rotation::compile(
+                    kind,
+                    signature.connectivity,
+                    distance,
+                    signature
+                        .layer_schedule
+                        .expect("planar rotations share their spatial component's schedule"),
+                )
+            } else {
+                compile_patch_rotation(kind, signature.connectivity, distance)
+            }
         }
         BlockKind::Port => {
             let boundary_basis = signature

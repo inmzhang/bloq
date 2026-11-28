@@ -4073,6 +4073,31 @@
         }
       ],
       "limitations": []
+    },
+    {
+      "name": "planar-rotation",
+      "family": "planar-rotation",
+      "source": "planar-rotation.blog",
+      "stim": "planar-rotation.stim",
+      "svg": "planar-rotation.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 2\n  0: Port [-1,0,1] role=input\n  1: rotate Z [0,0,1] -> [1,1,1]\n  2: Port [1,2,1] role=output\n  0 -> +X\n  [1,1,1] -> +Y\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "f31bb38921a86f50fd1af7cf5db42de5baab477ba3375679df8e2fc51cdb8a4c",
+      "ticks": 32,
+      "measurements": 1099,
+      "detectors": 894,
+      "stages": [
+        {
+          "label": "Round 3, from ancilla reset to readout",
+          "tick_start": 13,
+          "tick_stop": 19,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [],
+      "bloq_version": "0.2.1-dev"
     }
   ],
   "errors": []

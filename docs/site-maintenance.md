@@ -135,6 +135,7 @@ export API for dependency diagrams.
 | 2D companions to paper figures | `tools/render_viewer_companions.py --paper-figures <directory>` |
 | Retained tutorial plots | `tools/plot_tutorial_results.py` |
 | Physical construction diagrams | `tools/render_construction_slices.py` |
+| Planar rotation close-up | `tools/render_planar_rotation_figure.py` (from the generated Stim circuit) |
 
 Run the thumbnail and gallery generators with
 `uv run --project bloq_py --no-sync python <script>`.

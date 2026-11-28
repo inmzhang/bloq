@@ -24,6 +24,10 @@ const HELP_BINDINGS: &[(&str, &str)] = &[
     ("BLOG Completion", "Tab / Shift + Tab (BLOG)"),
     ("Accept / Dismiss Completion", "Enter / Esc (BLOG)"),
     ("BLOG Format", "Format button (BLOG)"),
+    (
+        "Place Planar Rotation",
+        "Edit dock → Planar rotation, then click opposite corners on one layer",
+    ),
     ("Pipe Placement Tool", "P"),
     (
         "Extend Pipe To Empty Endpoint",

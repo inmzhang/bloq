@@ -274,6 +274,8 @@ pub(super) struct CsrAdjacency {
     offsets: Vec<usize>,
     neighbors: Vec<usize>,
     edge_ids: Vec<usize>,
+    /// Physical ends of directed pipes that attach away from a block anchor.
+    pub(super) displaced_pipes: FxHashMap<usize, (IVec3, IVec3)>,
 }
 
 impl CsrAdjacency {
@@ -307,6 +309,7 @@ impl CsrAdjacency {
             offsets,
             neighbors,
             edge_ids,
+            displaced_pipes: FxHashMap::default(),
         }
     }
 
@@ -348,8 +351,7 @@ pub struct ZXGraph {
     pub(crate) nodes: Vec<ZXNode>,
     pub(crate) edges: Vec<ZXEdge>,
     pub(super) adjacency: CsrAdjacency,
-    /// Block-center position to node id, for O(1) [`ZXGraph::node_at`].
-    /// Endpoint offsets of multi-cell blocks are deliberately absent.
+    /// Every connectable position maps to its owner. Node queries also match the anchor.
     pub(crate) pos_to_node: FxHashMap<IVec3, usize>,
     pub(crate) action_graph: ActionDag,
     pub(crate) total_ids: usize,
@@ -405,7 +407,24 @@ impl ZXGraph {
 
     /// Returns the node at `pos`, if any.
     pub fn node_at(&self, pos: IVec3) -> Option<&ZXNode> {
-        self.pos_to_node.get(&pos).map(|&id| &self.nodes[id])
+        self.pos_to_node
+            .get(&pos)
+            .map(|&id| &self.nodes[id])
+            .filter(|node| node.pos == pos)
+    }
+
+    pub(super) fn physical_edge_ends(&self, edge: &ZXEdge) -> (IVec3, IVec3) {
+        self.adjacency
+            .displaced_pipes
+            .get(&edge.id)
+            .copied()
+            .unwrap_or_else(|| (self.nodes[edge.n1].pos, self.nodes[edge.n2].pos))
+    }
+
+    pub(crate) fn edge_at(&self, src: IVec3, dir: crate::Direction) -> Option<&ZXEdge> {
+        let dst = crate::checked_add_position(src, dir.to_ivec3()).ok()?;
+        let edge = self.edge_between(*self.pos_to_node.get(&src)?, *self.pos_to_node.get(&dst)?)?;
+        (self.physical_edge_ends(edge) == (src, dst)).then_some(edge)
     }
 
     /// Returns the sorted, deduplicated set of occupied time layers.
@@ -439,12 +458,7 @@ impl ZXGraph {
     pub fn measurement_column(&self, target: &MeasureTarget) -> Option<usize> {
         match target {
             MeasureTarget::Node(pos) => self.node_at(*pos).map(|node| node.id),
-            MeasureTarget::Edge { src, dir } => {
-                let dst = crate::checked_add_position(*src, dir.to_ivec3()).ok()?;
-                let src_id = self.node_at(*src)?.id;
-                let dst_id = self.node_at(dst)?.id;
-                self.edge_id(src_id, dst_id)
-            }
+            MeasureTarget::Edge { src, dir } => self.edge_at(*src, *dir).map(|edge| edge.id),
         }
     }
 
@@ -453,11 +467,11 @@ impl ZXGraph {
     /// incoming temporal wire, then a sole spatial wire. Ordering is by source
     /// position, so local and full graphs make the same choice (SEM-READ).
     pub(crate) fn feedback_edge(&self, target: &FeedbackTarget) -> Option<&ZXEdge> {
+        if let Some(direction) = target.direction {
+            return self.edge_at(target.target, direction);
+        }
         let node = self.node_at(target.target)?;
-        let neighbor = if let Some(direction) = target.direction {
-            let position = crate::checked_add_position(target.target, direction.to_ivec3()).ok()?;
-            self.node_at(position)?.id
-        } else {
+        let neighbor = {
             let neighbors = self.neighbor_ids(node.id);
             neighbors
                 .iter()
@@ -634,9 +648,8 @@ impl ZXGraph {
         let edge_idx = sink.checked_sub(self.nodes.len())?;
         let edge = self.edges.get(edge_idx)?;
         debug_assert_eq!(edge.id, sink);
-        let p1 = self.nodes[edge.n1].pos.as_vec3();
-        let p2 = self.nodes[edge.n2].pos.as_vec3();
-        Some((p1 + p2) / 2.0)
+        let (src, dst) = self.physical_edge_ends(edge);
+        Some((src.as_vec3() + dst.as_vec3()) / 2.0)
     }
 
     pub(crate) fn fill_ports(
@@ -653,7 +666,7 @@ impl ZXGraph {
             new_zx.stabilizer_phase_basis.take();
         }
         for (&pos, kind) in port_map {
-            let Some(node_id) = self.pos_to_node.get(&pos).copied() else {
+            let Some(node_id) = self.node_at(pos).map(|node| node.id) else {
                 return Err(ZXError::NoPort(pos));
             };
             let node = self.nodes[node_id];
@@ -1076,7 +1089,7 @@ impl ZXGraph {
             if !port_map.contains_key(pos) {
                 continue;
             }
-            let Some(&node_id) = self.pos_to_node.get(pos) else {
+            let Some(node_id) = self.node_at(*pos).map(|node| node.id) else {
                 continue;
             };
             if let Some(observable) = measurement_observable_for_node_kind(self.nodes[node_id].kind)

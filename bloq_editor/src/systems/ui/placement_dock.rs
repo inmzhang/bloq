@@ -8,6 +8,7 @@ use super::intents::{UiIntent, UiIntentBuffer};
 use super::thumbnail::paint_texture_thumbnail;
 use crate::resources::{
     EditorMode, EditorState, PlacementPreviewKind, PlacementTool, ThumbnailTextures,
+    placement_block_kinds, placement_block_label,
 };
 use crate::systems::thumbnails::ThumbnailKey;
 use crate::theme::{ThemePalette, with_alpha};
@@ -134,7 +135,7 @@ pub(crate) fn draw_placement_dock(
                                         ui.spacing_mut().item_spacing =
                                             egui::vec2(DOCK_ITEM_GAP, 0.0);
                                         ui.horizontal(|ui| {
-                                            for kind in BlockKind::all_kinds() {
+                                            for kind in placement_block_kinds() {
                                                 draw_dock_item(
                                                     ui,
                                                     DockItem::Block(kind),
@@ -163,12 +164,23 @@ fn draw_dock_item(
 ) {
     let selected = match item {
         DockItem::Block(kind) => {
-            editor_state.placement_tool == PlacementTool::Block && editor_state.block_kind == kind
+            editor_state.placement_tool == PlacementTool::Block
+                && match (editor_state.block_kind, kind) {
+                    (BlockKind::PatchRotation(a), BlockKind::PatchRotation(b)) => {
+                        a.is_planar() == b.is_planar()
+                    }
+                    (current, _) => current == kind,
+                }
         }
         DockItem::Pipe => editor_state.placement_tool == PlacementTool::Pipe,
     };
 
-    let (rect, response) = ui.allocate_exact_size(DOCK_ITEM_SIZE, egui::Sense::click());
+    let size = if matches!(item, DockItem::Block(kind) if kind.is_patch_rotation()) {
+        egui::vec2(83.0, DOCK_ITEM_SIZE.y)
+    } else {
+        DOCK_ITEM_SIZE
+    };
+    let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
     let response = response.on_hover_text(format!(
         "{}\n{}",
         dock_item_label(item),
@@ -236,11 +248,7 @@ fn draw_dock_item(
     ui.painter().text(
         rect.center_bottom() - egui::vec2(0.0, 3.0),
         egui::Align2::CENTER_BOTTOM,
-        if matches!(item, DockItem::Block(kind) if kind.is_patch_rotation()) {
-            Cow::Borrowed("Rotation")
-        } else {
-            dock_item_label(item)
-        },
+        dock_item_label(item),
         egui::FontId::proportional(11.0),
         if selected {
             palette.accent_primary
@@ -266,9 +274,7 @@ fn draw_dock_separator(ui: &mut egui::Ui, height: f32, palette: &ThemePalette) {
 
 fn dock_item_label(item: DockItem) -> Cow<'static, str> {
     match item {
-        DockItem::Block(kind) if kind.is_walking() => Cow::Borrowed("Walking"),
-        DockItem::Block(kind) if kind.is_patch_rotation() => Cow::Borrowed("Patch Rotation"),
-        DockItem::Block(kind) => Cow::Owned(kind.to_string()),
+        DockItem::Block(kind) => placement_block_label(kind),
         DockItem::Pipe => Cow::Borrowed("Pipe"),
     }
 }
@@ -285,7 +291,13 @@ fn dock_item_hint(item: DockItem) -> &'static str {
         DockItem::Pipe => {
             "Click a starting block, then an adjacent endpoint. WASD / Up / Down extend or follow existing pipes. Enable Hadamard in the toolbar instead of holding H."
         }
-        DockItem::Block(kind) if kind.is_walking() || kind.is_patch_rotation() => {
+        DockItem::Block(kind) if kind.is_planar_rotation() => {
+            "Click a start cell, then a diagonal corner on the same layer. The rotation uses 2 × 2 cells for d rounds. Connect a spatial pipe at each chosen corner."
+        }
+        DockItem::Block(kind) if kind.is_patch_rotation() => {
+            "Click a start cell, then a cardinal neighbor on the next layer. The rotation uses 1 × 2 cells for 2d rounds. Connect a temporal pipe at each end."
+        }
+        DockItem::Block(kind) if kind.is_walking() => {
             "Place on an empty grid cell, then choose a highlighted endpoint. Double-click an existing block to edit its attributes."
         }
         DockItem::Block(_) => {

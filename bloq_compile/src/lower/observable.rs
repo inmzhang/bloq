@@ -1006,7 +1006,10 @@ pub(super) fn push_wall_observable_insertions(
             .observable_gateway;
         let (minus_dir, plus_dir) = wall.arm_directions();
         let arm = |pos: IVec3, dir: Direction| {
-            incident_edge_pauli(graph, pos, dir, stabilizer, true).unwrap_or(Pauli::I)
+            let owner = graph
+                .get_endpoint_block(pos)
+                .expect("wall endpoint has an owner");
+            incident_edge_pauli(graph, owner.pos(), dir, stabilizer, true).unwrap_or(Pauli::I)
         };
         let minus_pauli = arm(wall.src, plus_dir);
         let plus_pauli = arm(wall.dst, minus_dir);
@@ -1051,7 +1054,9 @@ fn spatial_hadamard_wall(
     src: IVec3,
     dst: IVec3,
 ) -> Option<super::SpatialPipeRef> {
-    let pipe = graph.get_pipe(src, dst)?;
+    let pipe = graph
+        .get_pipe(src, dst)
+        .or_else(|| graph.get_pipe_between_blocks(src, dst))?;
     (pipe.is_hadamard() && pipe.dir().is_spatial()).then(|| {
         let (src, dst) = pipe.endpoints();
         super::SpatialPipeRef::new(src, dst)

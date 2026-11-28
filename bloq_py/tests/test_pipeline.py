@@ -1441,6 +1441,27 @@ def test_moving_block_kinds_expose_their_movement():
     assert bloq.BlockKind.cube("ZXZ").movement is None
 
 
+@pytest.mark.parametrize("basis", [bloq.Basis.X, bloq.Basis.Z])
+@pytest.mark.parametrize("dx,dy", [(1, 1), (-1, 1), (-1, -1), (1, -1)])
+def test_planar_patch_rotation_round_trip_and_compile(basis, dx, dy):
+    graph = bloq.BlockGraph()
+    rotation = bloq.BlockKind.patch_rotation(basis, (dx, dy))
+    graph.add_block(bloq.Block((0, 0, 0), rotation))
+    graph.add_block(bloq.Block((-dx, 0, 0), "Port", role="input"))
+    graph.add_block(bloq.Block((dx, 2 * dy, 0), "Port", role="output"))
+    graph.add_pipe(bloq.Pipe((0, 0, 0), "-X" if dx == 1 else "+X"))
+    graph.add_pipe(bloq.Pipe((dx, dy, 0), "+Y" if dy == 1 else "-Y"))
+
+    restored = bloq.BlockGraph.from_text(graph.to_text())
+    restored.validate()
+    kind = restored.get_block((0, 0, 0)).kind
+    assert kind == rotation and kind.is_patch_rotation
+    assert kind.movement == (dx, dy)
+    assert kind.bases == (basis.flip(), basis.flip(), basis)
+    assert restored.get_pipe((dx, dy, 0), (dx, 2 * dy, 0)) is not None
+    assert bloq.emit_stim(bloq.compile(restored, distance=3)).num_observables == 2
+
+
 def test_direction_is_spatial_splits_the_time_axis_off():
     spatial = (
         bloq.Direction.X_PLUS,

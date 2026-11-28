@@ -11,7 +11,7 @@ use crate::block::patch::Patch;
 use crate::signature::Connectivity;
 
 pub(super) const INIT_CHUNK: usize = 0;
-const MEAS_CHUNK: usize = 2;
+pub(super) const MEAS_CHUNK: usize = 2;
 
 fn is_plus_direction(dir: Direction) -> bool {
     matches!(dir, Direction::XPLUS | Direction::YPLUS | Direction::ZPLUS)
@@ -250,7 +250,7 @@ fn half_middle_line_qubits(distance: u32, towards: Direction) -> Vec<IVec2> {
 /// Determined by the arm pair's sign product and the observable basis:
 /// - Arms with different signs (e.g. XMINUS+YPLUS): include if basis == Z
 /// - Arms with same signs (e.g. XPLUS+YPLUS): include if basis == X
-fn include_l_shape_corner(arm1: Direction, arm2: Direction, basis: Basis) -> bool {
+pub(super) fn include_l_shape_corner(arm1: Direction, arm2: Direction, basis: Basis) -> bool {
     let sign = |dir: Direction| -> i32 {
         match dir {
             Direction::XPLUS | Direction::YPLUS => 1,

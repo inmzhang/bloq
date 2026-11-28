@@ -326,7 +326,7 @@ pub struct InstancePort {
 pub enum QuantumConnection {
     /// Connects a parent block to a child quantum input.
     Input {
-        /// Parent-local port-block position.
+        /// Anchor of the parent block. The transformed child Port selects its connectable endpoint.
         block: IVec3,
         /// Child input endpoint.
         input: InstancePort,
@@ -337,7 +337,7 @@ pub enum QuantumConnection {
     Output {
         /// Child output endpoint.
         output: InstancePort,
-        /// Parent-local port-block position.
+        /// Anchor of the parent block. The transformed child Port selects its connectable endpoint.
         block: IVec3,
         /// Whether the seam changes basis by Hadamard.
         hadamard: bool,
@@ -2141,9 +2141,12 @@ fn validate_bind(
     let translated = instance
         .try_transform_position(port.position)
         .map_err(|error| fail(error.to_string()))?;
-    if translated != block {
+    if !module
+        .get_endpoint_block(translated)
+        .is_some_and(|owner| owner.pos() == block)
+    {
         return Err(fail(format!(
-            "port '{}.{}' is at {translated}, not {block}",
+            "port '{}.{}' at {translated} does not reach a connectable endpoint of block {block}",
             endpoint.instance, endpoint.port
         )));
     }
@@ -3333,6 +3336,59 @@ module main {
             parse_inline_graph(&source("Z", 45)),
             Err(ModuleError::InvalidModule { .. })
         ));
+    }
+
+    #[test]
+    fn module_binds_the_rotation_owner_at_the_transformed_child_port() {
+        for (role, seam) in [("input", "1 -> tail.face"), ("output", "tail.face -> 1")] {
+            let port_decl = if role == "input" { "in" } else { "out" };
+            let source = format!(
+                "BLOG 1.0
+module Tail {{
+  {port_decl} face: data = 0
+  0: Port [0,0,0] role={role}
+  1: XZX [1,0,0]
+  0 -> 1
+}}
+module main {{
+  0: Port [-1,0,0] role=input
+  in i: data = 0
+  1: rotate Z [0,0,0] -> [1,1,0]
+  0 -> 1
+  tail: Tail @ [1,1,0]
+  {seam}
+}}"
+            );
+            let graph = parse_inline_graph(&source).unwrap();
+            let saved = graph.to_blog_text();
+            let flat = parse_inline_graph(&saved).unwrap().flatten().unwrap();
+            assert!(flat.has_pipe_between(IVec3::new(1, 1, 0), IVec3::new(2, 1, 0)));
+            flat.validate().unwrap();
+            // The fourth corner is workspace and cannot be used as a module Port.
+            parse_inline_graph(&source.replace("Tail @ [1,1,0]", "Tail @ [0,1,0]"))
+                .expect_err("a reserved workspace cell has no connectable endpoint");
+        }
+    }
+
+    #[test]
+    fn rotation_module_cannot_tilt_its_physical_time_axis() {
+        for end in ["[1,1,0]", "[1,0,1]"] {
+            for (axis, turns) in [("X", 90), ("Y", 90), ("X", 180), ("Y", 180)] {
+                let source = format!(
+                    "BLOG 1.0\nmodule Rot {{\n0: rotate X [0,0,0] -> {end}\n}}\nmodule main {{\nr: Rot @ [0,0,0] rotate {axis} {turns}\n}}"
+                );
+                assert!(matches!(
+                    parse_inline_graph(&source),
+                    Err(ModuleError::InvalidGeometry {
+                        source: ModuleCertificationError::Graph {
+                            source: crate::BlockGraphError::RotationWalkingRequiresTimeAxis,
+                            ..
+                        },
+                        ..
+                    })
+                ));
+            }
+        }
     }
 
     #[test]

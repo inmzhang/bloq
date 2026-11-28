@@ -973,7 +973,7 @@ mod tests {
     use crate::theme::ThemePreset;
     use crate::utils::{GraphAdjacencySnapshot, adjacent_direction_bit};
     use bevy::picking::Pickable;
-    use bevy::prelude::Visibility;
+    use bevy::prelude::{App, Entity, Visibility};
     use bevy::render::render_resource::PrimitiveTopology;
     use bloq_graph::{
         Block, BlockGraph, BlockKind, CubeKind, Direction, GalleryItem, Pipe, SelectiveKind,
@@ -2204,8 +2204,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn pipe_preview_refreshes_when_switching_equal_revision_tabs() {
+    fn placement_preview_app(editor: EditorState) -> (App, Entity) {
         use super::*;
         let mut app = App::new();
         app.init_resource::<GraphState>()
@@ -2214,17 +2213,57 @@ mod tests {
             .init_resource::<Assets<Mesh>>()
             .init_resource::<Assets<StandardMaterial>>()
             .init_resource::<RenderAssetCache>()
-            .insert_resource(EditorState {
-                mode: EditorMode::Edit,
-                placement_tool: PlacementTool::Pipe,
-                pipe_start: Some(IVec3::ZERO),
-                ..Default::default()
-            })
+            .insert_resource(editor)
             .add_systems(Update, add_block_preview_system);
         app.world_mut()
             .spawn((PreviewMesh, Transform::default(), Visibility::Hidden));
-        app.world_mut()
-            .spawn((WalkingPreviewMesh, Transform::default(), Visibility::Hidden));
+        let moving = app
+            .world_mut()
+            .spawn((WalkingPreviewMesh, Transform::default(), Visibility::Hidden))
+            .id();
+        (app, moving)
+    }
+
+    #[test]
+    fn planar_placement_previews_only_a_free_square() {
+        use super::*;
+        let end = IVec3::new(1, -1, 0);
+        let (mut app, preview) = placement_preview_app(EditorState {
+            mode: EditorMode::Edit,
+            placement_tool: PlacementTool::Block,
+            block_kind: crate::resources::placement_block_kinds()
+                .find(BlockKind::is_planar_rotation)
+                .unwrap(),
+            walking_start: Some(IVec3::ZERO),
+            hovered_grid_pos: Some(end),
+            ..Default::default()
+        });
+        app.update();
+        assert_eq!(
+            app.world().get::<Visibility>(preview),
+            Some(&Visibility::Inherited)
+        );
+        assert!(app.world().get::<Children>(preview).is_some());
+        let mut graph = app.world_mut().resource_mut::<GraphState>();
+        graph.graph.add_block(Block::new(IVec3::X, BlockKind::Port));
+        graph.commit();
+        app.update();
+        assert_eq!(
+            app.world().get::<Visibility>(preview),
+            Some(&Visibility::Hidden)
+        );
+        assert!(app.world().get::<Children>(preview).is_none());
+    }
+
+    #[test]
+    fn pipe_preview_refreshes_when_switching_equal_revision_tabs() {
+        use super::*;
+        let (mut app, _) = placement_preview_app(EditorState {
+            mode: EditorMode::Edit,
+            placement_tool: PlacementTool::Pipe,
+            pipe_start: Some(IVec3::ZERO),
+            ..Default::default()
+        });
         let endpoint = app
             .world_mut()
             .spawn((

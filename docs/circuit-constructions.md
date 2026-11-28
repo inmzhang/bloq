@@ -399,20 +399,102 @@ spatial face bases; its later memory rounds are outside the displayed attempt. S
 
 ## Patch Rotation
 
-A patch-rotation block turns the patch boundary orientation by 90 degrees
-and moves it one spatial cell. Logical X and Z retain their bases.
+A patch-rotation block turns the patch boundary orientation by 90 degrees.
+Logical X and Z retain their bases. The endpoints select one of two circuits.
 
-The circuit grows the patch, transfers data to the rotated region, then
-shrinks to the output patch. The grown and rotated supports each have
-$d-2$ intervening syndrome rounds. The CNOT order changes across the diagonal to
-control hook errors. Selected stabilizer outcomes from growth and rotated-patch
+### Axial rotation
+
+The output is one spatial cell away and one layer above the input.
+Temporal pipes attach at both ends. Over $2d$ syndrome rounds, the circuit
+grows the patch, transfers data to the rotated region, then shrinks to the
+output patch. The grown and rotated supports each have $d-2$ intervening
+syndrome rounds. The CNOT order changes across the diagonal to control hook
+errors. Selected stabilizer outcomes from growth and rotated-patch
 initialization, together with split-row data readout during shrink, determine
 the signs of the transported logical X and Z.
 
 ![Patch growth, transfer, rotation, and shrink](assets/paper/patch-rotation-physical.svg)
 
-`rotate X` and `rotate Z` connect to one past and one future temporal pipe.
-For translation with the same boundary orientation, use [Walking](#walking).
+### Planar rotation
+
+A planar rotation uses a **$2 \times 2$ footprint of patch cells for $d$
+syndrome rounds**. Its endpoints lie at opposite corners in the same graph
+layer. Each corner connects to one of its two outward spatial faces.
+For example, `rotate Z [0,0,1] -> [1,1,1]` accepts a west or south pipe
+at its first corner and an east or north pipe at its opposite corner.
+
+The two mixed side faces of the axial construction become the preparation
+and readout faces of the planar construction. For the example below, prepare
+the southern $d+1$ data rows in Z and the northern $d$ rows in X.
+After $d$ rounds, read the western $d+1$ columns in Z and the eastern $d$
+columns in X. Both outward walls at the first corner are X and both at the
+opposite corner are Z. The first corner owns the entire middle data line
+on each face. Changing `rotate Z` to `rotate X` exchanges the endpoint
+colors and the axes of the two straight cuts.
+
+```{literalinclude} _static/constructions/planar-rotation.blog
+:language: blog
+```
+
+```{bloq-view} planar-rotation
+:source: _static/constructions/planar-rotation.blog
+```
+
+#### Four CNOT layers
+
+A weight-four check ancilla must interact with four data qubits, one per
+layer. The rotation and its regular neighbors attain that four-layer minimum.
+Reset and readout add one moment each. In the west-to-north example, the
+data corners around an ancilla are visited in these orders.
+
+| Hook axis | Layer 1 | Layer 2 | Layer 3 | Layer 4 |
+| --- | --- | --- | --- | --- |
+| Horizontal | Southwest | Southeast | Northwest | Northeast |
+| Vertical | Southwest | Northwest | Southeast | Northeast |
+
+The last two CNOTs set the axis along which an ancilla fault can spread to
+two data qubits. In the outward-facing triangular half of each endpoint
+cell, the hook axis matches the adjoining patch. Checks using a shared data
+qubit in the middle layers have the same checkerboard basis and hook axis
+along the diagonal perpendicular to the displacement. One visits the data
+qubit in layer 2 and the other in layer 3. The compiler reflects the order
+for other displacements and exchanges the interior X/Z hook roles when a
+single axis is reflected.
+
+#### Read the distance-five detector slices
+
+The left panel shows the enlarged patch and its two port patches after
+round 2. On the right, D264 in the input triangle and D289 in the interior
+each compare the X-ancilla readouts from rounds 2 and 3. Follow the same
+column across the rows. At tick 15 the triangle ancilla couples southeast
+while the interior ancilla couples northwest. At tick 16 the two orders
+swap. A marked Pauli support shows where an anticommuting fault would
+flip that detector’s parity.
+
+![Distance-five patch rotation with four round-three CNOT layers, showing the full patch and the changing Pauli support of two X checks.](assets/planar-rotation-detectors.png)
+
+Open the {download}`full-size figure <assets/planar-rotation-detectors.png>`
+to inspect the qubits in either check. The full round below starts at tick 13
+with ancilla reset and ends at tick 18 with ancilla readout. The downloadable Stim circuit contains all five rounds.
+
+```{detector-slices} planar-rotation
+```
+
+#### When a component needs more layers
+
+Spatially connected blocks share a CNOT schedule. Each row gives the number
+of CNOT layers **per syndrome round** for a component containing a planar
+rotation.
+
+| Component | CNOT layers | Schedule |
+| --- | ---: | --- |
+| Regular neighbors and rotations with the same signed displacement | 4 | Reflected horizontal and vertical hooks |
+| A spatial junction cube with matching rotation displacements | 5 | One extra slot accommodates the junction’s changes in hook direction |
+| Rotations with different signed displacements and ordinary pipes | 6 | A common [diagonal-hook schedule](https://arxiv.org/abs/2602.09099) |
+| A spatial Hadamard wall | 12 | Six wall and neighboring-patch layers, then six rotation layers |
+
+A [spatial Hadamard wall](#spatial-hadamard) can reduce the circuit’s fault
+distance.
 
 ### Examples
 

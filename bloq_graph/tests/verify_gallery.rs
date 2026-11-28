@@ -17,6 +17,68 @@ use quizx::tensor::{CompareTensors, Tensor4, ToTensor};
 use rand::{RngExt, SeedableRng, rngs::StdRng};
 
 #[test]
+fn planar_rotation_transports_a_qubit_between_either_spatial_face() {
+    let identity = circuit_graph(1, &[]);
+    for basis in [Basis::X, Basis::Z] {
+        for dx in [-1, 1] {
+            for dy in [-1, 1] {
+                let end = IVec3::new(dx, dy, 0);
+                for input_axis in [IVec3::X * dx, IVec3::Y * dy] {
+                    for output_axis in [IVec3::X * dx, IVec3::Y * dy] {
+                        let input = -input_axis;
+                        let output = end + output_axis;
+                        let source = format!(
+                            "BLOG 1.0\n0: rotate {basis} [0,0,0] -> {end}\n1: Port {input} role=input\n2: Port {output} role=output\n1 -> 0\n0 -> 2\n"
+                        );
+                        let graph = BlockGraph::from_blog_text(&source).unwrap();
+                        assert_eq!(graph.fill_ports_auto().unwrap().len(), 2);
+                        let verifier = LogicalVerifier::new(&graph).unwrap();
+                        assert_eq!(
+                            verifier
+                                .verify_branch(&identity, &BTreeMap::new())
+                                .unwrap()
+                                .status(),
+                            BranchStatus::Verified,
+                            "{source}"
+                        );
+                        for (endpoint, port, top) in
+                            [(IVec3::ZERO, input, basis), (end, output, basis.flip())]
+                        {
+                            let pipe = graph.get_pipe(endpoint, port).unwrap();
+                            let axis = pipe.dir().as_udirection();
+                            let inferred = graph.infer_pipe_basis_from_endpoint(pipe, endpoint);
+                            for direction in UDirection::iter() {
+                                let expected = if direction == axis {
+                                    None
+                                } else if direction == UDirection::Z {
+                                    Some(top)
+                                } else {
+                                    Some(top.flip())
+                                };
+                                assert_eq!(inferred[direction.index()], expected, "{source}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn planar_rotation_far_wire_feedback_keeps_its_pauli_frame() {
+    let x_gate = circuit_graph(1, &[("x", vec![0])]);
+    let plain = "BLOG 1.0\n0: Port [-1,0,0] role=input\n1: rotate Z [0,0,0] -> [1,1,0]\n2: Port [2,1,0] role=output\n0 -> 1\n1 -> 2\n";
+    for target in ["1 -> +X", "2 -> -X"] {
+        let graph = BlockGraph::from_blog_text(&format!("{plain}feedback X {target}\n")).unwrap();
+        LogicalVerifier::new(&graph)
+            .unwrap()
+            .verify(&x_gate, 1, 0)
+            .unwrap();
+    }
+}
+
+#[test]
 fn reversed_temporal_ports_preserve_y_tensor_transposes() {
     let output = prepared_graph(
         1,

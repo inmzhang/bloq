@@ -560,7 +560,12 @@ fn edit_system(
         && let Some(pos) = pick_grid_pos
     {
         if editor_state.block_kind.is_walking() || editor_state.block_kind.is_patch_rotation() {
-            place_moving_block_click(pos, &mut editor_state, &mut graph_state, &mut notifications);
+            place_moving_block_click(
+                editor_state.hovered_preview_endpoint.unwrap_or(pos),
+                &mut editor_state,
+                &mut graph_state,
+                &mut notifications,
+            );
         } else {
             place_single_block(pos, &mut editor_state, &mut graph_state, &mut notifications);
         }
@@ -1882,6 +1887,96 @@ mod tests {
             graph.undo();
             assert!(graph.graph.is_empty());
         }
+    }
+
+    #[test]
+    fn place_planar_rotation_and_offer_each_corner_face() {
+        let mut editor = EditorState {
+            mode: EditorMode::Edit,
+            ..Default::default()
+        };
+        let planar = crate::resources::placement_block_kinds()
+            .find(BlockKind::is_planar_rotation)
+            .unwrap();
+        let start = IVec3::new(0, 0, 2);
+        let end = start + IVec3::new(-1, 1, 0);
+        let mut graph = GraphState::default();
+        let mut notifications = Notifications::default();
+        editor.select_block_kind(BlockKind::PatchRotation(PatchRotationKind::DEFAULT));
+        place_moving_block_click(start, &mut editor, &mut graph, &mut notifications);
+        editor.select_block_kind(planar);
+        assert_eq!(
+            editor.walking_start, None,
+            "switching tools cancels the old footprint"
+        );
+        place_moving_block_click(start, &mut editor, &mut graph, &mut notifications);
+        assert_eq!(editor.plane_height, start.z);
+        assert!(
+            moving_block_candidate_kind(&editor, &graph.graph, start + IVec3::new(0, 1, 1))
+                .is_none()
+        );
+        let mut blocked = graph.graph.clone();
+        blocked.add_block(Block::new(start - IVec3::X, BlockKind::Port));
+        assert!(
+            moving_block_candidate_kind(&editor, &blocked, end).is_none(),
+            "the whole square must fit"
+        );
+        assert!(moving_block_candidate_kind(&editor, &graph.graph, end).is_some());
+        place_moving_block_click(end, &mut editor, &mut graph, &mut notifications);
+        assert!(editor.walking_start.is_none());
+
+        let hints: HashSet<_> = (0..6)
+            .filter_map(|index| patch_rotation_pipe_hint_target(&graph.graph, start, index, false))
+            .collect();
+        assert_eq!(
+            hints,
+            [
+                (start, start + IVec3::X),
+                (start, start - IVec3::Y),
+                (end, end - IVec3::X),
+                (end, end + IVec3::Y),
+            ]
+            .into_iter()
+            .collect()
+        );
+        let input = start - IVec3::Y;
+        let output = end - IVec3::X;
+        assert!(place_pipe(
+            start,
+            input,
+            false,
+            &mut graph,
+            &mut notifications
+        ));
+        editor.set_placement_tool(PlacementTool::Pipe);
+        editor.pipe_start = Some(start);
+        let mut keys = ButtonInput::default();
+        keys.press(KeyCode::KeyA);
+        assert!(handle_pipe_keyboard_placement(
+            &keys,
+            &mut editor,
+            &mut graph,
+            &mut notifications
+        ));
+        assert!(
+            graph.graph.has_pipe_between(end, output),
+            "the west face belongs to the end corner"
+        );
+        graph.graph.validate_structure().unwrap();
+
+        let saved = graph.graph.to_blog_text();
+        let reopened = bloq_graph::parse_blog_to_graph(&saved).unwrap();
+        assert_eq!(reopened.to_blog_text(), saved);
+        for (port, role) in [
+            (input, bloq_graph::PortRole::Input),
+            (output, bloq_graph::PortRole::Output),
+        ] {
+            assert_eq!(reopened.get_block(port).unwrap().port_role(), Some(role));
+        }
+        graph.undo();
+        assert!(!graph.graph.has_endpoint_at(output));
+        graph.redo();
+        assert_eq!(graph.graph.to_blog_text(), saved);
     }
 
     #[test]

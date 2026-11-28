@@ -540,24 +540,23 @@ fn lower_block_def(def: &BlockDef) -> Result<Block, ParseError> {
                 });
             };
             let delta = checked_delta(def.pos.node, end.node, end.span)?;
-            if delta.z != 1 {
+            let kind = PatchRotationKind::new(basis, delta.truncate()).map_err(|e| {
+                ParseError::InvalidPatchRotationBlock {
+                    start: def.pos.node,
+                    end: end.node,
+                    span: end.span,
+                    message: e.to_string(),
+                }
+            })?;
+            if delta.z != kind.movement_3d().z {
                 return Err(ParseError::InvalidPatchRotationBlock {
                     start: def.pos.node,
                     end: end.node,
                     span: end.span,
-                    message: "patch rotation end must be exactly one time layer above start"
+                    message: "a diagonal rotation ends in the same layer and an axial rotation ends one layer above its start"
                         .to_string(),
                 });
             }
-            let kind =
-                PatchRotationKind::new(basis, IVec2::new(delta.x, delta.y)).map_err(|e| {
-                    ParseError::InvalidPatchRotationBlock {
-                        start: def.pos.node,
-                        end: end.node,
-                        span: end.span,
-                        message: e.to_string(),
-                    }
-                })?;
             BlockKind::PatchRotation(kind)
         }
     };
@@ -668,7 +667,7 @@ fn resolve_pipe_ref_endpoint_pair(
     let src_candidates = pipe_ref_endpoint_candidates(&src.node, src.span, id_map)?;
     let dst_candidates = pipe_ref_endpoint_candidates(dst, dst_span, id_map)?;
     let mut adjacent = None;
-    let mut rejected_spatial = false;
+    let mut rejected_face = None;
     for src_pos in &src_candidates {
         for dst_pos in &dst_candidates {
             if u64::from(src_pos.x.abs_diff(dst_pos.x))
@@ -680,11 +679,10 @@ fn resolve_pipe_ref_endpoint_pair(
             }
             let delta = *dst_pos - *src_pos;
             let direction = Direction::try_from(delta).expect("unit delta is a direction");
-            if direction.is_spatial()
-                && (!spatial_cube_ref_uses_anchor(&src.node, *src_pos, id_map)
-                    || !spatial_cube_ref_uses_anchor(dst, *dst_pos, id_map))
+            if let Some(reason) = pipe_ref_face_error(&src.node, *src_pos, direction, id_map)
+                .or_else(|| pipe_ref_face_error(dst, *dst_pos, direction.negate(), id_map))
             {
-                rejected_spatial = true;
+                rejected_face = Some(reason);
                 continue;
             }
             if adjacent.replace((*src_pos, *dst_pos)).is_some() {
@@ -705,9 +703,9 @@ fn resolve_pipe_ref_endpoint_pair(
     if let Some(pair) = adjacent {
         return Ok(pair);
     }
-    if rejected_spatial {
+    if let Some(reason) = rejected_face {
         return Err(ParseError::Syntax {
-            message: "spatial pipes attach to a cube's anchor".to_string(),
+            message: reason.to_string(),
             span: Span {
                 start: src.span.start,
                 end: dst_span.end,
@@ -741,13 +739,28 @@ fn resolve_pipe_ref_endpoint_pair(
     })
 }
 
-fn spatial_cube_ref_uses_anchor(reference: &Ref, endpoint: IVec3, id_map: &BlockScope<'_>) -> bool {
+fn pipe_ref_face_error(
+    reference: &Ref,
+    endpoint: IVec3,
+    direction: Direction,
+    id_map: &BlockScope<'_>,
+) -> Option<&'static str> {
     let Ref::Id(id) = reference else {
-        return true;
+        return None;
     };
-    id_map
-        .get(*id)
-        .is_none_or(|block| !block.kind().is_cube() || endpoint == block.pos())
+    let block = id_map.get(*id)?;
+    match block.kind() {
+        BlockKind::Cube(_) if direction.is_spatial() && endpoint != block.pos() => {
+            Some("spatial pipes attach to a cube's anchor")
+        }
+        BlockKind::PatchRotation(kind)
+            if kind.is_planar()
+                && kind.planar_endpoint_offset(direction) != Some(endpoint - block.pos()) =>
+        {
+            Some("the planar rotation does not expose that face at this corner")
+        }
+        _ => None,
+    }
 }
 
 fn pipe_ref_endpoint_candidates(
@@ -1472,10 +1485,28 @@ mod tests {
 
     #[test]
     fn parse_blog_to_graph_rejects_invalid_patch_rotation_end_position() {
-        let err = parse_blog_to_graph("BLOG 1.0\n\n  0: rotate X [0, 0, 0] -> [1, 1, 1]\n")
-            .expect_err("diagonal patch rotation movement should be rejected");
+        for end in ["[1,1,1]", "[1,0,0]", "[2,1,0]", "[0,0,0]"] {
+            let err = parse_blog_to_graph(&format!("BLOG 1.0\n\n0: rotate X [0,0,0] -> {end}\n"))
+                .expect_err("rotation endpoints must match the chosen construction");
+            assert!(matches!(err, ParseError::InvalidPatchRotationBlock { .. }));
+        }
+    }
 
-        assert!(matches!(err, ParseError::InvalidPatchRotationBlock { .. }));
+    #[test]
+    fn planar_rotations_round_trip_and_join_by_block_id() {
+        let graph = parse_blog_to_graph(
+            "BLOG 1.0\n\n0: rotate X [0,0,0] -> [-1,1,0]\n1: rotate Z [-2,1,0] -> [-3,2,0]\n2: Port [1,0,0] role=input\n3: Port [-3,3,0] role=output\n0 -> +X\n0 -> 1\n1 -> +Y\n",
+        ).unwrap();
+        let end = glam::ivec3(-1, 1, 0);
+        assert!(graph.has_pipe_between(end, end - IVec3::X));
+        assert!(graph.has_pipe_between(glam::ivec3(-3, 2, 0), glam::ivec3(-3, 3, 0)));
+        graph.validate().unwrap();
+        let text = graph.to_blog_body_text();
+        assert!(text.contains("rotate X [0, 0, 0] -> [-1, 1, 0]"));
+        assert_eq!(
+            parse_blog_to_graph(&text).unwrap().to_blog_body_text(),
+            text
+        );
     }
 
     #[test]

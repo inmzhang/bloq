@@ -2,6 +2,7 @@
 //! contextual shortcut hints.
 
 use crate::components::GraphElement;
+use crate::resources::placement_block_label;
 use crate::resources::{
     ActionEditState, CompileExecutionState, CompileUiState, EditorMode, EditorState, EditorTabId,
     GraphState, GraphUiSummary, Notifications, PlacementTool, ValidationState,
@@ -9,7 +10,6 @@ use crate::resources::{
 use crate::systems::jobs::EditorJobs;
 use crate::theme::{self, ThemePalette, with_alpha};
 use bevy_egui::egui;
-use bloq_graph::BlockKind;
 
 type ShortcutHint = (&'static str, &'static str);
 type ShortcutHints = Vec<ShortcutHint>;
@@ -225,9 +225,17 @@ fn mode_shortcut_hints(editor_state: &EditorState) -> ShortcutHints {
         EditorMode::Edit => {
             let mut hints = match editor_state.placement_tool {
                 PlacementTool::Block => {
-                    if editor_state.block_kind.is_walking() {
+                    if editor_state.block_kind.is_walking()
+                        || editor_state.block_kind.is_patch_rotation()
+                    {
                         vec![
-                            ("Click", "Place walking start"),
+                            if editor_state.walking_start.is_none() {
+                                ("Click", "Place start")
+                            } else if editor_state.block_kind.is_planar_rotation() {
+                                ("Click", "Place diagonal corner")
+                            } else {
+                                ("Click", "Place end on next layer")
+                            },
                             ("P", "Pipe"),
                             ("Space/V", "Select"),
                             ("J/K", "Plane"),
@@ -256,9 +264,7 @@ fn mode_shortcut_hints(editor_state: &EditorState) -> ShortcutHints {
                     ("Esc", "Cancel"),
                 ],
             };
-            if editor_state.walking_start.is_some() {
-                hints.insert(1, ("Click hint", "Finish walking"));
-            } else if editor_state.pipe_start.is_some() {
+            if editor_state.pipe_start.is_some() {
                 hints.insert(1, ("Click adjacent", "Finish pipe"));
             }
             hints
@@ -434,16 +440,6 @@ fn draw_compile_chip(
     ) && !message.is_empty()
     {
         response.on_hover_text(message);
-    }
-}
-
-fn placement_block_label(kind: BlockKind) -> String {
-    if kind.is_walking() {
-        "Walking".to_string()
-    } else if kind.is_patch_rotation() {
-        "Patch Rotation".to_string()
-    } else {
-        kind.to_string()
     }
 }
 
