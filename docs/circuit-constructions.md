@@ -473,8 +473,10 @@ Read across each row from ancilla reset through four CNOT layers to
 ancilla readout. Each panel shows detector sensitivity across the whole
 rotation and both port patches after that moment. A fault on the marked
 support flips the detector if it anticommutes with the indicated Pauli.
+Rounds 2–4 have the same detector support at each of the six cuts. The
+middle row shows round 2 (ticks 7–12), with ×3 marking the repetition.
 
-![Thirty detector slices arranged in five syndrome rounds, each showing reset, four CNOTs, and readout across the full patch.](assets/planar-rotation-detectors.png)
+![Full-patch detector slices for rounds 1, 2–4 (×3), and 5. Each row shows reset, four CNOT layers, and readout.](assets/planar-rotation-detectors.png)
 
 Follow the readout column. At ticks 6, 12, 18 and 24, 179 detector regions
 extend into the next round. Tick 30 also measures the slab data. Only 24

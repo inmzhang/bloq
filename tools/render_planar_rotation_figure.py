@@ -1,10 +1,10 @@
-"""Render every syndrome-round cut of the published distance-five Stim circuit.
+"""Render the first, repeated middle, and final rounds of the planar rotation.
 
 Run from the repository root after render_construction_slices.py --only planar-rotation.
 Rendering the indexed PNG requires rsvg-convert (librsvg) and ImageMagick.
 """
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 import subprocess
 import xml.etree.ElementTree as ET
@@ -45,8 +45,19 @@ def main():
     display = y_up(circuit)
     ticks = [tick for row in rounds for tick in row]
     regions = circuit.detecting_regions(targets=["D"], ticks=ticks)
+    # Detector IDs advance between rounds. Compare the Pauli supports, with multiplicity.
+    for repeated_ticks in zip(*rounds[1:4], strict=True):
+        first, *rest = [
+            Counter(str(cuts[tick]) for cuts in regions.values() if tick in cuts)
+            for tick in repeated_ticks
+        ]
+        assert all(supports == first for supports in rest), repeated_ticks
+
     qubits = set(circuit.get_final_qubit_coordinates())
-    width, height = 1224, 1118
+    left, col_width, top, row_height = 140, 182, 163, 177
+    rows = [("Round 1", rounds[0]), ("Rounds 2–4", rounds[1]), ("Round 5", rounds[4])]
+    footer = top + row_height * len(rows)
+    width, height = left + 6 * col_width + 16, footer + 65
     figure = ET.Element(f"{{{SVG}}}svg", viewBox=f"0 0 {width} {height}",
                         width=str(width), height=str(height))
 
@@ -61,19 +72,21 @@ def main():
 
     rect(0, 0, width, height, "white")
     label(24, 41, "Five syndrome rounds of a planar patch rotation", 33, "650")
-    label(25, 72, "Distance 5   ·   2 × 2 patch cells   ·   West input to north output   ·   Full qubit layout after each tick", 18)
+    label(25, 72, "Distance 5   ·   2 × 2 patch cells   ·   West input to north output   ·   Detector support after each moment", 18)
     for x, color, caption in [(25, "#ff7070", "X sensitivity"), (184, "#70aaff", "Z sensitivity")]:
         rect(x, 93, 14, 14, color)
         label(x + 23, 106, caption, 16)
     label(350, 106, "Dots mark qubits. Physical x increases right and y increases up.", 16, color="#455c6c")
 
-    left, col_width, top, row_height = 116, 182, 163, 177
     for col, name in enumerate(["Reset", "CNOT 1", "CNOT 2", "CNOT 3", "CNOT 4", "Readout"]):
         label(left + (col + .5) * col_width, 149, name, 21, "600", anchor="middle")
-    for row_index, row in enumerate(rounds):
+    for row_index, (name, row) in enumerate(rows):
         row_top = top + row_height * row_index
         rect(24, row_top - 5, width - 48, 1, "#c4d0d6")
-        label(25, row_top + 76, f"Round {row_index + 1}", 19, "650")
+        label(25, row_top + 76, name, 19, "650")
+        if row_index == 1:
+            label(25, row_top + 110, "×3", 28, "650", "#455c6c")
+            label(25, row_top + 133, "Round 2 shown", 14, color="#455c6c")
         for col, tick in enumerate(row):
             # Stim's bare diagram counts the cut before the first moment as zero.
             raw = display.diagram("detslice-svg", tick=tick + 1, filter_coords=[()])
@@ -97,9 +110,9 @@ def main():
             # The west-input / north-output layout leaves the northwest corner free.
             label(x + 6, row_top + 23, f"t{tick}", 16, "600", "#445969")
 
-    rect(24, 1047, width - 48, 1, "#c4d0d6")
-    label(25, 1074, "Round 1 prepares the data in two bases. Round 5 reads out the data across the perpendicular split.", 16)
-    label(25, 1099, "The input and output port stabilizer measurements bracket these thirty physical moments.", 16, color="#455c6c")
+    rect(24, footer - 5, width - 48, 1, "#c4d0d6")
+    label(25, footer + 25, "Round 1 prepares the data in two bases. Round 5 reads out the data across the perpendicular split.", 16)
+    label(25, footer + 49, "Ideal port stabilizer measurements precede round 1 and follow round 5.", 16, color="#455c6c")
     raster = subprocess.check_output(["rsvg-convert", "--width=1836"], input=ET.tostring(figure))
     subprocess.run(["magick", "png:-", "+dither", "-colors", "128", "-strip",
                     "-define", "png:exclude-chunks=date,time", "-define", "png:compression-level=9",

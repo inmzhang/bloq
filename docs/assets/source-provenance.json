@@ -203,8 +203,8 @@
     {
       "file": "assets/planar-rotation-detectors.png",
       "source": "_static/constructions/planar-rotation.stim",
-      "sha256": "1eb0866658d8010f5208a3cb82b7cf084e91a3f04db24e4ad17987163676fdbe",
-      "derivation": "Native Stim detector slices after all thirty physical moments of five rounds, drawn y-up by tools/render_planar_rotation_figure.py."
+      "sha256": "769dca73b192b08ddb259c223cd691e4a10af88a51f16b47708cc5dbb25a7719",
+      "derivation": "Native y-up Stim detector slices for rounds 1, 2, and 5. tools/render_planar_rotation_figure.py verifies that the detector supports in round 2 repeat in rounds 3 and 4."
     },
     {
       "file": "assets/planar-rotation-logicals.png",
