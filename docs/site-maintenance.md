@@ -135,6 +135,14 @@ export API for dependency diagrams.
 | 2D companions to paper figures | `tools/render_viewer_companions.py --paper-figures <directory>` |
 | Retained tutorial plots | `tools/plot_tutorial_results.py` |
 | Physical construction diagrams | `tools/render_construction_slices.py` |
+| Planar rotation detector slices and logical operators | `tools/render_planar_rotation_figure.py` and `tools/render_planar_rotation_logicals.py` (from the generated Stim circuit) |
+| Planar rotation pipe layouts | `tools/render_planar_rotation_pipes.py` (four depth-buffered Bloq Editor captures at a fixed camera position) |
+| Planar rotation logical error rates | `tools/simulate_planar_rotation.py` collects the counts and `tools/plot_planar_rotation_rates.py` replots the retained CSV |
+
+To replot the retained rotation rates, run
+`uv run --project bloq_py --with matplotlib python tools/plot_planar_rotation_rates.py`.
+To repeat the sampling run, use
+`uv run --project bloq_py --with pymatching==2.4.0 --with stim==1.16.0 --with numpy==2.5.4 python tools/simulate_planar_rotation.py`.
 
 Run the thumbnail and gallery generators with
 `uv run --project bloq_py --no-sync python <script>`.

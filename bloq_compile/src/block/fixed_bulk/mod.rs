@@ -1,6 +1,7 @@
 mod compiler;
 mod grid;
 pub(crate) mod observable;
+mod planar_rotation;
 pub(crate) mod port;
 pub(super) mod realignment;
 mod regular;
@@ -19,8 +20,10 @@ use bloq_graph::{Basis, CubeKind};
 use bloq_ir::lowering::BloqTemplate;
 
 use crate::CompileError;
+use crate::block::LocalStabilizer;
 use crate::block::fixed_bulk::observable::{
-    INIT_CHUNK, build_gateway_from_patch, cube_operator_faces, resolve_gateway_measurements_at,
+    INIT_CHUNK, SelectedGateway, build_gateway_from_patch, cube_operator_faces,
+    resolve_gateway_measurements_at,
 };
 use crate::block::fixed_bulk::regular::build_regular_patch_with_reverse;
 use crate::block::fixed_bulk::spatial::build_spatial_patch_with_reverse;
@@ -85,9 +88,28 @@ fn compile_cube(
     rounds: u32,
     layer_schedule: LayerSchedule,
 ) -> Result<CompiledTemplate, CompileError> {
-    let (patch, init_data, meas_data) =
-        build_cube_patch(kind, connectivity, distance, layer_schedule);
-    let cube = make_surface_code_cube_chunks(&patch, Some(&init_data), &meas_data)?;
+    let patch_data = build_cube_patch(kind, connectivity, distance, layer_schedule);
+    let reverse_patch = layer_schedule.is_extended().then(|| {
+        build_cube_patch_with_reverse(kind, connectivity, distance, layer_schedule, true).0
+    });
+    compile_patch_rounds(
+        &patch_data,
+        reverse_patch.as_ref(),
+        rounds,
+        build_gateway_from_patch(kind, connectivity, distance, &patch_data.0),
+        |key| cube_operator_faces(kind, distance, key),
+    )
+}
+
+/// Emit the synchronized init, repeated extraction, and readout stages of a spatial component.
+fn compile_patch_rounds(
+    (patch, init_data, meas_data): &grid::PatchData,
+    reverse_patch: Option<&Patch>,
+    rounds: u32,
+    selected: SelectedGateway,
+    operator_for: impl Fn(LocalStabilizer) -> (bloq_circuit::PauliMap, bloq_circuit::PauliMap),
+) -> Result<CompiledTemplate, CompileError> {
+    let cube = make_surface_code_cube_chunks(patch, Some(init_data), meas_data)?;
     let (init, init_ids) = cube.init.expect("cube initialization was requested");
     let repetitions = cube_bulk_repetitions(rounds);
 
@@ -95,10 +117,8 @@ fn compile_cube(
     // The stage that ends up last is the one whose recorded index the gateway
     // needs; the extended schedule picks between the forward and reverse round.
     let meas_ids;
-    if layer_schedule.is_extended() {
-        let (reverse_patch, _, _) =
-            build_cube_patch_with_reverse(kind, connectivity, distance, layer_schedule, true);
-        let reverse = make_surface_code_cube_chunks(&reverse_patch, None, &meas_data)?;
+    if let Some(reverse_patch) = reverse_patch {
+        let reverse = make_surface_code_cube_chunks(reverse_patch, None, meas_data)?;
         if repetitions >= 2 {
             chunks.push(ChunkOrLoop::Loop {
                 body: vec![reverse.bulk.clone(), cube.bulk],
@@ -129,13 +149,13 @@ fn compile_cube(
 
     let measurement_chunk = stage_chunks(&chunks).count() - 1;
     let observable_gateway = resolve_gateway_measurements_at(
-        build_gateway_from_patch(kind, connectivity, distance, &patch),
+        selected,
         &chunks,
         measurement_chunk,
         [(INIT_CHUNK, init_ids), (measurement_chunk, meas_ids)]
             .into_iter()
             .collect(),
-        |key| cube_operator_faces(kind, distance, key),
+        operator_for,
     );
 
     Ok(Arc::new(LoweringTemplate::from_chunks(

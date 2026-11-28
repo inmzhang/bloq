@@ -278,7 +278,10 @@ pub(crate) fn on_preview_endpoint_over(
     let Ok(endpoint) = query_endpoint.get(trigger.entity) else {
         return;
     };
-    editor_state.hovered_preview_endpoint = editor_state.pipe_start.and(endpoint.target_pos);
+    editor_state.hovered_preview_endpoint = editor_state
+        .pipe_start
+        .or(editor_state.walking_start)
+        .and(endpoint.target_pos);
     editor_state.hovered_preview_source = editor_state
         .hovered_preview_endpoint
         .and(endpoint.source_pos);

@@ -26,6 +26,7 @@ pub(crate) struct LowerPlan {
 pub(crate) struct LinkedPlanInput {
     blocks: Vec<IVec3>,
     walking: crate::FxMap<IVec3, WalkingKind>,
+    planar_ends: Vec<(IVec3, IVec3)>,
     pipes: Vec<LinkedPipePlan>,
     ports: Vec<PortExpansion>,
 }
@@ -187,9 +188,19 @@ impl LinkedPlanInput {
                 _ => None,
             })
             .collect();
+        let planar_ends = blocks
+            .iter()
+            .filter_map(|&pos| {
+                let BlockKind::PatchRotation(kind) = source.get_block(pos)?.kind() else {
+                    return None;
+                };
+                kind.is_planar().then(|| (kind.end_position(pos), pos))
+            })
+            .collect();
         Self {
             blocks,
             walking,
+            planar_ends,
             pipes,
             ports,
         }
@@ -226,17 +237,16 @@ impl LowerPlan {
         for &pos in &source.blocks {
             layers.entry(pos.z).or_default().push(pos);
         }
-        let mut spatial_pipes_by_layer: BTreeMap<i32, Vec<&Pipe>> = BTreeMap::new();
-        for pipe in source
+        let mut spatial_pipes_by_layer: BTreeMap<i32, Vec<(IVec3, IVec3)>> = BTreeMap::new();
+        for record in source
             .pipes
             .iter()
             .filter(|record| record.pipe.dir().is_spatial())
-            .map(|record| &record.pipe)
         {
             spatial_pipes_by_layer
-                .entry(pipe.src().z)
+                .entry(record.pipe.src().z)
                 .or_default()
-                .push(pipe);
+                .push(record.owners);
         }
 
         let mut graph = DiGraph::new();
@@ -269,8 +279,11 @@ impl LowerPlan {
             }
         }
 
-        // Use raw pipe endpoints: a virtual endpoint's owner may be in this
-        // component even though the wall itself is not part of it.
+        // Keep spatial walls at their physical cut, including a planar
+        // rotation's second corner, while its template stays at its anchor.
+        for &(end, owner) in &source.planar_ends {
+            node_by_block.insert(end, node_by_block[&owner]);
+        }
         for wall in source.spatial_walls() {
             if let (Some(&src), Some(&dst)) =
                 (node_by_block.get(&wall.src), node_by_block.get(&wall.dst))
@@ -496,7 +509,7 @@ fn temporal_edge_endpoints(
 
 fn block_components(
     block_positions: &[IVec3],
-    spatial_pipes: &[&Pipe],
+    spatial_pipes: &[(IVec3, IVec3)],
     walking: &crate::FxMap<IVec3, WalkingKind>,
 ) -> Vec<Vec<IVec3>> {
     let position_index: crate::FxMap<IVec3, usize> = block_positions
@@ -507,8 +520,7 @@ fn block_components(
         .collect();
     let mut components = UnionFind::new(block_positions.len());
 
-    for pipe in spatial_pipes {
-        let (src, dst) = pipe.endpoints();
+    for &(src, dst) in spatial_pipes {
         if let (Some(&src_index), Some(&dst_index)) =
             (position_index.get(&src), position_index.get(&dst))
         {
@@ -664,6 +676,7 @@ mod tests {
         let input = LinkedPlanInput {
             blocks: [0, 1, 2, 3, 10, 11].map(|x| ivec3(x, 0, 0)).to_vec(),
             walking: crate::FxMap::default(),
+            planar_ends: Vec::new(),
             pipes: vec![
                 h(2, (ivec3(2, 0, 0), ivec3(3, 0, 0))),
                 h(10, (ivec3(10, 0, 0), ivec3(11, 0, 0))),

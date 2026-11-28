@@ -334,12 +334,16 @@ impl PyBlockKind {
             .map_err(errors::invalid_argument)
     }
 
-    /// A patch-rotation block from a basis and an `(x, y)` movement of
-    /// `(+/-1, 0)` or `(0, +/-1)`.
+    /// Rotate patch boundaries by 90 degrees. A cardinal step joins temporal
+    /// pipes across two layers in `2d` syndrome rounds. A diagonal step
+    /// takes `d` rounds in a `2 × 2` footprint with one spatial pipe at each
+    /// of two opposite corners. Either outward spatial face can host the pipe.
     ///
     /// Args:
     ///     basis: A `Basis` or its `"X"` / `"Z"` letter (case-insensitive).
-    ///     movement: The `(x, y)` step: `(+/-1, 0)` or `(0, +/-1)`.
+    ///         For a diagonal step, this is the time-face basis at the start.
+    ///         Both spatial axes carry its opposite. All three bases flip at the end.
+    ///     movement: A cardinal or diagonal unit step `(dx, dy)`.
     ///
     /// Raises:
     ///     InvalidArgumentError: If `basis` or `movement` is invalid.

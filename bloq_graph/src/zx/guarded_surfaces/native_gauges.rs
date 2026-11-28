@@ -290,7 +290,15 @@ impl GuardedSurfaceSpace {
                     name,
                     target: MeasureTarget::Edge { src, dir },
                 } => {
-                    let key = edge_key(src.to_array(), (src + dir.to_ivec3()).to_array());
+                    let owner = |p| {
+                        self.topology
+                            .source
+                            .get_endpoint_block(p)
+                            .expect("validated measurement pipe has an owner")
+                            .pos()
+                            .to_array()
+                    };
+                    let key = edge_key(owner(src), owner(src + dir.to_ivec3()));
                     names.insert(name, key);
                     named_edges.insert(key);
                 }
@@ -302,7 +310,7 @@ impl GuardedSurfaceSpace {
                     for target in targets {
                         feedback_columns.extend(self.feedback_support(
                             &target,
-                            &self.local[&target.target.to_array()][0],
+                            &self.local[&self.feedback_anchor(&target)][0],
                         )?);
                     }
                 }

@@ -786,13 +786,8 @@ impl ZXGraph {
                 frame_y ^= pauli == Pauli::Y;
                 pauli = pauli.flip();
             }
-            let delta = self.nodes[edge.n2].pos - self.nodes[source.anchor].pos;
-            let direction = Direction::try_from(delta).unwrap_or_else(|_| {
-                // Walking and patch-rotation blocks keep one ZX node at their
-                // start, while their far endpoint only admits a temporal pipe.
-                Direction::try_from(IVec3::Z * delta.z.signum())
-                    .expect("extended-block ZX edges are temporal")
-            });
+            let (src, dst) = self.physical_edge_ends(edge);
+            let direction = Direction::try_from(dst - src).expect("authored pipe is a unit step");
             edges.push((direction, pauli));
         }
         edges.sort_unstable_by_key(|(direction, _)| direction.to_ivec3().to_array());

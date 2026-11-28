@@ -35,6 +35,17 @@ def test_construction_subset_retains_other_diagrams_and_checks_settings():
         with pytest.raises(ValueError, match="regenerate all constructions"):
             renderer["retain_unselected"](manifest, changed, selected)
 
+    # A new construction can preserve the previous entries' inherited version.
+    new = [renderer["Example"]("planar-rotation", "planar-rotation", "")]
+    mixed = dict(manifest, bloq_version="new")
+    renderer["retain_unselected"](mixed, previous, new)
+    assert mixed["bloq_version"] == "test"
+    assert mixed["examples"] == previous["examples"]
+    mixed["examples"].append({"name": "planar-rotation", "bloq_version": "new"})
+    updated = dict(settings, bloq_version="new")
+    renderer["retain_unselected"](updated, mixed, new)
+    assert updated["examples"] == previous["examples"]
+
 
 def _run_doctests(module):
     result = doctest.testmod(

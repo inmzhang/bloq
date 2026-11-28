@@ -7,7 +7,7 @@ use bloq_stim::{
 use bloq_test::{
     CompileReadyCase, TestCaseError, TestFixture, compile_fixtures, select_test_cases_for_fixture,
 };
-use glam::ivec3;
+use glam::{IVec2, ivec2, ivec3};
 use stim::{Circuit, CircuitItem, DemInstructionTarget, DemInstructionType, DemItem};
 
 mod common;
@@ -303,6 +303,269 @@ fn all_clifford_fixtures_d3() {
     run_backend_fixtures(clifford_fixtures(), 3);
 }
 
+fn assert_planar_rotation_rounds_and_faces(
+    program: &Bloq,
+    distance: u32,
+    basis: &str,
+    start_cell: IVec2,
+    step: IVec2,
+    layers: usize,
+    case: &str,
+) {
+    let coords = program
+        .sorted_layout_coords()
+        .expect("valid physical layout");
+    let d = distance as i32;
+    let pitch = 2 * (d + 1);
+    let opposite = if basis == "X" { "Z" } else { "X" };
+    let read_splits_x = (basis == "Z") == (step.x == step.y);
+    let aligned: Circuit =
+        emit_bloq_stim_with(program, &BloqStimOptions::new().with_align_moments(true))
+            .expect("emit the aligned rotation circuit")
+            .parse()
+            .expect("parse the aligned rotation circuit");
+    let origin = start_cell * pitch;
+    let far = origin + step * pitch;
+    let low = far.min(origin);
+    let high = far.max(origin) + IVec2::splat(2 * d);
+    let mut readout_moments = std::collections::BTreeSet::new();
+    let mut cx_moments = std::collections::BTreeMap::<usize, (bool, bool)>::new();
+    let mut last_gate = vec![None; coords.len()];
+    let mut tick = 0;
+    let mut reset = vec![None; coords.len()];
+    let mut readout = vec![None; coords.len()];
+    for item in &aligned {
+        let CircuitItem::Instruction(op) = item else {
+            panic!("aligned emission flattens repeats");
+        };
+        if op.name() == "TICK" {
+            tick += 1;
+        }
+        // Open-port MPPs are ideal boundary projections, outside the
+        // single- and two-qubit gates of the physical extraction schedule.
+        if !op.gate().is_single_qubit_gate() && !op.gate().is_two_qubit_gate() {
+            continue;
+        }
+        for q in op
+            .targets()
+            .iter()
+            .filter_map(|t| t.qubit_value())
+            .map(|q| q as usize)
+        {
+            assert_ne!(
+                last_gate[q].replace(tick),
+                Some(tick),
+                "{case}: qubit {} twice at tick {tick}",
+                coords[q]
+            );
+            match op.name() {
+                "CX" => {
+                    let (slab, neighbor) = cx_moments.entry(tick).or_default();
+                    let xy = coords[q];
+                    // Only check ancillas strictly inside or outside the slab.
+                    // A CNOT touching shared seam data cannot count for both.
+                    if xy.x % 2 == 0 && xy.y % 2 == 0 {
+                        *slab |= xy.cmpgt(low).all() && xy.cmplt(high).all();
+                        *neighbor |= xy.cmplt(low).any() || xy.cmpgt(high).any();
+                    }
+                }
+                "R" => reset[q] = Some("Z"),
+                "RX" => reset[q] = Some("X"),
+                "M" | "MX" => {
+                    readout[q] = Some(if op.name() == "MX" { "X" } else { "Z" });
+                    if coords[q].x % 2 == 0 && coords[q].y % 2 == 0 {
+                        readout_moments.insert(tick);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    assert_eq!(readout_moments.len(), distance as usize, "{case}");
+    let mut start = 0;
+    for end in readout_moments {
+        let mut slots = cx_moments.range(start..=end);
+        let first = end
+            .checked_sub(layers)
+            .expect("CNOTs precede ancilla readout");
+        assert!(
+            slots.clone().map(|(&tick, _)| tick).eq(first..end),
+            "{case}: expected {layers} consecutive CNOT moments before tick {end}"
+        );
+        assert!(
+            slots.all(|(_, &(slab, neighbor))| slab && neighbor),
+            "{case}: expected rotation and neighbor CNOTs together in each layer"
+        );
+        start = end + 1;
+    }
+    assert!(
+        cx_moments.range(start..).next().is_none(),
+        "{case}: CNOT after final syndrome readout"
+    );
+    // Each face has d+1 whole data lines in the start basis and d in the end basis.
+    let first_data = origin + IVec2::splat(d) - (d - 1) * step;
+    let mut sites = 0;
+    for (q, &p) in coords.iter().enumerate() {
+        if p.x % 2 == 0 || p.y % 2 == 0 || !p.cmpgt(low).all() || !p.cmplt(high).all() {
+            continue;
+        }
+        let line = (p - first_data) * step / 2;
+        let (read_line, prep_line) = if read_splits_x {
+            (line.x, line.y)
+        } else {
+            (line.y, line.x)
+        };
+        assert_eq!(
+            reset[q],
+            Some(if prep_line <= d { basis } else { opposite }),
+            "{case}: reset at {p}"
+        );
+        assert_eq!(
+            readout[q],
+            Some(if read_line <= d { basis } else { opposite }),
+            "{case}: readout at {p}"
+        );
+        sites += 1;
+    }
+    assert_eq!(sites, (2 * d + 1).pow(2), "{case}: slab data sites");
+}
+
+fn assert_planar_rotation_distance(program: &Bloq, distance: u32, case: &str) {
+    let noisy: Circuit = emit_bloq_stim_with_stim_noise(program, &uniform_depolarizing())
+        .expect("emit noisy rotation circuit")
+        .parse()
+        .expect("parse noisy rotation circuit");
+    assert_eq!(noisy.num_observables(), 2, "{case}: open-port X and Z");
+    assert_eq!(
+        common::graphlike_distance(&noisy).expect("deterministic rotation detectors"),
+        distance as usize,
+        "{case}"
+    );
+}
+
+#[test]
+fn planar_patch_rotation_has_the_tipped_faces_footprint_and_distance() {
+    for distance in [3, 5] {
+        let ctx = make_context(distance);
+        for (basis, (dx, dy), input_x, output_x) in itertools::iproduct!(
+            ["X", "Z"],
+            [(1, 1), (-1, 1), (1, -1), (-1, -1)],
+            [false, true],
+            [false, true]
+        ) {
+            let input = if input_x { [-dx, 0, 0] } else { [0, -dy, 0] };
+            let output = if output_x {
+                [2 * dx, dy, 0]
+            } else {
+                [dx, 2 * dy, 0]
+            };
+            let source = format!(
+                "BLOG 1.0
+                0: Port {input:?} role=input
+                1: rotate {basis} [0,0,0] -> [{dx},{dy},0]
+                2: Port {output:?} role=output
+                0 -> [0,0,0]
+                [{dx},{dy},0] -> 2
+            "
+            );
+            let graph = BlockGraph::from_blog_text(&source).unwrap();
+            let case =
+                format!("rotate {basis} ({dx},{dy}) {input:?} to {output:?} at d={distance}");
+            let program = ctx.compile(&graph).unwrap().bloq;
+            let coords = program.sorted_layout_coords().unwrap();
+            let d = distance as i32;
+            let pitch = 2 * (d + 1);
+            for axis in 0..2 {
+                let extent = coords.iter().map(|q| q[axis]);
+                let anchors = [0, [dx, dy][axis], input[axis], output[axis]];
+                let min = *anchors.iter().min().unwrap() * pitch;
+                let max = *anchors.iter().max().unwrap() * pitch + 2 * d;
+                assert_eq!(
+                    (extent.clone().min(), extent.max()),
+                    (Some(min), Some(max)),
+                    "{case}"
+                );
+            }
+
+            assert_planar_rotation_rounds_and_faces(
+                &program,
+                distance,
+                basis,
+                IVec2::ZERO,
+                ivec2(dx, dy),
+                4,
+                &case,
+            );
+            assert_planar_rotation_distance(&program, distance, &case);
+        }
+    }
+}
+
+#[test]
+fn directly_connected_planar_rotations_share_the_extraction_schedule() {
+    for distance in [3, 5] {
+        let ctx = make_context(distance);
+        let first_step = IVec2::ONE;
+        let second_start = ivec2(2, 1);
+        for (second_step, layers) in [(IVec2::ONE, 4), (ivec2(1, -1), 6)] {
+            let end = second_start + second_step;
+            let output = end + IVec2::X;
+            let source = format!(
+                "BLOG 1.0\n0: Port [-1,0,0] role=input\n1: rotate Z [0,0,0] -> [1,1,0]\n\
+                 2: rotate X [2,1,0] -> [{},{},0]\n3: Port [{},{},0] role=output\n\
+                 0 -> 1\n1 -> 2\n2 -> 3\n",
+                end.x, end.y, output.x, output.y,
+            );
+            let graph = BlockGraph::from_blog_text(&source).unwrap();
+            let program = ctx.compile(&graph).unwrap().bloq;
+            let case = format!("joined rotations {first_step} then {second_step} at d={distance}");
+            for (basis, start, step) in [
+                ("Z", IVec2::ZERO, first_step),
+                ("X", second_start, second_step),
+            ] {
+                assert_planar_rotation_rounds_and_faces(
+                    &program, distance, basis, start, step, layers, &case,
+                );
+            }
+            assert_planar_rotation_distance(&program, distance, &case);
+        }
+    }
+}
+
+#[test]
+fn planar_rotation_with_a_spatial_junction_uses_five_cnot_layers() {
+    let graph = BlockGraph::from_blog_text(
+        "BLOG 1.0
+        0: Port [-1,0,0] role=input
+        1: rotate Z [0,0,0] -> [1,1,0]
+        2: ZZX [2,1,0]
+        3: Port [3,1,0] role=output
+        4: Port [2,2,0] role=output
+        0 -> 1
+        [1,1,0] -> 2
+        2 -> 3
+        2 -> 4",
+    )
+    .unwrap();
+    let distance = 3;
+    let program = make_context(distance).compile(&graph).unwrap().bloq;
+    assert_planar_rotation_rounds_and_faces(
+        &program,
+        distance,
+        "Z",
+        IVec2::ZERO,
+        IVec2::ONE,
+        5,
+        "rotation joined to a three-arm ZZX junction",
+    );
+    let noisy: Circuit = emit_bloq_stim_with_stim_noise(&program, &uniform_depolarizing())
+        .unwrap()
+        .parse()
+        .unwrap();
+    assert_eq!(noisy.num_observables(), 3);
+    noisy.detector_error_model().unwrap();
+}
+
 #[test]
 fn aligned_temporal_hadamard_pads_live_neighbor() {
     let hadamard = "BLOG 1.0\n0: XZX [0,0,0]\n1: ZXZ [0,0,1]\n0 -H> +Z\n";
@@ -411,6 +674,34 @@ fn all_clifford_fixtures_d7() {
 #[ignore = "slow d9 spatial-Hadamard distance search"]
 fn spatial_hadamard_graphlike_distance_d9() {
     run_backend_fixtures([TestFixture::CZ, TestFixture::SpatialHadamard], 9);
+}
+
+#[test]
+fn planar_rotation_transports_both_observables_across_spatial_hadamards() {
+    let context = make_context(3);
+    for (basis, out_pos, (input, output)) in itertools::iproduct!(
+        ["X", "Z"],
+        ["[1,2,0]", "[2,1,0]"],
+        [("-H>", "->"), ("->", "-H>")]
+    ) {
+        let graph = BlockGraph::from_blog_text(&format!(
+            "BLOG 1.0\n0: Port [-1,0,0] role=input\n1: rotate {basis} [0,0,0] -> [1,1,0]\n\
+             2: Port {out_pos} role=output\n0 {input} [0,0,0]\n[1,1,0] {output} 2\n"
+        ))
+        .unwrap();
+        let program = context.compile(&graph).unwrap().bloq;
+        let noisy: Circuit = emit_bloq_stim_with_stim_noise(&program, &uniform_depolarizing())
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert_eq!(noisy.num_observables(), 2);
+        let distance = common::graphlike_distance(&noisy).unwrap();
+        // Like an ordinary spatial Hadamard, this wall can reduce distance.
+        assert_eq!(
+            distance, 2,
+            "rotate {basis}, input {input}, output {output} {out_pos}"
+        );
+    }
 }
 
 #[test]

@@ -370,7 +370,7 @@ fn block_component_timeline(
         .expect("lower-plan block members come from the source graph");
     let layer_round_ends = match block.kind() {
         BlockKind::Walking(_) => vec![distance + 1, 2 * (distance + 1)],
-        BlockKind::PatchRotation(_) => vec![distance, 2 * distance],
+        BlockKind::PatchRotation(kind) if !kind.is_planar() => vec![distance, 2 * distance],
         BlockKind::Cube(_) if block.height_cells() > 1 => {
             let rounds = crate::signature::cube_rounds(block, distance)?;
             let packs_from_low = plan.graph()[node].incoming_cut;

@@ -317,6 +317,71 @@ fn move_rotation_preserves_choi_state() {
 }
 
 #[test]
+fn planar_patch_rotation_transports_a_bell_input_between_spatial_faces() {
+    for (input, output) in [("->", "->"), ("-H>", "->"), ("->", "-H>")] {
+        let source = format!(
+            "BLOG 1.0\n0: Port [-1,0,0] role=input\n\
+             1: rotate Z [0,0,0] -> [1,1,0]\n2: Port [1,2,0] role=output\n\
+             0 {input} +X\n1 {output} +Y\n"
+        );
+        let graph = bloq_graph::BlockGraph::from_blog_text(&source).unwrap();
+        let program = bloq_compile::compile(&graph, 3).unwrap();
+        let oracle = ExactChoi::new(&[ivec3(-1, 0, 0)], &[ivec3(1, 2, 0)], |sim| {
+            if input != output {
+                sim.h(0);
+            }
+            Ok(())
+        });
+        oracle.run(&program, SHOTS, SEEDS[0], |_, _| Ok(()));
+    }
+}
+
+#[test]
+fn feedback_on_a_consumed_rotation_port_survives_the_module_seam() {
+    let turn = |name, basis, feedback| {
+        format!(
+            "module {name} {{
+           in left: data = 0
+           out right: data = 2
+           0: Port [-1,0,0] role=input
+           1: rotate {basis} [0,0,0] -> [1,1,0]
+           2: Port [2,1,0] role=output
+           0 -> 1
+           1 -> 2
+           {feedback}
+         }}"
+        )
+    };
+    for (seam, second_basis) in [("->", "X"), ("-H>", "Z")] {
+        let source = format!(
+            "BLOG 1.0\n{}\n{}\nmodule main {{
+               in q_in: data = 0
+               out q_out: data = 1
+               a: First @ [0,0,0]
+               b: Second @ [2,1,0]
+               0: Port [-1,0,0] role=input
+               1: Port [4,2,0] role=output
+               0 -> a.left
+               a.right {seam} b.left
+               b.right -> 1
+             }}",
+            turn("First", "Z", "feedback X 2"),
+            turn("Second", second_basis, ""),
+        );
+        let graph = bloq_graph::BlockGraph::from_text(&source).unwrap();
+        let program = bloq_compile::compile(&graph, 3).unwrap();
+        let oracle = ExactChoi::new(&[ivec3(-1, 0, 0)], &[ivec3(4, 2, 0)], |sim| {
+            sim.x(0);
+            if seam == "-H>" {
+                sim.h(0);
+            }
+            Ok(())
+        });
+        oracle.run(&program, SHOTS, SEEDS[0], |_, _| Ok(()));
+    }
+}
+
+#[test]
 fn t_gate_preserves_choi_state() {
     assert_gallery_choi(GalleryItem::T, false, true);
 }

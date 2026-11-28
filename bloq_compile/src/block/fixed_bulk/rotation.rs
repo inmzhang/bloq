@@ -80,7 +80,7 @@ impl RotationLayout {
             [0, -1] => IVec2::new(-p.x, -p.y),
             [1, 0] => IVec2::new(p.y, p.x),
             [-1, 0] => IVec2::new(-p.y, p.x),
-            _ => unreachable!("PatchRotationKind rejects non-cardinal movement"),
+            _ => unreachable!("axial rotation layout requires a cardinal movement"),
         }) + offset
     }
 }
@@ -785,7 +785,7 @@ fn global_to_local(layout: RotationLayout, offset: IVec2, p: IVec2) -> IVec2 {
         [0, -1] => -q,
         [1, 0] => IVec2::new(q.y, q.x),
         [-1, 0] => IVec2::new(q.y, -q.x),
-        _ => unreachable!("PatchRotationKind rejects non-cardinal movement"),
+        _ => unreachable!("axial rotation layout requires a cardinal movement"),
     }
 }
 

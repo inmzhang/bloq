@@ -27,11 +27,20 @@ pub(super) fn place_moving_block_click(
     notifications: &mut Notifications,
 ) {
     let (name, title, step) = match editor_state.block_kind {
-        BlockKind::Walking(_) => ("walking", "Walking", "one spatial step"),
+        BlockKind::Walking(_) => (
+            "walking",
+            "Walking",
+            "one spatial step on the next time layer",
+        ),
+        BlockKind::PatchRotation(rotation) if rotation.is_planar() => (
+            "planar rotation",
+            "Planar rotation",
+            "one diagonal step on the current layer",
+        ),
         BlockKind::PatchRotation(_) => (
-            "patch rotation",
-            "Patch rotation",
-            "one cardinal spatial step",
+            "axial rotation",
+            "Axial rotation",
+            "one cardinal step on the next layer",
         ),
         _ => return,
     };
@@ -45,9 +54,7 @@ pub(super) fn place_moving_block_click(
         let movement =
             movement_between(start, pos, moving_block_movements(editor_state.block_kind));
         let Some(movement) = movement else {
-            notifications.push_warn(format!(
-                "{title} end must be on the next time layer within {step}"
-            ));
+            notifications.push_warn(format!("{title} end must be {step}"));
             return;
         };
         // The movement table and the constructor's rules live in separate
@@ -75,30 +82,25 @@ pub(super) fn place_moving_block_click(
     }
 
     if !moving_block_start_has_candidate(editor_state, &graph_state.graph, pos) {
-        notifications.push_error(format!(
-            "Cannot start {name} block at occupied position {pos}"
-        ));
+        notifications.push_error(format!("No available {name} footprint starts at {pos}"));
         return;
     }
     editor_state.walking_start = Some(pos);
-    editor_state.plane_height = pos.z + 1;
+    editor_state.plane_height = if editor_state.block_kind.is_planar_rotation() {
+        pos.z
+    } else {
+        pos.z.saturating_add(1)
+    };
     graph_state.needs_rerender = true;
     notifications.push_info(format!(
-        "{title} start set at {pos}; choose a highlighted end on z={}",
-        pos.z + 1
+        "{title} start set at {pos}. Choose an endpoint {step}."
     ));
 }
 
-/// Returns the in-plane step from `start` to `end` when `end` sits exactly one
-/// time layer above and the step is one of `allowed`. Walking and patch-rotation
-/// placement share this rule, differing only in their allowed movement table.
-pub(super) fn movement_between(start: IVec3, end: IVec3, allowed: &[IVec2]) -> Option<IVec2> {
+/// Returns the in-plane displacement of a legal spacetime step.
+pub(super) fn movement_between(start: IVec3, end: IVec3, allowed: &[IVec3]) -> Option<IVec2> {
     let delta = end.checked_sub(start)?;
-    if delta.z != 1 {
-        return None;
-    }
-    let movement = IVec2::new(delta.x, delta.y);
-    allowed.contains(&movement).then_some(movement)
+    allowed.contains(&delta).then_some(delta.truncate())
 }
 
 fn promote_port_to_walking_block(
@@ -283,6 +285,16 @@ pub(super) fn handle_pipe_keyboard_placement(
         };
         (start, offset.expect("checked above"))
     };
+    let start = graph_state
+        .graph
+        .get_endpoint_block(start)
+        .filter(|block| block.kind().is_planar_rotation())
+        .and_then(|block| {
+            bloq_graph::Direction::try_from(offset)
+                .ok()
+                .map(|dir| block.endpoint_for_direction(dir))
+        })
+        .unwrap_or(start);
     let Ok(end) = bloq_graph::checked_add_position(start, offset) else {
         notifications.push_error("Cannot place pipe: coordinate overflow");
         return true;

@@ -973,6 +973,10 @@ impl GuardedSurfaceSpace {
                         (
                             zx.nodes()[neighbor].pos.to_array(),
                             zx.edge_by_id(edge).hadamard,
+                            {
+                                let (a, b) = zx.physical_edge_ends(zx.edge_by_id(edge));
+                                (a.to_array(), b.to_array())
+                            },
                         )
                     })
                     .collect::<Vec<_>>();
@@ -1898,10 +1902,9 @@ impl GuardedSurfaceSpace {
                     self.topology.diagram.charge(targets.len())?;
                     let mut terms = Vec::new();
                     for target in targets {
-                        self.topology
-                            .diagram
-                            .charge(self.local[&target.target.to_array()].len())?;
-                        for variant in &self.local[&target.target.to_array()] {
+                        let variants = &self.local[&self.feedback_anchor(target)];
+                        self.topology.diagram.charge(variants.len())?;
+                        for variant in variants {
                             for index in self.feedback_support(target, variant)? {
                                 terms.push((index, variant.guard));
                             }
@@ -2801,10 +2804,9 @@ impl GuardedSurfaceSpace {
             self.topology.diagram.charge(targets.len())?;
             for target in targets {
                 let mut target_columns = HashMap::<usize, DecisionId>::new();
-                self.topology
-                    .diagram
-                    .charge(self.local[&target.target.to_array()].len())?;
-                for variant in &self.local[&target.target.to_array()] {
+                let variants = &self.local[&self.feedback_anchor(target)];
+                self.topology.diagram.charge(variants.len())?;
+                for variant in variants {
                     let support = self.original_feedback_support(target, variant)?;
                     self.topology.diagram.charge(support.len())?;
                     for column in support {
@@ -3569,6 +3571,16 @@ impl GuardedSurfaceSpace {
         Ok(())
     }
 
+    fn feedback_anchor(&self, target: &crate::FeedbackTarget) -> [i32; 3] {
+        // Branch validation forbids feedback on a branch-owned block or pipe.
+        self.topology
+            .source
+            .get_endpoint_block(target.target)
+            .expect("validated feedback endpoint has a common owner")
+            .pos()
+            .to_array()
+    }
+
     fn feedback_coefficient(
         &mut self,
         row: &BooleanRow,
@@ -3577,11 +3589,10 @@ impl GuardedSurfaceSpace {
         self.topology.diagram.charge(targets.len())?;
         let mut result = ZERO;
         for target in targets {
-            self.topology
-                .diagram
-                .charge(self.local[&target.target.to_array()].len())?;
+            let variants = &self.local[&self.feedback_anchor(target)];
+            self.topology.diagram.charge(variants.len())?;
             let mut value = ZERO;
-            for variant in &self.local[&target.target.to_array()] {
+            for variant in variants {
                 let edge = variant
                     .zx
                     .feedback_edge(target)
@@ -3653,7 +3664,7 @@ impl GuardedSurfaceSpace {
             };
             self.topology.diagram.charge(targets.len())?;
             for target in targets {
-                let variants = &self.local[&target.target.to_array()];
+                let variants = &self.local[&self.feedback_anchor(target)];
                 self.topology.diagram.charge(variants.len())?;
                 for variant in variants {
                     let support = self.feedback_support(target, variant)?;

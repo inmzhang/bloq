@@ -513,6 +513,28 @@ impl Corner {
     pub(crate) const fn is_left(self) -> bool {
         matches!(self, Corner::TL | Corner::BL)
     }
+
+    fn reflected(self, flip_x: bool, flip_y: bool) -> Self {
+        match (self.is_left() ^ flip_x, self.is_top() ^ flip_y) {
+            (true, true) => Self::TL,
+            (false, true) => Self::TR,
+            (true, false) => Self::BL,
+            (false, false) => Self::BR,
+        }
+    }
+}
+
+/// The X and Z ancillas use the same corners in the two shared layers.
+/// This avoids collisions and orders both shared data qubits consistently
+/// for neighboring opposite-basis checks. Each check ends on a diagonal.
+pub(super) const fn diagonal_cx_slots(
+    basis: Basis,
+) -> [Option<Corner>; crate::signature::PLANAR_CX_SLOTS] {
+    use Corner::{BL, BR, TL, TR};
+    match basis {
+        Basis::X => [Some(TL), Some(BR), Some(TR), Some(BL), None, None],
+        Basis::Z => [None, None, Some(TR), Some(BL), Some(TL), Some(BR)],
+    }
 }
 
 /// Build a `Tile` for a cube CX schedule at the layer's slot depth.
@@ -548,20 +570,44 @@ pub(crate) fn make_cube_tile_with_reverse(
     } else {
         CXSchedule::Horizontal
     };
+    let idle_slots = if matches!(
+        layer_schedule,
+        LayerSchedule::PlanarExtended | LayerSchedule::PlanarExtendedY
+    ) {
+        crate::signature::PLANAR_CX_SLOTS
+    } else {
+        0
+    };
     let from_slots = |slots: &[Option<Corner>]| {
         Tile::new(
             basis,
             pos,
-            slots.iter().copied().map(|slot| {
-                slot.and_then(|corner| active.contains(&corner).then_some(pos + corner.to_ivec2()))
-            }),
+            slots
+                .iter()
+                .copied()
+                .map(|slot| {
+                    slot.and_then(|corner| {
+                        active.contains(&corner).then_some(pos + corner.to_ivec2())
+                    })
+                })
+                .chain(std::iter::repeat_n(None, idle_slots)),
         )
     };
     match layer_schedule {
         LayerSchedule::Compact => from_slots(&cx.compact().map(Some)),
         LayerSchedule::Padded => from_slots(&cx.schedule()),
-        LayerSchedule::Extended => from_slots(&cx.extended(reverse_schedule)),
-        LayerSchedule::ExtendedY => from_slots(&cx.extended_y(reverse_schedule)),
+        LayerSchedule::PlanarHooks {
+            flip_x,
+            flip_y,
+            padded,
+        } => from_slots(&cx.reflected_schedule(flip_x, flip_y, padded)),
+        LayerSchedule::Planar => from_slots(&diagonal_cx_slots(basis)),
+        LayerSchedule::Extended | LayerSchedule::PlanarExtended => {
+            from_slots(&cx.extended(reverse_schedule))
+        }
+        LayerSchedule::ExtendedY | LayerSchedule::PlanarExtendedY => {
+            from_slots(&cx.extended_y(reverse_schedule))
+        }
     }
 }
 
@@ -868,6 +914,20 @@ impl CXSchedule {
             CXSchedule::Vertical => Self::VERTICAL_SCHEDULE,
             CXSchedule::Horizontal => Self::HORIZONTAL_SCHEDULE,
         }
+    }
+
+    /// Compact before masking missing boundary corners so those slots stay aligned.
+    pub(super) fn reflected_schedule(
+        self,
+        flip_x: bool,
+        flip_y: bool,
+        padded: bool,
+    ) -> smallvec::SmallVec<[Option<Corner>; 5]> {
+        self.schedule()
+            .into_iter()
+            .filter(|slot| padded || slot.is_some())
+            .map(|slot| slot.map(|corner| corner.reflected(flip_x, flip_y)))
+            .collect()
     }
 
     pub(crate) const fn compact(self) -> [Corner; 4] {

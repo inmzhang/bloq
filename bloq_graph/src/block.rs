@@ -28,8 +28,10 @@ pub enum BlockError {
         "invalid Walking movement vector {0}; expected one of (+/-1,0), (0,+/-1), or (+/-1,+/-1)"
     )]
     InvalidWalkingMovement(IVec2),
-    /// A patch-rotation displacement is not an axis-aligned unit step.
-    #[error("invalid PatchRotation movement vector {0}; expected one of (+/-1,0) or (0,+/-1)")]
+    /// A patch-rotation displacement is zero or leaves the adjacent 3-by-3 plane.
+    #[error(
+        "invalid PatchRotation movement vector {0}; expected one of (+/-1,0), (0,+/-1), or (+/-1,+/-1)"
+    )]
     InvalidPatchRotationMovement(IVec2),
     /// Text does not name a supported block kind.
     #[error("invalid BlockKind: {0}")]
@@ -258,7 +260,7 @@ impl WalkingKind {
     /// Returns [`BlockError::InvalidWalkingMovement`] unless each component of
     /// `movement` is in `-1..=1` and the vector is nonzero.
     pub fn new(boundary: WalkingBoundaryKind, movement: IVec2) -> Result<Self, BlockError> {
-        if !Self::is_valid_movement(movement) {
+        if !is_neighboring_step(movement) {
             return Err(BlockError::InvalidWalkingMovement(movement));
         }
         Ok(Self { boundary, movement })
@@ -276,7 +278,7 @@ impl WalkingKind {
 
     /// Returns the movement as a 3D vector with `+1` on the time axis.
     pub const fn movement_3d(self) -> IVec3 {
-        movement_3d(self.movement)
+        self.movement.extend(1)
     }
 
     /// Returns a copy with a different boundary orientation.
@@ -310,20 +312,19 @@ impl WalkingKind {
 
     /// Returns the two exposed connection endpoints (start and end) as offsets.
     pub fn connectable_offsets(self) -> [IVec3; 2] {
-        movement_connectable_offsets(self.movement)
+        [IVec3::ZERO, self.movement_3d()]
     }
 
     /// Returns every cell the block reserves, as offsets from its position.
     pub fn reserved_offsets(self) -> Vec<IVec3> {
-        movement_footprint(self.movement)
+        movement_footprint(self.movement_3d())
     }
+}
 
-    const fn is_valid_movement(movement: IVec2) -> bool {
-        let x_ok = movement.x == -1 || movement.x == 0 || movement.x == 1;
-        let y_ok = movement.y == -1 || movement.y == 0 || movement.y == 1;
-        let nonzero = movement.x != 0 || movement.y != 0;
-        x_ok && y_ok && nonzero
-    }
+const fn is_neighboring_step(movement: IVec2) -> bool {
+    matches!(movement.x, -1..=1)
+        && matches!(movement.y, -1..=1)
+        && (movement.x != 0 || movement.y != 0)
 }
 
 /// Orders two movement steps componentwise. `IVec2` has no `Ord`, which is why
@@ -332,20 +333,8 @@ fn cmp_movement(left: IVec2, right: IVec2) -> Ordering {
     left.x.cmp(&right.x).then_with(|| left.y.cmp(&right.y))
 }
 
-/// A moving block's step as a 3-D vector: the `movement` offset plus the one
-/// time layer it always spans.
-const fn movement_3d(movement: IVec2) -> IVec3 {
-    IVec3::new(movement.x, movement.y, 1)
-}
-
-/// The start and end cells of a moving block, as offsets from its position.
-const fn movement_connectable_offsets(movement: IVec2) -> [IVec3; 2] {
-    [IVec3::ZERO, movement_3d(movement)]
-}
-
-/// Reserved cells for a two-layer moving block: the axis-aligned bounding box
-/// of the start and end footprints across both time layers.
-fn movement_footprint(movement: IVec2) -> Vec<IVec3> {
+/// Reserves the bounding box of the start and end cells, inclusive.
+fn movement_footprint(movement: IVec3) -> Vec<IVec3> {
     let x_min = 0.min(movement.x);
     let x_max = 0.max(movement.x);
     let y_min = 0.min(movement.y);
@@ -353,7 +342,7 @@ fn movement_footprint(movement: IVec2) -> Vec<IVec3> {
     let mut offsets = Vec::new();
     for x in x_min..=x_max {
         for y in y_min..=y_max {
-            for z in 0..=1 {
+            for z in 0..=movement.z {
                 offsets.push(IVec3::new(x, y, z));
             }
         }
@@ -381,8 +370,8 @@ impl Ord for WalkingKind {
     }
 }
 
-/// A patch-rotation block: rotates a surface code patch by 90 degrees over one
-/// time layer, translating it by an axis-aligned `movement` step.
+/// Rotates a patch by 90 degrees. An axial step spans two time cells.
+/// A diagonal step crosses a 2-by-2 footprint in one time cell.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PatchRotationKind {
     basis: Basis,
@@ -401,21 +390,20 @@ impl PatchRotationKind {
     /// # Errors
     ///
     /// Returns [`BlockError::InvalidPatchRotationMovement`] unless `movement` is
-    /// a unit step along exactly one of the `x` or `y` axes.
+    /// nonzero with both components in `-1..=1`.
     pub fn new(basis: Basis, movement: IVec2) -> Result<Self, BlockError> {
-        if !Self::is_valid_movement(movement) {
+        if !is_neighboring_step(movement) {
             return Err(BlockError::InvalidPatchRotationMovement(movement));
         }
         Ok(Self { basis, movement })
     }
 
-    /// Returns the patch's starting boundary basis.
+    /// Returns the construction basis, the start corner's time-face basis for a planar rotation.
     pub const fn basis(self) -> Basis {
         self.basis
     }
 
-    /// Returns the boundary basis on the `x` axis, flipped when the block moves
-    /// along `x` (the rotation swaps the two boundary orientations).
+    /// Returns the boundary basis on the `x` axis at the start corner.
     pub const fn x_axis_boundary_basis(self) -> Basis {
         if self.movement.x != 0 {
             self.basis.flip()
@@ -424,14 +412,33 @@ impl PatchRotationKind {
         }
     }
 
-    /// Returns the axis-aligned in-plane displacement.
+    /// Returns the in-plane displacement from input to output.
     pub const fn movement(self) -> IVec2 {
         self.movement
     }
 
-    /// Returns the movement as a 3D vector with `+1` on the time axis.
+    /// Returns whether the rotation crosses opposite corners in a single time cell.
+    pub const fn is_planar(self) -> bool {
+        self.movement.x != 0 && self.movement.y != 0
+    }
+
+    /// Returns the corner exposing a given spatial face of the planar footprint.
+    /// Both temporal faces are closed.
+    pub fn planar_endpoint_offset(self, dir: Direction) -> Option<IVec3> {
+        if !self.is_planar() || !dir.is_spatial() {
+            return None;
+        }
+        let end = self.movement_3d();
+        Some(if end.dot(dir.to_ivec3()) > 0 {
+            end
+        } else {
+            IVec3::ZERO
+        })
+    }
+
+    /// Returns the displacement between the input and output cells.
     pub const fn movement_3d(self) -> IVec3 {
-        movement_3d(self.movement)
+        self.movement.extend(if self.is_planar() { 0 } else { 1 })
     }
 
     /// Returns a copy with a different basis.
@@ -465,12 +472,12 @@ impl PatchRotationKind {
 
     /// Returns the two exposed connection endpoints (start and end) as offsets.
     pub fn connectable_offsets(self) -> [IVec3; 2] {
-        movement_connectable_offsets(self.movement)
+        [IVec3::ZERO, self.movement_3d()]
     }
 
     /// Returns every cell the block reserves, as offsets from its position.
     pub fn reserved_offsets(self) -> Vec<IVec3> {
-        movement_footprint(self.movement)
+        movement_footprint(self.movement_3d())
     }
 
     /// Returns the boundary bases exposed at `endpoint`, or `None` if `endpoint`
@@ -487,16 +494,22 @@ impl PatchRotationKind {
         } else {
             return None;
         };
-        Some([x_basis, x_basis.flip(), x_basis])
+        Some(if self.is_planar() {
+            [x_basis, x_basis, x_basis.flip()]
+        } else {
+            [x_basis, x_basis.flip(), x_basis]
+        })
     }
 
     /// Returns the bases on the pipe face at `endpoint`, or `None` if `endpoint`
     /// is neither the start nor end cell.
     ///
-    /// Unlike [`bases_at_endpoint`](Self::bases_at_endpoint), the pipe face uses
-    /// the block's construction `basis` directly rather than the `x`-axis
-    /// boundary basis.
+    /// Axial rotations expose the construction basis in the pipe's frame.
+    /// A planar rotation exposes its local spatial and time-face bases.
     pub fn pipe_face_bases_at_endpoint(self, start: IVec3, endpoint: IVec3) -> Option<[Basis; 3]> {
+        if self.is_planar() {
+            return self.bases_at_endpoint(start, endpoint);
+        }
         if endpoint == start {
             Some([self.basis, self.basis.flip(), self.basis])
         } else if self
@@ -508,12 +521,6 @@ impl PatchRotationKind {
         } else {
             None
         }
-    }
-
-    const fn is_valid_movement(movement: IVec2) -> bool {
-        let is_x_step = (movement.x == -1 || movement.x == 1) && movement.y == 0;
-        let is_y_step = movement.x == 0 && (movement.y == -1 || movement.y == 1);
-        is_x_step || is_y_step
     }
 }
 
@@ -623,6 +630,11 @@ impl BlockKind {
     /// Returns whether this is a patch-rotation block.
     pub const fn is_patch_rotation(&self) -> bool {
         matches!(self, BlockKind::PatchRotation(_))
+    }
+
+    /// Returns whether this block rotates a patch within one spatial layer.
+    pub const fn is_planar_rotation(&self) -> bool {
+        matches!(self, BlockKind::PatchRotation(kind) if kind.is_planar())
     }
 
     /// Returns whether this is an open port.
@@ -1008,6 +1020,11 @@ impl Block {
         }
     }
 
+    /// Syndrome duration that must agree across a spatial connection.
+    pub(crate) fn spatial_height(&self) -> Option<CubeHeight> {
+        (self.kind.is_cube() || self.kind.is_planar_rotation()).then(|| self.height())
+    }
+
     /// Returns how many lattice cells the block occupies along the time axis:
     /// the *footprint* half of [`height`](Self::height), driving positioning,
     /// occupancy, connectivity and visualization. Not the compiled round count
@@ -1186,6 +1203,11 @@ impl Block {
     /// Multi-span blocks can reserve interior cells that are not valid external
     /// endpoints; for example a multi-cell cube resolves `+Z` to its top cell.
     pub fn endpoint_for_direction(&self, dir: Direction) -> IVec3 {
+        if let BlockKind::PatchRotation(kind) = self.kind
+            && let Some(offset) = kind.planar_endpoint_offset(dir)
+        {
+            return crate::checked_add_position(self.pos, offset).unwrap_or(self.pos);
+        }
         self.connectable_positions()
             .find(|endpoint| {
                 crate::checked_add_position(*endpoint, dir.to_ivec3())

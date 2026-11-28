@@ -956,6 +956,15 @@ fn walking_as_gltf_data(kind: WalkingKind, pipe_length: f32) -> GltfData {
 }
 
 fn patch_rotation_as_gltf_data(kind: PatchRotationKind, pipe_length: f32) -> GltfData {
+    if kind.is_planar() {
+        // Tilt the canonical +Y rotation so its thin axis is time. The sign
+        // on the new z axis preserves face winding in all four quadrants.
+        let m = kind.movement().as_vec2();
+        let upright = PatchRotationKind::new(kind.basis(), glam::IVec2::Y)
+            .expect("a cardinal unit step is a valid rotation");
+        return patch_rotation_as_gltf_data(upright, pipe_length)
+            .map_points(|p| vec3(m.x * p.y, m.y * p.z, m.x * m.y * p.x));
+    }
     let mut data = GltfData::default();
     let stride = pipe_length + 1.0;
     let movement = kind.movement_3d();
@@ -1127,7 +1136,7 @@ fn patch_rotation_local_to_global(kind: PatchRotationKind, point: Vec3) -> Vec3 
         [0, -1] => vec3(-point.x, -point.y, point.z),
         [1, 0] => vec3(point.y, point.x, point.z),
         [-1, 0] => vec3(-point.y, point.x, point.z),
-        _ => unreachable!("PatchRotationKind rejects non-cardinal movement"),
+        _ => unreachable!("upright rotations use a cardinal step"),
     }
 }
 
@@ -1398,7 +1407,8 @@ pub fn pipe_as_gltf_data(
     g: &BlockGraph,
     pipe_length: f32,
 ) -> GltfData {
-    pipe_between_positions_as_gltf_data(u.pos, v.pos, pipe, g, pipe_length)
+    let (src, dst) = pipe.try_endpoints().unwrap_or((u.pos, v.pos));
+    pipe_between_positions_as_gltf_data(src, dst, pipe, g, pipe_length)
 }
 
 /// Builds the geometry for a pipe between two lattice positions.
@@ -1836,6 +1846,81 @@ fn add_patch_rotation_node_surface(
     }
 }
 
+/// Span the two pipe cross sections with a disk. Its boundary on each cap runs
+/// parallel to that cap's color split until it reaches a side of the same basis.
+fn add_planar_rotation_node_surface(
+    graph: &BlockGraph,
+    pos: IVec3,
+    kind: PatchRotationKind,
+    pauli: Pauli,
+    stride: f32,
+    data: &mut GltfData,
+) {
+    let end = kind.end_position(pos);
+    let direction = |corner| {
+        graph
+            .neighbor_positions(corner)
+            .into_iter()
+            .find_map(|neighbor| {
+                let d = Direction::try_from(checked_position_delta(neighbor, corner)?).ok()?;
+                (d.is_spatial()
+                    && kind.planar_endpoint_offset(d) == checked_position_delta(corner, pos))
+                .then_some(d)
+            })
+    };
+    let (Some(input), Some(output)) = (direction(pos), direction(end)) else {
+        return;
+    };
+    // The basis on the start cap spans the time axis at the input and the
+    // transverse spatial axis at the output. Its dual runs the reverse way.
+    let (from, from_dir, to, to_dir) = if pauli == Pauli::from(kind.basis()) {
+        (pos, input, end, output)
+    } else {
+        (end, output, pos, input)
+    };
+    let tip = to.as_vec3() * stride;
+    let origin = from.as_vec3() * stride + from_dir.to_vec3() * 0.5;
+    let corner = tip + (to - from).as_vec3() * 0.5;
+    let port_center = tip + to_dir.to_vec3() * 0.5;
+    let port_inner = 2.0 * port_center - corner;
+
+    // On the upright +Y prism the mixed side splits along the movement axis.
+    // Tilting sends that side to the top or bottom, depending on chirality.
+    let m = kind.movement();
+    let top_splits_x = (kind.basis() == Basis::Z) == (m.x == m.y);
+    let top_wall = usize::from(top_splits_x);
+    let bottom_wall = 1 - top_wall;
+    let mut via_top = origin;
+    via_top[top_wall] = corner[top_wall];
+    let mut via_bottom = origin;
+    via_bottom[bottom_wall] = corner[bottom_wall];
+
+    let (top_end, bottom_end) = if to_dir.as_udirection().index() == top_wall {
+        (port_inner, corner)
+    } else {
+        (corner, port_inner)
+    };
+    let half_height = Vec3::Z * 0.5;
+    let boundary = [
+        origin + half_height,
+        via_top + half_height,
+        via_top,
+        top_end,
+        bottom_end,
+        via_bottom,
+        via_bottom - half_height,
+        origin - half_height,
+    ];
+    let center = (pos.as_vec3() + end.as_vec3()) * (0.5 * stride);
+    data.add_triangles(
+        correlation_surface_color(pauli),
+        boundary
+            .iter()
+            .zip(boundary.iter().cycle().skip(1))
+            .map(|(&a, &b)| [center, a, b]),
+    );
+}
+
 fn patch_rotation_stabilizer_shape(kind: PatchRotationKind, pauli: Pauli) -> Option<Pauli> {
     let basis = Pauli::from(kind.x_axis_boundary_basis());
     if pauli == basis {
@@ -2074,6 +2159,9 @@ fn generate_interior_node_surfaces(
             match block.kind {
                 BlockKind::Walking(kind) => {
                     add_walking_node_surface(pos, kind, pauli, stride, data);
+                }
+                BlockKind::PatchRotation(kind) if kind.is_planar() => {
+                    add_planar_rotation_node_surface(g, pos, kind, pauli, stride, data);
                 }
                 BlockKind::PatchRotation(kind) => {
                     add_patch_rotation_node_surface(pos, kind, pauli, stride, data);
@@ -2755,6 +2843,108 @@ mod tests {
         for basis in [Basis::X, Basis::Z] {
             for movement in [ivec2(1, 0), ivec2(-1, 0), ivec2(0, 1), ivec2(0, -1)] {
                 assert_patch_rotation_colors(basis, movement);
+            }
+        }
+    }
+
+    #[test]
+    fn pipe_mesh_uses_the_displaced_rotation_face() {
+        let kind = PatchRotationKind::new(Basis::Z, ivec2(1, 1)).unwrap();
+        let rotation = Block::new(IVec3::ZERO, BlockKind::PatchRotation(kind));
+        let far = kind.end_position(IVec3::ZERO);
+        let pipe = Pipe::new(far, Direction::YPLUS);
+        let neighbor = Block::new(pipe.dst(), BlockKind::Port);
+        let graph = BlockGraph::new();
+        let actual = pipe_as_gltf_data(&rotation, &neighbor, &pipe, &graph, 2.0);
+        let expected = pipe_between_positions_as_gltf_data(far, pipe.dst(), &pipe, &graph, 2.0);
+        assert_eq!(actual.triangles, expected.triangles);
+    }
+
+    #[test]
+    fn planar_rotation_shows_opposite_caps_and_full_single_layer() {
+        let stride = 2.0;
+        for basis in [Basis::X, Basis::Z] {
+            for movement in [ivec2(1, 1), ivec2(1, -1), ivec2(-1, 1), ivec2(-1, -1)] {
+                let kind = PatchRotationKind::new(basis, movement).unwrap();
+                let data = patch_rotation_as_gltf_data(kind, stride - 1.0);
+                let end = movement.extend(0).as_vec3() * stride;
+                assert_eq!(
+                    triangle_bounds(&data),
+                    (
+                        Vec3::ZERO.min(end) - Vec3::splat(0.5),
+                        Vec3::ZERO.max(end) + Vec3::splat(0.5),
+                    )
+                );
+                for &(point, expected) in &[(Vec3::ZERO, basis), (end, basis.flip())] {
+                    for dz in [-0.5, 0.5] {
+                        assert_patch_rotation_color_at(
+                            &data,
+                            point + Vec3::Z * dz,
+                            expected.into(),
+                        );
+                    }
+                }
+                // The cap splits cross. The other two cells therefore have
+                // opposite upper/lower colors, with the halves interchanged.
+                let along_x = end * Vec3::X;
+                let along_y = end * Vec3::Y;
+                for dz in [-0.5, 0.5] {
+                    let a = colors_at(&data, along_x + Vec3::Z * dz);
+                    let b = colors_at(&data, along_y + Vec3::Z * dz);
+                    assert_ne!(a, b);
+                    assert_eq!(a, colors_at(&data, along_y - Vec3::Z * dz));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn planar_rotation_sheets_meet_both_selected_pipe_cross_sections() {
+        let stride = 2.0;
+        for basis in [Basis::X, Basis::Z] {
+            for movement in [ivec2(1, 1), ivec2(1, -1), ivec2(-1, 1), ivec2(-1, -1)] {
+                let kind = PatchRotationKind::new(basis, movement).unwrap();
+                let end = kind.end_position(IVec3::ZERO);
+                let dx = Direction::try_from(end * IVec3::X).unwrap();
+                let dy = Direction::try_from(end * IVec3::Y).unwrap();
+                for input in [dx.negate(), dy.negate()] {
+                    for output in [dx, dy] {
+                        let mut graph = BlockGraph::new();
+                        graph.add_block(Block::new(IVec3::ZERO, BlockKind::PatchRotation(kind)));
+                        for (p, dir) in [(IVec3::ZERO, input), (end, output)] {
+                            graph.add_block(Block::new(p + dir.to_ivec3(), BlockKind::Port));
+                            graph.add_pipe(Pipe::new(p, dir));
+                        }
+                        for pauli in [Pauli::X, Pauli::Z] {
+                            let mut data = GltfData::default();
+                            add_planar_rotation_node_surface(
+                                &graph,
+                                IVec3::ZERO,
+                                kind,
+                                pauli,
+                                stride,
+                                &mut data,
+                            );
+                            for (p, dir, cap) in
+                                [(IVec3::ZERO, input, basis), (end, output, basis.flip())]
+                            {
+                                let center = p.as_vec3() * stride + dir.to_vec3() * 0.5;
+                                let width = if pauli == Pauli::from(cap) {
+                                    Vec3::Z
+                                } else {
+                                    dir.to_vec3().cross(Vec3::Z)
+                                };
+                                for sign in [-1.0, 1.0] {
+                                    assert_patch_rotation_color_at(
+                                        &data,
+                                        center + width * sign * 0.4,
+                                        correlation_surface_color(pauli),
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

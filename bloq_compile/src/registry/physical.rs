@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::Arc;
 
-use bloq_graph::{Block, BlockGraph, BlockKind, GuardedTopology, UDirection};
+use bloq_graph::{Block, BlockGraph, BlockKind, GuardedTopology, PatchRotationKind, UDirection};
 use bloq_ir::Bloq;
 use bloq_utils::boolean::{
     BooleanDecisionDiagram, BooleanOp, DECISION_FALSE as ZERO, DECISION_TRUE as ONE, DecisionId,
@@ -15,7 +15,7 @@ use crate::block::{LoweringTemplateId, LoweringTemplatePool};
 use crate::compile::{CompileContext, CompiledTemplateMap};
 use crate::lower::{LinkedPlanInput, LowerPlan, PhysicalInput, PlacedPlan, SpatialPipeRef};
 use crate::port::PortExpansionMap;
-use crate::signature::{LayerSchedule, LayerScheduleMap};
+use crate::signature::{LayerSchedule, LayerScheduleMap, PlanarFrames};
 use crate::{BlockLayout, CompileError, check_resource};
 
 #[path = "anchors.rs"]
@@ -302,7 +302,9 @@ impl PhysicalProjection {
         let temporal_templates =
             context.compile_temporal_template_plans(input.temporal_templates())?;
         let wall_templates =
-            context.compile_spatial_template_walls(graph, ports, input.spatial_walls())?;
+            context.compile_spatial_template_walls(graph, ports, input.spatial_walls(), |pos| {
+                schedules[&pos]
+            })?;
         let pool = context.cache.pool_snapshot();
         let mut plan = LowerPlan::from_linked_input(&input);
         plan.set_incoming_cuts(&scheduled.incoming_cuts);
@@ -379,6 +381,7 @@ struct ScheduleIncidence {
     edges: BTreeMap<(usize, usize), DecisionId>,
     demands: Vec<[DecisionId; 4]>,
     tall: Vec<bool>,
+    planar_sites: BTreeSet<(usize, PatchRotationKind)>,
 }
 
 impl ScheduleIncidence {
@@ -396,6 +399,7 @@ impl ScheduleIncidence {
             edges: BTreeMap::new(),
             demands: vec![[ZERO; 4]; count],
             tall: vec![false; count],
+            planar_sites: BTreeSet::new(),
         }
     }
 
@@ -411,6 +415,11 @@ impl ScheduleIncidence {
         let block = graph
             .get_block(position)
             .expect("local block exists after Port expansion");
+        if let BlockKind::PatchRotation(kind) = block.kind()
+            && kind.is_planar()
+        {
+            self.planar_sites.insert((index, kind));
+        }
         self.tall[index] |= block.kind().is_cube() && block.height_cells() > 1;
         if geometry
             .ports
@@ -427,7 +436,7 @@ impl ScheduleIncidence {
         {
             self.demands[index][3] = diagram.apply(BooleanOp::Or, self.demands[index][3], guard)?;
         }
-        if matches!(block.kind(), BlockKind::Cube(kind) if kind.is_spatial()) {
+        if crate::signature::needs_padded_schedule(block.kind()) {
             self.demands[index][0] = diagram.apply(BooleanOp::Or, self.demands[index][0], guard)?;
         }
         for pipe in graph
@@ -509,7 +518,17 @@ impl ScheduleEnvelope {
             edges,
             mut demands,
             tall,
+            planar_sites,
         } = incidence;
+        // A guarded spatial join can bring a different diagonal into the same
+        // component. All realizations must use a frame compatible with both.
+        let mut planar_frames = crate::FxMap::<usize, PlanarFrames>::default();
+        for (site, kind) in planar_sites {
+            planar_frames
+                .entry(groups.find(site))
+                .or_default()
+                .include(kind);
+        }
         let mut possible = vec![[false; 3]; positions.len()];
         let mut tall_components = vec![false; positions.len()];
         for (index, demand) in demands.iter().enumerate() {
@@ -570,7 +589,8 @@ impl ScheduleEnvelope {
         }
         let mut choices = crate::FxMap::default();
         for (index, &position) in positions.iter().enumerate() {
-            let [padded, x, y] = possible[groups.find(index)];
+            let component = groups.find(index);
+            let [padded, x, y] = possible[component];
             let (low, high, selector) = match (x, y) {
                 (true, true) => {
                     if topology.diagram.apply(
@@ -594,11 +614,12 @@ impl ScheduleEnvelope {
                 (false, false) if padded => (LayerSchedule::Padded, LayerSchedule::Padded, ZERO),
                 (false, false) => (LayerSchedule::Compact, LayerSchedule::Compact, ZERO),
             };
+            let frames = planar_frames.get(&component).copied().unwrap_or_default();
             choices.insert(
                 position,
                 ScheduleChoice {
-                    low,
-                    high,
+                    low: frames.apply(low),
+                    high: frames.apply(high),
                     selector,
                     incoming: demands[index][3],
                 },
@@ -678,6 +699,117 @@ mod tests {
         for case in &family.cases[1..] {
             assert!(case.geometry.positions.len() <= 7);
             assert!(case.geometry.graph.block_count() <= 31);
+        }
+    }
+
+    #[test]
+    fn planar_slots_follow_guarded_spatial_joins_across_a_module() {
+        let graph = BlockGraph::from_text(
+            "BLOG 1.0
+module Route {
+  0: XZX [-2,0,0]
+  1: XZX [-1,0,0]
+  2: ZXZ [2,1,0]
+  3: ZXZ [5,4,0]
+  0 -> +X
+  branch b {
+    false {
+      4: ZZX [0,0,0]
+      5: ZZX [0,1,0]
+      6: ZXZ [1,1,0]
+      1 -> +X
+      4 -> +Y
+      5 -H> +X
+      6 -> +X
+    }
+    true {
+      7: rotate X [0,0,0] -> [1,1,0]
+      1 -> +X
+      [1,1,0] -> +X
+    }
+  }
+  m = measure 3
+  resolve b if m
+}
+module main {
+  route: Route @ [0,0,0]
+}
+",
+        )
+        .unwrap()
+        .flatten()
+        .unwrap();
+        let mut topology =
+            GuardedTopology::new(&graph, ModuleCertificationLimits::DEFAULT).unwrap();
+        let family = ScheduledFamily::new(&mut topology, crate::CompileConfig::new(3)).unwrap();
+        assert!(family.cases.len() > 1);
+        for case in &family.cases {
+            for (&pos, &schedule) in &case.schedules {
+                let expected = if pos == IVec3::new(5, 4, 0) {
+                    LayerSchedule::Compact
+                } else {
+                    // The alternative arm contributes its X-oriented Hadamard wall.
+                    LayerSchedule::PlanarExtended
+                };
+                assert_eq!(schedule, expected, "site {pos}");
+            }
+        }
+    }
+
+    #[test]
+    fn branch_diagonals_at_the_same_anchor_select_a_common_schedule() {
+        let frame = glam::ivec2(1, -1);
+        for (dy, tail, expected) in [
+            (-1, "ZXZ", LayerSchedule::planar_hooks(frame, false)),
+            // Only the true arm introduces a spatial cube. Its fifth slot
+            // must still be available to the shared cube in both arms.
+            (-1, "XXZ", LayerSchedule::planar_hooks(frame, true)),
+            (1, "ZXZ", LayerSchedule::Planar),
+        ] {
+            let graph = BlockGraph::from_text(&format!(
+                "BLOG 1.0
+module main {{
+  0: XZX [-2,0,0]
+  1: XZX [-1,0,0]
+  2: ZXZ [5,0,0]
+  0 -> +X
+  branch b {{
+    false {{
+      3: rotate X [0,0,0] -> [1,-1,0]
+      4: ZXZ [2,-1,0]
+      1 -> +X
+      [1,-1,0] -> +X
+    }}
+    true {{
+      5: rotate X [0,0,0] -> [1,{dy},0]
+      6: {tail} [2,{dy},0]
+      1 -> +X
+      [1,{dy},0] -> +X
+    }}
+  }}
+  m = measure 2
+  resolve b if m
+}}"
+            ))
+            .unwrap()
+            .flatten()
+            .unwrap();
+            let mut topology =
+                GuardedTopology::new(&graph, ModuleCertificationLimits::DEFAULT).unwrap();
+            let family = ScheduledFamily::new(&mut topology, crate::CompileConfig::new(3)).unwrap();
+            for case in &family.cases {
+                for (&pos, &schedule) in &case.schedules {
+                    assert_eq!(
+                        schedule,
+                        if pos == IVec3::new(5, 0, 0) {
+                            LayerSchedule::Compact
+                        } else {
+                            expected
+                        },
+                        "site {pos} with dy={dy} and tail={tail}"
+                    );
+                }
+            }
         }
     }
 

@@ -1128,13 +1128,10 @@ fn insert_feedback(
     target: &FeedbackTarget,
     variable: Var,
 ) {
-    let node = zx
-        .node_at(target.target)
-        .expect("validated feedback target exists");
-    let neighbor = zx
+    let edge = zx
         .feedback_edge(target)
-        .expect("validated feedback target has a wire")
-        .n2;
+        .expect("validated feedback target has a wire");
+    let (node, neighbor) = (edge.n1, edge.n2);
     let vertex_types = match target.pauli {
         PauliBasis::X => [Some(VType::X), None],
         PauliBasis::Y => [Some(VType::Z), Some(VType::X)],
@@ -1142,7 +1139,7 @@ fn insert_feedback(
     };
     for vertex_type in vertex_types.into_iter().flatten() {
         let anchor = *anchors
-            .get(&(node.id, neighbor))
+            .get(&(node, neighbor))
             .expect("every original edge has anchors in both directions");
         graph.remove_edge(anchor.target, anchor.next);
         let correction = graph.add_vertex_with_phase(vertex_type, Phase::from(0_i64));
@@ -1150,7 +1147,7 @@ fn insert_feedback(
         graph.add_edge_with_type(anchor.target, correction, EType::N);
         graph.add_edge_with_type(correction, anchor.next, anchor.edge_type);
         anchors.insert(
-            (node.id, neighbor),
+            (node, neighbor),
             WireAnchor {
                 target: anchor.target,
                 next: correction,
@@ -1163,14 +1160,14 @@ fn insert_feedback(
         // the same subdivided wire. Once either side already has an inserted
         // spider, its first edge is unaffected by insertions from the other.
         let reverse = anchors
-            .get_mut(&(neighbor, node.id))
+            .get_mut(&(neighbor, node))
             .expect("every original edge has a reverse anchor");
         if reverse.next == anchor.target {
             reverse.next = correction;
             reverse.edge_type = anchor.edge_type;
         }
     }
-    debug_assert_eq!(node_vertices[node.id], anchors[&(node.id, neighbor)].target);
+    debug_assert_eq!(node_vertices[node], anchors[&(node, neighbor)].target);
 }
 
 fn is_state_boundary(zx: &ZXGraph, node: usize) -> bool {

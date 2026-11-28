@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use bloq_circuit::{Chunk, ChunkOrLoop, CoordCircuit, Flow, GateType, PauliBasis, PauliMap};
-use bloq_graph::{Basis, Direction, Pauli, UDirection};
+use bloq_graph::{Basis, Direction, PatchRotationKind, Pauli, UDirection};
 use glam::IVec2;
 use smallvec::SmallVec;
 
@@ -38,6 +38,31 @@ pub(crate) struct WallSide {
     /// preparation, readout, perpendicular arms, and shared corners from this
     /// single source of truth.
     pub(crate) connectivity: Connectivity,
+    /// At a planar rotation's end, its inward flank reaches the start cap on one face.
+    flip_arm_on: Option<Face>,
+}
+
+impl WallSide {
+    pub(crate) fn new(
+        temporal_basis: Basis,
+        connectivity: Connectivity,
+        axis: UDirection,
+        planar_end: Option<PatchRotationKind>,
+    ) -> Self {
+        let flip_arm_on = planar_end.map(|kind| {
+            // An X-normal wall's data run along Y, a Y-normal wall's along X.
+            if super::planar_rotation::readout_splits_x(kind) == (axis == UDirection::Y) {
+                Face::Meas
+            } else {
+                Face::Init
+            }
+        });
+        Self {
+            temporal_basis,
+            connectivity,
+            flip_arm_on,
+        }
+    }
 }
 
 /// Everything a positive-axis spatial Hadamard wall is compiled from, and its
@@ -47,6 +72,8 @@ pub(crate) struct WallSide {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct SpatialHadamardKey {
     pub(crate) axis: UDirection,
+    /// The component reserves extra CX slots for a planar rotation before readout.
+    pub(crate) planar: bool,
     /// Syndrome rounds of the endpoint cubes, which the wall matches round for
     /// round.
     pub(crate) rounds: u32,
@@ -217,7 +244,7 @@ fn wall_tiles(distance: u32, key: SpatialHadamardKey) -> Vec<WallTile> {
 }
 
 /// Which temporal face a collapse map describes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Face {
     Init,
     Meas,
@@ -239,8 +266,14 @@ fn collapse_map(
             Face::Meas => key.measures(side),
         };
         for &(qubit, _) in data {
-            if collapses || is_arm_row(distance, along_coord(key.axis, qubit)) {
-                map.insert(qubit, side.temporal_basis);
+            let on_arm = is_arm_row(distance, along_coord(key.axis, qubit));
+            if collapses || on_arm {
+                let basis = if on_arm && side.flip_arm_on == Some(face) {
+                    side.temporal_basis.flip()
+                } else {
+                    side.temporal_basis
+                };
+                map.insert(qubit, basis);
             }
         }
     };
@@ -282,6 +315,7 @@ fn emit_wall_round(
     init_data: &DataBatches,
     meas_data: &DataBatches,
     reversed: bool,
+    idle_slots: usize,
 ) -> Result<(CoordCircuit, MeasurementIndex), CompileError> {
     let mut circuit = CoordCircuit::new();
     circuit.do_gate(
@@ -340,6 +374,9 @@ fn emit_wall_round(
         circuit.tick();
     }
 
+    for _ in 0..idle_slots {
+        circuit.tick();
+    }
     let measured = tiles
         .iter()
         .map(|tile| if reversed { tile.minus } else { tile.plus })
@@ -491,12 +528,14 @@ fn wall_chunk(
     init_data: Option<&crate::FxMap<IVec2, Basis>>,
     meas_data: Option<&crate::FxMap<IVec2, Basis>>,
     reversed: bool,
+    idle_slots: usize,
 ) -> Result<Chunk, CompileError> {
     let (circuit, measurements) = emit_wall_round(
         tiles,
         &sorted_batches(init_data, [Basis::X, Basis::Z]),
         &sorted_batches(meas_data, [Basis::X, Basis::Z]),
         reversed,
+        idle_slots,
     )?;
     let flows = wall_round_flows(tiles, &measurements, init_data, meas_data, reversed);
     Ok(Chunk { circuit, flows })
@@ -516,8 +555,14 @@ pub(crate) fn compile_spatial_hadamard(
     let init_data = collapse_map(distance, key, &tiles, Face::Init);
     let meas_data = collapse_map(distance, key, &tiles, Face::Meas);
 
-    let make_chunk =
-        |init_data, meas_data, reversed| wall_chunk(&tiles, init_data, meas_data, reversed);
+    let idle_slots = if key.planar {
+        crate::signature::PLANAR_CX_SLOTS
+    } else {
+        0
+    };
+    let make_chunk = |init_data, meas_data, reversed| {
+        wall_chunk(&tiles, init_data, meas_data, reversed, idle_slots)
+    };
     let init_chunk = make_chunk(Some(&init_data), None, false)?;
     let gateway = build_gateway(key, &tiles, &init_data, &init_chunk);
     let repetitions = cube_bulk_repetitions(key.rounds);
@@ -559,6 +604,7 @@ mod tests {
     fn threaded(temporal_basis: Basis) -> WallSide {
         WallSide {
             temporal_basis,
+            flip_arm_on: None,
             connectivity: Connectivity::ISOLATED
                 .with_pipe(Direction::ZMINUS)
                 .with_pipe(Direction::ZPLUS),
@@ -570,6 +616,7 @@ mod tests {
     fn terminated(temporal_basis: Basis) -> WallSide {
         WallSide {
             temporal_basis,
+            flip_arm_on: None,
             connectivity: Connectivity::ISOLATED,
         }
     }
@@ -586,6 +633,7 @@ mod tests {
     ) -> SpatialHadamardKey {
         SpatialHadamardKey {
             axis,
+            planar: false,
             // The round count only sets the bulk loop's repetition count. Every
             // test below inspects tiles, flows or the observable gateway, none
             // of which vary with it, so any legal value does.
@@ -613,9 +661,9 @@ mod tests {
         let init_data = collapse_map(distance, key, &tiles, Face::Init);
         let meas_data = collapse_map(distance, key, &tiles, Face::Meas);
         vec![
-            wall_chunk(&tiles, Some(&init_data), None, reversed).expect("init round"),
-            wall_chunk(&tiles, None, None, reversed).expect("bulk round"),
-            wall_chunk(&tiles, None, Some(&meas_data), reversed).expect("meas round"),
+            wall_chunk(&tiles, Some(&init_data), None, reversed, 0).expect("init round"),
+            wall_chunk(&tiles, None, None, reversed, 0).expect("bulk round"),
+            wall_chunk(&tiles, None, Some(&meas_data), reversed, 0).expect("meas round"),
         ]
     }
 
@@ -647,7 +695,7 @@ mod tests {
     ) {
         let wall = key(Basis::Z, threaded(Basis::X), threaded(Basis::Z));
         let tiles = wall_tiles(distance, wall);
-        let bulk = wall_chunk(&tiles, None, None, reversed).expect("bulk round");
+        let bulk = wall_chunk(&tiles, None, None, reversed, 0).expect("bulk round");
         let moments = split_ops_into_moments(
             bulk.circuit
                 .body(bulk.circuit.entry_body())
@@ -912,7 +960,7 @@ mod tests {
             vec![
                 make_surface_code_chunk(&left_patch, left_init, left_meas).expect("left round"),
                 make_surface_code_chunk(&right_patch, right_init, right_meas).expect("right round"),
-                wall_chunk(&tiles, wall_init, wall_meas, false).expect("wall round"),
+                wall_chunk(&tiles, wall_init, wall_meas, false, 0).expect("wall round"),
             ]
         };
 
@@ -1141,7 +1189,7 @@ mod tests {
 
         let tiles = wall_tiles(distance, wall);
         let init_data = collapse_map(distance, wall, &tiles, Face::Init);
-        let init_chunk = wall_chunk(&tiles, Some(&init_data), None, false).expect("init round");
+        let init_chunk = wall_chunk(&tiles, Some(&init_data), None, false, 0).expect("init round");
         let measurements = MeasurementIndex::from_circuit(&init_chunk.circuit);
 
         // `z_L = X`, so the `X` crossing is parallel to both halves' collapse

@@ -8,7 +8,7 @@ use std::sync::{
 };
 
 use crate::components::CameraSettings;
-use crate::resources::RenderAssetCache;
+use crate::resources::{RenderAssetCache, placement_block_kinds};
 use crate::systems::EditorUpdateSet;
 use crate::systems::camera::{CAMERA_DEFAULT_FOV_Y, apply_camera_setting};
 use crate::systems::visuals::spawn_gltf_data_parts;
@@ -354,8 +354,7 @@ pub(crate) enum ThumbnailKey {
 }
 
 fn thumbnail_keys() -> impl Iterator<Item = ThumbnailKey> {
-    BlockKind::all_kinds()
-        .into_iter()
+    placement_block_kinds()
         .map(|kind| ThumbnailKey::Placement(PlacementPreviewKind::Block(kind)))
         .chain(std::iter::once(ThumbnailKey::Placement(
             PlacementPreviewKind::Pipe,

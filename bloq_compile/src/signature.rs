@@ -4,13 +4,17 @@ use std::fmt;
 use std::ops::Bound::{Excluded, Unbounded};
 
 use bloq_graph::{
-    Basis, Block, BlockGraph, BlockKind, Direction, PortRole, UDirection, checked_add_position,
+    Basis, Block, BlockGraph, BlockKind, Direction, PatchRotationKind, PortRole, UDirection,
+    checked_add_position,
 };
 
 use crate::CompileError;
 use glam::{IVec2, IVec3};
 
 pub(crate) type BlockSignatureMap = crate::FxMap<IVec3, BlockSignature>;
+
+/// Four CNOTs per check, with the X and Z schedules sharing two layers.
+pub(crate) const PLANAR_CX_SLOTS: usize = 6;
 
 /// Connected faces reported by [`CompileError::InvalidConnectivity`].
 ///
@@ -112,11 +116,10 @@ impl fmt::Debug for Connectivity {
     }
 }
 
-/// The CX-slot depth shared by every cube in one z-layer spatial component.
+/// The CNOT order shared by cubes and planar rotations in a spatial component.
 ///
-/// Depth is a *component-wide* property: merged patches drive shared data
-/// qubits, so their syndrome rounds have to line up moment for moment. A
-/// component therefore takes the deepest schedule any of its members demands.
+/// Merged patches drive shared data qubits. Each syndrome round must align
+/// their gate slots and use compatible hook orientations across their seams.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum LayerSchedule {
     /// 4 slots — the compact schedule, for components of regular cubes only.
@@ -131,12 +134,125 @@ pub(crate) enum LayerSchedule {
     /// 6 slots — the diagonal transpose of [`Extended`](Self::Extended), for a
     /// Y-axis spatial Hadamard wall.
     ExtendedY,
+    /// Reflected hook order shared with a planar rotation. A spatial cube
+    /// in the component requires a fifth slot to turn its quadrant hooks.
+    PlanarHooks {
+        flip_x: bool,
+        flip_y: bool,
+        padded: bool,
+    },
+    /// Six diagonal-hook slots shared by rotations with different displacements.
+    Planar,
+    /// A spatial X wall shares its six-slot prefix with a planar rotation.
+    PlanarExtended,
+    /// A spatial Y wall shares its six-slot prefix with a planar rotation.
+    PlanarExtendedY,
 }
 
 impl LayerSchedule {
-    pub(crate) const fn is_extended(self) -> bool {
-        matches!(self, Self::Extended | Self::ExtendedY)
+    pub(crate) fn planar_hooks(movement: IVec2, padded: bool) -> Self {
+        Self::PlanarHooks {
+            flip_x: movement.x < 0,
+            flip_y: movement.y > 0,
+            padded,
+        }
     }
+
+    pub(crate) const fn is_extended(self) -> bool {
+        matches!(
+            self,
+            Self::Extended | Self::ExtendedY | Self::PlanarExtended | Self::PlanarExtendedY
+        )
+    }
+
+    pub(crate) const fn with_planar(self) -> Self {
+        match self {
+            Self::Compact | Self::Padded | Self::Planar | Self::PlanarHooks { .. } => Self::Planar,
+            Self::Extended | Self::PlanarExtended => Self::PlanarExtended,
+            Self::ExtendedY | Self::PlanarExtendedY => Self::PlanarExtendedY,
+        }
+    }
+
+    pub(crate) const fn planar_start_slot(self) -> Option<usize> {
+        match self {
+            Self::Planar => Some(0),
+            Self::PlanarExtended | Self::PlanarExtendedY => Some(6),
+            _ => None,
+        }
+    }
+}
+
+/// All members of a spatial component must use one CNOT order on shared data.
+#[derive(Debug, Default, Clone, Copy)]
+pub(crate) enum PlanarFrames {
+    #[default]
+    None,
+    One(IVec2),
+    Mixed,
+}
+
+impl PlanarFrames {
+    pub(crate) fn include(&mut self, kind: PatchRotationKind) {
+        let movement = kind.movement();
+        match *self {
+            Self::None => *self = Self::One(movement),
+            Self::One(previous) if previous != movement => *self = Self::Mixed,
+            _ => {}
+        }
+    }
+
+    pub(crate) fn apply(self, base: LayerSchedule) -> LayerSchedule {
+        match self {
+            Self::None => base,
+            Self::One(movement) if !base.is_extended() => {
+                LayerSchedule::planar_hooks(movement, base == LayerSchedule::Padded)
+            }
+            Self::One(_) | Self::Mixed => base.with_planar(),
+        }
+    }
+}
+
+/// Schedules a relocatable definition site can acquire in a parent component.
+pub(crate) fn definition_layer_schedules(
+    kind: BlockKind,
+    connectivity: Connectivity,
+    may_join_planar: bool,
+) -> Vec<LayerSchedule> {
+    use LayerSchedule::{Compact, Extended, ExtendedY, Padded};
+    let base: &[LayerSchedule] = match connectivity.hadamard_wall_axes() {
+        (true, true) => return Vec::new(),
+        (true, false) => &[Extended],
+        (false, true) => &[ExtendedY],
+        (false, false) => &[Compact, Padded, Extended, ExtendedY],
+    };
+    let mut schedules = if kind.is_planar_rotation() {
+        Vec::new()
+    } else {
+        base.to_vec()
+    };
+    if !may_join_planar {
+        return schedules;
+    }
+    for &schedule in base {
+        let mixed = schedule.with_planar();
+        if !schedules.contains(&mixed) {
+            schedules.push(mixed);
+        }
+        if schedule.is_extended() || (schedule == Compact && needs_padded_schedule(kind)) {
+            continue;
+        }
+        let padded = schedule == Padded;
+        if let BlockKind::PatchRotation(rotation) = kind {
+            schedules.push(LayerSchedule::planar_hooks(rotation.movement(), padded));
+        } else {
+            for x in [-1, 1] {
+                for y in [-1, 1] {
+                    schedules.push(LayerSchedule::planar_hooks(IVec2::new(x, y), padded));
+                }
+            }
+        }
+    }
+    schedules
 }
 
 /// A block's kind plus its face connectivity, forming a unique compilation signature.
@@ -162,8 +278,7 @@ pub(crate) struct BlockSignature {
     /// cube's y-face basis. `None` for block kinds that do not attach to a
     /// temporal cube seam.
     pub boundary_basis: Option<Basis>,
-    /// For cube blocks: the CX-slot depth of the same-layer spatial component
-    /// this cube belongs to. `None` for every other kind.
+    /// The component's CNOT schedule for a cube or planar rotation.
     pub layer_schedule: Option<LayerSchedule>,
     /// For T blocks: the spatial side whose neighbor cell is reserved for the
     /// Steane cultivation spill — picked deterministically from graph
@@ -223,7 +338,9 @@ impl BlockSignature {
                 preserve_hadamard,
             );
         }
-        if let BlockKind::PatchRotation(kind) = block.kind() {
+        if let BlockKind::PatchRotation(kind) = block.kind()
+            && !kind.is_planar()
+        {
             return Self::two_layer_endpoint_connectivity(
                 block.pos(),
                 kind.end_position(block.pos()),
@@ -322,7 +439,7 @@ pub(crate) fn derive_block_signature(
         rounds: is_cube.then(|| cube_rounds(block, distance)).transpose()?,
         connectivity: BlockSignature::template_connectivity(block, graph),
         boundary_basis,
-        layer_schedule: is_cube.then_some(layer_schedule),
+        layer_schedule: (is_cube || kind.is_planar_rotation()).then_some(layer_schedule),
         surgery_side,
     })
 }
@@ -371,15 +488,19 @@ pub(crate) fn relocatable_block_signatures(
                 (kind == BlockKind::T)
                     .then_some(crate::block::fixed_bulk::t::SurgeryLayout::SIDE_PRIORITY[0]),
             )?;
-            signature.layer_schedule = match kind {
-                BlockKind::Cube(cube) => Some(match signature.connectivity.hadamard_wall_axes() {
+            if signature.layer_schedule.is_some() {
+                let schedule = match signature.connectivity.hadamard_wall_axes() {
                     (true, _) => LayerSchedule::Extended,
                     (false, true) => LayerSchedule::ExtendedY,
-                    (false, false) if cube.is_spatial() => LayerSchedule::Padded,
+                    (false, false) if needs_padded_schedule(kind) => LayerSchedule::Padded,
                     (false, false) => LayerSchedule::Compact,
-                }),
-                _ => None,
-            };
+                };
+                let mut frames = PlanarFrames::default();
+                if let BlockKind::PatchRotation(rotation) = kind {
+                    frames.include(rotation);
+                }
+                signature.layer_schedule = Some(frames.apply(schedule));
+            }
             Ok((block.pos(), signature))
         })
         .collect()
@@ -568,24 +689,24 @@ fn augment_surgery_matching(
 
 pub(crate) type LayerScheduleMap = crate::FxMap<IVec3, LayerSchedule>;
 
-/// The schedule of the cube at `pos`; cubes outside the map are compact.
+/// The component schedule at `pos`. An omitted position uses the compact schedule.
 pub(crate) fn layer_schedule_at(schedules: &LayerScheduleMap, pos: IVec3) -> LayerSchedule {
     schedules.get(&pos).copied().unwrap_or_default()
 }
 
-/// Per-cube CX-slot depth, derived per z-layer spatial component.
+/// The CNOT schedule for each z-layer spatial component.
 ///
-/// Only the components that demand more than [`LayerSchedule::Compact`] are
+/// Only the components that need a schedule other than [`LayerSchedule::Compact`] are
 /// recorded, so the map stays empty for the common case. A component carrying
 /// walls on both spatial axes has no schedule at all (LIM-017), so it is
 /// rejected here rather than represented.
 pub(crate) fn join_component_layer_schedules(
     graph: &BlockGraph,
 ) -> Result<LayerScheduleMap, CompileError> {
-    // Without a spatial cube or Hadamard wall, every component is compact.
+    // Regular cubes alone use the ordinary compact schedule.
     if !graph
         .blocks()
-        .any(|block| matches!(block.kind(), BlockKind::Cube(kind) if kind.is_spatial()))
+        .any(|block| needs_padded_schedule(block.kind()) || block.kind().is_planar_rotation())
         && !graph
             .pipes()
             .any(|pipe| pipe.is_hadamard() && pipe.dir().is_spatial())
@@ -599,7 +720,7 @@ pub(crate) fn join_component_layer_schedules(
     // height propagation that runs at lowering time: both answer "which cubes
     // drive the same data qubits, and therefore share a schedule". A component
     // is named by its lowest member, which is also the position we blame.
-    for (layer, components) in graph.cube_layer_components() {
+    for (layer, components) in graph.spatial_layer_components() {
         let root: crate::FxMap<IVec3, IVec3> = components
             .iter()
             .flat_map(|members| members.iter().map(|&pos| (pos, members[0])))
@@ -608,15 +729,20 @@ pub(crate) fn join_component_layer_schedules(
         // A spatial Hadamard wall outranks a spatial cube: its extended
         // stabilizers need the GHZ bracket the padded depth lacks.
         let mut demanded = crate::FxMap::<IVec3, LayerSchedule>::default();
+        let mut planar = crate::FxMap::<IVec3, PlanarFrames>::default();
         let mut demand = |component: IVec3, schedule: LayerSchedule| {
             let slot = demanded.entry(component).or_default();
             *slot = (*slot).max(schedule);
         };
         for (&pos, &component) in &root {
-            if matches!(
-                graph.get_block(pos).map(Block::kind),
-                Some(BlockKind::Cube(kind)) if kind.is_spatial()
-            ) {
+            let kind = graph
+                .get_block(pos)
+                .expect("component contains source blocks")
+                .kind();
+            if let BlockKind::PatchRotation(rotation) = kind {
+                planar.entry(component).or_default().include(rotation);
+            }
+            if needs_padded_schedule(kind) {
                 demand(component, LayerSchedule::Padded);
             }
         }
@@ -652,7 +778,9 @@ pub(crate) fn join_component_layer_schedules(
         }
 
         for (&pos, component) in &root {
-            if let Some(&schedule) = demanded.get(component) {
+            let frames = planar.get(component).copied().unwrap_or_default();
+            let schedule = frames.apply(demanded.get(component).copied().unwrap_or_default());
+            if schedule != LayerSchedule::Compact {
                 schedules.insert(pos, schedule);
             }
         }
@@ -662,6 +790,10 @@ pub(crate) fn join_component_layer_schedules(
         Some(pos) => Err(CompileError::MixedSpatialHadamardUnsupported { pos }),
         None => Ok(schedules),
     }
+}
+
+pub(crate) fn needs_padded_schedule(kind: BlockKind) -> bool {
+    matches!(kind, BlockKind::Cube(cube) if cube.is_spatial())
 }
 
 #[cfg(test)]
@@ -768,6 +900,22 @@ mod tests {
     /// A cube at `pos` in the z = 0 layer.
     fn cube(pos: IVec3, kind: bloq_graph::CubeKind) -> Block {
         Block::new(pos, BlockKind::Cube(kind))
+    }
+
+    #[test]
+    fn planar_component_only_pads_for_a_spatial_cube() {
+        for (tail, padded) in [("ZXZ", false), ("XXZ", true)] {
+            let graph = BlockGraph::from_blog_text(&format!(
+                "BLOG 1.0\n0: XZX [-1,0,0]\n1: rotate X [0,0,0] -> [1,-1,0]\n\
+                 2: {tail} [2,-1,0]\n0 -> +X\n[1,-1,0] -> +X\n"
+            ))
+            .unwrap();
+            let schedules = join_component_layer_schedules(&graph).unwrap();
+            let expected = LayerSchedule::planar_hooks(IVec2::new(1, -1), padded);
+            for block in graph.blocks() {
+                assert_eq!(layer_schedule_at(&schedules, block.pos()), expected);
+            }
+        }
     }
 
     #[test]

@@ -15,6 +15,12 @@ for setup.
   and **Up/Down** extend pipes, or follow an existing connection without changing
   it. The **Hadamard** checkbox lets trackpad users place Hadamard pipes without
   holding a key; holding **H** is also supported.
+- **Planar rotation** places a 2 × 2 footprint lasting $d$ rounds. Click the
+  start cell, then a highlighted diagonal corner on the same layer. With the
+  **Pipe** tool, choose one outward spatial face at each corner. A pipe into an
+  empty cell creates an input Port at the start or an output Port at the end.
+  **Axial rotation** places the $2d$-round variant with a cardinal step on the
+  next layer and temporal pipes. Double-click a rotation to edit its basis.
 - **View** selects, inspects, and moves geometry. **Space**
   switches between View and Edit. Shift-click toggles selection; drag on empty
   space to box-select, or Shift-drag to add to the selection. Select one element

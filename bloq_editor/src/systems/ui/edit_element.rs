@@ -4,6 +4,7 @@
 use super::intents::{ElementEditIntent, UiIntent, UiIntentBuffer};
 use super::{activated, field_owns_shortcuts};
 use crate::components::GraphElement;
+use crate::resources::{placement_block_kinds, placement_block_label};
 use crate::theme::{self, ThemePreset};
 use bevy::prelude::Resource;
 use bevy_egui::egui;
@@ -74,15 +75,30 @@ pub(crate) fn draw_edit_element_window(
             .show(ctx, |ui| {
                 let mut block_color = None;
                 let mut owns_keyboard = false;
-                if let Some(GraphElement::Block(_)) = target_state.target {
+                if let Some(GraphElement::Block(pos)) = target_state.target {
                     theme::section_header(ui, palette, "Kind");
                     theme::section_frame(ui, palette, |ui| {
                         ui.horizontal_wrapped(|ui| {
-                            for kind in BlockKind::all_kinds() {
+                            for kind in placement_block_kinds() {
+                                let current = target_state.block_kind_buffer;
+                                let candidate = match (kind, current) {
+                                    (
+                                        BlockKind::PatchRotation(option),
+                                        BlockKind::PatchRotation(active),
+                                    ) if active.is_planar() == option.is_planar() => current,
+                                    (
+                                        BlockKind::PatchRotation(option),
+                                        BlockKind::PatchRotation(active),
+                                    ) => {
+                                        BlockKind::PatchRotation(option.with_basis(active.basis()))
+                                    }
+                                    (BlockKind::Walking(_), BlockKind::Walking(_)) => current,
+                                    _ => kind,
+                                };
                                 ui.radio_value(
                                     &mut target_state.block_kind_buffer,
-                                    kind,
-                                    kind.to_string(),
+                                    candidate,
+                                    placement_block_label(kind),
                                 );
                             }
                         });
@@ -119,8 +135,9 @@ pub(crate) fn draw_edit_element_window(
                                     );
                                 }
                             });
-                            let movement = kind.movement();
-                            ui.label(format!("Movement: ({}, {})", movement.x, movement.y));
+                            if let Ok(end) = kind.try_end_position(pos) {
+                                ui.label(format!("Start {pos}  →  End {end}"));
+                            }
                         });
                     }
                     ui.add_space(4.0);

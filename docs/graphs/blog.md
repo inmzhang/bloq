@@ -92,6 +92,15 @@ true and the second for false; writers canonicalize equivalent reverse
 spellings and adjust the selector. See [Blocks and Pipes](concepts.md#special-variants)
 for walking boundaries and rotation bases.
 
+The endpoints select the rotation circuit. For example, `rotate Z [0,0,1] -> [0,1,2]`
+moves along one spatial axis in $2d$ rounds. Writing `rotate Z [0,0,1] -> [1,1,1]`
+selects a diagonal rotation in $d$ rounds. In this example the first corner
+accepts `-X` or `-Y`, and the opposite corner accepts `+X` or `+Y`.
+Attach one spatial pipe to each. Reflecting the displacement reflects the
+outward spatial directions. A binding such as `1 -> child.input` uses the
+rotation's block ID. The transformed child Port must lie at the corner it
+connects to. See [Patch Rotation](../circuit-constructions.md#patch-rotation).
+
 | Attribute | Applies to | Example |
 | --- | --- | --- |
 | Height | Cubes | `height=2d` |
@@ -167,7 +176,9 @@ instance from its output. Locally declared action names cannot contain `.` or
 Actions use their containing module's names and targets. Feedback requires at
 least one target, uses `X`, `Y`, or `Z`, and acts in the selected wire endpoint
 frame. An omitted condition means unconditional feedback. A direction selects
-an edge endpoint for measurement or feedback. Named readouts require an
+an edge endpoint for measurement or feedback. For a diagonal rotation, its
+block ID and the selected direction identify the pipe at the corresponding
+corner. Named readouts require an
 output-safe correlation. See [Actions](actions.md) for these semantics.
 Dependencies determine execution order; source line order does not assign
 physical execution times.

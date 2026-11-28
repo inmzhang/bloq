@@ -193,6 +193,31 @@
       "sha256": "61136accb908173ed1401150363f38b4eea5352b1b3103d972131d6938f64629",
       "derivation": "Six input-state infidelities and independent Choi estimates replotted with nominal 95% half-widths by tools/plot_tutorial_results.py. The six-state mean uses equal weights. No new sampling.",
       "source_revision": "61ebd6698814d8d3e2125709b30afd9e22a4f8b0"
+    },
+    {
+      "file": "assets/planar-rotation-pipes.png",
+      "source": "_static/constructions/planar-rotation.blog",
+      "sha256": "4bf119b31d856b8a6a649c527c8f9c789be57103c60d9978c42bf0e5cd1a7725",
+      "derivation": "Depth-buffered Bloq Editor screenshots with west or south input and north or east output, using one camera, crop, and scale in tools/render_planar_rotation_pipes.py."
+    },
+    {
+      "file": "assets/planar-rotation-detectors.png",
+      "source": "_static/constructions/planar-rotation-temporal-ports.stim",
+      "sha256": "ac3abc0eab2643be7d9072cd31a2e87cbb1a8bc2683c023b673808361501769f",
+      "derivation": "Native y-up Stim detector slices for rounds 1, 2, and 5. tools/render_planar_rotation_figure.py verifies matching translated temporal-boundary checks and identical interior rounds."
+    },
+    {
+      "file": "assets/planar-rotation-logicals.png",
+      "source": "_static/constructions/planar-rotation.stim",
+      "sha256": "c03a0c901a6767f5eee162e0262b4560e856f5c0046acdb23afb55a8391bc5ed",
+      "derivation": "Stim logical regions after ticks 0, 12 and 31 and signed-flow measurement records at ticks 6 and 30, drawn by tools/render_planar_rotation_logicals.py."
+    },
+    {
+      "file": "assets/experiments/planar-rotation-rates.png",
+      "source": "assets/experiments/planar-rotation-rates.csv",
+      "source_sha256": "eb0fafd078f541a3d25df3d777b0e476149586458abea1d4a3c997a1f6f93ce6",
+      "sha256": "893aab9d4f0135858a2501cd8b20fd3fd336cfd260a206cf5f0bc0a3455731d5",
+      "derivation": "Seeded Stim 1.16.0 circuit sampling and PyMatching 2.4.0 minimum-weight perfect matching by tools/simulate_planar_rotation.py. tools/plot_planar_rotation_rates.py plots the observed failure probabilities and pointwise 95% Wilson intervals."
     }
   ]
 }

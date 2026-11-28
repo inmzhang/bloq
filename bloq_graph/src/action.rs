@@ -124,7 +124,7 @@ fn needs_parens(expr: &Expr, parent_prec: u8, is_left: bool) -> bool {
 pub struct FeedbackTarget {
     /// Pauli basis of the correction to apply.
     pub pauli: PauliBasis,
-    /// Block position the correction acts on.
+    /// Physical pipe endpoint for a directed correction, or block anchor when no direction is specified.
     pub target: IVec3,
     /// A wire leaving `target`, in that endpoint's Pauli frame. `None` selects
     /// the first outgoing temporal wire, then the last incoming temporal wire,

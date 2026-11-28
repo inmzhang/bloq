@@ -114,6 +114,16 @@ def examples() -> list[Example]:
                 f"in q_in: data = 0\nout q_out: data = 2\n0: Port [0,0,0]\n"
                 f"1: rotate {basis} [0,0,1] -> [{x},{y},2]\n"
                 f"2: Port [{x},{y},3]\n0 -> +Z\n[{x},{y},2] -> +Z", (0, 0, 1)))
+    cases.append(Example("planar-rotation", "planar-rotation",
+        "in q_in: data = 0\nout q_out: data = 2\n0: Port [-1,0,1] role=input\n"
+        "1: rotate Z [0,0,1] -> [1,1,1]\n2: Port [1,2,1] role=output\n"
+        "0 -> +X\n[1,1,1] -> +Y"))
+    cases.append(Example("planar-rotation-temporal-ports", "planar-rotation",
+        "in q_in: data = 0\nout q_out: data = 4\n"
+        "0: Port [1,2,0] role=input\n1: XZZ [1,2,1]\n"
+        "2: rotate Z [1,1,1] -> [0,0,1]\n3: XZX [-1,0,1]\n"
+        "4: Port [-1,0,2] role=output\n"
+        "0 -> +Z\n1 -> [1,1,1]\n[0,0,1] -> 3\n3 -> +Z"))
     for kind in ("ZXZ", "XZX", "XZZ", "ZXX"):
         other = kind.translate(str.maketrans("XZ", "ZX"))
         cases.append(Example("temporal-hadamard-" + kind.lower(), "temporal-h",
@@ -158,6 +168,11 @@ def stage(label: str, start: int, stop: int, repetitions: int = 1, meaning: str 
 def compiled_stages(case: Example, distance: int):
     program = bloq.compile(bloq.BlockGraph.from_text(case.source), distance=distance)
     limitations = []
+    if case.family == "planar-rotation":
+        # Align the enlarged patch and its neighbors on their shared clock.
+        circuit = bloq.emit_stim(program, align_moments=True)
+        assert circuit.num_ticks == 6 * distance + 2
+        return circuit, [stage("Round 3, from ancilla reset to readout", 13, 19)], [], {}
     if case.family == "t":
         artifact = bloq.emit_isolated_t_attempts(program, noise=0)
         circuit = stim.Circuit(artifact.companion)
@@ -355,9 +370,15 @@ def compose(circuit: stim.Circuit, stages: list[dict], title: str) -> str:
 
 def retain_unselected(manifest: dict, previous: dict, selected: list[Example]) -> None:
     """Keep other diagrams when updating a subset with the same compiler settings."""
-    if any(previous[key] != manifest[key] for key in ("distance", "stim_version", "bloq_version")):
-        raise ValueError("Settings changed; regenerate all constructions without --only")
     names = {case.name for case in selected}
+    old_cases = [case for case in previous["examples"] if case["name"] in names]
+    if (any(previous[key] != manifest[key] for key in ("distance", "stim_version"))
+            or any(case.get("bloq_version", previous["bloq_version"]) != manifest["bloq_version"]
+                   for case in old_cases)):
+        raise ValueError("Settings changed; regenerate all constructions without --only")
+    # Historical entries inherit the manifest version. A new example records
+    # its own compiler version if the retained examples came from an older one.
+    manifest["bloq_version"] = previous["bloq_version"]
     for key in ("examples", "errors"):
         manifest[key] = [case for case in previous[key] if case["name"] not in names]
 
@@ -400,6 +421,8 @@ def main() -> int:
                 circuit_sha256=hashlib.sha256(output.read_bytes()).hexdigest(), ticks=circuit.num_ticks,
                 measurements=circuit.num_measurements, detectors=circuit.num_detectors,
                 stages=stages, limitations=limitations))
+            if bloq.__version__ != manifest["bloq_version"]:
+                manifest["examples"][-1]["bloq_version"] = bloq.__version__
             print(f"{case.name}: {circuit.num_ticks} ticks, {len(stages)} displayed stages", flush=True)
         except Exception as exc:
             message = f"{type(exc).__name__}: {exc}"

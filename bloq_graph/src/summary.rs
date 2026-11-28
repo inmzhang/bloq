@@ -28,6 +28,8 @@ pub(crate) struct ModulePortSignature {
     pub hadamard: bool,
     /// Interior block's boundary basis on each lattice axis.
     pub interior_bases: [Option<Basis>; 3],
+    /// Duration of an interior block that participates in spatial surgery.
+    spatial_height: Option<crate::CubeHeight>,
 }
 
 impl ModulePortSignature {
@@ -37,7 +39,25 @@ impl ModulePortSignature {
             direction: orientation.rotate_direction(self.direction),
             hadamard: self.hadamard,
             interior_bases: orientation.rotate_axis_values(self.interior_bases),
+            spatial_height: self.spatial_height,
         }
+    }
+
+    fn check_spatial_height(
+        self,
+        other: Option<crate::CubeHeight>,
+        module: &str,
+    ) -> Result<(), ModuleCertificationError> {
+        if self.direction.is_spatial()
+            && let Some((a, b)) = self.spatial_height.zip(other)
+            && a != b
+        {
+            return Err(invalid(
+                module,
+                &format!("spatial seam has incompatible heights {a} and {b}"),
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -353,6 +373,7 @@ fn materialize_summary_row(
 #[derive(Clone)]
 struct BindSeam {
     block: IVec3,
+    endpoint: IVec3,
     signature: ModulePortSignature,
 }
 
@@ -876,14 +897,14 @@ fn module_geometries<'a>(
                         input,
                         hadamard,
                     } => {
-                        binds.push(geometry_bind_seam(input, *block, *hadamard, &children));
+                        binds.push(geometry_bind_seam(input, *block, *hadamard, &children)?);
                     }
                     QuantumConnection::Output {
                         output,
                         block,
                         hadamard,
                     } => {
-                        binds.push(geometry_bind_seam(output, *block, *hadamard, &children));
+                        binds.push(geometry_bind_seam(output, *block, *hadamard, &children)?);
                     }
                     QuantumConnection::Pipe {
                         output,
@@ -1496,10 +1517,26 @@ fn geometry_bind_seam(
     block: IVec3,
     hadamard: bool,
     children: &HashMap<&str, (&ModuleInstance, &ModuleGeometry<'_>)>,
-) -> BindSeam {
-    let mut signature = validated_port(children, endpoint).signature;
+) -> Result<BindSeam, ModuleError> {
+    let child = validated_port(children, endpoint);
+    let mut signature = child.signature;
     signature.hadamard ^= hadamard;
-    BindSeam { block, signature }
+    Ok(BindSeam {
+        block,
+        endpoint: child
+            .instance
+            .try_transform_position(child.port.position)
+            .map_err(|source| {
+                program_geometry_error(
+                    &child.instance.name,
+                    ModuleCertificationError::Graph {
+                        module: child.instance.name.clone(),
+                        source,
+                    },
+                )
+            })?,
+        signature,
+    })
 }
 
 fn geometry_direct_seam(
@@ -1536,6 +1573,9 @@ fn direct_seam_hadamard_parts(
             "direct pipe faces point in different directions",
         ));
     }
+    output
+        .signature
+        .check_spatial_height(input.signature.spatial_height, module)?;
     if !compatible_bases(
         output.signature.interior_bases,
         input.signature.interior_bases,
@@ -1585,16 +1625,49 @@ fn validate_bind_faces(
     binds: &[BindSeam],
 ) -> Result<(), ModuleCertificationError> {
     let mut used = FxHashSet::default();
+    let mut rotation_corners = FxHashSet::default();
     for bind in binds {
-        let neighbor = checked_add_position(bind.block, bind.signature.direction.to_ivec3())
-            .map_err(|source| ModuleCertificationError::Graph {
-                module: module.name.clone(),
-                source,
+        let direction = bind.signature.direction;
+        let block = module
+            .get_block(bind.block)
+            .expect("validated parent anchor");
+        if let BlockKind::PatchRotation(kind) = block.kind()
+            && kind.is_planar()
+        {
+            if kind.planar_endpoint_offset(direction) != Some(bind.endpoint - bind.block) {
+                return Err(invalid(
+                    &module.name,
+                    "bind reaches a closed face of a planar rotation",
+                ));
+            }
+            if !module.neighbor_positions(bind.endpoint).is_empty()
+                || !rotation_corners.insert(bind.endpoint)
+            {
+                return Err(invalid(
+                    &module.name,
+                    "a planar rotation corner accepts one pipe",
+                ));
+            }
+        } else if block.endpoint_for_direction(direction) != bind.endpoint
+            || (direction.is_spatial()
+                && (block.kind().is_walking() || block.kind().is_patch_rotation()))
+        {
+            return Err(invalid(&module.name, "bind reaches a closed block face"));
+        }
+        let neighbor =
+            checked_add_position(bind.endpoint, direction.to_ivec3()).map_err(|source| {
+                ModuleCertificationError::Graph {
+                    module: module.name.clone(),
+                    source,
+                }
             })?;
-        if module.local_body().has_pipe_between(bind.block, neighbor) {
+        if module
+            .local_body()
+            .has_pipe_between(bind.endpoint, neighbor)
+        {
             return Err(invalid(&module.name, "bind reuses an authored pipe face"));
         }
-        if !used.insert((bind.block, bind.signature.direction)) {
+        if !used.insert((bind.endpoint, direction)) {
             return Err(invalid(&module.name, "two binds reuse one block face"));
         }
     }
@@ -1607,11 +1680,16 @@ fn validate_bind_bases(
     binds: &[BindSeam],
 ) -> Result<(), ModuleCertificationError> {
     for bind in binds {
-        let mut pipe = Pipe::new(bind.block, bind.signature.direction);
+        let mut pipe = Pipe::new(bind.endpoint, bind.signature.direction);
         if bind.signature.hadamard {
             pipe = pipe.with_hadamard();
         }
-        let parent_bases = body.infer_pipe_endpoint_face_bases(&pipe, bind.block);
+        let parent_bases = body.infer_pipe_endpoint_face_bases(&pipe, bind.endpoint);
+        let parent_height = body
+            .get_endpoint_block(bind.block)
+            .and_then(Block::spatial_height);
+        bind.signature
+            .check_spatial_height(parent_height, &module.name)?;
         if !compatible_bases(
             parent_bases,
             bind.signature.interior_bases,
@@ -1672,6 +1750,9 @@ fn port_signature(
         direction,
         hadamard: pipe.is_hadamard(),
         interior_bases: body.infer_pipe_endpoint_face_bases(pipe, *neighbor),
+        spatial_height: body
+            .get_endpoint_block(*neighbor)
+            .and_then(Block::spatial_height),
     })
 }
 

@@ -2,6 +2,7 @@
 //! history, per-tab snapshots, the compile/validation and viewer UI state, and
 //! the render caches that gate expensive per-frame mesh rebuilds.
 
+use std::borrow::Cow;
 use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 use web_time::{Duration, Instant};
@@ -728,6 +729,30 @@ pub(crate) enum PlacementTool {
     Pipe,
 }
 
+/// The dock exposes both spacetime footprints of the rotation family.
+pub(crate) fn placement_block_kinds() -> impl Iterator<Item = BlockKind> {
+    BlockKind::all_kinds().into_iter().flat_map(|kind| {
+        let planar = kind.is_patch_rotation().then(|| {
+            BlockKind::PatchRotation(
+                bloq_graph::PatchRotationKind::new(bloq_graph::Basis::X, IVec2::ONE)
+                    .expect("one diagonal step is a planar rotation"),
+            )
+        });
+        std::iter::once(kind).chain(planar)
+    })
+}
+
+pub(crate) fn placement_block_label(kind: BlockKind) -> Cow<'static, str> {
+    match kind {
+        BlockKind::Walking(_) => Cow::Borrowed("Walking"),
+        BlockKind::PatchRotation(rotation) if rotation.is_planar() => {
+            Cow::Borrowed("Planar rotation")
+        }
+        BlockKind::PatchRotation(_) => Cow::Borrowed("Axial rotation"),
+        _ => Cow::Owned(kind.to_string()),
+    }
+}
+
 pub(crate) use crate::systems::thumbnails::{PlacementPreviewKind, ThumbnailTextures};
 
 pub(crate) use crate::systems::jobs::{
@@ -861,6 +886,11 @@ impl EditorState {
     }
 
     pub(crate) fn select_block_kind(&mut self, kind: BlockKind) {
+        if self.block_kind != kind {
+            self.walking_start = None;
+            self.hovered_preview_endpoint = None;
+            self.hovered_preview_source = None;
+        }
         self.block_kind = kind;
         self.set_placement_tool(PlacementTool::Block);
     }

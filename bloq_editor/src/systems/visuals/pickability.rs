@@ -157,7 +157,7 @@ pub(super) fn pipe_preview_hint_targets(
         }),
         walking: std::array::from_fn(|index| {
             WALKING_MOVEMENTS.get(index).and_then(|movement| {
-                let end = start.checked_add(IVec3::new(movement.x, movement.y, 1))?;
+                let end = start.checked_add(*movement)?;
                 walking_port_promotion_candidate(graph, start, end)
                     .is_some()
                     .then_some((start, end))
@@ -224,11 +224,50 @@ pub(super) fn add_block_preview_system(
         );
     }
 
+    let mut show_moving_preview = |start: IVec3, kind: BlockKind| {
+        set_visibility_if_changed(&mut walking_preview_visibility, Visibility::Inherited);
+        set_transform_if_changed(
+            &mut walking_preview_transform,
+            Transform::from_translation(graph_to_world(start.as_vec3(), editor_state.pipe_length)),
+        );
+        let data = block_as_gltf_data_with_pipe_length(
+            &Block::new(start, kind),
+            &graph_state.graph,
+            editor_state.pipe_length,
+        )
+        .map_points(|p| graph_to_world(p, 0.0));
+        spawn_gltf_data_parts(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut render_cache,
+            walking_preview_entity,
+            data,
+            None,
+            0.6,
+            None,
+            kind.is_walking()
+                .then(|| editor_state.highlight_material.clone()),
+            None,
+            Pickable::IGNORE,
+        );
+    };
+
     if editor_state.is_block_tool_active()
         && editor_state.hovered_element.is_none()
         && (editor_state.block_kind.is_walking() || editor_state.block_kind.is_patch_rotation())
         && let Some(start) = editor_state.walking_start
     {
+        let hovered_end = editor_state
+            .hovered_preview_endpoint
+            .or(editor_state.hovered_grid_pos)
+            .and_then(|end| {
+                moving_block_candidate_kind(&editor_state, &graph_state.graph, end)
+                    .map(|kind| (end, kind))
+            });
+        if let Some((_, kind)) = hovered_end {
+            show_moving_preview(start, kind);
+        }
         for (
             mut endpoint_transform,
             mut endpoint_visibility,
@@ -239,16 +278,12 @@ pub(super) fn add_block_preview_system(
         {
             let endpoint_pos = match endpoint.endpoint {
                 PreviewEndpoint::Start => Some(start),
-                PreviewEndpoint::End => editor_state.hovered_grid_pos.filter(|pos| {
-                    moving_block_candidate_kind(&editor_state, &graph_state.graph, *pos).is_some()
-                }),
+                PreviewEndpoint::End => hovered_end.map(|(pos, _)| pos),
                 PreviewEndpoint::PipeHint(_) => None,
                 PreviewEndpoint::WalkingHint(index) => {
                     moving_block_movements(editor_state.block_kind)
                         .get(index)
-                        .and_then(|movement| {
-                            start.checked_add(IVec3::new(movement.x, movement.y, 1))
-                        })
+                        .and_then(|movement| start.checked_add(*movement))
                         .filter(|pos| {
                             moving_block_candidate_kind(&editor_state, &graph_state.graph, *pos)
                                 .is_some()
@@ -368,34 +403,7 @@ pub(super) fn add_block_preview_system(
                 set_visibility_if_changed(&mut vis, Visibility::Hidden);
             }
             if let Some(walking_kind) = hovered_walking_kind {
-                set_visibility_if_changed(&mut walking_preview_visibility, Visibility::Inherited);
-                set_transform_if_changed(
-                    &mut walking_preview_transform,
-                    Transform::from_translation(graph_to_world(
-                        start.as_vec3(),
-                        editor_state.pipe_length,
-                    )),
-                );
-                let data = block_as_gltf_data_with_pipe_length(
-                    &Block::new(start, BlockKind::Walking(walking_kind)),
-                    &graph_state.graph,
-                    editor_state.pipe_length,
-                )
-                .map_points(|p| graph_to_world(p, 0.0));
-                spawn_gltf_data_parts(
-                    &mut commands,
-                    &mut meshes,
-                    &mut materials,
-                    &mut render_cache,
-                    walking_preview_entity,
-                    data,
-                    None,
-                    0.6,
-                    None,
-                    Some(editor_state.highlight_material.clone()),
-                    None,
-                    Pickable::IGNORE,
-                );
+                show_moving_preview(start, BlockKind::Walking(walking_kind));
             }
             for (
                 mut endpoint_transform,

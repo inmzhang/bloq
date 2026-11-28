@@ -582,15 +582,16 @@ impl ActionDag {
                 }
                 Action::Feedback { targets, .. } => {
                     for feedback in targets {
-                        ensure_feedback_target_exists(graph, feedback.target)?;
-                        if let Some(dir) = feedback.direction {
+                        let exists = if let Some(dir) = feedback.direction {
                             let dst = crate::checked_add_position(feedback.target, dir.to_ivec3())?;
-                            if graph.get_pipe(feedback.target, dst).is_none() {
-                                return Err(InvalidActionError::InvalidFeedbackTarget(
-                                    feedback.target,
-                                )
-                                .into());
-                            }
+                            graph.get_pipe(feedback.target, dst).is_some()
+                        } else {
+                            graph.get_block(feedback.target).is_some()
+                        };
+                        if !exists {
+                            return Err(
+                                InvalidActionError::InvalidFeedbackTarget(feedback.target).into()
+                            );
                         }
                     }
                 }
@@ -952,13 +953,6 @@ fn ensure_measure_target_is_valid(
         }
         MeasureTarget::Edge { .. } => Ok(()),
     }
-}
-
-fn ensure_feedback_target_exists(graph: &BlockGraph, pos: IVec3) -> Result<(), InvalidActionError> {
-    if graph.get_block(pos).is_none() {
-        return Err(InvalidActionError::InvalidFeedbackTarget(pos));
-    }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -1431,6 +1425,34 @@ mod tests {
             ),
             "expected DuplicateMeasurementTarget, got: {err:?}",
         );
+    }
+
+    #[test]
+    fn feedback_at_a_displaced_endpoint_requires_its_incident_wire() {
+        let graph = BlockGraph::from_blog_text(
+            "BLOG 1.0\n0: Port [-1,0,0] role=input\n1: rotate Z [0,0,0] -> [1,1,0]\n\
+             2: Port [2,1,0] role=output\n0 -> 1\n1 -> 2",
+        )
+        .unwrap();
+        let end = ivec3(1, 1, 0);
+        let validate = |direction| {
+            ActionDag::from_actions(&[Action::Feedback {
+                targets: vec![crate::FeedbackTarget {
+                    pauli: PauliBasis::X,
+                    target: end,
+                    direction,
+                }],
+                condition: None,
+            }])
+            .validate(Some(&graph))
+        };
+        validate(Some(Direction::XPLUS)).unwrap();
+        for direction in [Some(Direction::YPLUS), None] {
+            assert!(matches!(
+                validate(direction),
+                Err(BlockGraphError::InvalidAction(InvalidActionError::InvalidFeedbackTarget(pos))) if pos == end
+            ));
+        }
     }
 
     #[test]
