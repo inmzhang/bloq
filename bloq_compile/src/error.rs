@@ -118,13 +118,17 @@ pub enum CompileError {
         /// Unsupported endpoint position.
         pos: IVec3,
     },
-    /// One spatial component contains Hadamard walls on both spatial axes.
-    #[error(
-        "spatial component at {pos:?} mixes X- and Y-axis Hadamard walls; fixed-bulk compilation \
-         supports one spatial Hadamard axis per connected component"
-    )]
+    /// Legacy error from compilers that supported only one spatial wall axis.
+    #[deprecated(note = "perpendicular spatial Hadamard walls now compile together")]
+    #[error("legacy compiler rejected mixed spatial Hadamard walls at {pos:?}")]
     MixedSpatialHadamardUnsupported {
         /// Position identifying the mixed-axis component.
+        pos: IVec3,
+    },
+    /// A connected set of spatial wall checks has no compatible extraction schedule.
+    #[error("could not place concurrent spatial wall checks around {pos:?}")]
+    MixedWallSchedule {
+        /// A member of the affected spatial component.
         pos: IVec3,
     },
     /// A cube height resolves to fewer than two syndrome rounds.

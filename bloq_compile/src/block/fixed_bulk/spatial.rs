@@ -98,7 +98,15 @@ impl SpatialClassifier {
             spatial_boundary_basis,
             boundary_is_z,
             arms,
-            hooks: spatial_hooks(arms, boundary_is_z),
+            hooks: spatial_hooks(
+                PerEdge {
+                    up: connectivity.has_pipe(Direction::YPLUS),
+                    down: connectivity.has_pipe(Direction::YMINUS),
+                    left: connectivity.has_pipe(Direction::XMINUS),
+                    right: connectivity.has_pipe(Direction::XPLUS),
+                },
+                boundary_is_z,
+            ),
             connectivity,
         }
     }

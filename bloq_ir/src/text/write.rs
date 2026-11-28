@@ -95,6 +95,18 @@ fn write_program(f: &mut String, bloq: &Bloq) -> fmt::Result {
 fn write_template(f: &mut String, template: &BloqTemplate) -> fmt::Result {
     write_circuit(f, &template.circuit)?;
 
+    for frame in &template.readout_frames {
+        writeln!(
+            f,
+            "  readout_frame m{} ({},{}) ({},{}) {}",
+            frame.flag,
+            frame.ancilla.x,
+            frame.ancilla.y,
+            frame.target.x,
+            frame.target.y,
+            frame.pauli
+        )?;
+    }
     for detector in &template.detectors {
         write!(f, "  detector")?;
         if let crate::TemplateDetectorScope::RepeatBody { body } = detector.scope {

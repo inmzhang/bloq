@@ -59,6 +59,12 @@ pub(crate) struct SpatialHadamardKey {
 }
 
 impl SpatialHadamardKey {
+    pub(super) fn introduces_joint_checks(self, init_data: &crate::FxMap<IVec2, Basis>) -> bool {
+        self.minus.connectivity.has_pipe(Direction::ZMINUS)
+            && self.plus.connectivity.has_pipe(Direction::ZMINUS)
+            && init_data.is_empty()
+    }
+
     fn resets(self, side: WallSide) -> bool {
         !side.connectivity.has_pipe(Direction::ZMINUS)
     }
@@ -104,23 +110,23 @@ const UNDO_PLUS_SLOT: usize = 5;
 /// One extended stabilizer: two ancillas straddling the consumed column, the
 /// link qubit chaining them into a GHZ state, and up to four data qubits split
 /// between the two cubes.
-struct WallTile {
+pub(super) struct WallTile {
     /// The negative-axis ancilla. Its checkerboard colour is [`basis`].
     ///
     /// [`basis`]: Self::basis
-    minus: IVec2,
+    pub(super) minus: IVec2,
     /// The positive-axis ancilla, coloured [`basis`]`.flip()`. It is the
-    /// chain's `MX` readout in forward rounds; the negative-axis ancilla is in
-    /// reversed rounds.
+    /// chain's X-basis syndrome readout in forward rounds. In reversed
+    /// rounds the negative-axis ancilla carries the syndrome instead.
     ///
     /// [`basis`]: Self::basis
-    plus: IVec2,
-    basis: Basis,
+    pub(super) plus: IVec2,
+    pub(super) basis: Basis,
     /// Active negative-half data, paired with the slot that drives it.
-    minus_data: SmallVec<[(IVec2, usize); 2]>,
+    pub(super) minus_data: SmallVec<[(IVec2, usize); 2]>,
     /// Active positive-half data, in `basis.flip()`.
-    plus_data: SmallVec<[(IVec2, usize); 2]>,
-    axis: UDirection,
+    pub(super) plus_data: SmallVec<[(IVec2, usize); 2]>,
+    pub(super) axis: UDirection,
 }
 
 impl WallTile {
@@ -179,7 +185,7 @@ fn is_arm_row(distance: u32, along: i32) -> bool {
 /// keep their own weight-2 boundary plaquettes, which share exactly one data
 /// qubit with the would-be end tile and would anticommute with it. The two end
 /// rows always disagree with each other (`d` is odd), so exactly one survives.
-fn wall_tiles(distance: u32, key: SpatialHadamardKey) -> Vec<WallTile> {
+pub(super) fn wall_tiles(distance: u32, key: SpatialHadamardKey) -> Vec<WallTile> {
     let d = distance as i32;
     let mut tiles = Vec::with_capacity(distance as usize + 1);
     let (minus_slots, plus_slots) = match key.axis {
@@ -218,7 +224,7 @@ fn wall_tiles(distance: u32, key: SpatialHadamardKey) -> Vec<WallTile> {
 
 /// Which temporal face a collapse map describes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Face {
+pub(super) enum Face {
     Init,
     Meas,
 }
@@ -226,7 +232,7 @@ enum Face {
 /// The data qubits the wall collapses at `face`, in their owning cube's temporal
 /// basis. Mirrors the cube rule: collapse unless a pipe carries the state across
 /// that face, and always on an open spatial edge.
-fn collapse_map(
+pub(super) fn collapse_map(
     distance: u32,
     key: SpatialHadamardKey,
     tiles: &[WallTile],
@@ -350,8 +356,19 @@ fn emit_wall_round(
     {
         measurements.record(qubit, id);
     }
-    // The bracket uncomputes the other endpoint ancilla and link into Z.
-    // Discard them instead of creating detector-only helper readouts.
+    let flags: Vec<_> = tiles
+        .iter()
+        .flat_map(|tile| {
+            [
+                if reversed { tile.plus } else { tile.minus },
+                tile.link_for(reversed),
+            ]
+        })
+        .collect();
+    let records = circuit.measure(PauliBasis::Z, flags.iter().copied());
+    for (q, record) in flags.into_iter().zip(records) {
+        measurements.record(q, record);
+    }
     for (basis, qubits) in meas_data {
         for (&qubit, id) in qubits
             .iter()
@@ -440,7 +457,7 @@ fn wall_round_flows(
 // ==============================================================================
 
 /// Pipe-frame crossing key: the plus-side Pauli is the minus-side Pauli flipped.
-fn crossing_key(axis: UDirection, minus_pauli: Pauli) -> LocalStabilizer {
+pub(super) fn crossing_key(axis: UDirection, minus_pauli: Pauli) -> LocalStabilizer {
     let (minus, plus) = match axis {
         UDirection::X => (Direction::XMINUS, Direction::XPLUS),
         UDirection::Y => (Direction::YMINUS, Direction::YPLUS),
@@ -459,9 +476,7 @@ fn build_gateway(
     init_data: &crate::FxMap<IVec2, Basis>,
     init_chunk: &Chunk,
 ) -> ObservableGateway {
-    let introduces_joint_checks = key.minus.connectivity.has_pipe(Direction::ZMINUS)
-        && key.plus.connectivity.has_pipe(Direction::ZMINUS)
-        && init_data.is_empty();
+    let introduces_joint_checks = key.introduces_joint_checks(init_data);
     let measurements = MeasurementIndex::from_circuit(&init_chunk.circuit);
     let mut gateway = ObservableGateway::new();
     for basis in [Basis::X, Basis::Z] {
@@ -535,7 +550,79 @@ pub(crate) fn compile_spatial_hadamard(
     }
     chunks.push(ChunkOrLoop::Single(Box::new(meas)));
 
-    Ok(Arc::new(LoweringTemplate::from_chunks(chunks, gateway)?))
+    let mut compiled = LoweringTemplate::from_chunks(chunks, gateway)?;
+    let program = Arc::make_mut(&mut compiled.program_template);
+    for i in 0..program.circuit.body_count() {
+        let body = program
+            .circuit
+            .body(bloq_circuit::BodyId(i as u32))
+            .expect("allocated body");
+        for moment in body.ops().split(|op| matches!(op, bloq_circuit::Op::Tick)) {
+            let mut records = crate::FxMap::default();
+            for op in moment {
+                if let bloq_circuit::Op::Measure {
+                    basis,
+                    qubits,
+                    measurements,
+                    ..
+                } = op
+                {
+                    records.extend(
+                        qubits
+                            .iter()
+                            .zip(measurements)
+                            .map(|(&q, &id)| (q, (*basis, id))),
+                    );
+                }
+            }
+            if records.is_empty() {
+                continue;
+            }
+            for tile in &tiles {
+                let reversed = records
+                    .get(&tile.minus)
+                    .is_some_and(|(basis, _)| *basis == PauliBasis::X);
+                for (ancilla, basis, data, flag) in [
+                    (
+                        tile.minus,
+                        tile.basis,
+                        &tile.minus_data,
+                        if reversed {
+                            tile.link_for(true)
+                        } else {
+                            tile.minus
+                        },
+                    ),
+                    (
+                        tile.plus,
+                        tile.basis.flip(),
+                        &tile.plus_data,
+                        if reversed {
+                            tile.plus
+                        } else {
+                            tile.link_for(false)
+                        },
+                    ),
+                ] {
+                    if data.len() == 2 {
+                        let &(target, _) = data
+                            .iter()
+                            .max_by_key(|(_, slot)| data_slot(*slot, reversed))
+                            .expect("two data gates");
+                        program
+                            .readout_frames
+                            .push(bloq_ir::lowering::ReadoutFrame {
+                                flag: records[&flag].1,
+                                ancilla,
+                                target,
+                                pauli: PauliBasis::from(basis),
+                            });
+                    }
+                }
+            }
+        }
+    }
+    Ok(Arc::new(compiled))
 }
 
 #[cfg(test)]
@@ -655,7 +742,7 @@ mod tests {
                 .ops(),
         );
 
-        assert_eq!(bulk.circuit.num_measurements(), tiles.len() as u32);
+        assert_eq!(bulk.circuit.num_measurements(), 3 * tiles.len() as u32);
         assert_eq!(
             moments[0]
                 .iter()

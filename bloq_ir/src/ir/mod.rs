@@ -29,7 +29,7 @@ pub use node::{
 pub use program::{Bloq, CycleDetected, MetadataValue};
 pub use template::{
     BloqTemplate, BloqTemplatePool, InstanceProvenance, NodeDetector, NodeRestart, PipePadding,
-    SpatialPortPart, TemplateDetector, TemplateDetectorScope, TemplateInstance,
+    ReadoutFrame, SpatialPortPart, TemplateDetector, TemplateDetectorScope, TemplateInstance,
     TemplateRepeatState, TemplateRestart,
 };
 

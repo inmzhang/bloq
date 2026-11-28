@@ -650,26 +650,12 @@ def test_source_limit_overrides_apply_to_graph_bodies_modules_and_imports(tmp_pa
 
 
 @pytest.mark.parametrize("validate", [False, True])
-def test_spatial_hadamard_compile_warns_about_distance_loss(validate):
-    graph = bloq.BlockGraph()
-    graph.add_block(bloq.Block((0, 0, 0), "XZX"))
-    graph.add_block(bloq.Block((1, 0, 0), "XXZ"))
-    graph.add_pipe(bloq.Pipe((0, 0, 0), "+X", hadamard=True))
-
-    with pytest.warns(bloq.CompileWarning, match="fixed-bulk spatial Hadamard"):
+def test_spatial_hadamard_compiles_without_distance_warning(validate):
+    graph = bloq.BlockGraph.from_text("BLOG 1.0\n0: XZX [0,0,0]\n1: XXZ [1,0,0]\n0 -H> +X\n")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", bloq.CompileWarning)
         bloq.compile(graph, distance=3, validate=validate)
-
-    context = bloq.CompileContext(distance=3)
-    with pytest.warns(bloq.CompileWarning, match="fixed-bulk spatial Hadamard"):
-        context.compile(graph, validate=validate)
-
-    # Filterable on its own category, and blamed on the caller's line rather
-    # than on the extension.
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        bloq.compile(graph, distance=3, validate=validate)
-    assert [w.category for w in caught] == [bloq.CompileWarning]
-    assert caught[0].filename == __file__
+        bloq.CompileContext(distance=3).compile(graph, validate=validate)
 
 
 def test_compile_clifford_proxy():

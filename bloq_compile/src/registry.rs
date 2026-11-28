@@ -125,7 +125,7 @@ fn compile_native(
     // whose negation cannot be represented as a translation vector.
     let low = source.spans().map_or(0, |(_, _, z)| *z.start());
     let graph = source.with_zero_min_z()?.fix_shadowed_faces();
-    let (bloq, interface, warnings) = {
+    let (bloq, interface) = {
         let sites = source_sites
             .iter()
             .map(|(&position, site)| {
@@ -256,14 +256,9 @@ fn compile_native(
                 distance,
             )
         };
-        // Physical planning already kept the selected source geometry. Port
-        // expansion does not change its pipes, which are all this warning reads.
-        let warnings = crate::config::spatial_hadamard_distance_warning(&family.reference.graph)
-            .into_iter()
-            .collect();
-        (assembly.bloq, interface, warnings)
+        (assembly.bloq, interface)
     };
-    finish_native(context, started, &graph, bloq, interface, warnings)
+    finish_native(context, started, &graph, bloq, interface)
 }
 
 fn finish_native(
@@ -272,7 +267,6 @@ fn finish_native(
     graph: &BlockGraph,
     mut bloq: Bloq,
     interface: crate::lower::LogicalInterface,
-    warnings: Vec<&'static str>,
 ) -> Result<CompileArtifacts, CompileError> {
     context.report_progress(super::CompileStage::Optimization)?;
     let limits = context.config.certification_limits();
@@ -283,7 +277,7 @@ fn finish_native(
     crate::lower::validate_bloq_qubit_layout_with_limits(&bloq, graph, limits.boolean_limits())?;
     Ok(CompileArtifacts {
         bloq,
-        warnings,
+        warnings: Vec::new(),
         compile_duration: started.elapsed(),
     })
 }

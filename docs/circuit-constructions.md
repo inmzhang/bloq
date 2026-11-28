@@ -542,22 +542,68 @@ distance. The other ancilla outcomes form stabilizer detectors.
 A spatial Hadamard pipe joins neighboring cubes across a domain wall that
 exchanges logical X and Z.
 
-Stretched checks use both CX and CZ gates across the wall. The connected
-component uses six entangling layers per syndrome round, alternating their
-direction between rounds. Each connected component has one wall axis per
-spatial layer; separate components can use different axes.
-For surfaces closed by initialization, selected first-round wall-check outcomes
-contribute to the logical parity. Final data readout contributes through the
-neighboring cubes.
+Each syndrome round uses one preparation moment, six nearest-neighbor CX/CZ
+slots, and one readout moment. Several ancillas share a cat state to measure a
+check across the wall. The final X-basis readout gives the syndrome. The other
+ancillas are read in Z to flag faults that can affect both data qubits on one
+branch. The emitter uses each flag to update the Pauli frame through the
+remaining interactions, including checks and logical readouts on neighboring
+cubes.
+
+For a straight wall, call the two branch ancillas A and B and the intervening
+link L. A forward round prepares A in X and L and B in Z. A branch applies CX
+to its X data or CZ to its Z data. Each row below is one moment. The gates in
+each row act on disjoint qubits.
+
+| Entangling slot | Ancilla CX | Branch-to-data gate |
+| --- | --- | --- |
+| 1 | A → L | |
+| 2 | L → B | A touches its first data qubit |
+| 3 | | B touches its first data qubit |
+| 4 | | A touches its second data qubit |
+| 5 | L → A | B touches its second data qubit |
+| 6 | B → L | |
+
+B carries the X syndrome at readout. The Z outcomes on A and L determine
+the flag corrections. Alternate rounds exchange the roles of A and B, reverse the
+data slots, and use the link on the other side of the check.
+
+Perpendicular walls in one spatial component share a clock. At an active
+corner, the two pipes contribute branches of one check with a common link.
+The compiler assigns each gate to one pipe and schedules the adjacent cube
+checks alongside it. On a three-branch corner the link copies and uncomputes
+each branch once, using all six slots. A logical surface that turns through both
+walls includes the shared syndrome once.
 
 ### Distance boundary
 
-:::{important}
-This construction can reduce circuit distance. In one crossing fixture,
-requested distance five gives graphlike distance four. Prefer a
-[Temporal Hadamard](#temporal-hadamard) or a different layout when preserving
-distance is required.
-:::
+The two single-wall channels and the two concurrent X/Y elbows shown below were
+certified at distances 3, 5, 7, 9, 11, and 13 under Bloq's uniform circuit noise
+at `p = 0.001`. For each circuit, Tropidist gives a lower bound using every fault
+column of the undecomposed detector error model. Replaying an undetected logical
+fault of the same weight in the physical circuit closes the bound. The
+{download}`24 certificates <assets/experiments/spatial-hadamard-certificates.zip>`
+cover these four port-to-port layouts. Other layouts require their own proof.
+
+### Logical failure under circuit noise
+
+We sampled the same four circuits at nine physical error probabilities from
+0.05% to 1%, for a total of 13,197,312 shots. A shot fails if either port
+observable is decoded incorrectly. Both ordinary and correlated PyMatching
+decoded the same shots after strict graphlike decomposition. The figure shows
+correlated matching with pointwise 95% Wilson intervals. Open triangles mark
+the upper limit when no failure was observed.
+
+```{figure} assets/experiments/spatial-hadamard-rates.png
+:alt: Logical failure versus physical error probability for both single walls and both concurrent elbows, with curves for distances three through thirteen.
+
+At 0.3% physical error, the ZZX elbow's logical failure rate falls from
+13.89% at distance 3 to 0.455% at distance 13. At 0.05%, each distance-13
+layout had zero failures in 262,144 shots, giving a 95% upper limit of 0.00147%.
+```
+
+The {download}`Monte Carlo data <assets/experiments/spatial-hadamard-rates.csv>`
+include both decoders, per-observable failure counts, seeds, and circuit hashes.
 
 ### Examples
 
@@ -592,6 +638,22 @@ distance is required.
 ```
 
 ```{detector-slices} spatial-hadamard-y-xzx
+```
+:::
+:::{md-tab-item} X/Y elbow · ZZX hub
+```{bloq-view} spatial-hadamard-elbow-zzx
+:source: _static/constructions/spatial-hadamard-elbow-zzx.blog
+```
+
+```{detector-slices} spatial-hadamard-elbow-zzx
+```
+:::
+:::{md-tab-item} X/Y elbow · XXZ hub
+```{bloq-view} spatial-hadamard-elbow-xxz
+:source: _static/constructions/spatial-hadamard-elbow-xxz.blog
+```
+
+```{detector-slices} spatial-hadamard-elbow-xxz
 ```
 :::
 ::::

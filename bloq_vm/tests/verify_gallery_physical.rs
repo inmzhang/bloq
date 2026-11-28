@@ -247,6 +247,84 @@ fn assert_identity_choi(source: &str, input_port: glam::IVec3, output_port: glam
 }
 
 #[test]
+fn a_spatial_wall_applies_the_logical_hadamard() {
+    for (x, y) in [(1, 0), (0, 1)] {
+        let source = format!(
+            "BLOG 1.0
+            0: Port [0,0,0]
+            1: ZXZ [0,0,1]
+            2: XZX [{x},{y},1]
+            3: Port [{x},{y},2]
+            0 -> +Z
+            1 -H> 2
+            2 -> +Z"
+        );
+        let graph =
+            bloq_graph::BlockGraph::from_blog_text(&source).expect("open wall graph parses");
+        let program = CompileContext::new(CompileConfig::new(3))
+            .compile(&graph)
+            .expect("open wall compiles")
+            .bloq;
+        ExactChoi::new(&[glam::IVec3::ZERO], &[glam::ivec3(x, y, 2)], |sim| {
+            sim.h(0);
+            Ok(())
+        })
+        .run(&program, 4, SEED, |_, _| Ok(()));
+    }
+}
+
+/// Two Hadamards on perpendicular spatial pipes transport an arbitrary qubit
+/// through the bend. The reference half of the Bell pair checks both Paulis.
+#[test]
+fn concurrent_spatial_hadamards_transmit_the_identity_channel() {
+    let source = "BLOG 1.0
+        0: XXZ [0,0,1]
+        1: XZX [1,0,1]
+        2: ZXX [0,1,1]
+        3: Port [1,0,0]
+        4: Port [0,1,2]
+        0 -H> +X
+        0 -H> +Y
+        3 -> +Z
+        2 -> +Z";
+    assert_identity_choi(source, glam::ivec3(1, 0, 0), glam::ivec3(0, 1, 2));
+}
+
+#[test]
+fn guarded_corner_switches_between_plain_and_concurrent_walls() {
+    let source = "BLOG 1.0
+module main {
+  in q_in: data = 0
+  out q_out: data = 4
+  0: Port [1,0,2]
+  1: ZXZ [1,0,3]
+  3: XZZ [0,1,3]
+  4: Port [0,1,4]
+  9: ZXZ [3,0,0]
+  0 -> +Z
+  3 -> +Z
+  branch bend {
+    false {
+      2: XXZ [0,0,3]
+      [0,0,3] -> +X
+      [0,0,3] -> +Y
+    }
+    true {
+      5: ZZX [0,0,3]
+      [0,0,3] -H> +X
+      [0,0,3] -H> +Y
+    }
+  }
+  m = measure 9
+  resolve bend if m
+}";
+    for condition in ["m", "!m"] {
+        let graph = source.replace("if m", &format!("if {condition}"));
+        assert_identity_choi(&graph, glam::ivec3(1, 0, 2), glam::ivec3(0, 1, 4));
+    }
+}
+
+#[test]
 fn execution_hooks_handle_temporal_and_spatial_ports() {
     assert_identity_choi(
         "BLOG 1.0\n\n\

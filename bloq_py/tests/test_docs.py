@@ -30,7 +30,10 @@ def test_construction_subset_retains_other_diagrams_and_checks_settings():
     renderer["retain_unselected"](manifest, previous, selected)
     assert manifest["examples"] == [{"name": "regular-xzx"}]
     assert manifest["errors"] == [{"name": "other"}]
-    for key in settings:
+    newer = dict(manifest, bloq_version="newer")
+    renderer["retain_unselected"](newer, previous, selected)
+    assert newer["bloq_version"] == previous["bloq_version"]
+    for key in ("distance", "stim_version"):
         changed = dict(previous, **{key: "changed"})
         with pytest.raises(ValueError, match="regenerate all constructions"):
             renderer["retain_unselected"](manifest, changed, selected)

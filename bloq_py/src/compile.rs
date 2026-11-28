@@ -162,10 +162,7 @@ impl PyCompileContext {
     ///     CompileError: If compilation fails.
     ///
     /// Emits:
-    ///     CompileWarning: Once per advisory the compile recorded — currently
-    ///         a spatial Hadamard pipe under the fixed-bulk convention, whose
-    ///         effective distance can be lower than the requested code
-    ///         distance.
+    ///     CompileWarning: Once per advisory recorded by the compiler.
     ///
     /// Examples:
     ///     >>> import bloq
@@ -268,9 +265,7 @@ fn clear_compile_cache() {
 ///     OverflowError: If a limit count is negative or exceeds `usize`.
 ///
 /// Emits:
-///     CompileWarning: Once per advisory the compile recorded — currently a
-///         spatial Hadamard pipe under the fixed-bulk convention, whose
-///         effective distance can be lower than the requested code distance.
+///     CompileWarning: Once per advisory recorded by the compiler.
 ///
 /// Examples:
 ///     >>> import bloq
@@ -327,9 +322,7 @@ fn compile(
 ///     OverflowError: If a limit count is negative or exceeds `usize`.
 ///
 /// Emits:
-///     CompileWarning: Once per advisory the compile recorded — currently a
-///         spatial Hadamard pipe under the fixed-bulk convention, whose
-///         effective distance can be lower than the requested code distance.
+///     CompileWarning: Once per advisory recorded by the compiler.
 ///
 /// Examples:
 ///     >>> import bloq

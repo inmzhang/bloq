@@ -127,6 +127,11 @@ def examples() -> list[Example]:
                 f"in q_in: data = 0\nout q_out: data = 3\n0: Port [0,0,0]\n"
                 f"1: {kind} [0,0,1]\n2: {other} [{x},{y},1]\n3: Port [{x},{y},2]\n"
                 "0 -> +Z\n1 -H> 2\n2 -> +Z", (0, 0, 1)))
+    for hub, x_arm, y_arm in (("ZZX", "ZXZ", "XZZ"), ("XXZ", "XZX", "ZXX")):
+        cases.append(Example(f"spatial-hadamard-elbow-{hub.lower()}", "mixed-h",
+            f"in q_in: data = 0\nout q_out: data = 4\n0: Port [1,0,0]\n"
+            f"1: {x_arm} [1,0,1]\n2: {hub} [0,0,1]\n3: {y_arm} [0,1,1]\n"
+            "4: Port [0,1,2]\n0 -> +Z\n2 -H> 1\n2 -H> 3\n3 -> +Z", (0, 0, 1)))
     for suffix, kind in (("", "XZX"), ("-swapped", "ZXZ")):
         cases.append(Example("t-cultivation-and-escape" + suffix, "t",
             f"out q_out: data = 2\n0: T [0,0,0]\n1: {kind} [0,0,1]\n"
@@ -275,13 +280,19 @@ def compiled_stages(case: Example, distance: int):
     elif family == "temporal-h":
         assert depth == 6
         stages = [stage("Realignment and transversal Hadamard", start, start+depth)]
+    elif family == "mixed-h":
+        assert depth == 8 * distance
+        stages = [stage("Initialization round", start, start+8),
+                  stage("Concurrent X/Y bulk round", start+8, start+16, distance-2,
+                        "Both walls repeat the same schedule in each interior round"),
+                  stage("Final measurement round", start+depth-8, start+depth)]
     elif family == "spatial-h":
         assert depth == 8 * distance
         stages = [stage("Initialization round", start, start+8),
                   stage("Backward wall round", start+8, start+16, distance//2, "Interior backward schedule appears floor(d/2) times"),
                   stage("Forward wall round", start+16, start+24, max(1, distance//2-1), "Interior forward schedule; boundary initialization and measurement are displayed separately"),
                   stage("Final measurement round", start+(distance-1)*8, start+depth)]
-        limitations.append("The current spatial Hadamard construction is distance degraded. Alternating rounds are displayed separately; they must not be collapsed into one repeated round.")
+        limitations.append("The two interior rounds have opposite extraction orders. Each reads its syndrome and flags in the final moment.")
     elif family == "padding":
         assert depth == 18
         stages = [stage("Protected memory round", start, start+6, 3, "Three inserted QEC rounds on the temporal seam")]
@@ -355,8 +366,11 @@ def compose(circuit: stim.Circuit, stages: list[dict], title: str) -> str:
 
 def retain_unselected(manifest: dict, previous: dict, selected: list[Example]) -> None:
     """Keep other diagrams when updating a subset with the same compiler settings."""
-    if any(previous[key] != manifest[key] for key in ("distance", "stim_version", "bloq_version")):
+    if any(previous[key] != manifest[key] for key in ("distance", "stim_version")):
         raise ValueError("Settings changed; regenerate all constructions without --only")
+    # The top-level version is the default for existing entries. Individual
+    # regenerated examples can come from a newer compiler revision.
+    manifest["bloq_version"] = previous["bloq_version"]
     names = {case.name for case in selected}
     for key in ("examples", "errors"):
         manifest[key] = [case for case in previous[key] if case["name"] not in names]
@@ -399,7 +413,8 @@ def main() -> int:
                 stim=output.name, svg=figure.name, source_blog=case.source, ir_edits=edits, distance=distance,
                 circuit_sha256=hashlib.sha256(output.read_bytes()).hexdigest(), ticks=circuit.num_ticks,
                 measurements=circuit.num_measurements, detectors=circuit.num_detectors,
-                stages=stages, limitations=limitations))
+                stages=stages, limitations=limitations,
+                **({"bloq_version": bloq.__version__} if bloq.__version__ != manifest["bloq_version"] else {})))
             print(f"{case.name}: {circuit.num_ticks} ticks, {len(stages)} displayed stages", flush=True)
         except Exception as exc:
             message = f"{type(exc).__name__}: {exc}"

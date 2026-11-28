@@ -4,7 +4,7 @@ expression: describe_patch(&patch)
 ---
 Z ( 2, 0) [TL .. TR BL BR ..]
 X ( 4, 0) [TL BL TR .. BR ..]
-X ( 2, 2) [TL BL TR .. BR ..]
+X ( 2, 2) [TL .. TR BL BR ..]
 Z ( 4, 2) [TL .. TR BL BR ..]
 X ( 6, 2) [TL .. .. BL .. ..]
 Z ( 2, 4) [TL .. TR BL BR ..]

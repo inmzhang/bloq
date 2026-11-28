@@ -307,22 +307,9 @@ impl TestCase {
         &self.metadata.aliases
     }
 
-    /// Returns the `shortest_graphlike_error` weight a correct compile of this
-    /// case must produce at `distance`.
-    ///
-    /// Every ordinary case is distance preserving, so the answer is `distance`
-    /// itself. The spatial Hadamard wall is not:
-    /// its GHZ chain alternates direction but still permits sub-distance
-    /// mechanisms. Those cases therefore pin their **measured** weight from
-    /// `WALL_GRAPHLIKE_DISTANCES`, which the backend suite asserts by equality
-    /// in both directions — a wall that silently got better is as much a change
-    /// to explain as one that got worse.
+    /// Expected graphlike circuit distance for the compiled Clifford fixture.
     pub fn expected_graphlike_distance(&self, distance: u32) -> u32 {
-        self.metadata
-            .origins
-            .iter()
-            .find_map(|origin| wall_graphlike_distance(origin, distance))
-            .unwrap_or(distance)
+        distance
     }
 
     /// Returns whether any alias matches `query`, treating an empty query as a
@@ -542,86 +529,6 @@ fn allowed_rotations(fixture: TestFixture, graph: &BlockGraph) -> Vec<RotationSp
         }
     }
     rotations
-}
-
-/// Measured `shortest_graphlike_error` weights for the spatial Hadamard wall
-/// fixtures, per code distance, under uniform depolarizing noise at `p = 1e-3`.
-///
-/// Five measured profiles. The `perpendicular` profile is CZ's first auto-filled
-/// variant and keeps the full code distance. Parallel crossings are split by wall axis
-/// and sign because the oriented GHZ schedule is not rotation invariant.
-///
-/// These are observations, not a formula: nothing rules out the perpendicular
-/// profile dropping below `d` at a size no one has run, so an unmeasured
-/// distance panics rather than extrapolating.
-const WALL_GRAPHLIKE_DISTANCES: WallDistanceProfiles = WallDistanceProfiles {
-    perpendicular: &[(3, 3), (5, 5), (7, 7), (9, 9)],
-    parallel_x_positive: &[(3, 2), (5, 4), (7, 6), (9, 7)],
-    parallel_x_negative: &[(3, 2), (5, 4), (7, 5), (9, 7)],
-    parallel_y_positive: &[(3, 2), (5, 4), (7, 6), (9, 7)],
-    parallel_y_negative: &[(3, 2), (5, 4), (7, 5), (9, 7)],
-};
-
-/// The measured profiles of [`WALL_GRAPHLIKE_DISTANCES`], each a
-/// `(code distance, graphlike weight)` table.
-struct WallDistanceProfiles {
-    perpendicular: &'static [(u32, u32)],
-    parallel_x_positive: &'static [(u32, u32)],
-    parallel_x_negative: &'static [(u32, u32)],
-    parallel_y_positive: &'static [(u32, u32)],
-    parallel_y_negative: &'static [(u32, u32)],
-}
-
-/// The frozen graphlike weight for a wall case, or `None` when `origin` is not
-/// a wall case (leaving the code distance to apply).
-fn wall_graphlike_distance(origin: &TestCaseOrigin, distance: u32) -> Option<u32> {
-    let profile = match origin.fixture {
-        TestFixture::CZ if origin.fill_variant == Some(1) => WALL_GRAPHLIKE_DISTANCES.perpendicular,
-        TestFixture::CZ | TestFixture::SpatialHadamard
-            if origin.rotation.is_some_and(|rotation| {
-                rotation.axis == UDirection::Y && rotation.quarter_turns.rem_euclid(4) == 2
-            }) =>
-        {
-            WALL_GRAPHLIKE_DISTANCES.parallel_x_negative
-        }
-        TestFixture::CZ | TestFixture::SpatialHadamard
-            if origin.rotation.is_some_and(|rotation| {
-                rotation.axis == UDirection::Z && rotation.quarter_turns.rem_euclid(4) == 1
-            }) =>
-        {
-            WALL_GRAPHLIKE_DISTANCES.parallel_y_positive
-        }
-        TestFixture::CZ | TestFixture::SpatialHadamard
-            if origin.rotation.is_some_and(|rotation| {
-                rotation.axis == UDirection::Z && rotation.quarter_turns.rem_euclid(4) == 2
-            }) =>
-        {
-            WALL_GRAPHLIKE_DISTANCES.parallel_x_negative
-        }
-        TestFixture::CZ | TestFixture::SpatialHadamard
-            if origin.rotation.is_some_and(|rotation| {
-                rotation.axis == UDirection::Z && rotation.quarter_turns.rem_euclid(4) == 3
-            }) =>
-        {
-            WALL_GRAPHLIKE_DISTANCES.parallel_y_negative
-        }
-        TestFixture::CZ | TestFixture::SpatialHadamard => {
-            WALL_GRAPHLIKE_DISTANCES.parallel_x_positive
-        }
-        _ => return None,
-    };
-    let measured = profile
-        .iter()
-        .find_map(|&(code_distance, weight)| (code_distance == distance).then_some(weight))
-        .unwrap_or_else(|| {
-            panic!(
-                "{}: the spatial Hadamard wall's graphlike distance has never been \
-                 measured at d={distance}; measure it and freeze it in \
-                 WALL_GRAPHLIKE_DISTANCES rather than extrapolating",
-                origin.name
-            )
-        });
-    Some(measured)
 }
 
 /// Whether `graph` carries a spatial Hadamard pipe (a domain wall), which
@@ -1147,54 +1054,6 @@ mod tests {
                     );
                 }
             }
-        }
-    }
-
-    /// The wall cases pin measured weights; everything else expects `d`.
-    #[test]
-    fn expected_graphlike_distance_is_the_code_distance_off_the_wall() {
-        for case in all_test_cases().expect("build test cases") {
-            let is_wall = case.metadata.origins.iter().any(|origin| {
-                matches!(
-                    origin.fixture,
-                    TestFixture::CZ | TestFixture::SpatialHadamard
-                )
-            });
-            for distance in [3, 5, 7, 9] {
-                let expected = case.expected_graphlike_distance(distance);
-                if is_wall {
-                    assert!(
-                        expected <= distance,
-                        "{}: the wall never exceeds the code distance",
-                        case.id()
-                    );
-                } else {
-                    assert_eq!(expected, distance, "{}", case.id());
-                }
-            }
-        }
-    }
-
-    /// Pin the four measured wall profiles literally.
-    #[test]
-    fn wall_cases_pin_their_measured_graphlike_distances() {
-        let perpendicular = find_test_case("cz[fill:1]").expect("CZ variant 1");
-        let x_positive = find_test_case("cz[fill:0]").expect("CZ variant 0");
-        let x_negative = find_test_case("cz[fill:0][rotate:Y:2]").expect("rotated CZ variant 0");
-        let wall = find_test_case("spatial_hadamard[base]").expect("wall fixture");
-        let y_positive =
-            find_test_case("spatial_hadamard[base][rotate:Z:1]").expect("Y wall aligned");
-        let y_negative =
-            find_test_case("spatial_hadamard[base][rotate:Z:3]").expect("Y wall flipped");
-        for (distance, full, positive, negative) in
-            [(3, 3, 2, 2), (5, 5, 4, 4), (7, 7, 6, 5), (9, 9, 7, 7)]
-        {
-            assert_eq!(perpendicular.expected_graphlike_distance(distance), full);
-            assert_eq!(x_positive.expected_graphlike_distance(distance), positive);
-            assert_eq!(x_negative.expected_graphlike_distance(distance), negative);
-            assert_eq!(wall.expected_graphlike_distance(distance), positive);
-            assert_eq!(y_positive.expected_graphlike_distance(distance), positive);
-            assert_eq!(y_negative.expected_graphlike_distance(distance), negative);
         }
     }
 

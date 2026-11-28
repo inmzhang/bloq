@@ -8,11 +8,6 @@ use crate::error::InvalidDistance;
 /// this practical limit rejects inputs that would otherwise exhaust memory.
 pub const MAX_CODE_DISTANCE: u32 = 255;
 
-/// Warning shown by front ends when a fixed-bulk graph contains a spatial
-/// Hadamard wall. The wall's measured effective distance can be below the
-/// requested code distance.
-const SPATIAL_HADAMARD_DISTANCE_WARNING: &str = "fixed-bulk spatial Hadamard pipes can reduce the effective circuit distance below the requested code distance; check the emitted circuit's distance before relying on it";
-
 /// Parameters that determine how a [`BlockGraph`](bloq_graph::BlockGraph) is
 /// lowered: the surface code distance and T-source mode.
 ///
@@ -114,19 +109,11 @@ impl CompileConfig {
     }
 }
 
-/// Return the user-facing distance warning when `graph` uses a construction
-/// whose fixed-bulk circuit distance is not guaranteed to equal `d`.
-///
-/// This is the pre-flight form, for front ends that warn before compiling. A
-/// completed compilation reports the same advisory in
-/// [`CompileArtifacts::warnings`](crate::CompileArtifacts::warnings), which
-/// cannot be forgotten.
+/// Compatibility entry point for callers checking the former spatial-wall advisory.
+/// Flagged spatial Hadamard extraction no longer emits that advisory.
 #[must_use]
-pub fn spatial_hadamard_distance_warning(graph: &BlockGraph) -> Option<&'static str> {
-    graph
-        .pipes()
-        .any(|pipe| pipe.is_hadamard() && pipe.dir().is_spatial())
-        .then_some(SPATIAL_HADAMARD_DISTANCE_WARNING)
+pub fn spatial_hadamard_distance_warning(_graph: &BlockGraph) -> Option<&'static str> {
+    None
 }
 
 impl Default for CompileConfig {
@@ -138,8 +125,6 @@ impl Default for CompileConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bloq_graph::{Block, BlockKind, Direction, Pipe};
-    use glam::IVec3;
 
     #[test]
     fn distance_bound_limits_quadratic_grid_materialization() {
@@ -153,33 +138,5 @@ mod tests {
             CompileConfig::try_new(MAX_CODE_DISTANCE + 2),
             Err(InvalidDistance(MAX_CODE_DISTANCE + 2))
         );
-    }
-
-    #[test]
-    fn spatial_hadamard_distance_warning_only_matches_fixed_bulk_walls() {
-        let mut graph = BlockGraph::new();
-        graph.add_block(Block::new(
-            IVec3::ZERO,
-            BlockKind::Cube(bloq_graph::CubeKind::XZX),
-        ));
-        graph.add_block(Block::new(
-            IVec3::X,
-            BlockKind::Cube(bloq_graph::CubeKind::XXZ),
-        ));
-        graph.add_pipe(Pipe::new(IVec3::ZERO, Direction::XPLUS).with_hadamard());
-
-        assert_eq!(
-            spatial_hadamard_distance_warning(&graph),
-            Some(SPATIAL_HADAMARD_DISTANCE_WARNING)
-        );
-        graph
-            .set_pipe_hadamard(IVec3::ZERO, IVec3::X, false)
-            .unwrap();
-        graph.add_block(Block::new(
-            IVec3::Z,
-            BlockKind::Cube(bloq_graph::CubeKind::XZX),
-        ));
-        graph.add_pipe(Pipe::new(IVec3::ZERO, Direction::ZPLUS).with_hadamard());
-        assert!(spatial_hadamard_distance_warning(&graph).is_none());
     }
 }

@@ -59,11 +59,6 @@ fn validate_backend_case(
             case.id()
         )
     })?;
-    // Distance preserving is the rule, not an invariant: the spatial Hadamard
-    // wall trades it away, so the corpus supplies the weight each case must
-    // show (`TestCase::expected_graphlike_distance`). The comparison stays an
-    // equality — a wall case that silently improved has changed just as much as
-    // one that regressed, and either way the frozen table is now a lie.
     let expected = usize::try_from(case.test_case.expected_graphlike_distance(distance))
         .map_err(|_| format!("{}@d{distance}: expected distance overflow", case.id()))?;
     if actual != expected {
@@ -451,9 +446,257 @@ fn spatial_hadamard_undetectable_distance_d7() {
     }
     assert_eq!(seen, 9, "all representative wall profiles were measured");
 }
-// The data-driven suite also runs each fixture's `[open]` variant when that form is a
-// compilable temporal-port graph; the ports compile to noiseless boundary MPPs,
-// so the decoder distance still equals `d`. The two spatial Hadamard fixtures
-// (`cz`, `spatial_hadamard`) are the exception in the other direction: the wall
-// is not distance preserving, and they pin the measured weights the corpus
-// carries instead.
+
+fn mixed_wall_elbow(sx: i32, sy: i32, z: bool, ports: [i32; 2], gap: i32) -> BlockGraph {
+    use bloq_graph::{Block, BlockKind, CubeKind, Direction, Pipe};
+    let (hub, x, y) = if z {
+        (CubeKind::ZZX, CubeKind::ZXZ, CubeKind::XZZ)
+    } else {
+        (CubeKind::XXZ, CubeKind::XZX, CubeKind::ZXX)
+    };
+    let mut graph = BlockGraph::new();
+    let x_hub = ivec3(gap * sx, 0, 0);
+    let x_pos = x_hub + ivec3(sx, 0, 0);
+    let y_pos = ivec3(0, sy, 0);
+    for (pos, kind) in [(ivec3(0, 0, 0), hub), (x_pos, x), (y_pos, y)] {
+        graph.add_block(Block::new(pos, BlockKind::Cube(kind)));
+    }
+    for step in 1..=gap {
+        let along = ivec3(step * sx, 0, 0);
+        graph.add_block(Block::new(along, BlockKind::Cube(hub)));
+        let start = if sx < 0 {
+            along
+        } else {
+            along - ivec3(1, 0, 0)
+        };
+        graph.add_pipe(Pipe::new(start, Direction::XPLUS));
+    }
+    for (pos, dz) in [x_pos, y_pos].into_iter().zip(ports) {
+        let terminal = pos + ivec3(0, 0, dz);
+        graph.add_block(Block::new(terminal, BlockKind::Port));
+        graph.add_pipe(Pipe::new(
+            if dz < 0 { terminal } else { pos },
+            Direction::ZPLUS,
+        ));
+    }
+    graph.add_pipe(Pipe::new(if sx < 0 { x_pos } else { x_hub }, Direction::XPLUS).with_hadamard());
+    graph.add_pipe(
+        Pipe::new(
+            if sy < 0 { y_pos } else { ivec3(0, 0, 0) },
+            Direction::YPLUS,
+        )
+        .with_hadamard(),
+    );
+    graph
+}
+
+/// Check the authored pipes before the instance merger can hide serialization.
+fn assert_shared_wall_clock(program: &Bloq, pipe_count: usize) {
+    use bloq_circuit::Op;
+    let component = program
+        .nodes()
+        .filter_map(|(_, node)| node.try_quantum())
+        .find(|node| {
+            node.instances
+                .iter()
+                .filter(|i| matches!(i.provenance, bloq_ir::InstanceProvenance::Pipe { .. }))
+                .count()
+                == pipe_count
+        })
+        .expect("all physical wall pipes in one quantum node");
+    let mut used = std::collections::HashSet::new();
+    for instance in &component.instances {
+        let circuit = &program.templates()[instance.template_id].circuit;
+        let per_pipe = matches!(
+            instance.provenance,
+            bloq_ir::InstanceProvenance::Pipe { .. }
+        );
+        let mut slots = std::collections::BTreeSet::new();
+        let mut moment = 0;
+        for op in circuit
+            .body(circuit.entry_body())
+            .expect("entry body")
+            .ops()
+        {
+            match op {
+                Op::Tick => {
+                    moment += 1;
+                    if moment == 8 {
+                        break;
+                    }
+                }
+                Op::Measure { .. } => assert_eq!(moment, 7, "joint end-of-round readout"),
+                Op::Gate { gate, qubits } if gate.two_qubit_bases().is_some() => {
+                    slots.insert(moment);
+                    for pair in qubits.as_chunks::<2>().0 {
+                        assert_eq!((pair[0] - pair[1]).abs(), glam::IVec2::ONE, "local coupler");
+                        for &q in pair {
+                            assert!(
+                                used.insert((moment, q + instance.offset)),
+                                "two gates use the same qubit"
+                            );
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        if per_pipe {
+            assert_eq!(
+                slots,
+                (1..=6).collect(),
+                "each pipe executes in all six slots"
+            );
+        }
+    }
+}
+
+#[test]
+fn mixed_wall_ports_and_concurrent_slots() {
+    for sx in [-1, 1] {
+        for sy in [-1, 1] {
+            for z in [false, true] {
+                let graph = mixed_wall_elbow(sx, sy, z, [1, 1], 0);
+                let program = make_context(3).compile_and_validate(&graph).unwrap().bloq;
+                assert_shared_wall_clock(&program, 2);
+                let text =
+                    emit_bloq_stim_with_stim_noise(&program, &uniform_depolarizing()).unwrap();
+                for copy in [
+                    Bloq::from_text(&program.to_text()).unwrap(),
+                    Bloq::from_binary(&program.to_binary()).unwrap(),
+                ] {
+                    assert_eq!(
+                        emit_bloq_stim_with_stim_noise(&copy, &uniform_depolarizing()).unwrap(),
+                        text
+                    );
+                }
+                let proxy =
+                    bloq_compile::compile_clifford_proxy(CompileConfig::new(3), &graph, &[])
+                        .unwrap()
+                        .bloq;
+                let mut flat = program.clone();
+                flat.flatten()
+                    .expect("flatten wall rounds and flag records");
+                flat.validate().expect("flattened wall program validates");
+                for program in [&program, &proxy, &flat] {
+                    let circuit: Circuit =
+                        emit_bloq_stim_with_stim_noise(program, &uniform_depolarizing())
+                            .unwrap()
+                            .parse()
+                            .unwrap();
+                    assert_eq!(circuit.num_observables(), 2);
+                    circuit
+                        .detector_error_model_with_options(true, false, false, 0.0, false, true)
+                        .unwrap();
+                    assert_eq!(common::graphlike_distance(&circuit).unwrap(), 3);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn mixed_walls_with_input_ports_and_separated_walls() {
+    for gap in [0, 1, 4] {
+        for ports in [[-1, -1], [-1, 1], [1, -1], [1, 1]] {
+            for (sx, sy, z) in [(-1, -1, false), (1, 1, true)] {
+                let graph = mixed_wall_elbow(sx, sy, z, ports, gap);
+                let ctx = make_context(3);
+                let label = format!("gap={gap} ports={ports:?} walls={sx},{sy},{z}");
+                let program = ctx
+                    .compile_and_validate(&graph)
+                    .unwrap_or_else(|e| panic!("{label}: {e}"))
+                    .bloq;
+                assert_shared_wall_clock(&program, 2);
+                let c: Circuit = emit_bloq_stim_with_stim_noise(&program, &uniform_depolarizing())
+                    .unwrap()
+                    .parse()
+                    .unwrap();
+                c.detector_error_model()
+                    .unwrap_or_else(|e| panic!("{label}: {e}"));
+                assert_eq!(common::graphlike_distance(&c).unwrap(), 3, "{label}");
+            }
+        }
+    }
+}
+
+#[test]
+fn four_wall_pipes_execute_on_one_clock() {
+    use bloq_graph::{Block, BlockKind, CubeKind, Direction, Pipe};
+    for z in [false, true] {
+        let mut graph = mixed_wall_elbow(1, 1, z, [1, 1], 0);
+        let arms = [
+            (
+                ivec3(-1, 0, 0),
+                Direction::XPLUS,
+                if z { CubeKind::ZXZ } else { CubeKind::XZX },
+            ),
+            (
+                ivec3(0, -1, 0),
+                Direction::YPLUS,
+                if z { CubeKind::XZZ } else { CubeKind::ZXX },
+            ),
+        ];
+        for (pos, axis, kind) in arms {
+            graph.add_block(Block::new(pos, BlockKind::Cube(kind)));
+            graph.add_pipe(Pipe::new(pos, axis).with_hadamard());
+            graph.add_block(Block::new(pos + ivec3(0, 0, 1), BlockKind::Port));
+            graph.add_pipe(Pipe::new(pos, Direction::ZPLUS));
+        }
+        let program = make_context(3).compile_and_validate(&graph).unwrap().bloq;
+        assert_shared_wall_clock(&program, 4);
+        let circuit: Circuit = emit_bloq_stim_with_stim_noise(&program, &uniform_depolarizing())
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert_eq!(circuit.num_observables(), 4);
+        circuit
+            .detector_error_model_with_options(true, false, false, 0.0, false, true)
+            .unwrap();
+        assert_eq!(common::graphlike_distance(&circuit).unwrap(), 3);
+    }
+}
+
+fn three_arm_elbow(sx: i32, sy: i32, z: bool) -> BlockGraph {
+    use bloq_graph::{Block, BlockKind, CubeKind, Direction, Pipe};
+    let mut graph = mixed_wall_elbow(sx, sy, z, [1, 1], 0);
+    let third = ivec3(-sx, 0, 0);
+    graph.add_block(Block::new(
+        third,
+        BlockKind::Cube(if z { CubeKind::XZX } else { CubeKind::ZXZ }),
+    ));
+    graph.add_pipe(Pipe::new(
+        if sx == 1 { third } else { ivec3(0, 0, 0) },
+        Direction::XPLUS,
+    ));
+    graph.add_block(Block::new(third + ivec3(0, 0, 1), BlockKind::Port));
+    graph.add_pipe(Pipe::new(third, Direction::ZPLUS));
+    graph
+}
+
+/// Logical surfaces can use one or both walls at a three-way junction.
+#[test]
+fn two_wall_pipes_at_a_three_arm_junction() {
+    for z in [false, true] {
+        for sx in [-1, 1] {
+            for sy in [-1, 1] {
+                let graph = three_arm_elbow(sx, sy, z);
+                let program = make_context(3)
+                    .compile_and_validate(&graph)
+                    .expect("three-arm wall junction compiles")
+                    .bloq;
+                assert_shared_wall_clock(&program, 2);
+                let noisy: Circuit =
+                    emit_bloq_stim_with_stim_noise(&program, &uniform_depolarizing())
+                        .unwrap()
+                        .parse()
+                        .unwrap();
+                assert_eq!(noisy.num_observables(), 3);
+                noisy
+                    .detector_error_model()
+                    .unwrap_or_else(|e| panic!("walls={sx},{sy},{z}: {e}"));
+                assert_eq!(common::graphlike_distance(&noisy).unwrap(), 3);
+            }
+        }
+    }
+}

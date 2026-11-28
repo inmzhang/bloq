@@ -292,6 +292,22 @@ impl ObservableGateway {
         self.0.insert(key, entry)
     }
 
+    /// Bind the first-round alias of a joint check to each surface using one
+    /// of its incident wall arms. A surface turning through both arms owns it once.
+    pub(crate) fn bind_wall_corner(&mut self, arms: &[(Direction, Pauli)], id: u32) {
+        for (key, entry) in &mut self.0 {
+            if arms
+                .iter()
+                .any(|&(direction, basis)| key.arm_basis(direction) & basis)
+            {
+                entry.measurements.push(ChunkMeasurements {
+                    chunk_index: 0,
+                    measurements: vec![id],
+                });
+            }
+        }
+    }
+
     /// Rewrite every measurement id from chunk-local space into template space.
     ///
     /// Block compilers build the gateway while measurements are still numbered

@@ -301,9 +301,16 @@ impl PhysicalProjection {
         let port_templates = context.compile_port_templates(ports, &mut compiled)?;
         let temporal_templates =
             context.compile_temporal_template_plans(input.temporal_templates())?;
-        let wall_templates =
-            context.compile_spatial_template_walls(graph, ports, input.spatial_walls())?;
-        let pool = context.cache.pool_snapshot();
+        let mixed_sites = schedules
+            .iter()
+            .filter_map(|(&pos, &schedule)| (schedule == LayerSchedule::Mixed).then_some(pos));
+        let (wall_templates, pool) = context.spatial_wall_pool(
+            graph,
+            ports,
+            input.spatial_walls(),
+            mixed_sites,
+            &mut compiled,
+        )?;
         let mut plan = LowerPlan::from_linked_input(&input);
         plan.set_incoming_cuts(&scheduled.incoming_cuts);
         let pipe_templates = plan
@@ -361,6 +368,7 @@ struct ScheduleChoice {
     low: LayerSchedule,
     high: LayerSchedule,
     selector: DecisionId,
+    mixed: DecisionId,
     incoming: DecisionId,
 }
 
@@ -572,23 +580,11 @@ impl ScheduleEnvelope {
         for (index, &position) in positions.iter().enumerate() {
             let [padded, x, y] = possible[groups.find(index)];
             let (low, high, selector) = match (x, y) {
-                (true, true) => {
-                    if topology.diagram.apply(
-                        BooleanOp::And,
-                        demands[index][1],
-                        demands[index][2],
-                    )? != ZERO
-                    {
-                        return Err(CompileError::MixedSpatialHadamardUnsupported {
-                            pos: position,
-                        });
-                    }
-                    (
-                        LayerSchedule::Extended,
-                        LayerSchedule::ExtendedY,
-                        demands[index][2],
-                    )
-                }
+                (true, true) => (
+                    LayerSchedule::Extended,
+                    LayerSchedule::ExtendedY,
+                    demands[index][2],
+                ),
                 (true, false) => (LayerSchedule::Extended, LayerSchedule::Extended, ZERO),
                 (false, true) => (LayerSchedule::ExtendedY, LayerSchedule::ExtendedY, ZERO),
                 (false, false) if padded => (LayerSchedule::Padded, LayerSchedule::Padded, ZERO),
@@ -600,6 +596,11 @@ impl ScheduleEnvelope {
                     low,
                     high,
                     selector,
+                    mixed: topology.diagram.apply(
+                        BooleanOp::And,
+                        demands[index][1],
+                        demands[index][2],
+                    )?,
                     incoming: demands[index][3],
                 },
             );
@@ -620,6 +621,7 @@ impl ScheduleEnvelope {
                     .get_block(*position)
                     .expect("physical geometry positions belong to the graph");
                 [
+                    Some(choice.mixed),
                     (choice.low != choice.high).then_some(choice.selector),
                     (block.kind().is_cube() && block.height_cells() > 1).then_some(choice.incoming),
                 ]
@@ -642,7 +644,9 @@ impl ScheduleEnvelope {
             let choice = self.choices[&position];
             schedules.insert(
                 position,
-                if value(choice.selector) {
+                if value(choice.mixed) {
+                    LayerSchedule::Mixed
+                } else if value(choice.selector) {
                     choice.high
                 } else {
                     choice.low

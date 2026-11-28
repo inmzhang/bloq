@@ -191,13 +191,6 @@ fn gallery_proxy_distances(distance: u32, samples: usize) {
         let expected = match fixture {
             // Authored short TELS layers deliberately use ceil(2d/3) rounds.
             TestFixture::CCZFactoryWithTels => (2 * distance).div_ceil(3),
-            // Spatial-Hadamard corrections retain the wall's LIM-016 loss.
-            TestFixture::CCZGateTeleport => match distance {
-                3 => 2,
-                5 => 4,
-                7 => 5,
-                _ => panic!("measure the teleportation proxy at d{distance} first"),
-            },
             _ => distance,
         };
         if actual != expected as usize {

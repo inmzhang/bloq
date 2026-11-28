@@ -52,6 +52,7 @@ mod membership;
 mod optimize;
 mod pin;
 mod query;
+mod readout_frame;
 mod resolve;
 mod stats;
 #[cfg(test)]
@@ -105,8 +106,8 @@ pub use validation::{BloqValidationError, ValidatedPlans};
 pub(crate) use instantiation::NodeTemplateInstanceMergeError;
 pub(crate) use ir::{
     BloqTemplate, BloqTemplatePool, InstanceBoundaryOperator, InstanceMeasurement, NodeRestart,
-    TemplateDetectorParity, TemplateDetectorScope, TemplateInstance, TemplateInstanceId,
-    TemplateRepeatState, TemplateRestart,
+    ReadoutFrame, TemplateDetectorParity, TemplateDetectorScope, TemplateInstance,
+    TemplateInstanceId, TemplateRepeatState, TemplateRestart,
 };
 
 /// Graph visualization shared with the editor.
@@ -126,8 +127,8 @@ pub mod lowering {
     };
     pub use crate::ir::{
         BloqTemplate, BloqTemplatePool, InstanceBoundaryOperator, InstanceMeasurement, NodeRestart,
-        TemplateDetectorParity, TemplateDetectorScope, TemplateInstance, TemplateInstanceId,
-        TemplateRepeatState, TemplateRestart,
+        ReadoutFrame, TemplateDetectorParity, TemplateDetectorScope, TemplateInstance,
+        TemplateInstanceId, TemplateRepeatState, TemplateRestart,
     };
     pub use crate::membership::PredicateAnalysis;
 }

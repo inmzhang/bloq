@@ -85,14 +85,7 @@ pub struct CompileArtifacts {
     pub bloq: Bloq,
     /// Wall-clock time spent in the compile or link call returning this artifact.
     pub compile_duration: Duration,
-    /// Advisories about the compiled program: constructions that compile but
-    /// whose circuit does not deliver everything the configuration asks for
-    /// (currently only [`spatial_hadamard_distance_warning`]).
-    ///
-    /// In-band so a front end cannot silently forget to ask — the free
-    /// functions stay available for pre-flight, before a compile exists.
-    ///
-    /// [`spatial_hadamard_distance_warning`]: crate::spatial_hadamard_distance_warning
+    /// Advisories emitted during successful compilation.
     pub warnings: Vec<&'static str>,
 }
 
@@ -131,7 +124,7 @@ struct PreparedProxy {
     port_templates: CompiledTemplateMap,
     plan: crate::lower::LinkedPlanInput,
     temporal_templates: crate::FxMap<crate::lower::TemplatePlan, LoweringTemplateId>,
-    wall_templates: crate::FxMap<crate::lower::SpatialPipeRef, LoweringTemplateId>,
+    wall_templates: WallTemplateMap,
     padding_templates: crate::padding::PreparedPaddingTemplates,
     template_pool: crate::block::LoweringTemplatePool,
 }
@@ -268,7 +261,7 @@ fn select_link_signatures(
 ) -> Result<BlockSignatureMap, CompileError> {
     #[cfg(test)]
     builds.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let schedules = join_component_layer_schedules(graph)?;
+    let schedules = join_component_layer_schedules(graph);
     let mut signatures = block_signatures(graph, &schedules, config)?;
     for (source, dir) in ports
         .values()
@@ -1218,14 +1211,21 @@ impl CompileContext {
             compiled.keys().copied(),
         );
         let temporal_templates = self.compile_temporal_template_plans(plan.temporal_templates())?;
-        let wall_templates =
-            self.compile_spatial_template_walls(&graph, &ports, plan.spatial_walls())?;
         let needs_padding = !ports.is_empty() || graph.pipes().any(|pipe| !pipe.dir().is_spatial());
         let padding_templates = self
             .cache
             .padding
             .prepare(needs_padding, self.config.code_distance())?;
-        let template_pool = self.cache.pool_snapshot();
+        let mixed_sites = signatures.iter().filter_map(|(&pos, sig)| {
+            (sig.layer_schedule == Some(crate::signature::LayerSchedule::Mixed)).then_some(pos)
+        });
+        let (wall_templates, template_pool) = self.spatial_wall_pool(
+            &graph,
+            &ports,
+            plan.spatial_walls(),
+            mixed_sites,
+            &mut compiled,
+        )?;
         Ok(PreparedProxy {
             graph,
             stabilizers,
@@ -1284,9 +1284,7 @@ impl CompileContext {
         Ok(CompileArtifacts {
             bloq,
             compile_duration: Duration::ZERO,
-            warnings: crate::config::spatial_hadamard_distance_warning(&graph)
-                .into_iter()
-                .collect(),
+            warnings: Vec::new(),
         })
     }
 
@@ -1351,14 +1349,21 @@ impl CompileContext {
                 let schedules: &[crate::signature::LayerSchedule] =
                     if matches!(signature.kind, BlockKind::Cube(_)) {
                         match template_connectivity.hadamard_wall_axes() {
-                            (true, true) => continue,
-                            (true, false) => &[crate::signature::LayerSchedule::Extended],
-                            (false, true) => &[crate::signature::LayerSchedule::ExtendedY],
+                            (true, true) => &[crate::signature::LayerSchedule::Mixed],
+                            (true, false) => &[
+                                crate::signature::LayerSchedule::Extended,
+                                crate::signature::LayerSchedule::Mixed,
+                            ],
+                            (false, true) => &[
+                                crate::signature::LayerSchedule::ExtendedY,
+                                crate::signature::LayerSchedule::Mixed,
+                            ],
                             (false, false) => &[
                                 crate::signature::LayerSchedule::Compact,
                                 crate::signature::LayerSchedule::Padded,
                                 crate::signature::LayerSchedule::Extended,
                                 crate::signature::LayerSchedule::ExtendedY,
+                                crate::signature::LayerSchedule::Mixed,
                             ],
                         }
                     } else {
@@ -1613,25 +1618,45 @@ impl CompileContext {
         Ok(templates)
     }
 
-    fn compile_spatial_template_walls(
+    fn spatial_wall_pool(
         &self,
         graph: &BlockGraph,
         ports: &PortExpansionMap,
-        walls: impl IntoIterator<Item = crate::lower::SpatialPipeRef>,
-    ) -> Result<crate::FxMap<crate::lower::SpatialPipeRef, LoweringTemplateId>, CompileError> {
-        let mut templates = crate::FxMap::default();
+        walls: impl Iterator<Item = crate::lower::SpatialPipeRef>,
+        mixed_sites: impl Iterator<Item = IVec3>,
+        compiled: &mut CompiledTemplateMap,
+    ) -> Result<(WallTemplateMap, crate::block::LoweringTemplatePool), CompileError> {
+        let mixed_sites: crate::FxSet<_> = mixed_sites.collect();
+        let mut coupled = mixed_component_templates(self, graph, ports, &mixed_sites)?;
+        let mut walls_by_site = WallTemplateMap::default();
+        let mut local_walls = Vec::new();
         for wall in walls {
             self.check_cancellation()?;
-            let distance = self.config.code_distance();
-            let key = spatial_hadamard_key(graph, ports, wall, distance)?;
-            let template = self
-                .cache
-                .get_or_compile_fixed(Signature::SpatialHadamardPipe(key), || {
-                    compile_spatial_hadamard(distance, key)
-                })?;
-            templates.insert(wall, template);
+            if let Some(template) = coupled.pipes.remove(&wall) {
+                local_walls.push((wall, template));
+            } else {
+                let distance = self.config.code_distance();
+                let key = spatial_hadamard_key(graph, ports, wall, distance)?;
+                let id = self
+                    .cache
+                    .get_or_compile_fixed(Signature::SpatialHadamardPipe(key), || {
+                        compile_spatial_hadamard(distance, key)
+                    })?;
+                walls_by_site.insert(wall, id);
+            }
         }
-        Ok(templates)
+        let mut pool = self.cache.pool_snapshot();
+        // Straight walls are cached by local signature. Mixed walls and their
+        // cubes depend on the full component, so intern them in this plan only.
+        for (wall, template) in local_walls {
+            walls_by_site.insert(wall, pool.insert(template));
+        }
+        for (pos, template) in coupled.cubes {
+            if let Some(info) = compiled.get_mut(&pos) {
+                info.template = TemplateRef::Fixed(pool.insert(template));
+            }
+        }
+        Ok((walls_by_site, pool))
     }
 
     pub(crate) fn temporal_template(
@@ -1706,6 +1731,100 @@ fn spatial_hadamard_key(
         minus: make_side(minus_block, minus_kind),
         plus: make_side(plus_block, plus_kind),
     })
+}
+
+type WallTemplateMap = crate::FxMap<crate::lower::SpatialPipeRef, LoweringTemplateId>;
+
+#[derive(Default)]
+struct ComponentTemplates {
+    cubes: Vec<(IVec3, crate::block::CompiledTemplate)>,
+    pipes: crate::FxMap<crate::lower::SpatialPipeRef, crate::block::CompiledTemplate>,
+}
+
+/// Build the shared clock even for a local projection that only emits a cube.
+/// Adjacent pipes in the lookup geometry still constrain that cube's gates.
+fn mixed_component_templates(
+    context: &CompileContext,
+    graph: &BlockGraph,
+    ports: &PortExpansionMap,
+    mixed_sites: &crate::FxSet<IVec3>,
+) -> Result<ComponentTemplates, CompileError> {
+    use crate::block::fixed_bulk::mixed_wall;
+    use bloq_graph::UDirection;
+    let mut result = ComponentTemplates::default();
+    if mixed_sites.is_empty() {
+        return Ok(result);
+    }
+    let distance = context.config.code_distance();
+    let layout = BlockLayout::new(distance);
+    for (layer, components) in graph.cube_layer_components() {
+        let walls = graph
+            .layer(layer)
+            .spacelike_pipes()
+            .filter(bloq_graph::Pipe::is_hadamard)
+            .filter_map(|p| {
+                let a = graph.get_endpoint_block(p.src())?.pos();
+                let b = graph.get_endpoint_block(p.dst())?.pos();
+                Some(crate::lower::SpatialPipeRef::new(a, b))
+            })
+            .collect::<Vec<_>>();
+        for members in components {
+            let members_set: crate::FxSet<_> = members.iter().copied().collect();
+            let mut component = walls
+                .iter()
+                .copied()
+                .filter(|p| members_set.contains(&p.src))
+                .collect::<Vec<_>>();
+            if !component.iter().any(|p| p.axis() == UDirection::X)
+                || !component.iter().any(|p| p.axis() == UDirection::Y)
+                || !members.iter().any(|p| mixed_sites.contains(p))
+            {
+                continue;
+            }
+            component.sort_by_key(|p| {
+                (
+                    p.axis() != UDirection::X,
+                    p.src.to_array(),
+                    p.dst.to_array(),
+                )
+            });
+            let pipes = component
+                .iter()
+                .map(|&id| {
+                    Ok(mixed_wall::Pipe {
+                        id,
+                        origin: layout.offset(id.src)?,
+                        key: spatial_hadamard_key(graph, ports, id, distance)?,
+                    })
+                })
+                .collect::<Result<Vec<_>, CompileError>>()?;
+            let cubes = members
+                .into_iter()
+                .map(|position| {
+                    let block = graph.get_block(position).expect("component cube");
+                    let BlockKind::Cube(kind) = block.kind() else {
+                        unreachable!("cube component")
+                    };
+                    let mut connectivity = BlockSignature::template_connectivity(block, graph);
+                    if let Some(dir) = ports.get(&position).and_then(|p| p.cube_pipe_dir()) {
+                        connectivity = connectivity.with_pipe(dir);
+                    }
+                    Ok(mixed_wall::Cube {
+                        position,
+                        origin: layout.offset(position)?,
+                        kind,
+                        connectivity,
+                        rounds: crate::signature::cube_rounds(block, distance)?,
+                    })
+                })
+                .collect::<Result<Vec<_>, CompileError>>()?;
+            context.check_cancellation()?;
+            let templates = mixed_wall::compile(distance, &cubes, &pipes)?;
+            result.cubes.extend(templates.cubes);
+            result.pipes.extend(templates.pipes);
+        }
+    }
+    Ok(result)
 }
 
 /// Compile one block signature into its circuit template(s). A selective block
@@ -2260,14 +2379,12 @@ mod tests {
             ])
             .unwrap();
         let context = CompileContext::new(CompileConfig::new(3));
-        assert!(matches!(
-            context.compile_and_validate(&graph),
-            Err(CompileError::MixedSpatialHadamardUnsupported { .. })
-        ));
-        assert!(matches!(
-            context.compile(&graph),
-            Err(CompileError::MixedSpatialHadamardUnsupported { .. })
-        ));
+        context
+            .compile_and_validate(&graph)
+            .expect("both branch schedules validate");
+        context
+            .compile(&graph)
+            .expect("both branch schedules compile");
     }
 
     #[test]
@@ -2938,12 +3055,9 @@ mod tests {
     /// size — the Step-3 surface while T lowering lands separately.
     fn compiled_template_pool_len(graph: &BlockGraph) -> usize {
         let ctx = CompileContext::new(CompileConfig::new(3));
-        let signatures = block_signatures(
-            graph,
-            &join_component_layer_schedules(graph).expect("no mixed spatial Hadamard walls"),
-            ctx.config,
-        )
-        .expect("valid graph");
+        let signatures =
+            block_signatures(graph, &join_component_layer_schedules(graph), ctx.config)
+                .expect("valid graph");
         let blocks = ordered_blocks(graph);
         ctx.compile_blocks(graph, &blocks, &signatures)
             .expect("compile blocks");
@@ -3947,8 +4061,7 @@ mod tests {
         let two_cell = capped_cube("2d", 2);
         let one_cell = capped_cube("d+5", 1);
         let signature_of = |graph: &BlockGraph| {
-            let schedules =
-                join_component_layer_schedules(graph).expect("no mixed spatial Hadamard walls");
+            let schedules = join_component_layer_schedules(graph);
             block_signatures(graph, &schedules, config).expect("valid graph")[&ivec3(0, 0, 0)]
         };
         assert_eq!(signature_of(&two_cell), signature_of(&one_cell));
@@ -4474,7 +4587,7 @@ module main {{
                 &PortExpansionMap::default(),
                 &definitions,
                 &sites,
-                &crate::signature::join_component_layer_schedules(&graph).unwrap(),
+                &crate::signature::join_component_layer_schedules(&graph),
                 &crate::FxMap::default(),
             ),
             Err(CompileError::MissingModulePhysicalVariant { .. })
@@ -4884,41 +4997,6 @@ module main {
                 .flat_signature_builds
                 .load(std::sync::atomic::Ordering::Relaxed),
             0
-        );
-    }
-
-    /// A spatial Hadamard wall compiles, but its effective distance may fall
-    /// below `d` — the artifact carries that advisory so a front end cannot
-    /// forget to ask for it (LIM-016).
-    #[test]
-    fn artifacts_carry_the_spatial_hadamard_distance_warning() {
-        let mut graph = BlockGraph::new();
-        graph.add_block(Block::new(IVec3::ZERO, BlockKind::Cube(CubeKind::XZX)));
-        graph.add_block(Block::new(IVec3::X, BlockKind::Cube(CubeKind::XXZ)));
-        graph.add_pipe(
-            bloq_graph::Pipe::new(IVec3::ZERO, bloq_graph::Direction::XPLUS).with_hadamard(),
-        );
-
-        let artifacts = compile_with(&graph, CompileConfig::default()).expect("wall compiles");
-
-        assert_eq!(
-            artifacts.warnings,
-            crate::spatial_hadamard_distance_warning(&graph)
-                .into_iter()
-                .collect::<Vec<_>>()
-        );
-        assert!(!artifacts.warnings.is_empty());
-        assert!(
-            compile_with(
-                &GalleryItem::CNOT
-                    .build()
-                    .flatten()
-                    .expect("gallery graph expands"),
-                CompileConfig::default()
-            )
-            .expect("CNOT compiles")
-            .warnings
-            .is_empty()
         );
     }
 }

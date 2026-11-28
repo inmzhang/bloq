@@ -1,5 +1,6 @@
 mod compiler;
 mod grid;
+pub(crate) mod mixed_wall;
 pub(crate) mod observable;
 pub(crate) mod port;
 pub(super) mod realignment;
@@ -87,6 +88,27 @@ fn compile_cube(
 ) -> Result<CompiledTemplate, CompileError> {
     let (patch, init_data, meas_data) =
         build_cube_patch(kind, connectivity, distance, layer_schedule);
+    let reverse_patch = layer_schedule.is_extended().then(|| {
+        build_cube_patch_with_reverse(kind, connectivity, distance, layer_schedule, true).0
+    });
+    compile_scheduled_cube(
+        kind,
+        connectivity,
+        distance,
+        rounds,
+        (patch, init_data, meas_data),
+        reverse_patch,
+    )
+}
+
+fn compile_scheduled_cube(
+    kind: CubeKind,
+    connectivity: Connectivity,
+    distance: u32,
+    rounds: u32,
+    (patch, init_data, meas_data): grid::PatchData,
+    reverse_patch: Option<Patch>,
+) -> Result<CompiledTemplate, CompileError> {
     let cube = make_surface_code_cube_chunks(&patch, Some(&init_data), &meas_data)?;
     let (init, init_ids) = cube.init.expect("cube initialization was requested");
     let repetitions = cube_bulk_repetitions(rounds);
@@ -95,9 +117,7 @@ fn compile_cube(
     // The stage that ends up last is the one whose recorded index the gateway
     // needs; the extended schedule picks between the forward and reverse round.
     let meas_ids;
-    if layer_schedule.is_extended() {
-        let (reverse_patch, _, _) =
-            build_cube_patch_with_reverse(kind, connectivity, distance, layer_schedule, true);
+    if let Some(reverse_patch) = reverse_patch {
         let reverse = make_surface_code_cube_chunks(&reverse_patch, None, &meas_data)?;
         if repetitions >= 2 {
             chunks.push(ChunkOrLoop::Loop {

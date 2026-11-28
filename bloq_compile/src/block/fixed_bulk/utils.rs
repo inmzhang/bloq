@@ -559,7 +559,7 @@ pub(crate) fn make_cube_tile_with_reverse(
     };
     match layer_schedule {
         LayerSchedule::Compact => from_slots(&cx.compact().map(Some)),
-        LayerSchedule::Padded => from_slots(&cx.schedule()),
+        LayerSchedule::Padded | LayerSchedule::Mixed => from_slots(&cx.schedule()),
         LayerSchedule::Extended => from_slots(&cx.extended(reverse_schedule)),
         LayerSchedule::ExtendedY => from_slots(&cx.extended_y(reverse_schedule)),
     }

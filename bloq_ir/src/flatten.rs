@@ -304,16 +304,33 @@ impl BloqTemplate {
             })
             .collect::<Result<Vec<_>, FlattenError>>()?;
 
-        Ok((
-            BloqTemplate::with_parts(
-                circuit,
-                flat_detectors,
-                Vec::new(),
-                self.boundary_flows.clone(),
-                restarts,
-            ),
-            trace,
-        ))
+        let mut template = BloqTemplate::with_parts(
+            circuit,
+            flat_detectors,
+            Vec::new(),
+            self.boundary_flows.clone(),
+            restarts,
+        );
+        if !self.readout_frames.is_empty() {
+            let mut by_flag = FxMap::<_, Vec<_>>::default();
+            for frame in &self.readout_frames {
+                by_flag.entry(frame.flag).or_default().push(*frame);
+            }
+            for &event in &trace {
+                if let FlattenEvent::Measurement { original, emitted } = event
+                    && let Some(frames) = by_flag.get(&original)
+                {
+                    work.charge(frames.len())?;
+                    template.readout_frames.extend(frames.iter().map(|frame| {
+                        crate::ReadoutFrame {
+                            flag: emitted,
+                            ..*frame
+                        }
+                    }));
+                }
+            }
+        }
+        Ok((template, trace))
     }
 }
 

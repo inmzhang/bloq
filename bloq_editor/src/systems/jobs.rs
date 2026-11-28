@@ -27,7 +27,7 @@ use bevy::tasks::futures_lite::future;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 #[cfg(not(target_arch = "wasm32"))]
 use bloq_compile::CompileStage;
-use bloq_compile::{CompileConfig, MAX_CODE_DISTANCE, spatial_hadamard_distance_warning};
+use bloq_compile::{CompileConfig, MAX_CODE_DISTANCE};
 #[cfg(not(target_arch = "wasm32"))]
 use bloq_graph::CancellationToken;
 use bloq_graph::{BlockGraph, BlockGraphError, ComputationCancelled, StabilizerGenerator};
@@ -1175,9 +1175,7 @@ fn start_web_compile(
     Ok(())
 }
 
-/// Common gate for every compile entry point, native and web: refuses a second
-/// concurrent compile or an unfinished branch capture, then warns when a spatial
-/// Hadamard needs a larger code distance. `false` means no job may start.
+/// Check whether a compile may start on the desktop or web editor.
 fn accept_compile_request(
     jobs: &EditorJobs,
     graph_state: &GraphState,
@@ -1190,9 +1188,6 @@ fn accept_compile_request(
     if graph_state.pending_branch_arm.is_some() {
         notifications.push_warn("Finish or cancel the captured branch arm first");
         return false;
-    }
-    if let Some(message) = spatial_hadamard_distance_warning(&graph_state.graph) {
-        notifications.push_warn(message);
     }
     true
 }
@@ -3074,35 +3069,6 @@ mod tests {
         );
         assert_eq!(parsed.source_graph.root().name, "main");
         assert!(!parsed.graph.is_empty());
-    }
-
-    #[test]
-    fn spatial_hadamard_compile_warning_reaches_notifications() {
-        let mut graph = BlockGraph::new();
-        graph.add_block(Block::new(
-            glam::IVec3::ZERO,
-            BlockKind::Cube(CubeKind::XZX),
-        ));
-        graph.add_block(Block::new(glam::IVec3::X, BlockKind::Cube(CubeKind::XXZ)));
-        graph.add_pipe(Pipe::new(glam::IVec3::ZERO, Direction::XPLUS).with_hadamard());
-
-        let graph_state = GraphState {
-            graph,
-            ..Default::default()
-        };
-        let mut notifications = Notifications::default();
-        assert!(super::accept_compile_request(
-            &EditorJobs::default(),
-            &graph_state,
-            &mut notifications,
-        ));
-        assert_eq!(notifications.toasts.len(), 1);
-        assert_eq!(notifications.toasts[0].level, ToastLevel::Warn);
-        assert!(
-            notifications.toasts[0]
-                .message
-                .contains("fixed-bulk spatial Hadamard")
-        );
     }
 
     fn stabilizer_signatures(stabilizers: &[StabilizerGenerator]) -> Vec<String> {
