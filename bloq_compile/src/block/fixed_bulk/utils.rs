@@ -519,29 +519,12 @@ impl Corner {
 ///
 /// For each slot in the schedule, the data slot is `Some(pos + offset)` if the
 /// corner is in `active`, otherwise `None`.
-#[cfg(test)]
 pub(crate) fn make_cube_tile(
     basis: Basis,
     pos: IVec2,
     active: &[Corner],
     is_vertical: bool,
     layer_schedule: LayerSchedule,
-) -> Tile {
-    make_cube_tile_with_reverse(basis, pos, active, is_vertical, layer_schedule, false)
-}
-
-/// Build a cube tile using the backward hook schedule for an extended layer.
-///
-/// Alternation is a property of a round, not of the patch geometry, so callers
-/// keep the ordinary constructor above for the overwhelmingly common forward
-/// case and opt into this one only for the backward round.
-pub(crate) fn make_cube_tile_with_reverse(
-    basis: Basis,
-    pos: IVec2,
-    active: &[Corner],
-    is_vertical: bool,
-    layer_schedule: LayerSchedule,
-    reverse_schedule: bool,
 ) -> Tile {
     let cx = if is_vertical {
         CXSchedule::Vertical
@@ -559,9 +542,7 @@ pub(crate) fn make_cube_tile_with_reverse(
     };
     match layer_schedule {
         LayerSchedule::Compact => from_slots(&cx.compact().map(Some)),
-        LayerSchedule::Padded => from_slots(&cx.schedule()),
-        LayerSchedule::Extended => from_slots(&cx.extended(reverse_schedule)),
-        LayerSchedule::ExtendedY => from_slots(&cx.extended_y(reverse_schedule)),
+        LayerSchedule::Padded | LayerSchedule::Wall => from_slots(&cx.schedule()),
     }
 }
 
@@ -792,77 +773,6 @@ impl CXSchedule {
     const H_COMPACT_SCHEDULE: [Corner; 4] = [Corner::TL, Corner::TR, Corner::BL, Corner::BR];
     const V_COMPACT_SCHEDULE: [Corner; 4] = [Corner::TL, Corner::BL, Corner::TR, Corner::BR];
 
-    // Extended schedules are axis-specific. They are not interchangeable with
-    // compact/padded schedules:
-    // wall data occupies slots 1 and 3, while slots 0 and 5 bracket the GHZ
-    // create/disentangle pair.
-    const H_EXTENDED_SCHEDULE: [Option<Corner>; 6] = [
-        Some(Corner::TL),
-        None,
-        Some(Corner::TR),
-        Some(Corner::BL),
-        Some(Corner::BR),
-        None,
-    ];
-    const V_EXTENDED_SCHEDULE: [Option<Corner>; 6] = [
-        Some(Corner::TL),
-        Some(Corner::BL),
-        Some(Corner::TR),
-        None,
-        Some(Corner::BR),
-        None,
-    ];
-    // Literal time reversals of the forward schedules.
-    const H_REVERSED_EXTENDED_SCHEDULE: [Option<Corner>; 6] = [
-        None,
-        Some(Corner::BR),
-        Some(Corner::BL),
-        Some(Corner::TR),
-        None,
-        Some(Corner::TL),
-    ];
-    const V_REVERSED_EXTENDED_SCHEDULE: [Option<Corner>; 6] = [
-        None,
-        Some(Corner::BR),
-        None,
-        Some(Corner::TR),
-        Some(Corner::BL),
-        Some(Corner::TL),
-    ];
-    // Diagonal transpose of the X-wall schedules. A coordinate swap maps
-    // `Horizontal ↔ Vertical` and `TL,TR,BL,BR → BR,TR,BL,TL`.
-    const H_Y_EXTENDED_SCHEDULE: [Option<Corner>; 6] = [
-        Some(Corner::BR),
-        Some(Corner::BL),
-        Some(Corner::TR),
-        None,
-        Some(Corner::TL),
-        None,
-    ];
-    const V_Y_EXTENDED_SCHEDULE: [Option<Corner>; 6] = [
-        Some(Corner::BR),
-        None,
-        Some(Corner::TR),
-        Some(Corner::BL),
-        Some(Corner::TL),
-        None,
-    ];
-    const H_Y_REVERSED_EXTENDED_SCHEDULE: [Option<Corner>; 6] = [
-        None,
-        Some(Corner::TL),
-        None,
-        Some(Corner::TR),
-        Some(Corner::BL),
-        Some(Corner::BR),
-    ];
-    const V_Y_REVERSED_EXTENDED_SCHEDULE: [Option<Corner>; 6] = [
-        None,
-        Some(Corner::TL),
-        Some(Corner::BL),
-        Some(Corner::TR),
-        None,
-        Some(Corner::BR),
-    ];
     pub(crate) const fn schedule(self) -> [Option<Corner>; 5] {
         match self {
             CXSchedule::Vertical => Self::VERTICAL_SCHEDULE,
@@ -874,24 +784,6 @@ impl CXSchedule {
         match self {
             CXSchedule::Vertical => Self::V_COMPACT_SCHEDULE,
             CXSchedule::Horizontal => Self::H_COMPACT_SCHEDULE,
-        }
-    }
-
-    pub(crate) const fn extended(self, reversed: bool) -> [Option<Corner>; 6] {
-        match (self, reversed) {
-            (CXSchedule::Vertical, false) => Self::V_EXTENDED_SCHEDULE,
-            (CXSchedule::Horizontal, false) => Self::H_EXTENDED_SCHEDULE,
-            (CXSchedule::Vertical, true) => Self::V_REVERSED_EXTENDED_SCHEDULE,
-            (CXSchedule::Horizontal, true) => Self::H_REVERSED_EXTENDED_SCHEDULE,
-        }
-    }
-
-    pub(crate) const fn extended_y(self, reversed: bool) -> [Option<Corner>; 6] {
-        match (self, reversed) {
-            (CXSchedule::Horizontal, false) => Self::H_Y_EXTENDED_SCHEDULE,
-            (CXSchedule::Vertical, false) => Self::V_Y_EXTENDED_SCHEDULE,
-            (CXSchedule::Horizontal, true) => Self::H_Y_REVERSED_EXTENDED_SCHEDULE,
-            (CXSchedule::Vertical, true) => Self::V_Y_REVERSED_EXTENDED_SCHEDULE,
         }
     }
 }
@@ -1069,86 +961,6 @@ mod tests {
         assert_eq!(tile.data_slots()[2], Some(IVec2::new(1, 3))); // BL
         assert_eq!(tile.data_slots()[3], None); // TR inactive
         assert_eq!(tile.data_slots()[4], None); // BR inactive
-    }
-
-    #[test]
-    fn test_make_cube_tile_extended() {
-        let tile = make_cube_tile(
-            Basis::Z,
-            IVec2::new(2, 4),
-            &Corner::ALL,
-            true,
-            LayerSchedule::Extended,
-        );
-        assert_eq!(tile.data_slots().len(), 6);
-        // Vertical: TL@0, BL@1, TR@2, NOP@3, BR@4, NOP@5
-        assert_eq!(tile.data_slots()[0], Some(IVec2::new(1, 5))); // TL
-        assert_eq!(tile.data_slots()[1], Some(IVec2::new(1, 3))); // BL
-        assert_eq!(tile.data_slots()[2], Some(IVec2::new(3, 5))); // TR
-        assert_eq!(tile.data_slots()[3], None); // NOP
-        assert_eq!(tile.data_slots()[4], Some(IVec2::new(3, 3))); // BR
-        assert_eq!(tile.data_slots()[5], None); // NOP
-    }
-
-    /// The invariant the wall pipe leans on. `TL`, `TR` and `BR` sit at fixed
-    /// slots whichever hook the tile takes, and `BL` — the one corner the hook
-    /// moves — occupies slot 1 or 3. A seam-adjacent data qubit is only ever a
-    /// cube tile's `TR` or `BR`, so slots 1 and 3 stay free for the wall's
-    /// extended stabilizers to drive that column.
-    #[test]
-    fn extended_schedule_reserves_the_seam_slots() {
-        for cx in [CXSchedule::Horizontal, CXSchedule::Vertical] {
-            let mut reversed = cx.extended(false);
-            reversed.reverse();
-            assert_eq!(cx.extended(true), reversed);
-
-            let slot = |corner| {
-                cx.extended(false)
-                    .iter()
-                    .position(|scheduled| *scheduled == Some(corner))
-                    .expect("every corner is scheduled")
-            };
-            assert_eq!(slot(Corner::TL), 0);
-            assert_eq!(slot(Corner::TR), 2);
-            assert_eq!(slot(Corner::BR), 4);
-            assert!(matches!(slot(Corner::BL), 1 | 3));
-        }
-
-        let transpose = |corner| match corner {
-            Corner::TL => Corner::BR,
-            Corner::TR => Corner::TR,
-            Corner::BL => Corner::BL,
-            Corner::BR => Corner::TL,
-        };
-        for (x_wall, y_wall) in [
-            (CXSchedule::Horizontal, CXSchedule::Vertical),
-            (CXSchedule::Vertical, CXSchedule::Horizontal),
-        ] {
-            let forward = x_wall.extended(false).map(|slot| slot.map(transpose));
-            assert_eq!(y_wall.extended_y(false), forward);
-            let mut backward = forward;
-            backward.reverse();
-            assert_eq!(y_wall.extended_y(true), backward);
-        }
-    }
-
-    /// The hook pair — the corners still to be touched when only two are left —
-    /// runs along the axis the schedule is named for: `BL`/`BR` share a row,
-    /// `TR`/`BR` share a column.
-    #[test]
-    fn extended_schedule_hook_runs_along_its_named_axis() {
-        let tail = |cx: CXSchedule, after: usize| -> Vec<Corner> {
-            cx.extended(false)[after..]
-                .iter()
-                .flatten()
-                .copied()
-                .collect()
-        };
-        assert_eq!(
-            tail(CXSchedule::Horizontal, 3),
-            vec![Corner::BL, Corner::BR]
-        );
-        assert_eq!(tail(CXSchedule::Vertical, 2), vec![Corner::TR, Corner::BR]);
     }
 
     #[test]

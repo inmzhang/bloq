@@ -3037,10 +3037,7 @@ class CompileContext:
             CompileError: If compilation fails.
 
         Emits:
-            CompileWarning: Once per advisory the compile recorded — currently
-                a spatial Hadamard pipe under the fixed-bulk convention, whose
-                effective distance can be lower than the requested code
-                distance.
+            CompileWarning: Once per advisory recorded by the compiler.
 
         Examples:
             >>> import bloq
@@ -5532,9 +5529,7 @@ def compile(graph: BlockGraph, distance: builtins.int = 3, *, prepare_t_with_mpp
         OverflowError: If a limit count is negative or exceeds `usize`.
 
     Emits:
-        CompileWarning: Once per advisory the compile recorded — currently a
-            spatial Hadamard pipe under the fixed-bulk convention, whose
-            effective distance can be lower than the requested code distance.
+        CompileWarning: Once per advisory recorded by the compiler.
 
     Examples:
         >>> import bloq
@@ -5576,9 +5571,7 @@ def compile_clifford_proxy(graph: BlockGraph, pins: typing.Sequence[builtins.boo
         OverflowError: If a limit count is negative or exceeds `usize`.
 
     Emits:
-        CompileWarning: Once per advisory the compile recorded — currently a
-            spatial Hadamard pipe under the fixed-bulk convention, whose
-            effective distance can be lower than the requested code distance.
+        CompileWarning: Once per advisory recorded by the compiler.
 
     Examples:
         >>> import bloq

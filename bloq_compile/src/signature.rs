@@ -3,9 +3,7 @@ use std::collections::BTreeSet;
 use std::fmt;
 use std::ops::Bound::{Excluded, Unbounded};
 
-use bloq_graph::{
-    Basis, Block, BlockGraph, BlockKind, Direction, PortRole, UDirection, checked_add_position,
-};
+use bloq_graph::{Basis, Block, BlockGraph, BlockKind, Direction, PortRole, checked_add_position};
 
 use crate::CompileError;
 use glam::{IVec2, IVec3};
@@ -47,15 +45,8 @@ impl Connectivity {
         Self((self.0 & !(0b11 << shift)) | (1 << shift))
     }
 
-    /// Which spatial axes carry a Hadamard wall, as `(x, y)`. A wall on both
-    /// axes has no layer schedule that serves it (LIM-017), so callers reject
-    /// or skip that combination rather than pick one.
-    pub(crate) fn hadamard_wall_axes(self) -> (bool, bool) {
-        let on = |axis: [Direction; 2]| axis.into_iter().any(|dir| self.has_hadamard(dir));
-        (
-            on([Direction::XPLUS, Direction::XMINUS]),
-            on([Direction::YPLUS, Direction::YMINUS]),
-        )
+    pub(crate) fn has_spatial_hadamard(self) -> bool {
+        self.spatial_pipes().any(|dir| self.has_hadamard(dir))
     }
 
     /// Set a hadamard pipe on the given face (implies pipe).
@@ -124,19 +115,8 @@ pub(crate) enum LayerSchedule {
     Compact,
     /// 5 slots — the padded schedule a spatial cube's quadrant hooks need.
     Padded,
-    /// 6 slots — room for the GHZ bracket of a spatial Hadamard wall's extended
-    /// stabilizers on the X axis. Ordinary tiles idle through the bracket
-    /// slots.
-    Extended,
-    /// 6 slots — the diagonal transpose of [`Extended`](Self::Extended), for a
-    /// Y-axis spatial Hadamard wall.
-    ExtendedY,
-}
-
-impl LayerSchedule {
-    pub(crate) const fn is_extended(self) -> bool {
-        matches!(self, Self::Extended | Self::ExtendedY)
-    }
+    /// Five slots assigned jointly to cube checks and all spatial Hadamard pipes.
+    Wall,
 }
 
 /// A block's kind plus its face connectivity, forming a unique compilation signature.
@@ -372,11 +352,12 @@ pub(crate) fn relocatable_block_signatures(
                     .then_some(crate::block::fixed_bulk::t::SurgeryLayout::SIDE_PRIORITY[0]),
             )?;
             signature.layer_schedule = match kind {
-                BlockKind::Cube(cube) => Some(match signature.connectivity.hadamard_wall_axes() {
-                    (true, _) => LayerSchedule::Extended,
-                    (false, true) => LayerSchedule::ExtendedY,
-                    (false, false) if cube.is_spatial() => LayerSchedule::Padded,
-                    (false, false) => LayerSchedule::Compact,
+                BlockKind::Cube(cube) => Some(if signature.connectivity.has_spatial_hadamard() {
+                    LayerSchedule::Wall
+                } else if cube.is_spatial() {
+                    LayerSchedule::Padded
+                } else {
+                    LayerSchedule::Compact
                 }),
                 _ => None,
             };
@@ -576,12 +557,9 @@ pub(crate) fn layer_schedule_at(schedules: &LayerScheduleMap, pos: IVec3) -> Lay
 /// Per-cube CX-slot depth, derived per z-layer spatial component.
 ///
 /// Only the components that demand more than [`LayerSchedule::Compact`] are
-/// recorded, so the map stays empty for the common case. A component carrying
-/// walls on both spatial axes has no schedule at all (LIM-017), so it is
-/// rejected here rather than represented.
-pub(crate) fn join_component_layer_schedules(
-    graph: &BlockGraph,
-) -> Result<LayerScheduleMap, CompileError> {
+/// recorded, so the map stays empty for the common case. Components with both wall axes
+/// request a jointly scheduled set of cube and pipe templates.
+pub(crate) fn join_component_layer_schedules(graph: &BlockGraph) -> LayerScheduleMap {
     // Without a spatial cube or Hadamard wall, every component is compact.
     if !graph
         .blocks()
@@ -590,10 +568,9 @@ pub(crate) fn join_component_layer_schedules(
             .pipes()
             .any(|pipe| pipe.is_hadamard() && pipe.dir().is_spatial())
     {
-        return Ok(LayerScheduleMap::default());
+        return LayerScheduleMap::default();
     }
     let mut schedules = LayerScheduleMap::default();
-    let mut mixed = Vec::new();
 
     // The z-layer spatial partition is `bloq_graph`'s, shared with the cube
     // height propagation that runs at lowering time: both answer "which cubes
@@ -621,7 +598,6 @@ pub(crate) fn join_component_layer_schedules(
             }
         }
 
-        let mut wall_axes = crate::FxMap::<IVec3, (bool, bool)>::default();
         for pipe in graph.layer(layer).spacelike_pipes() {
             if !pipe.is_hadamard() {
                 continue;
@@ -635,20 +611,7 @@ pub(crate) fn join_component_layer_schedules(
             let (Some(&component), Some(_)) = (root.get(&src.pos()), root.get(&dst.pos())) else {
                 continue;
             };
-            let axes = wall_axes.entry(component).or_default();
-            match pipe.dir().as_udirection() {
-                UDirection::X => axes.0 = true,
-                UDirection::Y => axes.1 = true,
-                UDirection::Z => unreachable!("spatial Hadamard walls are not temporal"),
-            }
-        }
-        for (component, (has_x, has_y)) in wall_axes {
-            match (has_x, has_y) {
-                (true, true) => mixed.push(component),
-                (true, false) => demand(component, LayerSchedule::Extended),
-                (false, true) => demand(component, LayerSchedule::ExtendedY),
-                (false, false) => unreachable!("wall axis map is non-empty"),
-            }
+            demand(component, LayerSchedule::Wall);
         }
 
         for (&pos, component) in &root {
@@ -658,10 +621,7 @@ pub(crate) fn join_component_layer_schedules(
         }
     }
 
-    match mixed.into_iter().min_by_key(glam::IVec3::to_array) {
-        Some(pos) => Err(CompileError::MixedSpatialHadamardUnsupported { pos }),
-        None => Ok(schedules),
-    }
+    schedules
 }
 
 #[cfg(test)]
@@ -672,12 +632,9 @@ mod tests {
 
     use crate::{CompileConfig, CompileContext};
 
-    /// A hub whose spatial Hadamard walls run on *both* in-plane axes has no
-    /// single [`LayerSchedule`], so the compiler must reject it — blaming the
-    /// component's lowest coordinate — rather than silently picking one axis.
-    /// Compilation with and without the explicit audit must agree.
+    /// Ordinary and audited compilation both accept a turn with two spatial walls.
     #[test]
-    fn quarter_turn_spatial_hadamard_is_rejected() {
+    fn quarter_turn_spatial_hadamard_runs_concurrently() {
         let graph = BlockGraph::from_blog_text(
             "BLOG 1.0\n\n\
              0: ZZX [0, 0, 0]\n\
@@ -693,14 +650,13 @@ mod tests {
         .expect("quarter-turn graph parses");
         let ctx = CompileContext::new(CompileConfig::new(3));
 
-        assert!(matches!(
-            ctx.compile_and_validate(&graph),
-            Err(CompileError::MixedSpatialHadamardUnsupported { pos }) if pos == IVec3::ZERO
-        ));
-        assert!(matches!(
-            ctx.compile(&graph),
-            Err(CompileError::MixedSpatialHadamardUnsupported { pos }) if pos == IVec3::ZERO
-        ));
+        let program = ctx
+            .compile_and_validate(&graph)
+            .expect("mixed-wall component validates")
+            .bloq;
+        let report = bloq_vm::run_bloq(&program, 8, 3).expect("VM executes concurrent walls");
+        assert!(report.all_detectors_constant());
+        ctx.compile(&graph).expect("mixed-wall component compiles");
     }
 
     #[test]
@@ -730,7 +686,7 @@ mod tests {
         // so the test covers the same spatial-component set the compiler uses.
         let signatures = block_signatures(
             &graph,
-            &join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls"),
+            &join_component_layer_schedules(&graph),
             CompileConfig::new(3),
         )
         .expect("valid graph");
@@ -782,15 +738,14 @@ mod tests {
         // A second component in the same layer, out of the wall's reach.
         graph.add_block(cube(IVec3::new(5, 0, 0), ZXZ));
         graph.add_pipe(Pipe::new(IVec3::new(1, 0, 0), Direction::YPLUS));
-        assert!(join_component_layer_schedules(&graph).unwrap().is_empty());
+        assert!(join_component_layer_schedules(&graph).is_empty());
         graph.add_pipe(Pipe::new(IVec3::ZERO, Direction::XPLUS).with_hadamard());
 
-        let schedules =
-            join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls");
+        let schedules = join_component_layer_schedules(&graph);
         for pos in [IVec3::ZERO, IVec3::new(1, 0, 0), IVec3::new(1, 1, 0)] {
             assert_eq!(
                 layer_schedule_at(&schedules, pos),
-                LayerSchedule::Extended,
+                LayerSchedule::Wall,
                 "{pos} shares the wall's component"
             );
         }
@@ -809,16 +764,15 @@ mod tests {
         graph.add_block(cube(IVec3::new(1, 0, 0), XXZ));
         graph.add_pipe(Pipe::new(IVec3::ZERO, Direction::XPLUS).with_hadamard());
 
-        let schedules =
-            join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls");
+        let schedules = join_component_layer_schedules(&graph);
         assert_eq!(
             layer_schedule_at(&schedules, IVec3::new(1, 0, 0)),
-            LayerSchedule::Extended,
+            LayerSchedule::Wall,
             "the spatial cube's padded demand must not win over the wall's"
         );
         assert_eq!(
             layer_schedule_at(&schedules, IVec3::ZERO),
-            LayerSchedule::Extended
+            LayerSchedule::Wall
         );
     }
 
@@ -882,7 +836,7 @@ mod tests {
 
         let signature = block_signatures(
             &graph,
-            &join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls"),
+            &join_component_layer_schedules(&graph),
             CompileConfig::new(3),
         )
         .expect("valid graph")[&IVec3::ZERO];
@@ -909,7 +863,7 @@ mod tests {
 
         let signatures = block_signatures(
             &graph,
-            &join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls"),
+            &join_component_layer_schedules(&graph),
             CompileConfig::new(3),
         )
         .expect("valid graph");
@@ -937,7 +891,7 @@ mod tests {
         assert_eq!(
             block_signatures(
                 &graph,
-                &join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls"),
+                &join_component_layer_schedules(&graph),
                 CompileConfig::new(3)
             )
             .expect("valid graph")[&IVec3::new(0, 0, 0)]
@@ -958,7 +912,7 @@ mod tests {
 
         let signatures = block_signatures(
             &graph,
-            &join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls"),
+            &join_component_layer_schedules(&graph),
             CompileConfig::new(3),
         )
         .expect("valid graph");
@@ -987,7 +941,7 @@ mod tests {
         assert_eq!(
             block_signatures(
                 &graph,
-                &join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls"),
+                &join_component_layer_schedules(&graph),
                 CompileConfig::new(3)
             )
             .expect("valid graph")[&IVec3::new(0, 0, 2)]
@@ -1008,7 +962,7 @@ mod tests {
         assert_eq!(
             block_signatures(
                 &graph,
-                &join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls"),
+                &join_component_layer_schedules(&graph),
                 CompileConfig::new(3)
             )
             .expect("valid graph")[&IVec3::ZERO]
@@ -1031,7 +985,7 @@ mod tests {
         assert_eq!(
             block_signatures(
                 &graph,
-                &join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls"),
+                &join_component_layer_schedules(&graph),
                 CompileConfig::new(3)
             )
             .expect("valid graph")[&IVec3::ZERO]
@@ -1053,7 +1007,7 @@ mod tests {
 
         let signature = block_signatures(
             &graph,
-            &join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls"),
+            &join_component_layer_schedules(&graph),
             CompileConfig::new(3),
         )
         .expect("valid graph")[&IVec3::ZERO];
@@ -1084,7 +1038,7 @@ mod tests {
     fn t_side(graph: &BlockGraph, pos: IVec3) -> Option<Direction> {
         block_signatures(
             graph,
-            &join_component_layer_schedules(graph).expect("no mixed spatial Hadamard walls"),
+            &join_component_layer_schedules(graph),
             CompileConfig::new(3),
         )
         .expect("valid graph")[&pos]
@@ -1210,7 +1164,7 @@ mod tests {
         }
 
         assert!(matches!(
-            block_signatures(&graph, &join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls"), CompileConfig::new(3)).unwrap_err(),
+            block_signatures(&graph, &join_component_layer_schedules(&graph), CompileConfig::new(3)).unwrap_err(),
             CompileError::TBlockNeedsFreeNeighbor { pos } if pos == IVec3::new(2, 0, 0)
         ));
     }
@@ -1257,7 +1211,7 @@ mod tests {
             ],
         );
         assert!(matches!(
-            block_signatures(&graph, &join_component_layer_schedules(&graph).expect("no mixed spatial Hadamard walls"), CompileConfig::new(3)).unwrap_err(),
+            block_signatures(&graph, &join_component_layer_schedules(&graph), CompileConfig::new(3)).unwrap_err(),
             CompileError::TBlockNeedsFreeNeighbor { pos: p } if p == pos
         ));
     }
@@ -1268,7 +1222,7 @@ mod tests {
         assert_eq!(
             block_signatures(
                 &plain,
-                &join_component_layer_schedules(&plain).expect("no mixed spatial Hadamard walls"),
+                &join_component_layer_schedules(&plain),
                 CompileConfig::new(3)
             )
             .expect("valid graph")[&IVec3::ZERO]
@@ -1286,8 +1240,7 @@ mod tests {
         assert_eq!(
             block_signatures(
                 &hadamard,
-                &join_component_layer_schedules(&hadamard)
-                    .expect("no mixed spatial Hadamard walls"),
+                &join_component_layer_schedules(&hadamard),
                 CompileConfig::new(3)
             )
             .expect("valid graph")[&IVec3::ZERO]

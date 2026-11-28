@@ -1757,6 +1757,7 @@ fn validate_template<'a>(
         work,
         template.circuit.meas_registry().records().len(),
     )?;
+    charge_template_work(template_id, work, template.readout_frames.len())?;
     let analysis = template.circuit_analysis().map_err(|source| {
         BloqValidationError::InvalidTemplateCircuit {
             template: template_id,
@@ -1769,6 +1770,15 @@ fn validate_template<'a>(
     }
 
     let produced = |measurement| produced_measurements.contains(measurement);
+
+    for frame in &template.readout_frames {
+        if !produced(frame.flag) {
+            return Err(BloqValidationError::UnknownTemplateMeasurement {
+                template: template_id,
+                measurement: frame.flag,
+            });
+        }
+    }
 
     charge_template_work(template_id, work, template.repeat_states.len())?;
     charge_template_work(template_id, work, template.detectors.len())?;

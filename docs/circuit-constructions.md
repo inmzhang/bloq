@@ -542,22 +542,84 @@ distance. The other ancilla outcomes form stabilizer detectors.
 A spatial Hadamard pipe joins neighboring cubes across a domain wall that
 exchanges logical X and Z.
 
-Stretched checks use both CX and CZ gates across the wall. The connected
-component uses six entangling layers per syndrome round, alternating their
-direction between rounds. Each connected component has one wall axis per
-spatial layer; separate components can use different axes.
-For surfaces closed by initialization, selected first-round wall-check outcomes
-contribute to the logical parity. Final data readout contributes through the
-neighboring cubes.
+Each extraction round takes **seven physical moments**. Preparation and readout
+surround five nearest-neighbor CX/CZ slots. A branch ancilla applies CX to
+each X factor of the wall stabilizer or CZ to each Z factor. The link and branch
+ancillas share a cat state during these couplings. The product of the X
+measurements on its surviving wires gives the syndrome. Uncomputed wires are
+measured in Z. Their flags update the Pauli frame of a two-data branch through
+the remaining gates, including neighboring detector and logical parities.
+
+The compiler schedules every pipe and cube in the connected spatial component
+together. Couplings that share a qubit occupy different slots. At each overlap
+between checks, the order of anticommuting couplings preserves the measured
+stabilizers. The schedule also preserves the orientation of ordinary
+weight-four plaquette hooks. On seam checks where a two-data fault could follow
+a logical string, the two flagged branches finish on the same end of the check.
+Their common neighboring syndrome cancels when both flags fire.
+At a perpendicular junction the pipes share a
+single corner check. A logical surface turning through both walls uses its
+syndrome once.
+
+The distance-five XXZ elbow below has three branches A, B, C at (10, 10),
+(12, 10), (10, 12) and a link L at (11, 11). This is the corner's complete
+round. Other checks run during the same moments.
+
+| Moment | Ancilla operation | Data coupling |
+| --- | --- | --- |
+| Prepare | L in X and A, B, C in Z | |
+| 1 | CX L → A | |
+| 2 | CX L → B | |
+| 3 | CX L → C | |
+| 4 | | CZ C → (9, 13) |
+| 5 | CX L → C | CX A → (9, 9) and CZ B → (13, 9) |
+| Read out | X on L, A and B, Z on C | |
+
+The X outcomes on L, A and B carry the corner syndrome. Each qubit is measured
+once per round. Including the port and loop boundaries, each distance-five example
+contains 38 Stim ticks and each distance-13 example contains 94. The panel shows
+the full component, including the simultaneous
+operations on both pipes.
+
+```{figure} assets/spatial-hadamard-elbow-xxz-rounds.png
+:alt: All seven moments in each of five rounds of the XXZ elbow. Each row shows both spatial Hadamard pipes.
+```
 
 ### Distance boundary
 
-:::{important}
-This construction can reduce circuit distance. In one crossing fixture,
-requested distance five gives graphlike distance four. Prefer a
-[Temporal Hadamard](#temporal-hadamard) or a different layout when preserving
-distance is required.
-:::
+The two single-wall channels and the two concurrent X/Y elbows shown below were
+certified at distances 3, 5, 7, 9, 11, and 13 under Bloq's uniform circuit noise
+at `p = 0.001`. For each circuit, Tropidist gives a lower bound using every fault
+column of the undecomposed detector error model. Replaying an undetected logical
+fault of the same weight in the physical circuit closes the bound. The
+{download}`24 certificates <assets/experiments/spatial-hadamard-certificates.zip>`
+cover these four port-to-port layouts. A separate
+{download}`signed-wall and junction corpus <assets/experiments/spatial-hadamard-junctions.tar.xz>`
+contains exact certificates for 117 inputs at distances 3, 5, 7 and 9,
+including three-arm junctions and four simultaneous walls. The certificates
+apply to the archived circuits and noise models.
+
+### Logical failure under circuit noise
+
+We sampled the same four circuits at nine physical error probabilities from
+0.05% to 1%, for a total of 13,197,312 shots. A shot fails if either port
+observable is decoded incorrectly. Both ordinary and correlated PyMatching
+decoded the same shots after strict graphlike decomposition. Every physical fault
+in the certified models fires at most four detectors, and every component after
+decomposition has at most two. The figure shows
+correlated matching with pointwise 95% Wilson intervals. Open triangles mark
+the upper limit when no failure was observed.
+
+```{figure} assets/experiments/spatial-hadamard-rates.png
+:alt: Logical failure versus physical error probability for both single walls and both concurrent elbows, with curves for distances three through thirteen.
+
+At 0.3% physical error, the ZZX elbow's logical failure rate falls from
+10.65% at distance 3 to 0.150% at distance 13. At 0.05%, each distance-13
+layout had zero failures in 262,144 shots, giving a 95% upper limit of 0.00147%.
+```
+
+The {download}`Monte Carlo data <assets/experiments/spatial-hadamard-rates.csv>`
+include both decoders, per-observable failure counts, seeds, and circuit hashes.
 
 ### Examples
 
@@ -592,6 +654,22 @@ distance is required.
 ```
 
 ```{detector-slices} spatial-hadamard-y-xzx
+```
+:::
+:::{md-tab-item} X/Y elbow · ZZX hub
+```{bloq-view} spatial-hadamard-elbow-zzx
+:source: _static/constructions/spatial-hadamard-elbow-zzx.blog
+```
+
+```{detector-slices} spatial-hadamard-elbow-zzx
+```
+:::
+:::{md-tab-item} X/Y elbow · XXZ hub
+```{bloq-view} spatial-hadamard-elbow-xxz
+:source: _static/constructions/spatial-hadamard-elbow-xxz.blog
+```
+
+```{detector-slices} spatial-hadamard-elbow-xxz
 ```
 :::
 ::::

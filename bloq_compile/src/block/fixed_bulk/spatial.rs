@@ -7,7 +7,7 @@
 use bloq_graph::{Basis, CubeKind, Direction};
 
 use crate::block::fixed_bulk::grid::{
-    ActiveCorners, Cell, PatchData, TileSpec, build_patch_from_cells_with_reverse, hook_orientation,
+    ActiveCorners, Cell, PatchData, TileSpec, build_patch_from_cells, hook_orientation,
 };
 use crate::block::fixed_bulk::utils::{Corner, Corner::*};
 use crate::signature::{Connectivity, LayerSchedule};
@@ -47,32 +47,20 @@ fn classify_quadrant(row: usize, col: usize, last: usize) -> Quadrant {
 /// Build a Patch + init/meas data maps for a spatial (ZZX/XXZ) cube.
 ///
 /// Returns `(patch, init_data, meas_data)`.
-#[cfg(test)]
 pub(super) fn build_spatial_patch(
     cube_kind: CubeKind,
     distance: u32,
     connectivity: Connectivity,
     layer_schedule: LayerSchedule,
 ) -> PatchData {
-    build_spatial_patch_with_reverse(cube_kind, distance, connectivity, layer_schedule, false)
-}
-
-pub(super) fn build_spatial_patch_with_reverse(
-    cube_kind: CubeKind,
-    distance: u32,
-    connectivity: Connectivity,
-    layer_schedule: LayerSchedule,
-    reverse_schedule: bool,
-) -> PatchData {
     let sbb = cube_kind.x(); // spatial boundary basis = x() = y()
     let classifier = SpatialClassifier::new(sbb, connectivity);
 
-    build_patch_from_cells_with_reverse(
+    build_patch_from_cells(
         distance,
         connectivity,
         cube_kind.z(),
         layer_schedule,
-        reverse_schedule,
         |cell| classifier.classify(cell),
     )
 }
@@ -98,7 +86,15 @@ impl SpatialClassifier {
             spatial_boundary_basis,
             boundary_is_z,
             arms,
-            hooks: spatial_hooks(arms, boundary_is_z),
+            hooks: spatial_hooks(
+                PerEdge {
+                    up: connectivity.has_pipe(Direction::YPLUS),
+                    down: connectivity.has_pipe(Direction::YMINUS),
+                    left: connectivity.has_pipe(Direction::XMINUS),
+                    right: connectivity.has_pipe(Direction::XPLUS),
+                },
+                boundary_is_z,
+            ),
             connectivity,
         }
     }
@@ -431,7 +427,7 @@ mod tests {
             .with_hadamard(Direction::XMINUS)
             .with_pipe(Direction::YPLUS)
             .with_pipe(Direction::YMINUS);
-        let patch = build_spatial_patch(CubeKind::XXZ, 3, connectivity, LayerSchedule::Extended);
+        let patch = build_spatial_patch(CubeKind::XXZ, 3, connectivity, LayerSchedule::Wall);
 
         insta::assert_snapshot!(
             "spatial_xxz_d3_hadamard_xminus_y_arms",
@@ -449,7 +445,7 @@ mod tests {
         // The classifier sees no `-X` arm...
         assert_eq!(spatial_arms(ceded).left, spatial_arms(arms).left);
         // ...and the wall owns the `-X` cell column outright.
-        let (patch, _, _) = build_spatial_patch(CubeKind::XXZ, 3, ceded, LayerSchedule::Extended);
+        let (patch, _, _) = build_spatial_patch(CubeKind::XXZ, 3, ceded, LayerSchedule::Wall);
         assert!(patch.tiles().iter().all(|tile| tile.measure_qubit().x > 0));
     }
 }

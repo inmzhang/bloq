@@ -151,6 +151,9 @@ pub enum NodeTemplateInstanceMergeError {
     /// Instance circuits use one qubit incompatibly in a segment.
     #[error("template instance circuits overlap qubit {0:?} in one tick segment")]
     QubitConflict(IVec2),
+    /// A retrospective frame cannot be resolved on the merged extraction round.
+    #[error("invalid readout frame: {0}")]
+    InvalidReadoutFrame(String),
     /// Conditional feedforward reads a measurement too early.
     #[error("ConditionalPauli control references measurement {0} not produced before it")]
     ControlReferencesUnknownMeasurement(u32),
@@ -532,6 +535,37 @@ impl BloqNode {
             flatten_emission_plan(&mut plan, instances, templates)?;
         }
         plan.circuit = apply_instantiation_options(plan.circuit, options, &ideal_qubits)?;
+        if instances
+            .iter()
+            .any(|i| !templates[i.template_id].readout_frames.is_empty())
+        {
+            let mut frames = Vec::new();
+            for instance in instances {
+                let template = &plan.templates(templates)[instance.template_id];
+                for frame in &template.readout_frames {
+                    let flag = *plan
+                        .measurements
+                        .get(&InstanceMeasurement {
+                            instance: instance.id,
+                            measurement: frame.flag,
+                        })
+                        .ok_or(
+                            NodeTemplateInstanceMergeError::ControlReferencesUnknownMeasurement(
+                                frame.flag,
+                            ),
+                        )?;
+                    let translate =
+                        |q| bloq_circuit::checked_translate_coordinate(q, instance.offset);
+                    frames.push(crate::ReadoutFrame {
+                        flag,
+                        ancilla: translate(frame.ancilla)?,
+                        target: translate(frame.target)?,
+                        pauli: frame.pauli,
+                    });
+                }
+            }
+            crate::readout_frame::resolve(&mut plan.circuit, &frames)?;
+        }
         Ok(plan)
     }
 }

@@ -1753,194 +1753,6 @@
       "limitations": []
     },
     {
-      "name": "spatial-hadamard-x-zxz",
-      "family": "spatial-h",
-      "source": "spatial-hadamard-x-zxz.blog",
-      "stim": "spatial-hadamard-x-zxz.stim",
-      "svg": "spatial-hadamard-x-zxz.svg",
-      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 3\n  0: Port [0,0,0]\n  1: ZXZ [0,0,1]\n  2: XZX [1,0,1]\n  3: Port [1,0,2]\n  0 -> +Z\n  1 -H> 2\n  2 -> +Z\n}\n",
-      "ir_edits": {},
-      "distance": 5,
-      "circuit_sha256": "470198b777ccd3e73d1efc62245b0e179f4c32b11c349fe1f0d2981327f17fa9",
-      "ticks": 42,
-      "measurements": 318,
-      "detectors": 264,
-      "stages": [
-        {
-          "label": "Initialization round",
-          "tick_start": 1,
-          "tick_stop": 9,
-          "repetitions": 1,
-          "repeat_meaning": ""
-        },
-        {
-          "label": "Backward wall round",
-          "tick_start": 9,
-          "tick_stop": 17,
-          "repetitions": 2,
-          "repeat_meaning": "Interior backward schedule appears floor(d/2) times"
-        },
-        {
-          "label": "Forward wall round",
-          "tick_start": 17,
-          "tick_stop": 25,
-          "repetitions": 1,
-          "repeat_meaning": "Interior forward schedule; boundary initialization and measurement are displayed separately"
-        },
-        {
-          "label": "Final measurement round",
-          "tick_start": 33,
-          "tick_stop": 41,
-          "repetitions": 1,
-          "repeat_meaning": ""
-        }
-      ],
-      "limitations": [
-        "The current spatial Hadamard construction is distance degraded. Alternating rounds are displayed separately; they must not be collapsed into one repeated round."
-      ]
-    },
-    {
-      "name": "spatial-hadamard-y-zxz",
-      "family": "spatial-h",
-      "source": "spatial-hadamard-y-zxz.blog",
-      "stim": "spatial-hadamard-y-zxz.stim",
-      "svg": "spatial-hadamard-y-zxz.svg",
-      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 3\n  0: Port [0,0,0]\n  1: ZXZ [0,0,1]\n  2: XZX [0,1,1]\n  3: Port [0,1,2]\n  0 -> +Z\n  1 -H> 2\n  2 -> +Z\n}\n",
-      "ir_edits": {},
-      "distance": 5,
-      "circuit_sha256": "089bfc25fe1c167e6ed8c2abbe91793b45f60de08132da48127881bf6c9b0a9e",
-      "ticks": 42,
-      "measurements": 318,
-      "detectors": 264,
-      "stages": [
-        {
-          "label": "Initialization round",
-          "tick_start": 1,
-          "tick_stop": 9,
-          "repetitions": 1,
-          "repeat_meaning": ""
-        },
-        {
-          "label": "Backward wall round",
-          "tick_start": 9,
-          "tick_stop": 17,
-          "repetitions": 2,
-          "repeat_meaning": "Interior backward schedule appears floor(d/2) times"
-        },
-        {
-          "label": "Forward wall round",
-          "tick_start": 17,
-          "tick_stop": 25,
-          "repetitions": 1,
-          "repeat_meaning": "Interior forward schedule; boundary initialization and measurement are displayed separately"
-        },
-        {
-          "label": "Final measurement round",
-          "tick_start": 33,
-          "tick_stop": 41,
-          "repetitions": 1,
-          "repeat_meaning": ""
-        }
-      ],
-      "limitations": [
-        "The current spatial Hadamard construction is distance degraded. Alternating rounds are displayed separately; they must not be collapsed into one repeated round."
-      ]
-    },
-    {
-      "name": "spatial-hadamard-x-xzx",
-      "family": "spatial-h",
-      "source": "spatial-hadamard-x-xzx.blog",
-      "stim": "spatial-hadamard-x-xzx.stim",
-      "svg": "spatial-hadamard-x-xzx.svg",
-      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 3\n  0: Port [0,0,0]\n  1: XZX [0,0,1]\n  2: ZXZ [1,0,1]\n  3: Port [1,0,2]\n  0 -> +Z\n  1 -H> 2\n  2 -> +Z\n}\n",
-      "ir_edits": {},
-      "distance": 5,
-      "circuit_sha256": "f3bb75815abd3f3debb5d8fa5c2682a886732e09022ff0734d795ae3940aff92",
-      "ticks": 42,
-      "measurements": 318,
-      "detectors": 264,
-      "stages": [
-        {
-          "label": "Initialization round",
-          "tick_start": 1,
-          "tick_stop": 9,
-          "repetitions": 1,
-          "repeat_meaning": ""
-        },
-        {
-          "label": "Backward wall round",
-          "tick_start": 9,
-          "tick_stop": 17,
-          "repetitions": 2,
-          "repeat_meaning": "Interior backward schedule appears floor(d/2) times"
-        },
-        {
-          "label": "Forward wall round",
-          "tick_start": 17,
-          "tick_stop": 25,
-          "repetitions": 1,
-          "repeat_meaning": "Interior forward schedule; boundary initialization and measurement are displayed separately"
-        },
-        {
-          "label": "Final measurement round",
-          "tick_start": 33,
-          "tick_stop": 41,
-          "repetitions": 1,
-          "repeat_meaning": ""
-        }
-      ],
-      "limitations": [
-        "The current spatial Hadamard construction is distance degraded. Alternating rounds are displayed separately; they must not be collapsed into one repeated round."
-      ]
-    },
-    {
-      "name": "spatial-hadamard-y-xzx",
-      "family": "spatial-h",
-      "source": "spatial-hadamard-y-xzx.blog",
-      "stim": "spatial-hadamard-y-xzx.stim",
-      "svg": "spatial-hadamard-y-xzx.svg",
-      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 3\n  0: Port [0,0,0]\n  1: XZX [0,0,1]\n  2: ZXZ [0,1,1]\n  3: Port [0,1,2]\n  0 -> +Z\n  1 -H> 2\n  2 -> +Z\n}\n",
-      "ir_edits": {},
-      "distance": 5,
-      "circuit_sha256": "762de7a7b9bd9a559d4bd594516553339fa70c7f9f15026d0169a1e84edb7403",
-      "ticks": 42,
-      "measurements": 318,
-      "detectors": 264,
-      "stages": [
-        {
-          "label": "Initialization round",
-          "tick_start": 1,
-          "tick_stop": 9,
-          "repetitions": 1,
-          "repeat_meaning": ""
-        },
-        {
-          "label": "Backward wall round",
-          "tick_start": 9,
-          "tick_stop": 17,
-          "repetitions": 2,
-          "repeat_meaning": "Interior backward schedule appears floor(d/2) times"
-        },
-        {
-          "label": "Forward wall round",
-          "tick_start": 17,
-          "tick_stop": 25,
-          "repetitions": 1,
-          "repeat_meaning": "Interior forward schedule; boundary initialization and measurement are displayed separately"
-        },
-        {
-          "label": "Final measurement round",
-          "tick_start": 33,
-          "tick_stop": 41,
-          "repetitions": 1,
-          "repeat_meaning": ""
-        }
-      ],
-      "limitations": [
-        "The current spatial Hadamard construction is distance degraded. Alternating rounds are displayed separately; they must not be collapsed into one repeated round."
-      ]
-    },
-    {
       "name": "regular-zxz",
       "family": "regular",
       "source": "regular-zxz.blog",
@@ -4073,6 +3885,240 @@
         }
       ],
       "limitations": []
+    },
+    {
+      "name": "spatial-hadamard-x-zxz",
+      "family": "spatial-h",
+      "source": "spatial-hadamard-x-zxz.blog",
+      "stim": "spatial-hadamard-x-zxz.stim",
+      "svg": "spatial-hadamard-x-zxz.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 3\n  0: Port [0,0,0]\n  1: ZXZ [0,0,1]\n  2: XZX [1,0,1]\n  3: Port [1,0,2]\n  0 -> +Z\n  1 -H> 2\n  2 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "36c06f43504cc4c20f3f44a274c1cc542288c6f699a33f6922401b8ba0267d52",
+      "ticks": 38,
+      "measurements": 368,
+      "detectors": 264,
+      "stages": [
+        {
+          "label": "Initialization round",
+          "tick_start": 1,
+          "tick_stop": 8,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk wall round",
+          "tick_start": 8,
+          "tick_stop": 15,
+          "repetitions": 3,
+          "repeat_meaning": "The same seven moments repeat in each interior round"
+        },
+        {
+          "label": "Final measurement round",
+          "tick_start": 30,
+          "tick_stop": 37,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [],
+      "bloq_version": "0.2.1-dev"
+    },
+    {
+      "name": "spatial-hadamard-y-zxz",
+      "family": "spatial-h",
+      "source": "spatial-hadamard-y-zxz.blog",
+      "stim": "spatial-hadamard-y-zxz.stim",
+      "svg": "spatial-hadamard-y-zxz.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 3\n  0: Port [0,0,0]\n  1: ZXZ [0,0,1]\n  2: XZX [0,1,1]\n  3: Port [0,1,2]\n  0 -> +Z\n  1 -H> 2\n  2 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "576c25bfb75e452bb14bc501e1e7023c8a8591fa653a9bfae1dbc10de29cae14",
+      "ticks": 38,
+      "measurements": 368,
+      "detectors": 264,
+      "stages": [
+        {
+          "label": "Initialization round",
+          "tick_start": 1,
+          "tick_stop": 8,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk wall round",
+          "tick_start": 8,
+          "tick_stop": 15,
+          "repetitions": 3,
+          "repeat_meaning": "The same seven moments repeat in each interior round"
+        },
+        {
+          "label": "Final measurement round",
+          "tick_start": 30,
+          "tick_stop": 37,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [],
+      "bloq_version": "0.2.1-dev"
+    },
+    {
+      "name": "spatial-hadamard-x-xzx",
+      "family": "spatial-h",
+      "source": "spatial-hadamard-x-xzx.blog",
+      "stim": "spatial-hadamard-x-xzx.stim",
+      "svg": "spatial-hadamard-x-xzx.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 3\n  0: Port [0,0,0]\n  1: XZX [0,0,1]\n  2: ZXZ [1,0,1]\n  3: Port [1,0,2]\n  0 -> +Z\n  1 -H> 2\n  2 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "6b6ff55be3e139573cf5b926d632990e7d6030bc6c2b9b1a9e55c607f0fd81ad",
+      "ticks": 38,
+      "measurements": 368,
+      "detectors": 264,
+      "stages": [
+        {
+          "label": "Initialization round",
+          "tick_start": 1,
+          "tick_stop": 8,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk wall round",
+          "tick_start": 8,
+          "tick_stop": 15,
+          "repetitions": 3,
+          "repeat_meaning": "The same seven moments repeat in each interior round"
+        },
+        {
+          "label": "Final measurement round",
+          "tick_start": 30,
+          "tick_stop": 37,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [],
+      "bloq_version": "0.2.1-dev"
+    },
+    {
+      "name": "spatial-hadamard-y-xzx",
+      "family": "spatial-h",
+      "source": "spatial-hadamard-y-xzx.blog",
+      "stim": "spatial-hadamard-y-xzx.stim",
+      "svg": "spatial-hadamard-y-xzx.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 3\n  0: Port [0,0,0]\n  1: XZX [0,0,1]\n  2: ZXZ [0,1,1]\n  3: Port [0,1,2]\n  0 -> +Z\n  1 -H> 2\n  2 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "664964806da2120ed718031e422289cfc40d08eb2fa1c20cadd6ea20a6058722",
+      "ticks": 38,
+      "measurements": 368,
+      "detectors": 264,
+      "stages": [
+        {
+          "label": "Initialization round",
+          "tick_start": 1,
+          "tick_stop": 8,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Bulk wall round",
+          "tick_start": 8,
+          "tick_stop": 15,
+          "repetitions": 3,
+          "repeat_meaning": "The same seven moments repeat in each interior round"
+        },
+        {
+          "label": "Final measurement round",
+          "tick_start": 30,
+          "tick_stop": 37,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [],
+      "bloq_version": "0.2.1-dev"
+    },
+    {
+      "name": "spatial-hadamard-elbow-zzx",
+      "family": "mixed-h",
+      "source": "spatial-hadamard-elbow-zzx.blog",
+      "stim": "spatial-hadamard-elbow-zzx.stim",
+      "svg": "spatial-hadamard-elbow-zzx.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 4\n  0: Port [1,0,0]\n  1: ZXZ [1,0,1]\n  2: ZZX [0,0,1]\n  3: XZZ [0,1,1]\n  4: Port [0,1,2]\n  0 -> +Z\n  2 -H> 1\n  2 -H> 3\n  3 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "f8442715854a1130b3191a5dde42effefa7881fe0ea72a66c738f53f273f8123",
+      "ticks": 38,
+      "measurements": 568,
+      "detectors": 384,
+      "stages": [
+        {
+          "label": "Initialization round",
+          "tick_start": 1,
+          "tick_stop": 8,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Concurrent X/Y bulk round",
+          "tick_start": 8,
+          "tick_stop": 15,
+          "repetitions": 3,
+          "repeat_meaning": "The same seven moments repeat in each interior round"
+        },
+        {
+          "label": "Final measurement round",
+          "tick_start": 30,
+          "tick_stop": 37,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [],
+      "bloq_version": "0.2.1-dev"
+    },
+    {
+      "name": "spatial-hadamard-elbow-xxz",
+      "family": "mixed-h",
+      "source": "spatial-hadamard-elbow-xxz.blog",
+      "stim": "spatial-hadamard-elbow-xxz.stim",
+      "svg": "spatial-hadamard-elbow-xxz.svg",
+      "source_blog": "BLOG 1.0\n\nmodule main {\n  in q_in: data = 0\n  out q_out: data = 4\n  0: Port [1,0,0]\n  1: XZX [1,0,1]\n  2: XXZ [0,0,1]\n  3: ZXX [0,1,1]\n  4: Port [0,1,2]\n  0 -> +Z\n  2 -H> 1\n  2 -H> 3\n  3 -> +Z\n}\n",
+      "ir_edits": {},
+      "distance": 5,
+      "circuit_sha256": "42291dcc89b7768e20dd193a670025a9f5cefcb6524655655c724e63e82386a2",
+      "ticks": 38,
+      "measurements": 557,
+      "detectors": 380,
+      "stages": [
+        {
+          "label": "Initialization round",
+          "tick_start": 1,
+          "tick_stop": 8,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        },
+        {
+          "label": "Concurrent X/Y bulk round",
+          "tick_start": 8,
+          "tick_stop": 15,
+          "repetitions": 3,
+          "repeat_meaning": "The same seven moments repeat in each interior round"
+        },
+        {
+          "label": "Final measurement round",
+          "tick_start": 30,
+          "tick_stop": 37,
+          "repetitions": 1,
+          "repeat_meaning": ""
+        }
+      ],
+      "limitations": [],
+      "bloq_version": "0.2.1-dev"
     }
   ],
   "errors": []

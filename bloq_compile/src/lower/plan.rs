@@ -68,7 +68,7 @@ pub(crate) struct SpatialPipeRef {
 }
 
 impl SpatialPipeRef {
-    pub(super) fn new(src: IVec3, dst: IVec3) -> Self {
+    pub(crate) fn new(src: IVec3, dst: IVec3) -> Self {
         if src.to_array() <= dst.to_array() {
             Self { src, dst }
         } else {

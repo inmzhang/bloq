@@ -510,6 +510,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
 
 [[package]]
+name = "batsat"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec82b6bbce8ea42f5003417b699267860a9f4dd869fc9ba8faceac761d5afed1"
+dependencies = [
+ "bit-vec 0.5.1",
+]
+
+[[package]]
 name = "beef"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2101,6 +2110,12 @@ dependencies = [
 
 [[package]]
 name = "bit-vec"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f59bbe95d4e52a6398ec21238d31577f2b28a9d86807f06ca59d191d8440d0bb"
+
+[[package]]
+name = "bit-vec"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "349f9b6a179ed607305526ca489b34ad0a41aed5f7980fa90eb03160b69598fb"
@@ -2253,6 +2268,7 @@ dependencies = [
 name = "bloq_compile"
 version = "0.2.1-dev"
 dependencies = [
+ "batsat",
  "bloq_circuit",
  "bloq_graph",
  "bloq_ir",

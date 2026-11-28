@@ -63,7 +63,14 @@ everything derived from it once:
 | `detectors` | Checks closed inside the template |
 | `repeat_states` | Loop-carried detector state for `REPEAT` bodies |
 | `restarts` | Post-selection parities for T-state retries |
+| `readout_frames` | Flag records and Pauli corrections at particular ancilla–data interactions |
 | `boundary_flows` | Stabilizer flows the template leaves open for its neighbors |
+
+A line such as `readout_frame m4 (0,0) (1,1) Z` associates flag `m4`
+with a Z correction just after the last interaction of those two qubits in
+the extraction round. The emitter propagates the correction through the
+remaining gates of the merged component. It reads the flag and applies the
+classical frame in the existing readout moment.
 
 An **instance** places a template at a qubit offset and records its source
 block. Instances share circuit data and own separate measurement records.

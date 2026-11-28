@@ -293,6 +293,11 @@ Declared authors: Marshall Pierce <marshall@mpierce.org>
   [143368af9701a24ebaf89fe5310ad8116ca71e8e99f17415c0dd893f6a256ae4] base64@0.23.1/LICENSE-APACHE
   [ab499c75a0f0da8e0fe83bf9ba3a27e5c39705310f07107c6c66b69958d2401c] base64@0.23.1/LICENSE-MIT
 
+batsat@0.6.0
+Declared license: MIT
+Declared authors: Simon Cruanes; Masaki Hara <ackie.h.gmai@gmail.com>
+  [85d99a7ef76f11734aeef4c5e28f45f05809cf32a194dd621cff0890a04ebdd2] https://github.com/c-cube/batsat/blob/d3084b531c6f3cfc75aebc97927f6a18db30c491/LICENSE
+
 beef@0.5.2
 Declared license: MIT OR Apache-2.0
 Declared authors: Maciej Hirsz <hello@maciej.codes>
@@ -680,6 +685,12 @@ Declared license: Apache-2.0 OR MIT
 Declared authors: Alexis Beingessner <a.beingessner@gmail.com>
   [af975c9737b3bdcdcf7ec3512b3dc936f91cc58a3c9152a8e4b0803f667df6b9] bit-set@0.8.0/LICENSE-APACHE
   [f51ac2c59a222f7476ce507ca879960e2b64ea64bb2786eefdbeb7b0b538d1b7] bit-set@0.8.0/LICENSE-MIT
+
+bit-vec@0.5.1
+Declared license: MIT/Apache-2.0
+Declared authors: Alexis Beingessner <a.beingessner@gmail.com>
+  [af975c9737b3bdcdcf7ec3512b3dc936f91cc58a3c9152a8e4b0803f667df6b9] bit-vec@0.5.1/LICENSE-APACHE
+  [7b63ecd5f1902af1b63729947373683c32745c16a10e8e6292e2e2dcd7e90ae0] bit-vec@0.5.1/LICENSE-MIT
 
 bit-vec@0.6.3
 Declared license: MIT/Apache-2.0
@@ -16512,6 +16523,33 @@ Apache License
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+
+
+--- 85d99a7ef76f11734aeef4c5e28f45f05809cf32a194dd621cff0890a04ebdd2 ---
+
+MiniSat -- Copyright (c) 2003-2006, Niklas Een, Niklas Sorensson
+           Copyright (c) 2007-2010  Niklas Sorensson
+RatSat  -- Copyright (c) 2018-2018, Masaki Hara
+BatSat  -- Copyright (c) 2018-2020, Simon Cruanes
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 --- 861399f8c21c042b110517e76dc6b63a2b334276c8cf17412fc3c8908ca8dc17 ---

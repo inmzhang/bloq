@@ -479,6 +479,7 @@ impl<'a> Parser<'a> {
         let mut implied_measurements = FxHashMap::default();
         let mut detectors = Vec::new();
         let mut repeat_states = Vec::new();
+        let mut readout_frames = Vec::new();
         let mut boundary_flows = Vec::new();
         let mut restarts = Vec::new();
 
@@ -567,11 +568,24 @@ impl<'a> Parser<'a> {
                     stmt.finish()?;
                     restarts.push(TemplateRestart { parity });
                 }
+                "readout_frame" => {
+                    let flag = parse_prefixed(&stmt, stmt.next_token("flag measurement")?, 'm')?;
+                    let ancilla = parse_coord2(&stmt, stmt.next_token("ancilla")?)?;
+                    let target = parse_coord2(&stmt, stmt.next_token("data target")?)?;
+                    let pauli = parse_pauli_basis(&stmt, stmt.next_token("Pauli")?)?;
+                    stmt.finish()?;
+                    readout_frames.push(crate::ReadoutFrame {
+                        flag,
+                        ancilla,
+                        target,
+                        pauli,
+                    });
+                }
                 other => return Err(stmt.err(format!("unknown template statement `{other}`"))),
             }
         }
 
-        Ok(BloqTemplate::with_parts(
+        let mut template = BloqTemplate::with_parts(
             build_circuit(
                 bodies,
                 entry.unwrap_or(BodyId(0)),
@@ -582,7 +596,9 @@ impl<'a> Parser<'a> {
             repeat_states,
             boundary_flows,
             restarts,
-        ))
+        );
+        template.readout_frames = readout_frames;
+        Ok(template)
     }
 
     fn parse_ops(&mut self, implied: &mut FxHashMap<u32, IVec2>) -> Result<Vec<Op>> {

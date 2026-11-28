@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::Arc;
 
-use bloq_graph::{Block, BlockGraph, BlockKind, GuardedTopology, UDirection};
+use bloq_graph::{Block, BlockGraph, BlockKind, GuardedTopology};
 use bloq_ir::Bloq;
 use bloq_utils::boolean::{
     BooleanDecisionDiagram, BooleanOp, DECISION_FALSE as ZERO, DECISION_TRUE as ONE, DecisionId,
@@ -153,21 +153,58 @@ impl ScheduledFamily {
             incoming_cuts,
         }];
         let mut sites = Vec::new();
-        let variants = topology
-            .sites
-            .iter()
-            .flat_map(|(&position, variants)| {
-                variants.iter().map(move |variant| {
-                    (
-                        IVec3::from_array(position),
-                        variant.guard,
-                        Arc::clone(&variant.graph),
-                    )
-                })
-            })
-            .collect::<Vec<_>>();
-        for (position, guard, local_source) in variants {
-            let geometry = geometry(&mut expanded, &local_source, position, &source, &reference)?;
+        // A wall changes the clock of every cube in its spatial component. Resolve
+        // its guarded geometry once for all member sites, including the two ends
+        // that independently register the same pipe in the physical assembly.
+        let mut joint_sites = crate::FxSet::default();
+        let mut variants = Vec::new();
+        for group in &envelope.wall_groups {
+            if group.iter().all(|p| {
+                topology.sites[&p.to_array()]
+                    .iter()
+                    .all(|v| Arc::ptr_eq(&v.graph, &source))
+            }) {
+                continue;
+            }
+            joint_sites.extend(group.iter().copied());
+            let roots = group
+                .iter()
+                .flat_map(|p| topology.sites[&p.to_array()].iter().map(|v| v.guard))
+                .filter(|&r| r != ONE)
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>();
+            for (values, guard) in topology.cases(&roots, ONE)? {
+                let selected = group
+                    .iter()
+                    .filter_map(|&p| {
+                        topology.sites[&p.to_array()]
+                            .iter()
+                            .find(|v| {
+                                v.guard == ONE
+                                    || values
+                                        [roots.binary_search(&v.guard).expect("component guard")]
+                            })
+                            .map(|v| (p, &v.graph))
+                    })
+                    .collect::<Vec<_>>();
+                if !selected.is_empty() {
+                    let geometry = wall_geometry(&selected, &source, &reference)?;
+                    variants.push((selected.iter().map(|&(p, _)| p).collect(), guard, geometry));
+                }
+            }
+        }
+        for (&position, arms) in &topology.sites {
+            let position = IVec3::from_array(position);
+            if joint_sites.contains(&position) {
+                continue;
+            }
+            for arm in arms {
+                let geometry = geometry(&mut expanded, &arm.graph, position, &source, &reference)?;
+                variants.push((vec![position], arm.guard, geometry));
+            }
+        }
+        for (positions, guard, geometry) in variants {
             let roots = envelope.selectors(&geometry);
             for (values, guard) in topology.cases(&roots, guard)? {
                 let values = roots
@@ -201,9 +238,10 @@ impl ScheduledFamily {
                     });
                     case
                 };
-                sites.push((position, guard, case));
+                sites.extend(positions.iter().map(|&p| (p, guard, case)));
             }
         }
+        sites.sort_by_key(|(p, _, _)| p.to_array());
         Ok(Self {
             cases,
             sites,
@@ -212,6 +250,78 @@ impl ScheduledFamily {
             anchors,
         })
     }
+}
+
+/// Join the complete incidence of each selected site and its immediate neighbors.
+fn wall_geometry(
+    selected: &[(IVec3, &Arc<BlockGraph>)],
+    source: &Arc<BlockGraph>,
+    reference: &PhysicalGeometry,
+) -> Result<Arc<PhysicalGeometry>, CompileError> {
+    let mut complete = BTreeMap::new();
+    for &(center, local) in selected {
+        for p in local.neighbors(center).into_iter().map(Block::pos) {
+            complete.entry(p.to_array()).or_insert(local);
+        }
+    }
+    for &(center, local) in selected {
+        complete.insert(center.to_array(), local);
+    }
+    let positions = complete
+        .keys()
+        .copied()
+        .map(IVec3::from_array)
+        .collect::<Vec<_>>();
+    if selected
+        .iter()
+        .all(|&(_, local)| Arc::ptr_eq(local, source))
+    {
+        let ports = positions
+            .iter()
+            .filter_map(|p| reference.ports.get(p).map(|v| (*p, *v)))
+            .collect();
+        return Ok(Arc::new(PhysicalGeometry {
+            graph: Arc::clone(&reference.graph),
+            positions,
+            ports,
+        }));
+    }
+    let mut blocks = BTreeMap::new();
+    let mut pipes = BTreeMap::new();
+    for (&pos, local) in &complete {
+        for pipe in local.pipes_at(IVec3::from_array(pos)) {
+            pipes.insert((pipe.src().to_array(), pipe.dst().to_array()), pipe);
+            for q in [pipe.src(), pipe.dst()] {
+                let block = local.get_endpoint_block(q).expect("incident endpoint");
+                blocks.entry(block.pos().to_array()).or_insert(block);
+            }
+        }
+    }
+    for (pos, local) in complete {
+        blocks.insert(
+            pos,
+            local
+                .get_block(IVec3::from_array(pos))
+                .expect("selected block"),
+        );
+    }
+    let mut graph = BlockGraph::new();
+    for block in blocks.into_values() {
+        graph.try_add_block(block.clone())?;
+    }
+    for pipe in pipes.into_values() {
+        graph.try_add_pipe(pipe.clone())?;
+    }
+    let (expanded, ports) = crate::port::expand_port_context(&graph, &positions, &reference.ports)?;
+    let graph = match expanded {
+        std::borrow::Cow::Borrowed(_) => graph,
+        std::borrow::Cow::Owned(expanded) => expanded,
+    };
+    Ok(Arc::new(PhysicalGeometry {
+        graph: Arc::new(graph),
+        ports,
+        positions,
+    }))
 }
 
 fn same_local_geometry(reference: &PhysicalGeometry, local: &PhysicalGeometry) -> bool {
@@ -301,9 +411,16 @@ impl PhysicalProjection {
         let port_templates = context.compile_port_templates(ports, &mut compiled)?;
         let temporal_templates =
             context.compile_temporal_template_plans(input.temporal_templates())?;
-        let wall_templates =
-            context.compile_spatial_template_walls(graph, ports, input.spatial_walls())?;
-        let pool = context.cache.pool_snapshot();
+        let wall_sites = schedules
+            .iter()
+            .filter_map(|(&pos, &schedule)| (schedule == LayerSchedule::Wall).then_some(pos));
+        let (wall_templates, pool) = context.spatial_wall_pool(
+            graph,
+            ports,
+            input.spatial_walls(),
+            wall_sites,
+            &mut compiled,
+        )?;
         let mut plan = LowerPlan::from_linked_input(&input);
         plan.set_incoming_cuts(&scheduled.incoming_cuts);
         let pipe_templates = plan
@@ -358,17 +475,15 @@ impl PhysicalProjection {
 
 #[derive(Clone, Copy)]
 struct ScheduleChoice {
-    low: LayerSchedule,
-    high: LayerSchedule,
-    selector: DecisionId,
+    schedule: LayerSchedule,
     incoming: DecisionId,
 }
 
 /// All realizations of a potential spatial component use a common depth.
-/// Axis selection only remains conditional when alternative H walls require
-/// different orientations. Symbolic connectivity propagates that demand.
+/// Tall cubes propagate the guarded presence of incoming temporal cuts.
 struct ScheduleEnvelope {
     choices: crate::FxMap<IVec3, ScheduleChoice>,
+    wall_groups: Vec<Vec<IVec3>>,
     pub t_sides: crate::FxMap<IVec3, bloq_graph::Direction>,
 }
 
@@ -377,7 +492,7 @@ struct ScheduleIncidence {
     indices: crate::FxMap<IVec3, usize>,
     groups: UnionFind<usize>,
     edges: BTreeMap<(usize, usize), DecisionId>,
-    demands: Vec<[DecisionId; 4]>,
+    demands: Vec<[DecisionId; 3]>,
     tall: Vec<bool>,
 }
 
@@ -394,7 +509,7 @@ impl ScheduleIncidence {
             indices,
             groups: UnionFind::new(count),
             edges: BTreeMap::new(),
-            demands: vec![[ZERO; 4]; count],
+            demands: vec![[ZERO; 3]; count],
             tall: vec![false; count],
         }
     }
@@ -425,7 +540,7 @@ impl ScheduleIncidence {
                     })
             })
         {
-            self.demands[index][3] = diagram.apply(BooleanOp::Or, self.demands[index][3], guard)?;
+            self.demands[index][2] = diagram.apply(BooleanOp::Or, self.demands[index][2], guard)?;
         }
         if matches!(block.kind(), BlockKind::Cube(kind) if kind.is_spatial()) {
             self.demands[index][0] = diagram.apply(BooleanOp::Or, self.demands[index][0], guard)?;
@@ -451,13 +566,8 @@ impl ScheduleIncidence {
                 .or_insert(ZERO);
             *edge = diagram.apply(BooleanOp::Or, *edge, guard)?;
             if pipe.is_hadamard() {
-                let axis = match pipe.dir().as_udirection() {
-                    UDirection::X => 1,
-                    UDirection::Y => 2,
-                    UDirection::Z => unreachable!(),
-                };
-                self.demands[index][axis] =
-                    diagram.apply(BooleanOp::Or, self.demands[index][axis], guard)?;
+                self.demands[index][1] =
+                    diagram.apply(BooleanOp::Or, self.demands[index][1], guard)?;
             }
         }
         Ok(())
@@ -510,12 +620,12 @@ impl ScheduleEnvelope {
             mut demands,
             tall,
         } = incidence;
-        let mut possible = vec![[false; 3]; positions.len()];
+        let mut possible = vec![[false; 2]; positions.len()];
         let mut tall_components = vec![false; positions.len()];
         for (index, demand) in demands.iter().enumerate() {
             let group = groups.find(index);
             tall_components[group] |= tall[index];
-            for axis in 0..3 {
+            for axis in 0..2 {
                 possible[group][axis] |= demand[axis] != ZERO;
             }
         }
@@ -527,7 +637,7 @@ impl ScheduleEnvelope {
         let mut pending = (0..positions.len())
             .filter(|&index| {
                 let group = groups.find(index);
-                (possible[group][1] && possible[group][2]) || tall_components[group]
+                tall_components[group]
             })
             .collect::<VecDeque<_>>();
         let mut queued = vec![false; positions.len()];
@@ -537,27 +647,16 @@ impl ScheduleEnvelope {
         while let Some(source) = pending.pop_front() {
             queued[source] = false;
             for &(target, edge) in &neighbors[source] {
-                let mut changed = false;
-                let source_demands = demands[source];
-                let group = groups.find(source);
-                for axis in 1..4 {
-                    if (axis < 3 && !(possible[group][1] && possible[group][2]))
-                        || (axis == 3 && !tall_components[group])
-                    {
-                        continue;
-                    }
-                    let contribution =
-                        topology
-                            .diagram
-                            .apply(BooleanOp::And, edge, source_demands[axis])?;
-                    let next = topology.diagram.apply(
-                        BooleanOp::Or,
-                        demands[target][axis],
-                        contribution,
-                    )?;
-                    changed |= next != demands[target][axis];
-                    demands[target][axis] = next;
-                }
+                let contribution =
+                    topology
+                        .diagram
+                        .apply(BooleanOp::And, edge, demands[source][2])?;
+                let next =
+                    topology
+                        .diagram
+                        .apply(BooleanOp::Or, demands[target][2], contribution)?;
+                let changed = next != demands[target][2];
+                demands[target][2] = next;
                 if changed && !std::mem::replace(&mut queued[target], true) {
                     pending.push_back(target);
                 }
@@ -569,44 +668,35 @@ impl ScheduleEnvelope {
             )?;
         }
         let mut choices = crate::FxMap::default();
+        let mut wall_groups = BTreeMap::<usize, Vec<IVec3>>::new();
         for (index, &position) in positions.iter().enumerate() {
-            let [padded, x, y] = possible[groups.find(index)];
-            let (low, high, selector) = match (x, y) {
-                (true, true) => {
-                    if topology.diagram.apply(
-                        BooleanOp::And,
-                        demands[index][1],
-                        demands[index][2],
-                    )? != ZERO
-                    {
-                        return Err(CompileError::MixedSpatialHadamardUnsupported {
-                            pos: position,
-                        });
-                    }
-                    (
-                        LayerSchedule::Extended,
-                        LayerSchedule::ExtendedY,
-                        demands[index][2],
-                    )
-                }
-                (true, false) => (LayerSchedule::Extended, LayerSchedule::Extended, ZERO),
-                (false, true) => (LayerSchedule::ExtendedY, LayerSchedule::ExtendedY, ZERO),
-                (false, false) if padded => (LayerSchedule::Padded, LayerSchedule::Padded, ZERO),
-                (false, false) => (LayerSchedule::Compact, LayerSchedule::Compact, ZERO),
+            let [padded, wall] = possible[groups.find(index)];
+            let schedule = if wall {
+                wall_groups
+                    .entry(groups.find(index))
+                    .or_default()
+                    .push(position);
+                LayerSchedule::Wall
+            } else if padded {
+                LayerSchedule::Padded
+            } else {
+                LayerSchedule::Compact
             };
             choices.insert(
                 position,
                 ScheduleChoice {
-                    low,
-                    high,
-                    selector,
-                    incoming: demands[index][3],
+                    schedule,
+                    incoming: demands[index][2],
                 },
             );
         }
         // Cultivation reserves one spill cell valid in both source arms.
         let t_sides = crate::signature::t_surgery_sides(&topology.source, prepare_t_with_mpps)?;
-        Ok(Self { choices, t_sides })
+        Ok(Self {
+            choices,
+            t_sides,
+            wall_groups: wall_groups.into_values().collect(),
+        })
     }
 
     fn selectors(&self, geometry: &PhysicalGeometry) -> Vec<DecisionId> {
@@ -619,12 +709,8 @@ impl ScheduleEnvelope {
                     .graph
                     .get_block(*position)
                     .expect("physical geometry positions belong to the graph");
-                [
-                    (choice.low != choice.high).then_some(choice.selector),
-                    (block.kind().is_cube() && block.height_cells() > 1).then_some(choice.incoming),
-                ]
+                (block.kind().is_cube() && block.height_cells() > 1).then_some(choice.incoming)
             })
-            .flatten()
             .filter(|&root| root != ZERO && root != ONE)
             .collect::<BTreeSet<_>>()
             .into_iter()
@@ -640,14 +726,7 @@ impl ScheduleEnvelope {
         let mut incoming = crate::FxMap::default();
         for &position in &geometry.positions {
             let choice = self.choices[&position];
-            schedules.insert(
-                position,
-                if value(choice.selector) {
-                    choice.high
-                } else {
-                    choice.low
-                },
-            );
+            schedules.insert(position, choice.schedule);
             let block = geometry
                 .graph
                 .get_block(position)

@@ -9,6 +9,22 @@ use crate::instantiation::{
     NodeTemplateInstanceMergeError, TemplateCircuitAnalysis, preflight_template_circuit,
 };
 
+/// A flag readout that corrects a Pauli frame after a specified data interaction.
+///
+/// The component resolves this after merging the participating circuits so the
+/// correction also reaches neighboring checks in the same round.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ReadoutFrame {
+    /// Measurement controlling the correction, in template-local ids.
+    pub flag: u32,
+    /// Ancilla in the preceding interaction with the target.
+    pub ancilla: IVec2,
+    /// Data carrying the frame immediately after its interaction with the ancilla.
+    pub target: IVec2,
+    /// Pauli added to that data frame when the flag is set.
+    pub pauli: bloq_circuit::PauliBasis,
+}
+
 /// A reusable circuit template and its local side tables.
 ///
 /// Together they form the connection interface a persisted `.bloq` is edited against.
@@ -37,6 +53,9 @@ pub struct BloqTemplate {
     /// Restart syndromes for `RepeatUntilSuccess` regions instantiating this
     /// template. The executor evaluates them after each sandboxed attempt.
     pub restarts: Vec<TemplateRestart>,
+    /// Flag-conditioned frames, resolved on the simultaneous component circuit.
+    #[serde(default)]
+    pub readout_frames: Vec<ReadoutFrame>,
     /// Lazily computed cache of the circuit's qubits (hot in footprint
     /// queries). Safe because templates are immutable once pooled; a template
     /// whose `circuit` is still being mutated must not call [`Self::qubits`].
@@ -60,6 +79,7 @@ impl Clone for BloqTemplate {
             repeat_states: self.repeat_states.clone(),
             boundary_flows: self.boundary_flows.clone(),
             restarts: self.restarts.clone(),
+            readout_frames: self.readout_frames.clone(),
             qubit_cache: std::sync::OnceLock::new(),
             circuit_analysis_cache: std::sync::OnceLock::new(),
             validation_cache: std::sync::OnceLock::new(),
@@ -74,6 +94,7 @@ impl PartialEq for BloqTemplate {
             && self.repeat_states == other.repeat_states
             && self.boundary_flows == other.boundary_flows
             && self.restarts == other.restarts
+            && self.readout_frames == other.readout_frames
     }
 }
 
@@ -97,6 +118,7 @@ impl BloqTemplate {
             repeat_states,
             boundary_flows,
             restarts,
+            readout_frames: Vec::new(),
             qubit_cache: std::sync::OnceLock::new(),
             circuit_analysis_cache: std::sync::OnceLock::new(),
             validation_cache: std::sync::OnceLock::new(),
