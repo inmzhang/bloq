@@ -280,19 +280,12 @@ def compiled_stages(case: Example, distance: int):
     elif family == "temporal-h":
         assert depth == 6
         stages = [stage("Realignment and transversal Hadamard", start, start+depth)]
-    elif family == "mixed-h":
-        assert depth == 8 * distance
-        stages = [stage("Initialization round", start, start+8),
-                  stage("Concurrent X/Y bulk round", start+8, start+16, distance-2,
-                        "Both walls repeat the same schedule in each interior round"),
-                  stage("Final measurement round", start+depth-8, start+depth)]
-    elif family == "spatial-h":
-        assert depth == 8 * distance
-        stages = [stage("Initialization round", start, start+8),
-                  stage("Backward wall round", start+8, start+16, distance//2, "Interior backward schedule appears floor(d/2) times"),
-                  stage("Forward wall round", start+16, start+24, max(1, distance//2-1), "Interior forward schedule; boundary initialization and measurement are displayed separately"),
-                  stage("Final measurement round", start+(distance-1)*8, start+depth)]
-        limitations.append("The two interior rounds have opposite extraction orders. Each reads its syndrome and flags in the final moment.")
+    elif family in {"spatial-h", "mixed-h"}:
+        assert depth == 7 * distance
+        stages = [stage("Initialization round", start, start+7),
+                  stage("Concurrent X/Y bulk round" if family == "mixed-h" else "Bulk wall round",
+                        start+7, start+14, distance-2, "The same seven moments repeat in each interior round"),
+                  stage("Final measurement round", start+depth-7, start+depth)]
     elif family == "padding":
         assert depth == 18
         stages = [stage("Protected memory round", start, start+6, 3, "Three inserted QEC rounds on the temporal seam")]

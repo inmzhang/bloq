@@ -10,6 +10,7 @@ repository.workspace = true
 readme.workspace = true
 
 [dependencies]
+batsat.workspace = true
 bloq_graph.workspace = true
 bloq_circuit.workspace = true
 bloq_ir.workspace = true

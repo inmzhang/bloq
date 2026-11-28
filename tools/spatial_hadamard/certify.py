@@ -20,7 +20,7 @@ from collections import defaultdict, deque
 from pathlib import Path
 
 import stim
-from cdist import kernel, problem, replay, trellis
+from cdist import auto, problem, replay
 
 
 def masks(op):
@@ -89,8 +89,8 @@ def proposed_reduction(full, bit, labels, logicals):
             a, b = ends
             interior[a].append((b, logical))
             interior[b].append((a, logical))
-        else:
-            raise ValueError(f"Cannot reduce observable {bit} to a boundary path")
+        # Higher-degree columns are omitted only from the proposed graph.
+        # Every projected distance calculation retains all original columns.
     signs = {}
     for start in interior:
         if start in signs:
@@ -128,34 +128,80 @@ def proposed_reduction(full, bit, labels, logicals):
     }
 
 
-def lower_bound(full, bit, reduction):
-    groups = reduction["groups"]
-    rows = [r for group in groups for r in group]
-    add = reduction["add_to_observable"]
-    if (
-        len(set(rows)) != len(rows)
-        or len(set(add)) != len(add)
-        or any(r < 0 or r >= full.nrows for r in rows + add)
-    ):
-        raise ValueError("Invalid row map")
-    mask = sum(1 << r for r in add)
-    target = [
-        ((logical >> bit) & 1) ^ ((h & mask).bit_count() % 2)
-        for h, logical in zip(full.h, full.l)
+def lower_bound(full, bit, record):
+    groups = record["groups"]
+    ids = [i for group in groups for i in group]
+    add = record["add_to_observable"]
+    if len(set(ids)) != len(ids) or len(set(add)) != len(add):
+        raise ValueError("Repeated detector in reduction")
+    if any(i < 0 or i >= full.nrows for i in ids + add):
+        raise ValueError("Unknown detector")
+    mask = sum(1 << i for i in add)
+    logical = [
+        ((value >> bit) & 1) ^ ((h & mask).bit_count() % 2)
+        for value, h in zip(full.l, full.h, strict=True)
     ]
-    query = problem.Problem("observable", full.nrows, 1, full.h, target, full.row_meta)
-    small = problem.project_rows(
-        query, groups, "distance lower bound", list(range(len(groups)))
+    query = problem.Problem("logical", full.nrows, 1, full.h, logical, full.row_meta)
+    reduced = problem.project_rows(
+        query, groups, "original fault columns", list(range(len(groups)))
     )
-    order = list(range(small.ncols))
-    basis = trellis.minimal_span_form(
-        trellis.rows_from_columns(small.h, order, small.nrows)
-    )
-    logical = trellis.reduce_target_row(
-        sum(logical << j for j, logical in enumerate(small.l)), basis
-    )
-    plan = trellis.make_plan(basis, logical, len(order))
-    return kernel.run_plan(plan)[0]
+    order = list(range(reduced.ncols))
+    if record["order"] == "spatial":
+        order.sort(key=lambda j: reduced.h[j].bit_length())
+    elif record["order"] != "natural":
+        raise ValueError("Unknown column order")
+    return auto.dp_distance(reduced, order, max_table_bytes=2**24)[0]
+
+
+def discover_bound(circuit, full, bit, distance, labels, logicals):
+    initial = proposed_reduction(full, bit, labels, logicals)
+    coords = circuit.get_detector_coordinates()
+    # Distinguish transverse positions within a graph-distance layer when a
+    # hyperedge could otherwise cancel there. The exact DP decides whether
+    # the proposed projection is sufficient.
+    for mode in (
+        "base",
+        "x",
+        "y",
+        "min",
+        "max",
+        "sum",
+        "diff",
+        "bend",
+        "xy",
+        "rotated",
+    ):
+        for cross_first in [False] if mode == "base" else [False, True]:
+            groups = defaultdict(list)
+            for layer, rows in enumerate(initial["groups"]):
+                for i in rows:
+                    x, y = (coords[i] + [0, 0])[:2]
+                    cross = {
+                        "base": 0,
+                        "x": x,
+                        "y": y,
+                        "min": min(x, y),
+                        "max": max(x, y),
+                        "sum": x + y,
+                        "diff": x - y,
+                        "bend": x if x > 2 * distance else y,
+                        "xy": (x, y),
+                        "rotated": (x - y, x + y),
+                    }[mode]
+                    key = (cross, layer) if cross_first else (layer, cross)
+                    groups[key].append(i)
+            candidate = {
+                "groups": [rows for _, rows in sorted(groups.items())],
+                "add_to_observable": initial["add_to_observable"],
+                "order": "natural" if mode == "base" else "spatial",
+            }
+            try:
+                value = lower_bound(full, bit, candidate)
+            except MemoryError:
+                continue
+            if value == distance:
+                return candidate
+    raise ValueError(f"No sufficient projection found for observable {bit}")
 
 
 def replay_frames(circuit, faults):
@@ -205,9 +251,6 @@ def certificate(path, output, verify):
             raise ValueError("Circuit hash differs")
     else:
         labels, logicals = propose_sectors(circuit)
-        reductions = [
-            proposed_reduction(full, i, labels, logicals) for i in range(full.nobs)
-        ]
         dem = circuit.detector_error_model(flatten_loops=True)
         indices = {}
         for i, op in enumerate(op for op in dem if op.type == "error"):
@@ -215,6 +258,10 @@ def certificate(path, output, verify):
         witness = dem.shortest_graphlike_error(ignore_ungraphlike_errors=True)
         raw = [
             indices[tuple(op.targets_copy())] for op in witness if op.type == "error"
+        ]
+        reductions = [
+            discover_bound(circuit, full, bit, len(raw), labels, logicals)
+            for bit in range(full.nobs)
         ]
         record = {
             "sha256": digest,

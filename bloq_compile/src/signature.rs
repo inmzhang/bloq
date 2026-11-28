@@ -3,9 +3,7 @@ use std::collections::BTreeSet;
 use std::fmt;
 use std::ops::Bound::{Excluded, Unbounded};
 
-use bloq_graph::{
-    Basis, Block, BlockGraph, BlockKind, Direction, PortRole, UDirection, checked_add_position,
-};
+use bloq_graph::{Basis, Block, BlockGraph, BlockKind, Direction, PortRole, checked_add_position};
 
 use crate::CompileError;
 use glam::{IVec2, IVec3};
@@ -47,13 +45,8 @@ impl Connectivity {
         Self((self.0 & !(0b11 << shift)) | (1 << shift))
     }
 
-    /// Which spatial axes carry a Hadamard wall, as `(x, y)`.
-    pub(crate) fn hadamard_wall_axes(self) -> (bool, bool) {
-        let on = |axis: [Direction; 2]| axis.into_iter().any(|dir| self.has_hadamard(dir));
-        (
-            on([Direction::XPLUS, Direction::XMINUS]),
-            on([Direction::YPLUS, Direction::YMINUS]),
-        )
+    pub(crate) fn has_spatial_hadamard(self) -> bool {
+        self.spatial_pipes().any(|dir| self.has_hadamard(dir))
     }
 
     /// Set a hadamard pipe on the given face (implies pipe).
@@ -122,21 +115,8 @@ pub(crate) enum LayerSchedule {
     Compact,
     /// 5 slots — the padded schedule a spatial cube's quadrant hooks need.
     Padded,
-    /// 6 slots — room for the GHZ bracket of a spatial Hadamard wall's extended
-    /// stabilizers on the X axis. Ordinary tiles idle through the bracket
-    /// slots.
-    Extended,
-    /// 6 slots — the diagonal transpose of [`Extended`](Self::Extended), for a
-    /// Y-axis spatial Hadamard wall.
-    ExtendedY,
-    /// A component jointly scheduled on both in-plane wall axes.
-    Mixed,
-}
-
-impl LayerSchedule {
-    pub(crate) const fn is_extended(self) -> bool {
-        matches!(self, Self::Extended | Self::ExtendedY)
-    }
+    /// Five slots assigned jointly to cube checks and all spatial Hadamard pipes.
+    Wall,
 }
 
 /// A block's kind plus its face connectivity, forming a unique compilation signature.
@@ -372,12 +352,12 @@ pub(crate) fn relocatable_block_signatures(
                     .then_some(crate::block::fixed_bulk::t::SurgeryLayout::SIDE_PRIORITY[0]),
             )?;
             signature.layer_schedule = match kind {
-                BlockKind::Cube(cube) => Some(match signature.connectivity.hadamard_wall_axes() {
-                    (true, true) => LayerSchedule::Mixed,
-                    (true, false) => LayerSchedule::Extended,
-                    (false, true) => LayerSchedule::ExtendedY,
-                    (false, false) if cube.is_spatial() => LayerSchedule::Padded,
-                    (false, false) => LayerSchedule::Compact,
+                BlockKind::Cube(cube) => Some(if signature.connectivity.has_spatial_hadamard() {
+                    LayerSchedule::Wall
+                } else if cube.is_spatial() {
+                    LayerSchedule::Padded
+                } else {
+                    LayerSchedule::Compact
                 }),
                 _ => None,
             };
@@ -618,7 +598,6 @@ pub(crate) fn join_component_layer_schedules(graph: &BlockGraph) -> LayerSchedul
             }
         }
 
-        let mut wall_axes = crate::FxMap::<IVec3, (bool, bool)>::default();
         for pipe in graph.layer(layer).spacelike_pipes() {
             if !pipe.is_hadamard() {
                 continue;
@@ -632,20 +611,7 @@ pub(crate) fn join_component_layer_schedules(graph: &BlockGraph) -> LayerSchedul
             let (Some(&component), Some(_)) = (root.get(&src.pos()), root.get(&dst.pos())) else {
                 continue;
             };
-            let axes = wall_axes.entry(component).or_default();
-            match pipe.dir().as_udirection() {
-                UDirection::X => axes.0 = true,
-                UDirection::Y => axes.1 = true,
-                UDirection::Z => unreachable!("spatial Hadamard walls are not temporal"),
-            }
-        }
-        for (component, (has_x, has_y)) in wall_axes {
-            match (has_x, has_y) {
-                (true, true) => demand(component, LayerSchedule::Mixed),
-                (true, false) => demand(component, LayerSchedule::Extended),
-                (false, true) => demand(component, LayerSchedule::ExtendedY),
-                (false, false) => unreachable!("wall axis map is non-empty"),
-            }
+            demand(component, LayerSchedule::Wall);
         }
 
         for (&pos, component) in &root {
@@ -779,7 +745,7 @@ mod tests {
         for pos in [IVec3::ZERO, IVec3::new(1, 0, 0), IVec3::new(1, 1, 0)] {
             assert_eq!(
                 layer_schedule_at(&schedules, pos),
-                LayerSchedule::Extended,
+                LayerSchedule::Wall,
                 "{pos} shares the wall's component"
             );
         }
@@ -801,12 +767,12 @@ mod tests {
         let schedules = join_component_layer_schedules(&graph);
         assert_eq!(
             layer_schedule_at(&schedules, IVec3::new(1, 0, 0)),
-            LayerSchedule::Extended,
+            LayerSchedule::Wall,
             "the spatial cube's padded demand must not win over the wall's"
         );
         assert_eq!(
             layer_schedule_at(&schedules, IVec3::ZERO),
-            LayerSchedule::Extended
+            LayerSchedule::Wall
         );
     }
 

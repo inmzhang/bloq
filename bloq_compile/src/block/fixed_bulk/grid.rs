@@ -2,9 +2,7 @@ use bloq_graph::{Basis, Direction};
 use glam::IVec2;
 use smallvec::SmallVec;
 
-use crate::block::fixed_bulk::utils::{
-    Corner, checkerboard_basis, grid_to_coord, make_cube_tile_with_reverse,
-};
+use crate::block::fixed_bulk::utils::{Corner, checkerboard_basis, grid_to_coord, make_cube_tile};
 use crate::block::patch::Patch;
 use crate::signature::{Connectivity, LayerSchedule};
 
@@ -116,12 +114,11 @@ pub(super) const fn hook_orientation(basis: Basis, z_is_vertical: bool) -> bool 
     }
 }
 
-pub(super) fn build_patch_from_cells_with_reverse(
+pub(super) fn build_patch_from_cells(
     distance: u32,
     connectivity: Connectivity,
     temporal_basis: Basis,
     layer_schedule: LayerSchedule,
-    reverse_schedule: bool,
     classify: impl Fn(Cell) -> Option<TileSpec>,
 ) -> PatchData {
     let n = (distance + 1) as usize;
@@ -147,13 +144,12 @@ pub(super) fn build_patch_from_cells_with_reverse(
                 continue;
             };
             let pos = cell.pos();
-            build.tiles.push(make_cube_tile_with_reverse(
+            build.tiles.push(make_cube_tile(
                 spec.basis,
                 pos,
                 &spec.active,
                 spec.is_vertical,
                 layer_schedule,
-                reverse_schedule,
             ));
 
             for &corner in &spec.active {

@@ -39,19 +39,19 @@ def render(name, title, record):
         elif op.name in {"M", "MX", "MY"}:
             stops.add(tick)
     starts = sorted(starts)
-    assert len(starts) == d == 5 and stops == {t+7 for t in starts}
-    canvas = Image.new("RGB", (8*CELL+36, 100+d*(CELL+38)), "white")
+    assert len(starts) == d == 5 and stops == {t+6 for t in starts}
+    canvas = Image.new("RGB", (7*CELL+36, 100+d*(CELL+38)), "white")
     draw = ImageDraw.Draw(canvas)
     draw.text((18, 10), title, font=font(32), fill="#17252c")
-    for slot, text in enumerate(["Prepare", *(f"CX/CZ {i}" for i in range(1, 7)), "Read out"]):
+    for slot, text in enumerate(["Prepare", *(f"CX/CZ {i}" for i in range(1, 6)), "Read out"]):
         draw.text((18+(slot+.5)*CELL, 71), text, anchor="mm", font=font(23), fill="#17252c")
     for r in range(d):
         top = 96 + r*(CELL+38)
         start = starts[r]
         label = "Initialization" if r == 0 else "Final data readout" if r == d-1 else "Bulk"
-        draw.text((18, top), f"Round {r+1}   ·   {label}   ·   ticks {start} to {start+7}",
+        draw.text((18, top), f"Round {r+1}   ·   {label}   ·   ticks {start} to {start+6}",
                   font=font(20), fill="#263d48")
-        for slot in range(8):
+        for slot in range(7):
             tick = start + slot
             raw = str(y_up.diagram("detslice-with-ops-svg", tick=tick))
             png = resvg_py.svg_to_bytes(svg_string=raw, width=CELL-4, background="white")
@@ -65,5 +65,6 @@ def render(name, title, record):
 if __name__ == "__main__":
     cases = {r["name"]: r for r in json.loads((ASSETS/"manifest.json").read_text())["examples"]}
     for name, title in [("spatial-hadamard-x-zxz", "Single X wall   ·   distance 5"),
-                        ("spatial-hadamard-elbow-zzx", "Concurrent X/Y walls   ·   distance 5")]:
+                        ("spatial-hadamard-elbow-zzx", "Concurrent X/Y walls   ·   ZZX hub   ·   distance 5"),
+                        ("spatial-hadamard-elbow-xxz", "Concurrent X/Y walls   ·   XXZ hub   ·   distance 5")]:
         render(name, title, cases[name])

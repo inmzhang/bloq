@@ -291,6 +291,47 @@ fn concurrent_spatial_hadamards_transmit_the_identity_channel() {
 }
 
 #[test]
+fn seven_moment_wall_channels_on_bell_inputs() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap();
+    for layout in ["x-zxz", "y-zxz", "elbow-xxz", "elbow-zzx"] {
+        let wall = format!("spatial-hadamard-{layout}");
+        let source =
+            std::fs::read_to_string(root.join(format!("docs/_static/constructions/{wall}.blog")))
+                .unwrap();
+        let graph = bloq_graph::BlockGraph::from_blog_text(&source)
+            .unwrap()
+            .fix_shadowed_faces();
+        let single = !layout.starts_with("elbow");
+        let input = if single {
+            glam::IVec3::ZERO
+        } else {
+            glam::ivec3(1, 0, 0)
+        };
+        let output = if layout == "x-zxz" {
+            glam::ivec3(1, 0, 2)
+        } else {
+            glam::ivec3(0, 1, 2)
+        };
+        for d in [3, 5, 7, 9, 11, 13] {
+            let program = CompileContext::new(CompileConfig::new(d))
+                .compile_and_validate(&graph)
+                .unwrap()
+                .bloq;
+            let report = ExactChoi::new(&[input], &[output], |sim| {
+                if single {
+                    sim.h(0);
+                }
+                Ok(())
+            })
+            .run(&program, 4, SEED, |_, _| Ok(()));
+            assert!(report.all_detectors_constant(), "{layout} distance {d}");
+        }
+    }
+}
+
+#[test]
 fn guarded_corner_switches_between_plain_and_concurrent_walls() {
     let source = "BLOG 1.0
 module main {

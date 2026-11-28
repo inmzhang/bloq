@@ -39,8 +39,12 @@ and distances at physical noise 0.001 and replays the committed
 git clone https://github.com/Fanerst/tropidist.git target/tropidist
 git -C target/tropidist checkout b03ec2d4077f287f89f97b5c2c16ce5ce17c2c58
 PYTHONPATH="$PWD/target/tropidist" uv run --project bloq_py --with stim==1.16.0 --with numpy==2.5.1 \
-  python tools/spatial_hadamard/verify_corpus.py --jobs 4
+  python tools/spatial_hadamard/verify_corpus.py --jobs 4 --sweep docs/assets/experiments/spatial-hadamard-rates.csv
 ```
+
+The verifier also checks the physical resets, five entangling moments, nearest-neighbor
+couplers and readout in each round, the four-detector raw fault bound, and strict matching decomposition. With `--sweep` it compares the compiler's Stim
+output with the recorded circuit hashes across the simulation grid.
 
 Pass `--generate --archive /path/to/new.zip` to discover certificates afresh.
 For each observable, the verifier combines detector parity checks and adds a
@@ -50,6 +54,23 @@ on this relaxed problem using every column of the original undecomposed detector
 error model. A graphlike search proposes a physical witness. The verifier checks
 its original fault columns, injects those faults into the native circuit, and
 requires zero detection events, a logical flip, and equal lower and upper bounds.
+
+### Signed walls and junctions
+
+The [extended corpus](../../docs/assets/experiments/spatial-hadamard-junctions.tar.xz)
+contains 117 BLOG inputs and 468 noisy Stim circuits with individual Tropidist
+certificates. It covers signed elbows, separated walls, temporal input/output
+variants, three-arm junctions, four-wall crosses and rotated gallery circuits.
+Each input is compiled at distances 3, 5, 7 and 9. The Rust integration harness
+uses `emit_bloq_stim_with_stim_noise` and Stim's `UniformDepolarizing` at 0.001.
+The manifest records the number of concurrent pipes and the hash of each circuit.
+
+```sh
+mkdir -p target/spatial-wall-junctions
+tar -xJf docs/assets/experiments/spatial-hadamard-junctions.tar.xz -C target/spatial-wall-junctions
+PYTHONPATH="$PWD/target/tropidist" uv run --project bloq_py --with stim==1.16.0 --with numpy==2.5.1 \
+  python tools/spatial_hadamard/verify_corpus.py --junctions target/spatial-wall-junctions
+```
 
 ## Detector slices
 

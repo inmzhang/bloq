@@ -521,11 +521,11 @@ fn assert_shared_wall_clock(program: &Bloq, pipe_count: usize) {
             match op {
                 Op::Tick => {
                     moment += 1;
-                    if moment == 8 {
+                    if moment == 7 {
                         break;
                     }
                 }
-                Op::Measure { .. } => assert_eq!(moment, 7, "joint end-of-round readout"),
+                Op::Measure { .. } => assert_eq!(moment, 6, "joint end-of-round readout"),
                 Op::Gate { gate, qubits } if gate.two_qubit_bases().is_some() => {
                     slots.insert(moment);
                     for pair in qubits.as_chunks::<2>().0 {
@@ -544,8 +544,8 @@ fn assert_shared_wall_clock(program: &Bloq, pipe_count: usize) {
         if per_pipe {
             assert_eq!(
                 slots,
-                (1..=6).collect(),
-                "each pipe executes in all six slots"
+                (1..=5).collect(),
+                "each pipe executes in all five slots"
             );
         }
     }
@@ -643,17 +643,20 @@ fn four_wall_pipes_execute_on_one_clock() {
             graph.add_block(Block::new(pos + ivec3(0, 0, 1), BlockKind::Port));
             graph.add_pipe(Pipe::new(pos, Direction::ZPLUS));
         }
-        let program = make_context(3).compile_and_validate(&graph).unwrap().bloq;
-        assert_shared_wall_clock(&program, 4);
-        let circuit: Circuit = emit_bloq_stim_with_stim_noise(&program, &uniform_depolarizing())
-            .unwrap()
-            .parse()
-            .unwrap();
-        assert_eq!(circuit.num_observables(), 4);
-        circuit
-            .detector_error_model_with_options(true, false, false, 0.0, false, true)
-            .unwrap();
-        assert_eq!(common::graphlike_distance(&circuit).unwrap(), 3);
+        for d in [3, 7] {
+            let program = make_context(d).compile_and_validate(&graph).unwrap().bloq;
+            assert_shared_wall_clock(&program, 4);
+            let circuit: Circuit =
+                emit_bloq_stim_with_stim_noise(&program, &uniform_depolarizing())
+                    .unwrap()
+                    .parse()
+                    .unwrap();
+            assert_eq!(circuit.num_observables(), 4);
+            circuit
+                .detector_error_model_with_options(true, false, false, 0.0, false, true)
+                .unwrap();
+            assert_eq!(common::graphlike_distance(&circuit).unwrap(), d as usize);
+        }
     }
 }
 

@@ -49,7 +49,7 @@ def sample(task):
     if circuit.num_observables != 2:
         raise ValueError(f"Expected two port stabilizers in {layout} at d={d}")
     digest = hashlib.sha256(str(circuit).encode()).hexdigest()
-    seed = int.from_bytes(hashlib.sha256(f"wall-v1/{layout}/{d}/{p}".encode()).digest()[:8], "little")
+    seed = int.from_bytes(hashlib.sha256(f"wall-seven-default/{layout}/{d}/{p}".encode()).digest()[:8], "little")
     dem = circuit.detector_error_model(decompose_errors=True,
                                        block_decomposition_from_introducing_remnant_edges=True)
     matchers = {name: pymatching.Matching.from_detector_error_model(

@@ -66,7 +66,7 @@ def has_spatial_hadamard(graph):
     return re.search(r"-H>\s+[+-][XY]\b", graph.flatten().to_text()) is not None
 
 
-SPATIAL_HADAMARD_NOTE = """The flagged spatial Hadamard schedule uses six entangling slots per round.
+SPATIAL_HADAMARD_NOTE = """The flagged spatial Hadamard schedule uses five entangling slots per round.
 See [the tested distance and noise model](../circuit-constructions.md#distance-boundary).
 
 """

@@ -634,7 +634,7 @@ mod tests {
                 CubeKind::XXZ,
                 distance,
                 connectivity,
-                LayerSchedule::Extended,
+                LayerSchedule::Wall,
             );
             let key = LocalStabilizer::new(
                 Pauli::from(CubeKind::XXZ.z()),

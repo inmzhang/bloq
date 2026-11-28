@@ -8,7 +8,7 @@
 use bloq_graph::{Basis, CubeKind, Direction};
 
 use crate::block::fixed_bulk::grid::{
-    ActiveCorners, Cell, PatchData, TileSpec, build_patch_from_cells_with_reverse, hook_orientation,
+    ActiveCorners, Cell, PatchData, TileSpec, build_patch_from_cells, hook_orientation,
 };
 use crate::block::fixed_bulk::utils::Corner;
 use crate::signature::{Connectivity, LayerSchedule};
@@ -19,22 +19,11 @@ use crate::signature::{Connectivity, LayerSchedule};
 /// - `patch` contains all stabilizer tiles
 /// - `init_data` maps data qubits → temporal_basis for those that should be reset
 /// - `meas_data` maps data qubits → temporal_basis for those that should be measured
-#[cfg(test)]
 pub(super) fn build_regular_patch(
     cube_kind: CubeKind,
     distance: u32,
     connectivity: Connectivity,
     layer_schedule: LayerSchedule,
-) -> PatchData {
-    build_regular_patch_with_reverse(cube_kind, distance, connectivity, layer_schedule, false)
-}
-
-pub(super) fn build_regular_patch_with_reverse(
-    cube_kind: CubeKind,
-    distance: u32,
-    connectivity: Connectivity,
-    layer_schedule: LayerSchedule,
-    reverse_schedule: bool,
 ) -> PatchData {
     let classifier = RegularClassifier {
         x_basis: cube_kind.x(),
@@ -42,12 +31,11 @@ pub(super) fn build_regular_patch_with_reverse(
         connectivity,
     };
 
-    build_patch_from_cells_with_reverse(
+    build_patch_from_cells(
         distance,
         connectivity,
         cube_kind.z(),
         layer_schedule,
-        reverse_schedule,
         |cell| classifier.classify(cell),
     )
 }
@@ -200,11 +188,11 @@ mod tests {
     /// A `+X` spatial Hadamard cedes the cube's rightmost cell column to the
     /// wall pipe. Everything the cube keeps is pinned here: the seam column is
     /// gone, the bulk column behind it is a full-width interior column, and the
-    /// slots are the six-deep extended schedule.
+    /// slots are the padded seed for component scheduling.
     #[test]
     fn regular_xzx_d3_hadamard_xplus_patch() {
         let connectivity = Connectivity::ISOLATED.with_hadamard(Direction::XPLUS);
-        let patch = build_regular_patch(CubeKind::XZX, 3, connectivity, LayerSchedule::Extended);
+        let patch = build_regular_patch(CubeKind::XZX, 3, connectivity, LayerSchedule::Wall);
 
         insta::assert_snapshot!("regular_xzx_d3_hadamard_xplus", describe_patch(&patch));
     }

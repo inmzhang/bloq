@@ -1,6 +1,5 @@
 mod compiler;
 mod grid;
-pub(crate) mod mixed_wall;
 pub(crate) mod observable;
 pub(crate) mod port;
 pub(super) mod realignment;
@@ -8,7 +7,7 @@ mod regular;
 mod rotation;
 mod selective;
 mod spatial;
-pub(super) mod spatial_hadamard;
+pub(crate) mod spatial_hadamard;
 pub(crate) mod t;
 pub(super) mod utils;
 mod ybasis;
@@ -23,8 +22,8 @@ use crate::CompileError;
 use crate::block::fixed_bulk::observable::{
     INIT_CHUNK, build_gateway_from_patch, cube_operator_faces, resolve_gateway_measurements_at,
 };
-use crate::block::fixed_bulk::regular::build_regular_patch_with_reverse;
-use crate::block::fixed_bulk::spatial::build_spatial_patch_with_reverse;
+use crate::block::fixed_bulk::regular::build_regular_patch;
+use crate::block::fixed_bulk::spatial::build_spatial_patch;
 use crate::block::fixed_bulk::utils::{
     make_normal_surface_code_patch, make_surface_code_chunk, make_surface_code_cube_chunks,
 };
@@ -37,7 +36,7 @@ pub(crate) use compiler::{compile_fixed_bulk, validate_fixed_bulk};
 pub(crate) use port::{compile_bell_port, compile_multiplex_port};
 pub(crate) use realignment::compile_realignment;
 pub(crate) use selective::{SelectiveTemplates, compile_measurement, compile_selective};
-pub(crate) use spatial_hadamard::{SpatialHadamardKey, WallSide, compile_spatial_hadamard};
+pub(crate) use spatial_hadamard::{SpatialHadamardKey, WallSide};
 
 /// Patch and collapsed-data maps for a cube-shaped block: spatial cubes get
 /// the tqec spatial template, regular cubes the boundary-basis classifier.
@@ -49,32 +48,10 @@ fn build_cube_patch(
     distance: u32,
     layer_schedule: LayerSchedule,
 ) -> grid::PatchData {
-    build_cube_patch_with_reverse(kind, connectivity, distance, layer_schedule, false)
-}
-
-fn build_cube_patch_with_reverse(
-    kind: CubeKind,
-    connectivity: Connectivity,
-    distance: u32,
-    layer_schedule: LayerSchedule,
-    reverse_schedule: bool,
-) -> grid::PatchData {
     if kind.is_spatial() {
-        build_spatial_patch_with_reverse(
-            kind,
-            distance,
-            connectivity,
-            layer_schedule,
-            reverse_schedule,
-        )
+        build_spatial_patch(kind, distance, connectivity, layer_schedule)
     } else {
-        build_regular_patch_with_reverse(
-            kind,
-            distance,
-            connectivity,
-            layer_schedule,
-            reverse_schedule,
-        )
+        build_regular_patch(kind, distance, connectivity, layer_schedule)
     }
 }
 
@@ -88,16 +65,12 @@ fn compile_cube(
 ) -> Result<CompiledTemplate, CompileError> {
     let (patch, init_data, meas_data) =
         build_cube_patch(kind, connectivity, distance, layer_schedule);
-    let reverse_patch = layer_schedule.is_extended().then(|| {
-        build_cube_patch_with_reverse(kind, connectivity, distance, layer_schedule, true).0
-    });
     compile_scheduled_cube(
         kind,
         connectivity,
         distance,
         rounds,
         (patch, init_data, meas_data),
-        reverse_patch,
     )
 }
 
@@ -107,46 +80,20 @@ fn compile_scheduled_cube(
     distance: u32,
     rounds: u32,
     (patch, init_data, meas_data): grid::PatchData,
-    reverse_patch: Option<Patch>,
 ) -> Result<CompiledTemplate, CompileError> {
     let cube = make_surface_code_cube_chunks(&patch, Some(&init_data), &meas_data)?;
     let (init, init_ids) = cube.init.expect("cube initialization was requested");
     let repetitions = cube_bulk_repetitions(rounds);
 
     let mut chunks = vec![ChunkOrLoop::Single(Box::new(init))];
-    // The stage that ends up last is the one whose recorded index the gateway
-    // needs; the extended schedule picks between the forward and reverse round.
-    let meas_ids;
-    if let Some(reverse_patch) = reverse_patch {
-        let reverse = make_surface_code_cube_chunks(&reverse_patch, None, &meas_data)?;
-        if repetitions >= 2 {
-            chunks.push(ChunkOrLoop::Loop {
-                body: vec![reverse.bulk.clone(), cube.bulk],
-                repetitions: repetitions / 2,
-            });
-        }
-        if repetitions % 2 == 1 {
-            chunks.push(ChunkOrLoop::Single(Box::new(reverse.bulk)));
-            chunks.push(ChunkOrLoop::Single(Box::new(cube.meas)));
-            meas_ids = cube.meas_ids;
-        } else {
-            chunks.push(ChunkOrLoop::Single(Box::new(reverse.meas)));
-            meas_ids = reverse.meas_ids;
-        }
-    } else {
-        // A two-round cube — `height=d/2` at `d=3`, say — is all init and meas with
-        // no bulk left over. Drop the loop rather than emit a zero-repetition
-        // one, which downstream stage indexing treats as a real stage.
-        if repetitions > 0 {
-            chunks.push(ChunkOrLoop::Loop {
-                body: vec![cube.bulk],
-                repetitions,
-            });
-        }
-        chunks.push(ChunkOrLoop::Single(Box::new(cube.meas)));
-        meas_ids = cube.meas_ids;
+    if repetitions > 0 {
+        chunks.push(ChunkOrLoop::Loop {
+            body: vec![cube.bulk],
+            repetitions,
+        });
     }
-
+    chunks.push(ChunkOrLoop::Single(Box::new(cube.meas)));
+    let meas_ids = cube.meas_ids;
     let measurement_chunk = stage_chunks(&chunks).count() - 1;
     let observable_gateway = resolve_gateway_measurements_at(
         build_gateway_from_patch(kind, connectivity, distance, &patch),
@@ -371,22 +318,6 @@ mod tests {
             "cube_zxz_d3_circuit",
             template.program_template.circuit.to_string()
         );
-    }
-
-    #[test]
-    fn extended_layer_cube_rounds_are_six_slots_deep() {
-        // Reset + 6 CX slots + measure is the 8-moment round the wall pipe's
-        // GHZ bracket needs; every cube in the layer must match it.
-        for schedule in [LayerSchedule::Extended, LayerSchedule::ExtendedY] {
-            let (patch, _, _) =
-                build_cube_patch(CubeKind::XZX, Connectivity::ISOLATED, 3, schedule);
-            assert!(
-                patch
-                    .tiles()
-                    .iter()
-                    .all(|tile| tile.data_slots().len() == 6)
-            );
-        }
     }
 
     #[rstest]

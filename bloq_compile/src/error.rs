@@ -127,7 +127,7 @@ pub enum CompileError {
     },
     /// A connected set of spatial wall checks has no compatible extraction schedule.
     #[error("could not place concurrent spatial wall checks around {pos:?}")]
-    MixedWallSchedule {
+    SpatialWallSchedule {
         /// A member of the affected spatial component.
         pos: IVec3,
     },

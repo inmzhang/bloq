@@ -12,7 +12,7 @@ use web_time::Instant;
 use crate::block::{
     LoweringTemplateId, SelectiveTemplates, SpatialHadamardKey, WallSide, compile_bell_port,
     compile_fixed_bulk, compile_multiplex_port, compile_realignment, compile_selective,
-    compile_spatial_hadamard, validate_fixed_bulk,
+    validate_fixed_bulk,
 };
 use crate::config::CompileConfig;
 use crate::lower::{PhysicalInput, lower_clifford_proxy};
@@ -722,10 +722,7 @@ fn proxy_context(config: CompileConfig) -> CompileContext {
     )
 }
 
-/// Cache key for the unified signature→template map: a spatial block signature,
-/// a temporal Hadamard realignment keyed by its top basis, or a spatial Hadamard
-/// wall keyed by its two endpoint cubes' contributions. Collapsing them into one
-/// enum lets `sig_to_template` back every template kind.
+/// Keys for individually compiled block, port and realignment templates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum Signature {
     Block(BlockSignature),
@@ -738,7 +735,6 @@ pub(crate) enum Signature {
     Realignment {
         top_basis: Basis,
     },
-    SpatialHadamardPipe(SpatialHadamardKey),
 }
 
 impl CompileContext {
@@ -1216,14 +1212,16 @@ impl CompileContext {
             .cache
             .padding
             .prepare(needs_padding, self.config.code_distance())?;
-        let mixed_sites = signatures.iter().filter_map(|(&pos, sig)| {
-            (sig.layer_schedule == Some(crate::signature::LayerSchedule::Mixed)).then_some(pos)
+        let wall_sites = signatures.iter().filter_map(|(&pos, sig)| {
+            (sig.layer_schedule
+                .is_some_and(|s| s == crate::signature::LayerSchedule::Wall))
+            .then_some(pos)
         });
         let (wall_templates, template_pool) = self.spatial_wall_pool(
             &graph,
             &ports,
             plan.spatial_walls(),
-            mixed_sites,
+            wall_sites,
             &mut compiled,
         )?;
         Ok(PreparedProxy {
@@ -1348,23 +1346,14 @@ impl CompileContext {
             for (template_connectivity, graph_connectivity) in connectivity {
                 let schedules: &[crate::signature::LayerSchedule] =
                     if matches!(signature.kind, BlockKind::Cube(_)) {
-                        match template_connectivity.hadamard_wall_axes() {
-                            (true, true) => &[crate::signature::LayerSchedule::Mixed],
-                            (true, false) => &[
-                                crate::signature::LayerSchedule::Extended,
-                                crate::signature::LayerSchedule::Mixed,
-                            ],
-                            (false, true) => &[
-                                crate::signature::LayerSchedule::ExtendedY,
-                                crate::signature::LayerSchedule::Mixed,
-                            ],
-                            (false, false) => &[
+                        if template_connectivity.has_spatial_hadamard() {
+                            &[crate::signature::LayerSchedule::Wall]
+                        } else {
+                            &[
                                 crate::signature::LayerSchedule::Compact,
                                 crate::signature::LayerSchedule::Padded,
-                                crate::signature::LayerSchedule::Extended,
-                                crate::signature::LayerSchedule::ExtendedY,
-                                crate::signature::LayerSchedule::Mixed,
-                            ],
+                                crate::signature::LayerSchedule::Wall,
+                            ]
                         }
                     } else {
                         &[]
@@ -1623,32 +1612,19 @@ impl CompileContext {
         graph: &BlockGraph,
         ports: &PortExpansionMap,
         walls: impl Iterator<Item = crate::lower::SpatialPipeRef>,
-        mixed_sites: impl Iterator<Item = IVec3>,
+        wall_sites: impl Iterator<Item = IVec3>,
         compiled: &mut CompiledTemplateMap,
     ) -> Result<(WallTemplateMap, crate::block::LoweringTemplatePool), CompileError> {
-        let mixed_sites: crate::FxSet<_> = mixed_sites.collect();
-        let mut coupled = mixed_component_templates(self, graph, ports, &mixed_sites)?;
+        let wall_sites: crate::FxSet<_> = wall_sites.collect();
+        let mut coupled = wall_component_templates(self, graph, ports, &wall_sites)?;
         let mut walls_by_site = WallTemplateMap::default();
-        let mut local_walls = Vec::new();
+        let mut pool = self.cache.pool_snapshot();
         for wall in walls {
             self.check_cancellation()?;
-            if let Some(template) = coupled.pipes.remove(&wall) {
-                local_walls.push((wall, template));
-            } else {
-                let distance = self.config.code_distance();
-                let key = spatial_hadamard_key(graph, ports, wall, distance)?;
-                let id = self
-                    .cache
-                    .get_or_compile_fixed(Signature::SpatialHadamardPipe(key), || {
-                        compile_spatial_hadamard(distance, key)
-                    })?;
-                walls_by_site.insert(wall, id);
-            }
-        }
-        let mut pool = self.cache.pool_snapshot();
-        // Straight walls are cached by local signature. Mixed walls and their
-        // cubes depend on the full component, so intern them in this plan only.
-        for (wall, template) in local_walls {
+            let template = coupled
+                .pipes
+                .remove(&wall)
+                .ok_or(CompileError::SpatialWallSchedule { pos: wall.src })?;
             walls_by_site.insert(wall, pool.insert(template));
         }
         for (pos, template) in coupled.cubes {
@@ -1675,7 +1651,7 @@ impl CompileContext {
     }
 }
 
-/// Derive a wall's cache key from its two endpoint cubes.
+/// Gather a wall's geometry from its two endpoint cubes.
 ///
 /// The graph validator has already established that the transverse bases flip
 /// across the pipe, so the wall may take the negative-axis cube's perpendicular
@@ -1743,16 +1719,16 @@ struct ComponentTemplates {
 
 /// Build the shared clock even for a local projection that only emits a cube.
 /// Adjacent pipes in the lookup geometry still constrain that cube's gates.
-fn mixed_component_templates(
+fn wall_component_templates(
     context: &CompileContext,
     graph: &BlockGraph,
     ports: &PortExpansionMap,
-    mixed_sites: &crate::FxSet<IVec3>,
+    wall_sites: &crate::FxSet<IVec3>,
 ) -> Result<ComponentTemplates, CompileError> {
-    use crate::block::fixed_bulk::mixed_wall;
+    use crate::block::fixed_bulk::spatial_hadamard;
     use bloq_graph::UDirection;
     let mut result = ComponentTemplates::default();
-    if mixed_sites.is_empty() {
+    if wall_sites.is_empty() {
         return Ok(result);
     }
     let distance = context.config.code_distance();
@@ -1775,10 +1751,7 @@ fn mixed_component_templates(
                 .copied()
                 .filter(|p| members_set.contains(&p.src))
                 .collect::<Vec<_>>();
-            if !component.iter().any(|p| p.axis() == UDirection::X)
-                || !component.iter().any(|p| p.axis() == UDirection::Y)
-                || !members.iter().any(|p| mixed_sites.contains(p))
-            {
+            if component.is_empty() || !members.iter().any(|p| wall_sites.contains(p)) {
                 continue;
             }
             component.sort_by_key(|p| {
@@ -1791,7 +1764,7 @@ fn mixed_component_templates(
             let pipes = component
                 .iter()
                 .map(|&id| {
-                    Ok(mixed_wall::Pipe {
+                    Ok(spatial_hadamard::Pipe {
                         id,
                         origin: layout.offset(id.src)?,
                         key: spatial_hadamard_key(graph, ports, id, distance)?,
@@ -1809,7 +1782,7 @@ fn mixed_component_templates(
                     if let Some(dir) = ports.get(&position).and_then(|p| p.cube_pipe_dir()) {
                         connectivity = connectivity.with_pipe(dir);
                     }
-                    Ok(mixed_wall::Cube {
+                    Ok(spatial_hadamard::Cube {
                         position,
                         origin: layout.offset(position)?,
                         kind,
@@ -1819,7 +1792,7 @@ fn mixed_component_templates(
                 })
                 .collect::<Result<Vec<_>, CompileError>>()?;
             context.check_cancellation()?;
-            let templates = mixed_wall::compile(distance, &cubes, &pipes)?;
+            let templates = spatial_hadamard::compile(distance, &cubes, &pipes)?;
             result.cubes.extend(templates.cubes);
             result.pipes.extend(templates.pipes);
         }

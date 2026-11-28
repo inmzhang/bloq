@@ -2,7 +2,7 @@
 
 A Hadamard on a spatial connection changes the boundary basis at the interaction. The two input wires remain available at the outputs after the controlled Z operation.
 
-The flagged spatial Hadamard schedule uses six entangling slots per round.
+The flagged spatial Hadamard schedule uses five entangling slots per round.
 See [the tested distance and noise model](../circuit-constructions.md#distance-boundary).
 
 ## Block graph
