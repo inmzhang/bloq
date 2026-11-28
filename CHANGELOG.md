@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.2.1] - 2026-11-28
+
+### General
+
+#### Changed
+
+- Start development after v0.2.0 ([#58](https://github.com/inmzhang/bloq/pull/58)) ([80e31da](https://github.com/inmzhang/bloq/commit/80e31da7ec15d64c0ccc3fea645798fc84f025d2))
+
+### Rust API and compiler
+
+#### Changed
+
+- Simplify Bloq internals ([#63](https://github.com/inmzhang/bloq/pull/63)) ([30fc0e9](https://github.com/inmzhang/bloq/commit/30fc0e903497b1b71db7ed8aa276b4e71191c8b6))
+
+#### Performance
+
+- Shorten Steane magic-state injection ([#60](https://github.com/inmzhang/bloq/pull/60)) ([2e36b65](https://github.com/inmzhang/bloq/commit/2e36b653a98181cc86e9e490819b74297a41b958))
+
+### Workflows and packaging
+
+#### Changed
+
+- Skip the editor by default and keep only line tables in dev builds ([#59](https://github.com/inmzhang/bloq/pull/59)) ([22b689c](https://github.com/inmzhang/bloq/commit/22b689cdc1786c5d6e3df88c50ee144557a8e5db))
+- Credit contributors in GitHub releases ([#62](https://github.com/inmzhang/bloq/pull/62)) ([7225ce3](https://github.com/inmzhang/bloq/commit/7225ce32a15c85bbbac69c24c719d0334cb7b08a))
+
+
 ## [0.2.0] - 2026-11-14
 
 ### Dependencies
