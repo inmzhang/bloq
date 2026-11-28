@@ -423,6 +423,12 @@ layer. Each corner connects to one of its two outward spatial faces.
 For example, `rotate Z [0,0,1] -> [1,1,1]` accepts a west or south pipe
 at its first corner and an east or north pipe at its opposite corner.
 
+![Four 3D views of the same planar rotation with west or south inputs and east or north outputs.](assets/planar-rotation-pipes.png)
+
+All four views use the same rotation and camera. Changing the input face
+leaves both output choices available. The circuit and detector slices below
+use the west input and north output.
+
 The two mixed side faces of the axial construction become the preparation
 and readout faces of the planar construction. For the example below, prepare
 the southern $d+1$ data rows in Z and the northern $d$ rows in X.
@@ -461,24 +467,44 @@ qubit in layer 2 and the other in layer 3. The compiler reflects the order
 for other displacements and exchanges the interior X/Z hook roles when a
 single axis is reflected.
 
-#### Read the distance-five detector slices
+#### All five syndrome rounds at distance five
 
-The left panel shows the enlarged patch and its two port patches after
-round 2. On the right, D264 in the input triangle and D289 in the interior
-each compare the X-ancilla readouts from rounds 2 and 3. Follow the same
-column across the rows. At tick 15 the triangle ancilla couples southeast
-while the interior ancilla couples northwest. At tick 16 the two orders
-swap. A marked Pauli support shows where an anticommuting fault would
-flip that detector’s parity.
+Read across each row from ancilla reset through four CNOT layers to
+ancilla readout. Each panel shows detector sensitivity across the whole
+rotation and both port patches after that moment. A fault on the marked
+support flips the detector if it anticommutes with the indicated Pauli.
 
-![Distance-five patch rotation with four round-three CNOT layers, showing the full patch and the changing Pauli support of two X checks.](assets/planar-rotation-detectors.png)
+![Thirty detector slices arranged in five syndrome rounds, each showing reset, four CNOTs, and readout across the full patch.](assets/planar-rotation-detectors.png)
 
-Open the {download}`full-size figure <assets/planar-rotation-detectors.png>`
-to inspect the qubits in either check. The full round below starts at tick 13
-with ancilla reset and ends at tick 18 with ancilla readout. The downloadable Stim circuit contains all five rounds.
+Follow the readout column. At ticks 6, 12, 18 and 24, 179 detector regions
+extend into the next round. Tick 30 also measures the slab data. Only 24
+regions remain, on the output patch, for its boundary checks. The ideal
+input and output port projections occur at ticks 0 and 31, outside the five
+syndrome rounds. {download}`Open the full-resolution detector slices <assets/planar-rotation-detectors.png>`.
+
+The zoomable view overlays the gates in round 3 (ticks 13–18).
 
 ```{detector-slices} planar-rotation
 ```
+
+#### Logical operator deformation
+
+The first three columns follow the circuit’s representatives for logical X
+and Z from the west input, through the enlarged patch, to the north output.
+At tick 12, the X representative is a 17-site vertical string. The Z
+representative contains the output string and an L-shaped string extending
+from the input. At final readout the 12 measured sites on the X string and
+the 17 on the Z string contribute their outcomes to the Pauli frame. Each
+output representative then has five sites.
+
+![Logical X and Z Pauli supports on the input, enlarged patch, and output, with the measured checks and data determining each output sign.](assets/planar-rotation-logicals.png)
+
+The last column locates the measurements that determine the signs.
+For X, take the parity of 50 first-round X-check outcomes and 12 final
+X-data outcomes. For Z, use 49 first-round Z checks and 17 final Z-data
+outcomes. With these parities included, the circuit transports X to X and
+Z to Z as the corner colors exchange.
+{download}`Open the full-resolution logical operators <assets/planar-rotation-logicals.png>`.
 
 #### When a component needs more layers
 
@@ -495,6 +521,31 @@ rotation.
 
 A [spatial Hadamard wall](#spatial-hadamard) can reduce the circuit’s fault
 distance.
+
+#### Simulated logical error rates
+
+The four panels below use the ordinary pipe layouts pictured above. Each
+curve is one complete `rotate Z` block with $d$ rounds. A shot fails when
+the decoder predicts the wrong parity for **either** logical observable.
+Shots where both parities are wrong count once.
+
+![Logical failure probability versus physical error probability at distances 3, 5, 7, and 9 for each of the four ordinary pipe layouts.](assets/experiments/planar-rotation-rates.png)
+
+At $p=0.25\%$, the west-to-north failure rate falls from **6.37%** at
+$d=3$ to **2.04%**, **0.625%**, and **0.172%** at $d=5,7,9$. All four
+layouts show the same distance ordering at $p=0.7\%$ and the reverse
+ordering at $p=0.8\%$, bracketing a crossing for these finite circuits.
+
+Stim samples the emitted circuit with Bloq’s uniform circuit-level noise.
+Eligible gates and idle qubits depolarize with probability $p$, resets
+prepare the orthogonal state with probability $p$, and measurement outcomes
+flip with probability $p$. The spatial Port substitutions are ideal. Standard
+minimum-weight perfect matching (PyMatching) decodes each syndrome using
+the decomposed detector error model at that same $p$. Every shot is counted.
+The 112 combinations of pipe layout, distance and noise probability used
+42,467,328 shots, with a fixed sample size for each point. Error bars give
+pointwise 95% Wilson intervals and can be smaller than the markers.
+{download}`Download the counts, seeds, and per-observable rates (CSV) <assets/experiments/planar-rotation-rates.csv>`.
 
 ### Examples
 

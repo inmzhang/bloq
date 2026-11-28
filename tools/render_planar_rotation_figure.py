@@ -1,9 +1,10 @@
-"""Render the distance-five rotation walkthrough from its published Stim circuit.
+"""Render every syndrome-round cut of the published distance-five Stim circuit.
 
 Run from the repository root after render_construction_slices.py --only planar-rotation.
-Rendering the PNG requires rsvg-convert (librsvg).
+Rendering the indexed PNG requires rsvg-convert (librsvg) and ImageMagick.
 """
 
+from collections import defaultdict
 from pathlib import Path
 import subprocess
 import xml.etree.ElementTree as ET
@@ -16,103 +17,93 @@ SOURCE = Path("docs/_static/constructions/planar-rotation.stim")
 OUTPUT = Path("docs/assets/planar-rotation-detectors.png")
 
 
-def main():
-    circuit = stim.Circuit.from_file(SOURCE)
-    display = y_up(circuit)
-    coords = circuit.get_final_qubit_coordinates()
-    by_pos = {tuple(p): q for q, p in coords.items()}
-    figure = ET.Element(f"{{{SVG}}}svg", viewBox="0 0 1180 480", width="1180", height="480")
-    ET.SubElement(figure, "rect", width="1180", height="480", fill="white")
-    ink = "#203449"
-    muted = "#425a6e"
-
-    def label(x, y, content, size=16, weight="400", anchor="start", color=ink):
-        el = ET.SubElement(figure, "text", x=str(x), y=str(y), fill=color, attrib={
-            "font-family": "DejaVu Sans, sans-serif", "font-size": str(size),
-            "font-weight": weight, "text-anchor": anchor})
-        el.text = content
-
-    def panel(moment, x, y, w, h, detector=None, center=None):
-        # Stim's bare detector-slice diagram numbers cuts from before the first
-        # moment. detecting_regions uses the zero-based tick immediately after it.
-        raw = str(display.diagram("detslice-svg", tick=moment + 1,
-                                  filter_coords=[detector] if detector else [()]))
-        svg = ET.fromstring(raw)
-        svg.attrib.update(x=str(x), y=str(y), width=str(w), height=str(h), overflow="hidden")
-        dots = {int(el.get("id").split(":")[1]): el for el in svg.iter()
-                if el.get("id", "").startswith("qubit_dot:")}
-        ax, ay = (float(dots[by_pos[(4, 4)]].get(k)) for k in ("cx", "cy"))
-        scale = (float(dots[by_pos[(8, 8)]].get("cx")) - ax) / 4
-
-        def point(xx, yy):
-            return ax + (xx - 4) * scale, ay - (yy - 4) * scale
-
-        if detector:
-            cx, cy = point(*center)
-            span = 5.7 * scale
-            svg.set("viewBox", f"{cx-span/2} {cy-span/2} {span} {span}")
-            support = regions[detector][moment]
-            assert support.weight == len(support.pauli_indices("X"))
-            for q in support.pauli_indices():
-                px, py = point(*coords[q])
-                if int(coords[q][0]) % 2:
-                    ET.SubElement(svg, "circle", cx=str(px), cy=str(py), r="3.7",
-                                  fill="#90273a", stroke="white", attrib={"stroke-width": ".7"})
-                else:
-                    ET.SubElement(svg, "rect", x=str(px - 3.5), y=str(py - 3.5),
-                                  width="7", height="7", fill="white", stroke="#90273a",
-                                  attrib={"stroke-width": "1.8"})
-        else:
-            px, py = point(-.35, 22.35)
-            ET.SubElement(svg, "rect", x=str(px), y=str(py), width=str(22.7 * scale),
-                          height=str(22.7 * scale), fill="none", stroke=ink,
-                          attrib={"stroke-width": "2", "stroke-dasharray": "8 6"})
-            for name, pos in [("A", (4, 4)), ("B", (8, 8))]:
-                px, py = point(*pos)
-                ET.SubElement(svg, "circle", cx=str(px), cy=str(py), r=str(scale), fill=ink)
-                badge = ET.SubElement(svg, "text", x=str(px), y=str(py + scale * .46),
-                                      fill="white", attrib={"font-family": "sans-serif",
-                                      "font-size": str(scale * 1.45), "text-anchor": "middle"})
-                badge.text = name
-        figure.append(svg)
-
-    label(25, 42, "Four CNOT layers in a planar patch rotation", 32, "650")
-    label(26, 71, "Distance 5    ·    West input to north output    ·    Five rounds on a 2 × 2 patch footprint", 17, color=muted)
-    label(26, 112, "Full patch after round 2", 21, "600")
-    label(26, 137, "Tick 12  ·  ancilla readout", 15, color=muted)
-    panel(12, 24, 146, 265, 250)
-    label(26, 420, "Dashed square = rotation block", 14, color=muted)
-    label(330, 112, "Two X checks during round 3", 21, "600")
-    regions = circuit.detecting_regions(targets=["D"], ticks=range(12, 19))
-    detector_coords = circuit.get_detector_coordinates()
-    cx = {}
+def syndrome_rounds(circuit):
     tick = 0
+    gates = defaultdict(set)
     for op in circuit.flattened():
         if op.name == "TICK":
             tick += 1
-        elif op.name == "CX" and 14 <= tick <= 17:
-            ts = op.targets_copy()
-            for a, b in zip(ts[::2], ts[1::2]):
-                px, py = coords[a.value]
-                qx, qy = coords[b.value]
-                cx[tick, (px, py)] = ("N" if qy > py else "S") + ("E" if qx > px else "W")
-    cols = [522, 678, 834, 990]
-    for layer, left in enumerate(cols):
-        label(left + 62, 145, f"CNOT {layer+1}  ·  tick {layer+14}", 15, "600", "middle")
-    for row, (pos, place) in enumerate([((4, 4), "Port triangle"), ((8, 8), "Interior")]):
-        det, = [d for d, cuts in regions.items() if 12 in cuts and 17 in cuts and
-                tuple(detector_coords[d.val]) == pos]
-        top = 155 + 128 * row
-        label(330, top + 39, f"{chr(65 + row)}  ·  {place}", 19, "600")
-        label(330, top + 66, f"{det} at {pos}", 15, color=muted)
-        for layer, left in enumerate(cols):
-            tick = 14 + layer
-            panel(tick, left, top, 124, 90, det, pos)
-            label(left + 62, top + 105, cx[tick, pos], 14, "600", "middle", muted)
-    ET.SubElement(figure, "path", d="M24 441 H1156", stroke="#ccd6db")
-    label(26, 466, "Red = X sensitivity    ·    Blue = Z sensitivity    ·    Dark red dots = sensitive data    ·    Open squares = sensitive ancillas    ·    North is up", 14)
-    subprocess.run(["rsvg-convert", "--width=1652", "--output", str(OUTPUT)],
-                   input=ET.tostring(figure), check=True)
+        elif op.name not in {"DETECTOR", "OBSERVABLE_INCLUDE", "QUBIT_COORDS", "SHIFT_COORDS"}:
+            gates[tick].add(op.name)
+    rounds = []
+    for moment, names in gates.items():
+        if names == {"MPP"}:
+            continue  # Ideal port boundaries surrounding the physical rounds.
+        if names == {"R", "RX"}:
+            rounds.append([])
+        rounds[-1].append(moment)
+    expected = [{"R", "RX"}, {"CX"}, {"CX"}, {"CX"}, {"CX"}, {"M", "MX"}]
+    assert len(rounds) == 5
+    for row in rounds:
+        assert [gates[t] for t in row] == expected
+    return rounds
+
+
+def main():
+    circuit = stim.Circuit.from_file(SOURCE)
+    rounds = syndrome_rounds(circuit)
+    display = y_up(circuit)
+    ticks = [tick for row in rounds for tick in row]
+    regions = circuit.detecting_regions(targets=["D"], ticks=ticks)
+    qubits = set(circuit.get_final_qubit_coordinates())
+    width, height = 1224, 1118
+    figure = ET.Element(f"{{{SVG}}}svg", viewBox=f"0 0 {width} {height}",
+                        width=str(width), height=str(height))
+
+    def rect(x, y, w, h, color):
+        ET.SubElement(figure, "rect", x=str(x), y=str(y), width=str(w), height=str(h), fill=color)
+
+    def label(x, y, content, size, weight="400", color="#203449", anchor="start"):
+        element = ET.SubElement(figure, "text", x=str(x), y=str(y), fill=color, attrib={
+            "font-family": "DejaVu Sans, sans-serif", "font-size": str(size),
+            "font-weight": weight, "text-anchor": anchor})
+        element.text = content
+
+    rect(0, 0, width, height, "white")
+    label(24, 41, "Five syndrome rounds of a planar patch rotation", 33, "650")
+    label(25, 72, "Distance 5   ·   2 × 2 patch cells   ·   West input to north output   ·   Full qubit layout after each tick", 18)
+    for x, color, caption in [(25, "#ff7070", "X sensitivity"), (184, "#70aaff", "Z sensitivity")]:
+        rect(x, 93, 14, 14, color)
+        label(x + 23, 106, caption, 16)
+    label(350, 106, "Dots mark qubits. Physical x increases right and y increases up.", 16, color="#455c6c")
+
+    left, col_width, top, row_height = 116, 182, 163, 177
+    for col, name in enumerate(["Reset", "CNOT 1", "CNOT 2", "CNOT 3", "CNOT 4", "Readout"]):
+        label(left + (col + .5) * col_width, 149, name, 21, "600", anchor="middle")
+    for row_index, row in enumerate(rounds):
+        row_top = top + row_height * row_index
+        rect(24, row_top - 5, width - 48, 1, "#c4d0d6")
+        label(25, row_top + 76, f"Round {row_index + 1}", 19, "650")
+        for col, tick in enumerate(row):
+            # Stim's bare diagram counts the cut before the first moment as zero.
+            raw = display.diagram("detslice-svg", tick=tick + 1, filter_coords=[()])
+            panel = ET.fromstring(str(raw))
+            ids = set()
+            dots = set()
+            for el in panel.iter():
+                identifier = el.attrib.pop("id", "")
+                if identifier.startswith("slice:"):
+                    ids.add(int(identifier.split(":")[1]))
+                elif identifier.startswith("qubit_dot:"):
+                    dots.add(int(identifier.split(":")[1]))
+            assert dots == qubits
+            assert ids == {d.val for d, cuts in regions.items() if tick in cuts}
+            assert all("url(#" not in v for el in panel.iter() for v in el.attrib.values())
+            x = left + col * col_width
+            side = row_height - 13
+            panel.attrib.update(x=str(x + (col_width-side)/2), y=str(row_top + 2),
+                                width=str(side), height=str(side))
+            figure.append(panel)
+            # The west-input / north-output layout leaves the northwest corner free.
+            label(x + 6, row_top + 23, f"t{tick}", 16, "600", "#445969")
+
+    rect(24, 1047, width - 48, 1, "#c4d0d6")
+    label(25, 1074, "Round 1 prepares the data in two bases. Round 5 reads out the data across the perpendicular split.", 16)
+    label(25, 1099, "The input and output port stabilizer measurements bracket these thirty physical moments.", 16, color="#455c6c")
+    raster = subprocess.check_output(["rsvg-convert", "--width=1836"], input=ET.tostring(figure))
+    subprocess.run(["magick", "png:-", "+dither", "-colors", "128", "-strip",
+                    "-define", "png:exclude-chunks=date,time", "-define", "png:compression-level=9",
+                    f"PNG8:{OUTPUT}"], input=raster, check=True)
 
 
 if __name__ == "__main__":
