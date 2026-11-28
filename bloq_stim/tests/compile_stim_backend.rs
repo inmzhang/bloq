@@ -703,3 +703,35 @@ fn two_wall_pipes_at_a_three_arm_junction() {
         }
     }
 }
+
+/// The downloadable proof corpus also pins the compiler's emitted noisy circuits.
+#[test]
+#[ignore = "requires the extracted corpus in target/spatial-wall-junctions"]
+fn published_spatial_hadamard_circuits_recompile_from_blog() {
+    let root =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../target/spatial-wall-junctions");
+    let mut checked = 0;
+    for category in ["gallery", "signed-mixed", "rotations-and-junctions"] {
+        for entry in
+            std::fs::read_dir(root.join(category)).expect("extract the spatial wall corpus")
+        {
+            let directory = entry.unwrap().path();
+            let source = std::fs::read_to_string(directory.join("source.blog")).unwrap();
+            let graph = BlockGraph::from_blog_text(&source).unwrap();
+            for d in [3, 5, 7, 9] {
+                let program = make_context(d).compile(&graph).unwrap().bloq;
+                let actual =
+                    emit_bloq_stim_with_stim_noise(&program, &uniform_depolarizing()).unwrap();
+                let path = directory.join(format!("d{d}.stim"));
+                let expected = std::fs::read_to_string(&path).unwrap();
+                assert!(
+                    actual == expected,
+                    "different noisy Stim for {}",
+                    path.display()
+                );
+                checked += 1;
+            }
+        }
+    }
+    assert_eq!(checked, 468);
+}

@@ -68,6 +68,8 @@ The manifest records the number of concurrent pipes and the hash of each circuit
 ```sh
 mkdir -p target/spatial-wall-junctions
 tar -xJf docs/assets/experiments/spatial-hadamard-junctions.tar.xz -C target/spatial-wall-junctions
+cargo test --locked -p bloq_stim --all-features --test compile_stim_backend \
+  published_spatial_hadamard_circuits_recompile_from_blog -- --ignored
 PYTHONPATH="$PWD/target/tropidist" uv run --project bloq_py --with stim==1.16.0 --with numpy==2.5.1 \
   python tools/spatial_hadamard/verify_corpus.py --junctions target/spatial-wall-junctions
 ```
