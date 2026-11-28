@@ -426,8 +426,8 @@ at its first corner and an east or north pipe at its opposite corner.
 ![Four 3D views of the same planar rotation with west or south inputs and east or north outputs.](assets/planar-rotation-pipes.png)
 
 All four views use the same rotation and camera. Changing the input face
-leaves both output choices available. The circuit and detector slices below
-use the west input and north output.
+leaves both output choices available. The logical deformation example below
+uses the west input and north output.
 
 The two mixed side faces of the axial construction become the preparation
 and readout faces of the planar construction. For the example below, prepare
@@ -469,24 +469,33 @@ single axis is reflected.
 
 #### All five syndrome rounds at distance five
 
+For the detector slices, rotate from the upper right to the lower left.
+The upper-right cube receives the input from the past, and the lower-left
+cube carries the output to the future. Both use temporal ports.
+
+```{bloq-view} planar-rotation-temporal-ports
+:source: _static/constructions/planar-rotation-temporal-ports.blog
+```
+
 Read across each row from ancilla reset through four CNOT layers to
 ancilla readout. Each panel shows detector sensitivity across the whole
-rotation and both port patches after that moment. A fault on the marked
+rotation and both neighboring patches after that moment. A fault on the marked
 support flips the detector if it anticommutes with the indicated Pauli.
 Rounds 2–4 have the same detector support at each of the six cuts. The
 middle row shows round 2 (ticks 7–12), with ×3 marking the repetition.
 
 ![Full-patch detector slices for rounds 1, 2–4 (×3), and 5. Each row shows reset, four CNOT layers, and readout.](assets/planar-rotation-detectors.png)
 
-Follow the readout column. At ticks 6, 12, 18 and 24, 179 detector regions
-extend into the next round. Tick 30 also measures the slab data. Only 24
-regions remain, on the output patch, for its boundary checks. The ideal
-input and output port projections occur at ticks 0 and 31, outside the five
-syndrome rounds. {download}`Open the full-resolution detector slices <assets/planar-rotation-detectors.png>`.
+The upper-right input at tick 0 and the lower-left output at tick 30 each
+carry the same 24 X- and Z-check supports, translated to their respective
+patches. Between rounds (ticks 6, 12, 18 and 24), 179 detector regions
+span the merged patch. Tick 30 also reads out the slab data, leaving just
+the output checks for the temporal port projection at tick 31.
+{download}`Open the full-resolution detector slices <assets/planar-rotation-detectors.png>`.
 
 The zoomable view overlays the gates in round 3 (ticks 13–18).
 
-```{detector-slices} planar-rotation
+```{detector-slices} planar-rotation-temporal-ports
 ```
 
 #### Logical operator deformation

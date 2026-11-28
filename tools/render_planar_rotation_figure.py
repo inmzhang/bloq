@@ -1,6 +1,7 @@
 """Render the first, repeated middle, and final rounds of the planar rotation.
 
-Run from the repository root after render_construction_slices.py --only planar-rotation.
+Run from the repository root after rendering planar-rotation-temporal-ports
+with render_construction_slices.py.
 Rendering the indexed PNG requires rsvg-convert (librsvg) and ImageMagick.
 """
 
@@ -13,7 +14,7 @@ import stim
 
 from render_construction_slices import SVG, y_up
 
-SOURCE = Path("docs/_static/constructions/planar-rotation.stim")
+SOURCE = Path("docs/_static/constructions/planar-rotation-temporal-ports.stim")
 OUTPUT = Path("docs/assets/planar-rotation-detectors.png")
 
 
@@ -39,12 +40,28 @@ def syndrome_rounds(circuit):
     return rounds
 
 
+def boundary_supports(regions, coords, tick):
+    """Compare the boundary check supports up to a spatial translation."""
+    supports = [
+        [(coords[q], basis) for basis in "XYZ" for q in cuts[tick].pauli_indices(basis)]
+        for cuts in regions.values()
+        if tick in cuts
+    ]
+    x0 = min(x for support in supports for (x, _), _ in support)
+    y0 = min(y for support in supports for (_, y), _ in support)
+    return Counter(
+        tuple(sorted((x - x0, y - y0, basis) for (x, y), basis in support))
+        for support in supports
+    )
+
+
 def main():
     circuit = stim.Circuit.from_file(SOURCE)
     rounds = syndrome_rounds(circuit)
     display = y_up(circuit)
     ticks = [tick for row in rounds for tick in row]
-    regions = circuit.detecting_regions(targets=["D"], ticks=ticks)
+    input_tick = ticks[0] - 1
+    regions = circuit.detecting_regions(targets=["D"], ticks=[input_tick, *ticks])
     # Detector IDs advance between rounds. Compare the Pauli supports, with multiplicity.
     for repeated_ticks in zip(*rounds[1:4], strict=True):
         first, *rest = [
@@ -53,7 +70,9 @@ def main():
         ]
         assert all(supports == first for supports in rest), repeated_ticks
 
-    qubits = set(circuit.get_final_qubit_coordinates())
+    coords = circuit.get_final_qubit_coordinates()
+    assert boundary_supports(regions, coords, input_tick) == boundary_supports(regions, coords, ticks[-1])
+    qubits = set(coords)
     left, col_width, top, row_height = 140, 182, 163, 177
     rows = [("Round 1", rounds[0]), ("Rounds 2–4", rounds[1]), ("Round 5", rounds[4])]
     footer = top + row_height * len(rows)
@@ -72,7 +91,7 @@ def main():
 
     rect(0, 0, width, height, "white")
     label(24, 41, "Five syndrome rounds of a planar patch rotation", 33, "650")
-    label(25, 72, "Distance 5   ·   2 × 2 patch cells   ·   West input to north output   ·   Detector support after each moment", 18)
+    label(25, 72, "Distance 5   ·   2 × 2 patch cells   ·   North input to west output   ·   Detector support after each moment", 18)
     for x, color, caption in [(25, "#ff7070", "X sensitivity"), (184, "#70aaff", "Z sensitivity")]:
         rect(x, 93, 14, 14, color)
         label(x + 23, 106, caption, 16)
@@ -107,12 +126,12 @@ def main():
             panel.attrib.update(x=str(x + (col_width-side)/2), y=str(row_top + 2),
                                 width=str(side), height=str(side))
             figure.append(panel)
-            # The west-input / north-output layout leaves the northwest corner free.
+            # The upper-left corner of each panel is clear of the patch.
             label(x + 6, row_top + 23, f"t{tick}", 16, "600", "#445969")
 
     rect(24, footer - 5, width - 48, 1, "#c4d0d6")
     label(25, footer + 25, "Round 1 prepares the data in two bases. Round 5 reads out the data across the perpendicular split.", 16)
-    label(25, footer + 49, "Ideal port stabilizer measurements precede round 1 and follow round 5.", 16, color="#455c6c")
+    label(25, footer + 49, "The upper-right patch enters from the past. The lower-left patch exits to the future.", 16, color="#455c6c")
     raster = subprocess.check_output(["rsvg-convert", "--width=1836"], input=ET.tostring(figure))
     subprocess.run(["magick", "png:-", "+dither", "-colors", "128", "-strip",
                     "-define", "png:exclude-chunks=date,time", "-define", "png:compression-level=9",

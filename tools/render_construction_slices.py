@@ -118,6 +118,12 @@ def examples() -> list[Example]:
         "in q_in: data = 0\nout q_out: data = 2\n0: Port [-1,0,1] role=input\n"
         "1: rotate Z [0,0,1] -> [1,1,1]\n2: Port [1,2,1] role=output\n"
         "0 -> +X\n[1,1,1] -> +Y"))
+    cases.append(Example("planar-rotation-temporal-ports", "planar-rotation",
+        "in q_in: data = 0\nout q_out: data = 4\n"
+        "0: Port [1,2,0] role=input\n1: XZZ [1,2,1]\n"
+        "2: rotate Z [1,1,1] -> [0,0,1]\n3: XZX [-1,0,1]\n"
+        "4: Port [-1,0,2] role=output\n"
+        "0 -> +Z\n1 -> [1,1,1]\n[0,0,1] -> 3\n3 -> +Z"))
     for kind in ("ZXZ", "XZX", "XZZ", "ZXX"):
         other = kind.translate(str.maketrans("XZ", "ZX"))
         cases.append(Example("temporal-hadamard-" + kind.lower(), "temporal-h",
@@ -163,7 +169,7 @@ def compiled_stages(case: Example, distance: int):
     program = bloq.compile(bloq.BlockGraph.from_text(case.source), distance=distance)
     limitations = []
     if case.family == "planar-rotation":
-        # Align the port substitutions and the enlarged patch on their shared clock.
+        # Align the enlarged patch and its neighbors on their shared clock.
         circuit = bloq.emit_stim(program, align_moments=True)
         assert circuit.num_ticks == 6 * distance + 2
         return circuit, [stage("Round 3, from ancilla reset to readout", 13, 19)], [], {}
